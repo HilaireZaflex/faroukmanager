@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "https://faroukmanager.onrender.com",
         "https://faroukmanager-frontend.onrender.com",
+        "https://aroukmanager-backend.onrender.com",
     ]
 
     ADMIN_EMAIL: str = "admin@faroukmanager.com"
