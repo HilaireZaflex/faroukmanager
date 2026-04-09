@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# Base de données locale
+*.db
+*.sqlite3
+
+# Node
+node_modules/
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+
+# Logs
+*.log
+/tmp/
+
+# OS
+.DS_Store
+.idea/
+.vscode/
+
+# Render
+.render/

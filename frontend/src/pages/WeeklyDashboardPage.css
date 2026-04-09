@@ -1,0 +1,5 @@
+.weekly-page {}
+.week-nav { display:flex; align-items:center; gap:10px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm); padding:4px 10px; }
+.week-label { font-size:13px; font-weight:700; color:var(--text-primary); min-width:140px; text-align:center; }
+.weekly-stat-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:13px; color:var(--text-secondary); }
+.weekly-stat-row:last-child { border-bottom:none; }

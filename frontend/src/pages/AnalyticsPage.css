@@ -1,0 +1,63 @@
+.analytics-page {}
+
+.analytics-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.seg-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.seg-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.seg-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.seg-name { flex: 1; color: var(--text-secondary); }
+.seg-count { font-weight: 700; color: var(--text-primary); }
+
+.risk-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+.risk-item:hover { background: rgba(255,255,255,0.05); }
+.risk-info { flex: 1; overflow: hidden; }
+.risk-prob { display: flex; align-items: center; gap: 8px; }
+
+.heatmap-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.heatmap-zone {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  width: 110px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heatmap-bar-wrap { flex: 1; }
+
+@media (max-width: 900px) {
+  .analytics-row { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,160 @@
+.superviseurs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.superviseur-card {
+  padding: 16px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.superviseur-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 105, 0, 0.1) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.superviseur-card:hover {
+  border-color: var(--primary) !important;
+}
+
+.superviseur-card:hover::before {
+  opacity: 1;
+}
+
+.superviseur-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.superviseur-kpi {
+  text-align: center;
+}
+
+.superviseur-kpi-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.superviseur-kpi-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+tbody td {
+  padding: 13px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  vertical-align: middle;
+}
+
+tbody tr {
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+tbody tr:hover {
+  background: rgba(255, 105, 0, 0.04);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mt-24 {
+  margin-top: 24px;
+}
+
+.mb-24 {
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+  .superviseurs-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .superviseurs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .superviseur-kpis {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .superviseur-kpi-value {
+    font-size: 13px;
+  }
+
+  .superviseur-kpi-label {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 640px) {
+  .superviseurs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-wrapper {
+    font-size: 12px;
+  }
+
+  thead th {
+    padding: 10px 12px;
+    font-size: 10px;
+  }
+
+  tbody td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}

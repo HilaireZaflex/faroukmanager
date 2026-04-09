@@ -1,0 +1,1013 @@
+import React, { useState, useEffect } from 'react';
+import { useQuery } from 'react-query';
+import { useNavigate } from 'react-router-dom';
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area
+} from 'recharts';
+import {
+  DollarSign, Store, AlertTriangle, TrendingUp, Activity, Users, ChevronLeft, ChevronRight,
+  Download, Home, Trophy, BarChart3, TrendingDown, Battery, Zap, Target, Filter
+} from 'lucide-react';
+import KPICard from '../components/common/KPICard';
+import api from '../services/api';
+import './DashboardPage.css';
+import * as XLSX from 'xlsx';
+
+const MOIS_NOMS = {
+  1: 'Janvier', 2: 'Février', 3: 'Mars', 4: 'Avril', 5: 'Mai', 6: 'Juin',
+  7: 'Juillet', 8: 'Août', 9: 'Septembre', 10: 'Octobre', 11: 'Novembre', 12: 'Décembre'
+};
+
+const ZONE_COLORS = ['#FF6900', '#00d68f', '#3742fa', '#ffa502', '#ff4757', '#a29bfe', '#fd79a8', '#00cec9'];
+
+function formatCA(value) {
+  if (!value || value === 0) return '0 FCFA';
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)} Md FCFA`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} M FCFA`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(0)} K FCFA`;
+  return new Intl.NumberFormat('fr-FR').format(Math.round(value)) + ' FCFA';
+}
+
+function getAlertLevel(value, type = 'inactif') {
+  if (type === 'inactif') {
+    if (value >= 3) return { level: 'CRITIQUE', color: '#ff4757', bg: 'rgba(255,71,87,0.1)' };
+    if (value === 2) return { level: 'HAUTE', color: '#ffa502', bg: 'rgba(255,165,2,0.1)' };
+    return { level: 'NORMALE', color: '#999', bg: 'rgba(153,153,153,0.1)' };
+  }
+  if (type === 'baisse') {
+    if (value > 30) return { level: 'CRITIQUE', color: '#ff4757', bg: 'rgba(255,71,87,0.1)' };
+    if (value > 15) return { level: 'HAUTE', color: '#ffa502', bg: 'rgba(255,165,2,0.1)' };
+    return { level: 'NORMALE', color: '#999', bg: 'rgba(153,153,153,0.1)' };
+  }
+  return { level: 'NORMAL', color: '#999', bg: 'rgba(153,153,153,0.1)' };
+}
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 10, padding: '10px 14px' }}>
+        <p style={{ color: '#aaa', fontSize: 12, marginBottom: 4 }}>{label}</p>
+        {payload.map((p, i) => (
+          <p key={i} style={{ color: p.color || '#FF6900', fontWeight: 700, fontSize: 13 }}>
+            {formatCA(p.value)}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+// ============ TAB 1: Vue d'ensemble ============
+function TabOverview({ annee, mois }) {
+  const { data: dashboard, isLoading } = useQuery(
+    ['dashboard-monthly', annee, mois],
+    () => api.get(`/dashboard/monthly?annee=${annee}&mois=${mois}`).then(r => r.data),
+    { staleTime: 60000 }
+  );
+  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 60000 });
+
+  const totalCA = dashboard?.total_ca || 0;
+  const activePDVs = dashboard?.active_pdvs || 0;
+  const inactivePDVs = dashboard?.inactive_pdvs || 0;
+  const totalPDVs = dashboard?.total_pdvs || stats?.total_pdvs || 0;
+  const taux = dashboard?.taux_activite || 0;
+  const caaCumule = dashboard?.ca_cumule || 0;
+
+  const caByZone = dashboard?.ca_by_zone
+    ? Object.entries(dashboard.ca_by_zone).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca)
+    : [];
+  const caBySup = dashboard?.ca_by_superviseur
+    ? Object.entries(dashboard.ca_by_superviseur).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8)
+    : [];
+  const caByGest = dashboard?.ca_by_gestionnaire
+    ? Object.entries(dashboard.ca_by_gestionnaire).map(([gest, ca]) => ({ gest, ca })).sort((a, b) => b.ca - a.ca).slice(0, 6)
+    : [];
+  const caByType = dashboard?.ca_by_type
+    ? Object.entries(dashboard.ca_by_type).map(([type, ca]) => ({ type, ca }))
+    : [];
+
+  const avgCA = dashboard?.average_ca || 0;
+  const avgVariation = dashboard?.avg_variation || 0;
+  const totalOps = dashboard?.total_operations || 0;
+  const totalDepots = dashboard?.total_depots || 0;
+  const totalRetraits = dashboard?.total_retraits || 0;
+  const montantDepots = dashboard?.montant_depots || 0;
+  const montantRetraits = dashboard?.montant_retraits || 0;
+
+  return (
+    <div>
+      {/* KPIs row 1 */}
+      <div className="grid-4 mb-16">
+        <KPICard title="CA Total" formatted={formatCA(totalCA)} icon={DollarSign} color="#FF6900" loading={isLoading} subtitle={`${MOIS_NOMS[mois]} ${annee}`} />
+        <KPICard title="CA Cumulé" formatted={formatCA(caaCumule)} icon={TrendingUp} color="#a29bfe" loading={isLoading} subtitle={`Jan → ${MOIS_NOMS[mois]} ${annee}`} />
+        <KPICard title="PDVs Actifs" value={activePDVs} icon={Store} color="#00d68f" loading={isLoading} subtitle={`sur ${totalPDVs} PDVs`} />
+        <KPICard title="Taux Activité" formatted={`${taux.toFixed(1)}%`} icon={Activity} color={taux >= 70 ? '#00d68f' : taux >= 50 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Objectif: 75%" />
+      </div>
+      {/* KPIs row 2 */}
+      <div className="grid-4 mb-16">
+        <KPICard title="CA Moyen / PDV" formatted={formatCA(avgCA)} icon={DollarSign} color="#ffa502" loading={isLoading} />
+        <KPICard title="Variation Moy." formatted={`${avgVariation >= 0 ? '+' : ''}${avgVariation.toFixed(0)}%`} icon={TrendingUp} color={avgVariation >= 0 ? '#00d68f' : '#ff4757'} loading={isLoading} />
+        <KPICard title="PDVs Inactifs" value={inactivePDVs} icon={AlertTriangle} color="#ff4757" loading={isLoading} subtitle={`${(100 - taux).toFixed(1)}% du réseau`} />
+        <KPICard title="Total Opérations" value={totalOps} icon={Activity} color="#3742fa" loading={isLoading} />
+      </div>
+      {/* KPIs row 3 - Dépôts/Retraits */}
+      <div className="grid-4 mb-24">
+        <KPICard title="Nb Dépôts" value={totalDepots} icon={TrendingUp} color="#00d68f" loading={isLoading} />
+        <KPICard title="Montant Dépôts" formatted={formatCA(montantDepots)} icon={DollarSign} color="#00d68f" loading={isLoading} />
+        <KPICard title="Nb Retraits" value={totalRetraits} icon={TrendingDown} color="#fd79a8" loading={isLoading} />
+        <KPICard title="Montant Retraits" formatted={formatCA(montantRetraits)} icon={DollarSign} color="#fd79a8" loading={isLoading} />
+      </div>
+
+      <div className="charts-row mb-24">
+        <div className="chart-card chart-large">
+          <div className="chart-header"><h3>CA par Zone</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={caByZone} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="zone" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="ca" radius={[6,6,0,0]} fill="url(#barGradient)">
+                {caByZone.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="chart-card chart-small">
+          <div className="chart-header"><h3>Types PDV</h3></div>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={caByType.length ? caByType : Object.entries(stats?.pdvs_par_type || {}).map(([k,v])=>({name:k,value:v}))} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey={caByType.length ? "ca" : "value"} nameKey={caByType.length ? "type" : "name"} paddingAngle={3}>
+                {(caByType.length ? caByType : Object.keys(stats?.pdvs_par_type || {})).map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
+              </Pie>
+              <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 10 }} formatter={v => formatCA(v)} />
+              <Legend iconSize={10} iconType="circle" formatter={v => <span style={{ color: '#ccc', fontSize: 12 }}>{v}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Graphiques Superviseur + Gestionnaire */}
+      <div className="charts-row mb-24">
+        <div className="chart-card chart-large">
+          <div className="chart-header"><h3>CA par Superviseur</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={caBySup} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} />
+              <YAxis type="category" dataKey="sup" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="ca" fill="#FF6900" radius={[0,6,6,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="chart-card chart-small">
+          <div className="chart-header"><h3>CA par Gestionnaire</h3></div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={caByGest} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} />
+              <YAxis type="category" dataKey="gest" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="ca" fill="#a29bfe" radius={[0,6,6,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Classements superviseurs et top/bottom PDVs */}
+      {dashboard?.classement_superviseurs && dashboard.classement_superviseurs.length > 0 && (
+        <div className="card mb-16">
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs — {MOIS_NOMS[mois]} {annee}</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>CA Total</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>CA Moy.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboard.classement_superviseurs.map((s, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.superviseur}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{s.actifs ?? s.nb_pdvs ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{s.inactifs ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(s.ca_total ?? s.ca)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(s.ca_moyen ?? (s.ca / (s.nb_pdvs || 1)))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============ TAB 2: Suivi des Top ============
+function TabTopPDVs({ annee, mois }) {
+  const [topN, setTopN] = useState(20);
+  const [selectedPDV, setSelectedPDV] = useState(null);
+  const [selectedPDVNom, setSelectedPDVNom] = useState('');
+  const [historyData, setHistoryData] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const { data: topPDVs, isLoading } = useQuery(
+    ['classements', annee, mois, topN],
+    () => api.get(`/dashboard/classements?annee=${annee}&mois=${mois}&n=${topN}`).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const loadHistory = async (pdvId, pdvNom) => {
+    if (!pdvId) return;
+    if (selectedPDV === pdvId) { setSelectedPDV(null); setHistoryData([]); return; }
+    setLoadingHistory(true);
+    setHistoryData([]);
+    try {
+      const res = await api.get(`/dashboard/pdv-monthly-history/${pdvId}`);
+      const histo = res.data?.historique || res.data?.historique_mensuel || [];
+      const sorted = [...histo].sort((a, b) => (a.annee * 100 + a.mois) - (b.annee * 100 + b.mois));
+      const MOIS_ABR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+      const formatted = sorted.map(h => ({
+        mois: MOIS_ABR[(h.mois - 1)] || `M${h.mois}`,
+        ca: h.ca || 0,
+      }));
+      setHistoryData(formatted);
+      setSelectedPDV(pdvId);
+      setSelectedPDVNom(pdvNom);
+    } catch (e) {
+      console.error('Erreur chargement historique:', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const exportExcel = () => {
+    if (!topPDVs?.top_pdvs_ca) return;
+    const data = topPDVs.top_pdvs_ca.map((pdv, idx) => ({
+      'Rang': idx + 1,
+      'PDV': pdv.nom,
+      'Numéro': pdv.numero_pdv,
+      'CA': pdv.ca,
+      'Quartier': pdv.quartier,
+      'Superviseur': pdv.superviseur,
+      'Gestionnaire': pdv.gestionnaire || '-',
+      'Médaille': pdv.medaille,
+      'Opérations': pdv.nb_operations,
+      'Variation %': pdv.taux_variation?.toFixed(2) + '%'
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Top PDVs');
+    XLSX.writeFile(wb, `top-pdvs-${annee}-${mois}.xlsx`);
+  };
+
+  const pdvList = topPDVs?.top_pdvs_ca || [];
+
+  return (
+    <div>
+      <div className="card mb-16" style={{ padding: '16px 20px', display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+            Afficher le Top : <span style={{ color: 'var(--primary)', fontWeight: 800 }}>Top {topN}</span>
+          </label>
+          <input
+            type="range"
+            min="10"
+            max="50"
+            step="10"
+            value={topN}
+            onChange={e => setTopN(parseInt(e.target.value))}
+            style={{ width: '100%', accentColor: 'var(--primary)' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#555', marginTop: 4 }}>
+            <span>Top 10</span><span>Top 20</span><span>Top 30</span><span>Top 40</span><span>Top 50</span>
+          </div>
+        </div>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Excel
+        </button>
+      </div>
+
+      {selectedPDV && historyData.length > 0 && (
+        <div style={{ marginBottom: 20, padding: 20, background: 'var(--bg-card)', borderRadius: 14, border: '1px solid rgba(255,105,0,0.3)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <h3 style={{ fontWeight: 700, fontSize: 15 }}>📈 Évolution mensuelle — {selectedPDVNom}</h3>
+              <p style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>CA réalisé mois par mois — {annee}</p>
+            </div>
+            <button onClick={() => { setSelectedPDV(null); setHistoryData([]); }}
+              style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 18, borderRadius: 8, width: 32, height: 32 }}>✕</button>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={historyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="mois" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 11 }} tickFormatter={v => formatCA(v)} width={80} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="ca" stroke="#FF6900" fill="rgba(255,105,0,0.15)" strokeWidth={2.5} dot={{ r: 4, fill: '#FF6900' }} activeDot={{ r: 6 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>Rang</th><th>PDV</th><th>CA</th><th>Gérant</th><th>Quartier</th><th>Superviseur</th><th>Gestionnaire</th><th>Médaille</th><th>Evolution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+            ) : pdvList.slice(0, topN).map((pdv, idx) => {
+              const medal = pdv.medaille || '';
+              const medalColor = medal === 'OR' ? '#FFD700' : medal === 'ARGENT' ? '#C0C0C0' : medal === 'BRONZE' ? '#CD7F32' : '#999';
+              const medalIcon = medal === 'OR' ? '🥇' : medal === 'ARGENT' ? '🥈' : medal === 'BRONZE' ? '🥉' : '';
+              return (
+                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: selectedPDV === pdv.pdv_id ? 'rgba(255,105,0,0.05)' : 'transparent' }}>
+                  <td style={{ textAlign: 'center', fontWeight: 700, color: idx < 3 ? '#FF6900' : '#aaa' }}>{idx + 1}</td>
+                  <td>
+                    <div style={{ fontWeight: 700 }}>{pdv.nom}</div>
+                    <div style={{ fontSize: 11, color: '#8a8a9a' }}>#{pdv.numero_pdv} · {pdv.zone}</div>
+                  </td>
+                  <td style={{ fontWeight: 700, color: '#FF6900' }}>{formatCA(pdv.ca)}</td>
+                  <td style={{ color: '#ccc' }}>{pdv.nom_gerant || '—'}</td>
+                  <td style={{ color: '#ccc' }}>{pdv.quartier || '—'}</td>
+                  <td style={{ color: '#ccc' }}>{pdv.superviseur || '—'}</td>
+                  <td style={{ color: '#ccc' }}>{pdv.gestionnaire || '—'}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {medalIcon ? <span style={{ color: medalColor, fontWeight: 700, fontSize: 16 }}>{medalIcon}</span> : <span style={{ color: '#555' }}>—</span>}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      style={{ cursor: 'pointer', background: selectedPDV === pdv.pdv_id ? 'rgba(255,105,0,0.3)' : 'rgba(255,105,0,0.1)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 6, color: '#FF6900', padding: '5px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
+                      onClick={() => loadHistory(pdv.pdv_id, pdv.nom)}>
+                      {loadingHistory && selectedPDV === pdv.pdv_id ? '⏳' : '📊'} {selectedPDV === pdv.pdv_id ? 'Fermer' : 'Voir'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  );
+}
+
+// ============ TAB 3: Rapport Pareto ============
+function TabPareto({ annee, mois }) {
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [supFilter, setSupFilter] = useState('');
+  const [gestFilter, setGestFilter] = useState('');
+  const [sortBy, setSortBy] = useState('rang');
+
+  const { data: pareto, isLoading } = useQuery(
+    ['pareto', annee, mois],
+    () => api.get(`/dashboard/pareto?annee=${annee}&mois=${mois}`).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 60000 });
+
+  const exportExcel = () => {
+    if (!pareto?.pareto_pdvs) return;
+    const data = pareto.pareto_pdvs.map((pdv, idx) => ({
+      'Rang': idx + 1,
+      'PDV': pdv.nom,
+      'Zone': pdv.zone,
+      'Superviseur': pdv.superviseur,
+      'CA': pdv.ca,
+      '% CA': pdv.pct_ca?.toFixed(2) + '%',
+      'Cumul %': pdv.cumul_pct?.toFixed(2) + '%',
+      'Impact': pdv.dans_pareto ? 'Fort' : 'Faible'
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Pareto');
+    XLSX.writeFile(wb, `pareto-${annee}-${mois}.xlsx`);
+  };
+
+  const allPDVs = pareto?.pareto_pdvs || [];
+  const zoneList = [...new Set(allPDVs.map(p => p.zone).filter(Boolean))];
+  const supList = [...new Set(allPDVs.map(p => p.superviseur).filter(Boolean))];
+  const gestList = [...new Set(allPDVs.map(p => p.gestionnaire).filter(Boolean))];
+
+  const filteredPDVs = allPDVs.filter(p =>
+    (!zoneFilter || p.zone === zoneFilter) &&
+    (!supFilter || p.superviseur === supFilter) &&
+    (!gestFilter || p.gestionnaire === gestFilter)
+  );
+
+  const fortImpact = filteredPDVs.filter(p => p.dans_pareto).reduce((sum, p) => sum + (p.ca || 0), 0);
+  const faibleImpact = filteredPDVs.filter(p => !p.dans_pareto).reduce((sum, p) => sum + (p.ca || 0), 0);
+
+  return (
+    <div>
+      <div className="grid-2 mb-24">
+        <div className="kpi-card" style={{ background: 'linear-gradient(135deg, rgba(255,105,0,0.1), rgba(255,105,0,0.05))', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 'var(--radius)', padding: 20 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Fort Impact (Pareto)</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#FF6900' }}>{formatCA(fortImpact)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>PDVs avec forte contribution</div>
+        </div>
+        <div className="kpi-card" style={{ background: 'linear-gradient(135deg, rgba(100,200,200,0.1), rgba(100,200,200,0.05))', border: '1px solid rgba(100,200,200,0.2)', borderRadius: 'var(--radius)', padding: 20 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Faible Impact</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#00cec9' }}>{formatCA(faibleImpact)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>Gini: {pareto?.gini_coefficient?.toFixed(3)}</div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Filter size={16} style={{ color: '#8a8a9a' }} />
+        <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', fontSize: 13 }}>
+          <option value="">Toutes les zones</option>
+          {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
+        </select>
+        <select value={supFilter} onChange={e => setSupFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', fontSize: 13 }}>
+          <option value="">Tous les superviseurs</option>
+          {supList.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={gestFilter} onChange={e => setGestFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', fontSize: 13 }}>
+          <option value="">Tous les gestionnaires</option>
+          {gestList.map(g => <option key={g} value={g}>{g}</option>)}
+        </select>
+        {(zoneFilter || supFilter || gestFilter) && (
+          <button onClick={() => { setZoneFilter(''); setSupFilter(''); setGestFilter(''); }}
+            style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,71,87,0.15)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 12, cursor: 'pointer' }}>
+            ✕ Effacer
+          </button>
+        )}
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto' }}>
+          <Download size={14} /> Excel
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>Rang</th><th>PDV</th><th>Zone</th><th>Superviseur</th><th>CA</th><th>% CA</th><th>Cumul %</th><th>Impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredPDVs.map((pdv, idx) => (
+              <tr key={idx}>
+                <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                <td><strong>{pdv.nom}</strong></td>
+                <td>{pdv.zone}</td>
+                <td>{pdv.superviseur}</td>
+                <td><strong style={{ color: 'var(--primary)' }}>{formatCA(pdv.ca)}</strong></td>
+                <td>{pdv.pct_ca?.toFixed(2)}%</td>
+                <td style={{ fontWeight: 700 }}>{pdv.cumul_pct?.toFixed(2)}%</td>
+                <td>
+                  <span style={{
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: pdv.dans_pareto ? 'rgba(255,105,0,0.2)' : 'rgba(100,200,200,0.2)',
+                    color: pdv.dans_pareto ? '#FF6900' : '#00cec9'
+                  }}>
+                    {pdv.dans_pareto ? '💪 Fort' : '📉 Faible'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============ TAB 4: Evolution ============
+function TabEvolution({ annee, mois }) {
+  const [compareAnnee, setCompareAnnee] = useState(annee);
+  const [compareMois, setCompareMois] = useState(mois);
+  const [activeSub, setActiveSub] = useState('pdvs');
+
+  const prevMonth = () => {
+    if (compareMois === 1) { setCompareMois(12); setCompareAnnee(a => a - 1); }
+    else setCompareMois(m => m - 1);
+  };
+
+  const nextMonth = () => {
+    if (compareMois === 12) { setCompareMois(1); setCompareAnnee(a => a + 1); }
+    else setCompareMois(m => m + 1);
+  };
+
+  const { data: evolution, isLoading } = useQuery(
+    ['evolution', annee, mois],
+    () => api.get(`/dashboard/monthly-evolution?annee=${annee}&mois=${mois}`).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const totalVariation = (evolution?.total_ca_actuel || 0) - (evolution?.total_ca_precedent || 0);
+  const totalTaux = evolution?.taux_variation_total || 0;
+
+  const prevMois = mois === 1 ? 12 : mois - 1;
+  const prevAnnee = mois === 1 ? annee - 1 : annee;
+
+  const getPDVData = () => (evolution?.par_pdv || []).map(p => ({
+    nom: p.nom || p.numero_pdv,
+    actuel: p.ca_actuel || 0,
+    precedent: p.ca_precedent || 0,
+    variation: p.variation || 0,
+    taux: p.taux || 0,
+  }));
+
+  const getSuperviseurData = () => (evolution?.par_superviseur || []).map(s => ({
+    nom: s.superviseur,
+    actuel: s.ca_actuel || 0,
+    precedent: s.ca_precedent || 0,
+    variation: s.variation || 0,
+    taux: s.taux || 0,
+  }));
+
+  const getGestionnaireData = () => (evolution?.par_gestionnaire || []).map(g => ({
+    nom: g.gestionnaire,
+    actuel: g.ca_actuel || 0,
+    precedent: g.ca_precedent || 0,
+    variation: g.variation || 0,
+    taux: g.taux || 0,
+  }));
+
+  const dataToShow = activeSub === 'pdvs' ? getPDVData() : activeSub === 'superviseurs' ? getSuperviseurData() : getGestionnaireData();
+
+  const exportExcel = () => {
+    const data = dataToShow.map((row, idx) => ({
+      'Rang': idx + 1,
+      'Nom': row.nom,
+      'CA Actuel': row.actuel,
+      'CA Précédent': row.precedent,
+      'Variation': row.variation,
+      'Taux %': row.taux.toFixed(2) + '%'
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Evolution');
+    XLSX.writeFile(wb, `evolution-${activeSub}-${annee}-${mois}.xlsx`);
+  };
+
+  return (
+    <div>
+      <div className="grid-4 mb-24">
+        <KPICard title={`CA ${MOIS_NOMS[mois]} ${annee}`} formatted={formatCA(evolution?.total_ca_actuel || 0)} icon={DollarSign} color="#00d68f" subtitle="Mois actuel" />
+        <KPICard title={`CA ${MOIS_NOMS[prevMois]} ${prevAnnee}`} formatted={formatCA(evolution?.total_ca_precedent || 0)} icon={TrendingUp} color="#ffa502" subtitle="Mois précédent" />
+        <KPICard title="Variation" formatted={(totalVariation >= 0 ? '+' : '') + formatCA(totalVariation)} icon={TrendingUp} color={totalVariation >= 0 ? '#00d68f' : '#ff4757'} />
+        <KPICard title="Taux Global" formatted={`${totalTaux >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(totalTaux))}%`} icon={Activity} color={totalTaux >= 0 ? '#00d68f' : '#ff4757'} />
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <div className="tabs-container">
+          {['PDVs', 'Superviseurs', 'Gestionnaires'].map((label, idx) => (
+            <button
+              key={idx}
+              className={`tab-btn ${activeSub === ['pdvs', 'superviseurs', 'gestionnaires'][idx] ? 'active' : ''}`}
+              onClick={() => setActiveSub(['pdvs', 'superviseurs', 'gestionnaires'][idx])}
+            >
+              {label}
+            </button>
+          ))}
+          <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto' }}>
+            <Download size={14} /> Excel
+          </button>
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>Rang</th><th>Nom</th>
+              <th style={{ color: '#00d68f' }}>CA {MOIS_NOMS[mois]} {annee}</th>
+              <th style={{ color: '#ffa502' }}>CA {MOIS_NOMS[prevMois]} {prevAnnee}</th>
+              <th>Variation</th><th>Taux</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dataToShow.map((row, idx) => (
+              <tr key={idx}>
+                <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                <td><strong>{row.nom}</strong></td>
+                <td>{formatCA(row.actuel)}</td>
+                <td>{formatCA(row.precedent)}</td>
+                <td style={{ color: row.variation >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
+                  {row.variation >= 0 ? '+' : ''}{formatCA(row.variation)}
+                </td>
+                <td style={{ color: row.taux >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
+                  <span style={{ padding: '3px 8px', borderRadius: 10, fontSize: 11, background: row.taux >= 0 ? 'rgba(0,214,143,0.15)' : 'rgba(255,71,87,0.15)' }}>
+                    {row.taux >= 0 ? '▲' : '▼'} {Math.abs(Math.round(row.taux))}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============ TAB 5: PDV Inactifs ============
+function TabInactivePDVs({ annee, mois }) {
+  const { data: inactifs, isLoading } = useQuery(
+    ['inactifs', annee, mois],
+    () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const exportExcel = () => {
+    if (!inactifs?.pdvs) return;
+    const data = inactifs.pdvs.map((pdv, idx) => ({
+      'Rang': idx + 1,
+      'PDV': pdv.nom,
+      'Numéro Personnel': pdv.numero_personnel,
+      'Superviseur': pdv.superviseur,
+      'Zone': pdv.zone,
+      'Sous-zone': pdv.sous_zone,
+      'Téléconseillère': pdv.teleconseillere,
+      'Nb Mois Inactif': pdv.nb_mois_consecutifs_inactif,
+      'Alerte': pdv.alerte
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inactifs');
+    XLSX.writeFile(wb, `inactifs-${annee}-${mois}.xlsx`);
+  };
+
+  const critique = (inactifs?.pdvs || []).filter(p => p.nb_mois_consecutifs_inactif >= 3).length;
+  const haute = (inactifs?.pdvs || []).filter(p => p.nb_mois_consecutifs_inactif === 2).length;
+  const normale = (inactifs?.pdvs || []).filter(p => p.nb_mois_consecutifs_inactif === 1).length;
+
+  return (
+    <div>
+      <div className="grid-4 mb-24">
+        <KPICard title="Total Inactifs" value={inactifs?.count || 0} icon={AlertTriangle} color="#ff4757" />
+        <KPICard title="Critique (≥3m)" value={critique} icon={AlertTriangle} color="#ff4757" />
+        <KPICard title="Haute (2m)" value={haute} icon={AlertTriangle} color="#ffa502" />
+        <KPICard title="Normale (1m)" value={normale} icon={AlertTriangle} color="#999" />
+      </div>
+
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-ghost" onClick={exportExcel}>
+          <Download size={14} /> Excel
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>PDV</th><th>Numéro</th><th>Superviseur</th><th>Zone</th><th>Sous-zone</th><th>Téléconseillère</th><th>Alerte</th><th>Mois</th>
+            </tr>
+          </thead>
+          <tbody>
+            {inactifs?.pdvs?.map((pdv, idx) => {
+              const alertLevel = getAlertLevel(pdv.nb_mois_consecutifs_inactif, 'inactif');
+              return (
+                <tr key={idx}>
+                  <td><strong>{pdv.nom}</strong></td>
+                  <td>{pdv.numero_personnel}</td>
+                  <td>{pdv.superviseur}</td>
+                  <td>{pdv.zone}</td>
+                  <td>{pdv.sous_zone}</td>
+                  <td>{pdv.teleconseillere}</td>
+                  <td>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: alertLevel.bg,
+                      color: alertLevel.color
+                    }}>
+                      {alertLevel.level}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 600 }}>{pdv.nb_mois_consecutifs_inactif} mois</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============ TAB 6: PDV en Baisse ============
+function TabDecliningPDVs({ annee, mois }) {
+  const [seuil, setSeuil] = useState(-10);
+
+  const { data: declining, isLoading } = useQuery(
+    ['declining', annee, mois, seuil],
+    () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const exportExcel = () => {
+    if (!declining?.pdvs) return;
+    const data = declining.pdvs.map((pdv, idx) => ({
+      'Rang': idx + 1,
+      'PDV': pdv.nom,
+      'Numéro': pdv.numero_personnel,
+      'Superviseur': pdv.superviseur,
+      'Zone': pdv.zone,
+      'CA Actuel': pdv.ca,
+      'CA Précédent': pdv.ca_precedent,
+      'Baisse %': pdv.taux_baisse?.toFixed(2) + '%',
+      'Opérations': pdv.nb_operations
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'En Baisse');
+    XLSX.writeFile(wb, `baisse-${annee}-${mois}.xlsx`);
+  };
+
+  const critique = (declining?.pdvs || []).filter(p => p.taux_baisse > 30).length;
+  const haute = (declining?.pdvs || []).filter(p => p.taux_baisse > 15 && p.taux_baisse <= 30).length;
+
+  return (
+    <div>
+      <div className="grid-4 mb-24">
+        <KPICard title="Total en Baisse" value={declining?.count || 0} icon={TrendingDown} color="#ff4757" />
+        <KPICard title="Critique (>30%)" value={critique} icon={TrendingDown} color="#ff4757" />
+        <KPICard title="Haute (>15%)" value={haute} icon={TrendingDown} color="#ffa502" />
+        <KPICard title="Seuil" formatted={`${seuil}%`} icon={Filter} color="#999" />
+      </div>
+
+      <div className="card mb-16" style={{ padding: '16px 20px', display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+            Seuil de baisse : <span style={{ color: '#ff4757', fontWeight: 800 }}>{Math.abs(seuil)}%</span>
+          </label>
+          <input
+            type="range"
+            min="5"
+            max="50"
+            value={Math.abs(seuil)}
+            onChange={e => setSeuil(-parseInt(e.target.value))}
+            style={{ width: '100%', accentColor: '#ff4757' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#555', marginTop: 2 }}>
+            <span>5%</span><span>15%</span><span>25%</span><span>35%</span><span>50%</span>
+          </div>
+        </div>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Excel
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>PDV</th><th>Numéro</th><th>Superviseur</th><th>Zone</th><th>CA Actuel</th><th>CA Précédent</th><th>Baisse %</th><th>Alerte</th>
+            </tr>
+          </thead>
+          <tbody>
+            {declining?.pdvs?.map((pdv, idx) => {
+              const alertLevel = getAlertLevel(Math.abs(pdv.taux_baisse), 'baisse');
+              return (
+                <tr key={idx}>
+                  <td><strong>{pdv.nom}</strong></td>
+                  <td>{pdv.numero_personnel}</td>
+                  <td>{pdv.superviseur}</td>
+                  <td>{pdv.zone}</td>
+                  <td>{formatCA(pdv.ca)}</td>
+                  <td>{formatCA(pdv.ca_precedent)}</td>
+                  <td style={{ color: '#ff4757', fontWeight: 600 }}>-{Math.abs(pdv.taux_baisse).toFixed(2)}%</td>
+                  <td>
+                    <span style={{
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: alertLevel.bg,
+                      color: alertLevel.color
+                    }}>
+                      {alertLevel.level}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============ TAB 7: Progression ============
+function TabProgression({ annee }) {
+  const { data: progression, isLoading } = useQuery(
+    ['progression', annee],
+    () => api.get(`/dashboard/monthly-progression?annee=${annee}`).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const [selectedPDV, setSelectedPDV] = useState(null);
+
+  const toggleChart = (pdv) => {
+    setSelectedPDV(prev => prev?.nom === pdv.nom ? null : pdv);
+  };
+
+  const exportExcel = () => {
+    if (!progression?.pdvs) return;
+    const data = progression.pdvs.map((pdv, idx) => ({
+      'Rang': idx + 1,
+      'PDV': pdv.nom,
+      'Zone': pdv.zone,
+      'Superviseur': pdv.superviseur,
+      'Top 10': pdv.nb_fois_top10,
+      'Top 50': pdv.nb_fois_top50,
+      'CA Max': pdv.ca_max,
+      'CA Min': pdv.ca_min,
+      'Meilleur Mois': pdv.mois_meilleur_ca,
+      'Pire Mois': pdv.mois_pire_ca
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Progression');
+    XLSX.writeFile(wb, `progression-${annee}.xlsx`);
+  };
+
+  const sortedPDVs = (progression?.pdvs || []).sort((a, b) => (b.nb_fois_top10 || 0) - (a.nb_fois_top10 || 0));
+  const chartData = (selectedPDV?.historique_mensuel || []).map(h => ({ ...h }));
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-ghost" onClick={exportExcel}>
+          <Download size={14} /> Excel
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>PDV</th><th>Zone</th><th>Superviseur</th><th>Top 10</th><th>Top 50</th><th>CA Max</th><th>CA Min</th><th>Meilleur</th><th>Pire</th><th>Graphique</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedPDVs.map((pdv, idx) => (
+              <React.Fragment key={idx}>
+                <tr style={{ background: selectedPDV?.nom === pdv.nom ? 'rgba(255,105,0,0.06)' : 'transparent' }}>
+                  <td><strong>{pdv.nom}</strong></td>
+                  <td>{pdv.zone}</td>
+                  <td>{pdv.superviseur}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{pdv.nb_fois_top10 || 0}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{pdv.nb_fois_top50 || 0}</td>
+                  <td style={{ color: '#00d68f', fontWeight: 600 }}>{formatCA(pdv.ca_max)}</td>
+                  <td style={{ color: '#ff4757', fontWeight: 600 }}>{formatCA(pdv.ca_min)}</td>
+                  <td>{MOIS_NOMS[pdv.mois_meilleur_ca] || '-'}</td>
+                  <td>{MOIS_NOMS[pdv.mois_pire_ca] || '-'}</td>
+                  <td>
+                    <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
+                          onClick={() => toggleChart(pdv)}>
+                      {selectedPDV?.nom === pdv.nom ? '✕ Fermer' : '📊 Voir'}
+                    </span>
+                  </td>
+                </tr>
+                {selectedPDV?.nom === pdv.nom && chartData.length > 0 && (
+                  <tr>
+                    <td colSpan={10} style={{ padding: '16px 12px', background: 'rgba(255,105,0,0.04)', borderTop: '1px solid rgba(255,105,0,0.2)' }}>
+                      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+                        {/* Infos PDV */}
+                        <div style={{ minWidth: 200, flexShrink: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#FF6900', marginBottom: 12 }}>📊 {pdv.nom}</div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Zone : <span style={{ color: '#ccc' }}>{pdv.zone}</span></div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Superviseur : <span style={{ color: '#ccc' }}>{pdv.superviseur}</span></div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Top 10 : <span style={{ color: '#FFD700', fontWeight: 700 }}>{pdv.nb_fois_top10}x</span></div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Top 50 : <span style={{ color: '#a29bfe', fontWeight: 700 }}>{pdv.nb_fois_top50}x</span></div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>CA Max : <span style={{ color: '#00d68f', fontWeight: 700 }}>{formatCA(pdv.ca_max)}</span></div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>CA Min : <span style={{ color: '#ff4757', fontWeight: 700 }}>{formatCA(pdv.ca_min)}</span></div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Meilleur : <span style={{ color: '#ccc' }}>{MOIS_NOMS[pdv.mois_meilleur_ca] || pdv.mois_meilleur_ca}</span></div>
+                          <div style={{ fontSize: 12, color: '#8a8a9a' }}>Pire : <span style={{ color: '#ccc' }}>{MOIS_NOMS[pdv.mois_pire_ca] || pdv.mois_pire_ca}</span></div>
+                        </div>
+                        {/* Graphique */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 8 }}>Évolution mensuelle {annee}</div>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <AreaChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                              <XAxis dataKey="mois" tick={{ fill: '#8a8a9a', fontSize: 10 }} />
+                              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} tickFormatter={v => formatCA(v)} width={70} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Area type="monotone" dataKey="ca" stroke="#FF6900" fill="rgba(255,105,0,0.2)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============ MAIN COMPONENT ============
+export default function DashboardPage() {
+  const now = new Date();
+  const [annee, setAnnee] = useState(now.getFullYear());
+  const [mois, setMois] = useState(now.getMonth() + 1);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Charger le dernier mois disponible et l'utiliser par défaut
+  const { data: lastAvailable } = useQuery(
+    'last-available',
+    () => api.get('/dashboard/last-available').then(r => r.data),
+    { staleTime: 300000 }
+  );
+
+  useEffect(() => {
+    if (lastAvailable?.last_month) {
+      setAnnee(lastAvailable.last_month.annee);
+      setMois(lastAvailable.last_month.mois);
+    }
+  }, [lastAvailable]);
+
+  const prevMonth = () => {
+    if (mois === 1) { setMois(12); setAnnee(a => a - 1); }
+    else setMois(m => m - 1);
+  };
+
+  const nextMonth = () => {
+    if (mois === 12) { setMois(1); setAnnee(a => a + 1); }
+    else setMois(m => m + 1);
+  };
+
+  const tabs = [
+    { id: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
+    { id: 'top', label: '🏆 Top PDVs', icon: Trophy },
+    { id: 'pareto', label: '📊 Pareto', icon: BarChart3 },
+    { id: 'evolution', label: '📈 Évolution', icon: TrendingUp },
+    { id: 'inactifs', label: '😴 Inactifs', icon: Battery },
+    { id: 'declining', label: '📉 En Baisse', icon: TrendingDown },
+    { id: 'progression', label: '🎯 Progression', icon: Target },
+  ];
+
+  return (
+    <div className="page dashboard-page">
+      {/* Header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">📊 Dashboard Mensuel</h1>
+          <p className="page-subtitle">Performance du réseau Orange Mali</p>
+        </div>
+        <div className="dash-controls">
+          <div className="month-nav">
+            <button className="btn btn-ghost btn-sm" onClick={prevMonth}><ChevronLeft size={16}/></button>
+            <span className="month-label">{MOIS_NOMS[mois]} {annee}</span>
+            <button className="btn btn-ghost btn-sm" onClick={nextMonth}><ChevronRight size={16}/></button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="tabs-container mb-24">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div>
+        {activeTab === 'overview' && <TabOverview annee={annee} mois={mois} />}
+        {activeTab === 'top' && <TabTopPDVs annee={annee} mois={mois} />}
+        {activeTab === 'pareto' && <TabPareto annee={annee} mois={mois} />}
+        {activeTab === 'evolution' && <TabEvolution annee={annee} mois={mois} />}
+        {activeTab === 'inactifs' && <TabInactivePDVs annee={annee} mois={mois} />}
+        {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} />}
+        {activeTab === 'progression' && <TabProgression annee={annee} />}
+      </div>
+    </div>
+  );
+}

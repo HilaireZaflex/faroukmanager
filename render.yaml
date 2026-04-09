@@ -1,0 +1,34 @@
+services:
+  # ── Backend FastAPI ──────────────────────────────────────────────────────────
+  - type: web
+    name: faroukmanager-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: false
+      - key: DATABASE_URL
+        value: sqlite:///./farouk_manager.db
+      - key: ADMIN_EMAIL
+        value: admin@faroukmanager.com
+      - key: ADMIN_PASSWORD
+        value: Admin2026!
+      - key: ADMIN_NAME
+        value: Administrateur
+      - key: ALLOWED_ORIGINS
+        value: '["https://faroukmanager-frontend.onrender.com","http://localhost:3000"]'
+
+  # ── Frontend React ───────────────────────────────────────────────────────────
+  - type: web
+    name: faroukmanager-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: REACT_APP_API_BASE_URL
+        value: https://faroukmanager-backend.onrender.com/api
