@@ -9,13 +9,24 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
+        # Vérifier si c'est un hash sha256 (fallback)
+        if hashed_password.startswith("sha256:"):
+            import hashlib
+            salt = "farouk_manager_salt_2026"
+            expected = "sha256:" + hashlib.sha256((salt + plain_password).encode()).hexdigest()
+            return hashed_password == expected
+        # Sinon bcrypt
         return pwd_context.verify(plain_password[:72], hashed_password)
     except Exception:
         return False
 
 def get_password_hash(password: str) -> str:
     try:
-        return pwd_context.hash(password[:72])
+        result = pwd_context.hash(password[:72])
+        # Vérifier que le hash fonctionne
+        if pwd_context.verify(password[:72], result):
+            return result
+        raise Exception("Hash verification failed")
     except Exception:
         # Fallback: sha256 based hash
         import hashlib
