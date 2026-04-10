@@ -41,16 +41,17 @@ def root():
 @app.get("/reset-admin")
 async def reset_admin():
     """Route temporaire pour réinitialiser le mot de passe admin"""
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.user import User, UserRole
     db = SessionLocal()
     try:
-        from app.models.user import User
         admin = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
         if admin:
             admin.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
             db.commit()
             return {"message": f"✅ Mot de passe admin réinitialisé pour {settings.ADMIN_EMAIL}"}
         else:
-            from app.models.user import UserRole
             admin = User(
                 email=settings.ADMIN_EMAIL,
                 nom="Administrateur",
