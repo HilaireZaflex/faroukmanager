@@ -46,6 +46,11 @@ async def startup_event():
     db = SessionLocal()
     try:
         admin = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
+        if admin:
+            # Toujours mettre à jour le mot de passe avec celui des variables d'env
+            admin.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+            db.commit()
+            print(f"✅ Mot de passe admin mis à jour: {settings.ADMIN_EMAIL}")
         if not admin:
             admin_user = User(
                 email=settings.ADMIN_EMAIL,
