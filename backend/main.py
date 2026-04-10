@@ -38,6 +38,32 @@ app.include_router(superviseurs.router, prefix="/api", tags=["Superviseurs"])
 def root():
     return {"message": "FaroukManager API", "version": settings.APP_VERSION, "status": "running"}
 
+@app.get("/reset-admin")
+async def reset_admin():
+    """Route temporaire pour réinitialiser le mot de passe admin"""
+    db = SessionLocal()
+    try:
+        from app.models.user import User
+        admin = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
+        if admin:
+            admin.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+            db.commit()
+            return {"message": f"✅ Mot de passe admin réinitialisé pour {settings.ADMIN_EMAIL}"}
+        else:
+            from app.models.user import UserRole
+            admin = User(
+                email=settings.ADMIN_EMAIL,
+                nom=settings.ADMIN_NAME,
+                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
+                role=UserRole.ADMIN,
+                is_active=True,
+            )
+            db.add(admin)
+            db.commit()
+            return {"message": f"✅ Admin créé: {settings.ADMIN_EMAIL}"}
+    finally:
+        db.close()
+
 @app.on_event("startup")
 async def startup_event():
     from app.core.security import get_password_hash
