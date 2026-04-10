@@ -15,9 +15,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Ouvert pour production Render
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_origins=[
+        "https://faroukmanager.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
 
