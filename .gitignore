@@ -9,7 +9,7 @@ dist/
 build/
 
 # Base de données locale
-*.db
+# *.db  -- on inclut la base de données pour Render
 *.sqlite3
 
 # Node
