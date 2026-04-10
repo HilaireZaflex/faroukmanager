@@ -53,7 +53,8 @@ async def reset_admin():
             from app.models.user import UserRole
             admin = User(
                 email=settings.ADMIN_EMAIL,
-                nom=settings.ADMIN_NAME,
+                nom="Administrateur",
+                prenom="",
                 hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
                 role=UserRole.ADMIN,
                 is_active=True,
