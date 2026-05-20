@@ -18,7 +18,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
         "https://faroukmanager.onrender.com",
-        "https://faroukmanager-frontend.onrender.com",
+        "https://faroukmanager.onrender.com",
         "https://faroukmanager-backend.onrender.com",
     ]
 

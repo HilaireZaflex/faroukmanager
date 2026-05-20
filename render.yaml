@@ -1,5 +1,4 @@
 services:
-  # ── Backend FastAPI ──────────────────────────────────────────────────────────
   - type: web
     name: faroukmanager-backend
     runtime: python
@@ -20,9 +19,8 @@ services:
       - key: ADMIN_NAME
         value: Administrateur
       - key: ALLOWED_ORIGINS
-        value: '["https://faroukmanager-frontend.onrender.com","http://localhost:3000"]'
+        value: '["https://faroukmanager.onrender.com","http://localhost:3000"]'
 
-  # ── Frontend React ───────────────────────────────────────────────────────────
   - type: web
     name: faroukmanager-frontend
     runtime: node
@@ -31,4 +29,4 @@ services:
     startCommand: npx serve -s build -l $PORT
     envVars:
       - key: REACT_APP_API_BASE_URL
-        value: https://faroukmanager-backend.onrender.com/api
+        value: https://aroukmanager-backend.onrender.com/api
