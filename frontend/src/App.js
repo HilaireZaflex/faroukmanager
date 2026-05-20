@@ -38,6 +38,12 @@ import Layout from './components/layout/Layout';
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+
+  // Attendre que le store soit hydraté depuis localStorage
+  if (!hasHydrated) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#fff', fontSize: '18px' }}>Chargement...</div>;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -54,6 +60,7 @@ function App() {
     const interval = setInterval(ping, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
   return (
     <Routes>
       {/* Public Routes */}
