@@ -16,7 +16,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://faroukmanager-frontend.onrender.com",
+        "https://faroukmanager.onrender.com",
         "http://localhost:3000",
         "http://localhost:5173",
     ],
