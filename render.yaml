@@ -12,7 +12,9 @@ services:
       - key: DEBUG
         value: false
       - key: DATABASE_URL
-        value: sqlite:///./farouk_manager.db
+        fromDatabase:
+          name: faroukmanager-db
+          property: connectionString
       - key: ADMIN_EMAIL
         value: admin@faroukmanager.com
       - key: ADMIN_PASSWORD
@@ -25,10 +27,21 @@ services:
   # ── Frontend React ───────────────────────────────────────────────────────────
   - type: web
     name: faroukmanager-frontend
-    runtime: node
+    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: build
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: REACT_APP_API_BASE_URL
         value: https://faroukmanager-backend.onrender.com/api
+
+# ── Base de données PostgreSQL gratuite ─────────────────────────────────────
+databases:
+  - name: faroukmanager-db
+    plan: free
+    databaseName: faroukmanager
+    user: faroukmanager
