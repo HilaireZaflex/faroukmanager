@@ -24,7 +24,7 @@ export default function LoginPage() {
       const { user, access_token } = res.data;
       login(user, access_token);
       toast.success(`Bienvenue, ${user.nom} !`, { duration: 3000 });
-      navigate('/dashboard');
+      navigate('/accueil');
     } catch (err) {
       const msg = err.response?.data?.detail || 'Identifiants incorrects. Veuillez réessayer.';
       setError(msg);
