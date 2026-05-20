@@ -25,7 +25,7 @@ services:
     name: faroukmanager-frontend
     runtime: node
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npm run build && cp public/_redirects build/_redirects
     startCommand: node server.js
     envVars:
       - key: REACT_APP_API_BASE_URL
