@@ -26,7 +26,7 @@ services:
     runtime: node
     rootDir: frontend
     buildCommand: npm install && npm run build
-    startCommand: npx serve build -l $PORT --config serve.json
+    startCommand: node server.js
     envVars:
       - key: REACT_APP_API_BASE_URL
         value: https://aroukmanager-backend.onrender.com/api
