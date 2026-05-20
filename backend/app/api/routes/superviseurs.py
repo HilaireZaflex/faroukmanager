@@ -104,15 +104,16 @@ def get_supervisors_stats(
     
     return stats_list
 
-@router.get("/superviseurs/{nom}/pdvs", response_model=SupervisorPDVsResponse)
+@router.get("/superviseurs/{nom}/pdvs")
 def get_supervisor_pdvs_endpoint(
     nom: str,
     annee: int = Query(2026),
+    mois: int = Query(3),
     semaine: int = Query(52),
     db: Session = Depends(get_db)
 ):
     """
-    GET /superviseurs/{nom}/pdvs - Tous les PDVs d'un superviseur avec leurs performances
+    GET /superviseurs/{nom}/pdvs - Tous les PDVs d'un superviseur avec performances semaine + mensuel
     """
     pdvs = db.query(PDV).filter(PDV.superviseur == nom).all()
     
@@ -122,30 +123,52 @@ def get_supervisor_pdvs_endpoint(
             detail="Superviseur non trouvé"
         )
     
+    pdv_ids = [p.id for p in pdvs]
+
+    # Perfs semaine
+    weekly_perfs = db.query(WeeklyPerformance).filter(
+        WeeklyPerformance.pdv_id.in_(pdv_ids),
+        WeeklyPerformance.annee == annee,
+        WeeklyPerformance.semaine == semaine
+    ).all()
+    weekly_map = {p.pdv_id: p for p in weekly_perfs}
+
+    # Perfs mensuelles pour le CA
+    monthly_perfs = db.query(MonthlyPerformance).filter(
+        MonthlyPerformance.pdv_id.in_(pdv_ids),
+        MonthlyPerformance.annee == annee,
+        MonthlyPerformance.mois == mois
+    ).all()
+    monthly_map = {p.pdv_id: p for p in monthly_perfs}
+
     pdvs_data = []
     for pdv in pdvs:
-        # Récupérer perf de la semaine
-        perf = db.query(WeeklyPerformance).filter(
-            and_(
-                WeeklyPerformance.pdv_id == pdv.id,
-                WeeklyPerformance.annee == annee,
-                WeeklyPerformance.semaine == semaine
-            )
-        ).first()
-        
-        est_actif = perf.est_actif if perf else False
-        
+        weekly = weekly_map.get(pdv.id)
+        monthly = monthly_map.get(pdv.id)
+        est_actif = weekly.est_actif if weekly else False
+
         pdvs_data.append({
             "id": pdv.id,
-            "numero_pdv": pdv.numero_pdv,
+            "numero_pdv": pdv.numero_pdv or "",
             "nom": pdv.nom,
-            "zone": pdv.zone,
-            "type_pdv": str(pdv.type_pdv) if pdv.type_pdv else "",
+            "zone": pdv.zone or "—",
+            "sous_zone": pdv.sous_zone or "—",
+            "quartier": pdv.quartier or "—",
+            "gestionnaire": pdv.gestionnaire or "—",
+            "type_pdv": str(pdv.type_pdv).replace("PDVType.", "") if pdv.type_pdv else "",
             "statut": pdv.statut.value if pdv.statut else "",
-            "health_score": pdv.health_score,
-            "est_actif_semaine": est_actif
+            "health_score": round(pdv.health_score or 0, 1),
+            "est_actif_semaine": est_actif,
+            "ca": monthly.ca or 0 if monthly else 0,
+            "montant_depots": monthly.montant_depots or 0 if monthly else 0,
+            "montant_retraits": monthly.montant_retraits or 0 if monthly else 0,
+            "nb_operations": monthly.nb_operations or 0 if monthly else 0,
+            "est_actif_mois": monthly.est_actif if monthly else False,
         })
-    
+
+    # Trier par CA desc
+    pdvs_data.sort(key=lambda x: x["ca"], reverse=True)
+
     return {
         "nom": nom,
         "nb_pdvs": len(pdvs_data),

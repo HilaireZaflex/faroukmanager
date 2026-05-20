@@ -19,6 +19,7 @@ const formatPercent = (v) => `${(v || 0).toFixed(1)}%`;
 
 // ========== TAB 1: PRÉDICTIONS ==========
 function TabPredictions() {
+  const navigate = useNavigate();
   const { data: predictions, isLoading } = useQuery('ia-predictions', () =>
     api.get('/analytics/predictions').then(r => r.data), { staleTime: 120000 }
   );
@@ -49,27 +50,53 @@ function TabPredictions() {
 
       {predictions?.high_risk_pdvs && predictions.high_risk_pdvs.length > 0 && (
         <div>
-          <h3 className="section-title">PDVs à Risque Élevé</h3>
+          <h3 className="section-title">🔴 PDVs à Risque Élevé — Actions Immédiates</h3>
           <div className="pdv-cards-grid">
             {predictions.high_risk_pdvs.map(pdv => (
-              <div key={pdv.pdv_id} className="pdv-risk-card risk-high" onClick={() => navigate && navigate(`/pdvs/${pdv.pdv_id}`)} style={{cursor:"pointer"}}>
+              <div key={pdv.pdv_id} className="pdv-risk-card risk-high">
                 <div className="pdv-header">
                   <span className="pdv-name">{pdv.pdv_name}</span>
                   <span className="badge badge-danger">{pdv.risk_level}</span>
                 </div>
-                <div className="pdv-zone">{pdv.zone}</div>
+                <div className="pdv-zone">📍 {pdv.zone || '—'} {pdv.gestionnaire ? `· ${pdv.gestionnaire}` : ''}</div>
                 <div className="probability-bar">
                   <div className="prob-fill" style={{ width: `${pdv.probability * 100}%` }} />
-                  <span className="prob-text">{(pdv.probability * 100).toFixed(0)}%</span>
+                  <span className="prob-text">Risque: {(pdv.probability * 100).toFixed(0)}%</span>
                 </div>
-                <div className="pdv-detail">Explication: {pdv.explanation}</div>
-                <div className="pdv-metrics">
-                  <div>CA prévu semaine: {formatCA(pdv.predicted_ca_next_week)}</div>
+                <div className="pdv-detail" style={{ marginTop: 6, fontSize: 12, color: '#ffa502' }}>⚠️ {pdv.explanation}</div>
+                <div className="pdv-metrics" style={{ marginTop: 6 }}>
+                  <div>CA prévu S+1: <strong>{formatCA(pdv.predicted_ca_next_week)}</strong></div>
                   <div className={`trend ${pdv.trend_pct >= 0 ? 'up' : 'down'}`}>
                     {pdv.trend_pct >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                    {pdv.trend_pct.toFixed(1)}%
+                    {pdv.trend_pct.toFixed(1)}%/sem
                   </div>
-                  <div>Déclines consécutives: {pdv.consecutive_declines}</div>
+                  <div>Baisses conséc.: <strong>{pdv.consecutive_declines}</strong></div>
+                </div>
+                {/* Actions concrètes */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                  <a
+                    href={`tel:${pdv.telephone || ''}`}
+                    style={{ flex: 1, minWidth: 80, background: '#ff4757', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}
+                    title={pdv.telephone ? `Appeler ${pdv.telephone}` : 'Numéro non disponible'}
+                  >
+                    📞 Appeler
+                  </a>
+                  <button
+                    onClick={() => navigate(`/pdvs/${pdv.pdv_id}`)}
+                    style={{ flex: 1, minWidth: 80, background: '#3742fa', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    📋 Voir Fiche
+                  </button>
+                  <button
+                    onClick={() => {
+                      const msg = `🚨 ALERTE PDV À RISQUE\nPDV: ${pdv.pdv_name}\nZone: ${pdv.zone || '—'}\nRisque: ${(pdv.probability * 100).toFixed(0)}%\nTendance: ${pdv.trend_pct.toFixed(1)}%/sem\n${pdv.explanation}\n→ Intervention requise sous 48h`;
+                      navigator.clipboard.writeText(msg);
+                      toast.success('Message copié ! Collez-le dans votre messagerie.');
+                    }}
+                    style={{ flex: 1, minWidth: 80, background: '#ffa502', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    📤 Copier Alerte
+                  </button>
                 </div>
               </div>
             ))}
@@ -232,18 +259,20 @@ function TabForecast() {
         <div key={zone} className="card" style={{ marginTop: '16px' }}>
           <h3>{zone}</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={data || []}>
+            <AreaChart data={(data || []).map((d, i) => ({ ...d, label: `S${(forecast.derniere_semaine || 15) + i + 1}` }))}>
               <defs>
-                <linearGradient id="colorCA" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={`colorCA_${zone}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#ff6900" stopOpacity={0.8}/>
                   <stop offset="95%" stopColor="#ff6900" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-              <XAxis dataKey="semaine" />
-              <YAxis />
+              <XAxis dataKey="label" />
+              <YAxis tickFormatter={v => formatCA(v)} width={80} />
               <Tooltip formatter={(v) => formatCA(v)} />
-              <Area type="monotone" dataKey="ca_prevu" stroke="#ff6900" fillOpacity={1} fill="url(#colorCA)" />
+              <Area type="monotone" dataKey="ca_prevu" name="CA Prévu" stroke="#ff6900" fillOpacity={1} fill={`url(#colorCA_${zone})`} />
+              <Area type="monotone" dataKey="ca_min" name="Min" stroke="#ff4757" fill="none" strokeDasharray="4 2" />
+              <Area type="monotone" dataKey="ca_max" name="Max" stroke="#00d68f" fill="none" strokeDasharray="4 2" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

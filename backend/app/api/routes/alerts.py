@@ -485,8 +485,8 @@ def get_recovery_liste(
     pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
 
     liste = []
-    exclusions = {"au_bureau": 0, "activation_recente": 0, "nouvelle_creation": 0, "inactif_zero_ops": 0}
-    exclusions_detail = {"au_bureau": [], "activation_recente": [], "nouvelle_creation": [], "inactif_zero_ops": []}
+    exclusions = {"au_bureau": 0, "activation_recente": 0, "nouvelle_creation": 0, "inactif_zero_ops": 0, "flotte": 0}
+    exclusions_detail = {"au_bureau": [], "activation_recente": [], "nouvelle_creation": [], "inactif_zero_ops": [], "flotte": []}
 
     def pdv_mini(pdv, ca_prec=0, ca_courant=0):
         return {
@@ -506,41 +506,58 @@ def get_recovery_liste(
         }
 
     for pdv in pdvs:
+        # Récupérer les montants de transactions pour CE PDV (pour toutes les exclusions)
+        pc = perfs_courant.get(pdv.id)
+        pp = perfs_prec.get(pdv.id)
+        mt_c = pc.montant_transaction if pc else 0.0
+        mt_p = pp.montant_transaction if pp else 0.0
+
         # ── EXCLUSION 1 : superviseur AU BUREAU
         if pdv.superviseur and 'AU BUREAU' in pdv.superviseur.upper():
             exclusions["au_bureau"] += 1
-            exclusions_detail["au_bureau"].append(pdv_mini(pdv))
+            exclusions_detail["au_bureau"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
         # ── EXCLUSION 2 : activation récente (< 1 mois)
         if pdv.date_activation and pdv.date_activation.date() >= date_limite_activation:
             exclusions["activation_recente"] += 1
-            exclusions_detail["activation_recente"].append(pdv_mini(pdv))
+            exclusions_detail["activation_recente"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
         # ── EXCLUSION 3 : nouvelle création (flag explicite)
         if pdv.nouvelle_creation:
             exclusions["nouvelle_creation"] += 1
-            exclusions_detail["nouvelle_creation"].append(pdv_mini(pdv))
+            exclusions_detail["nouvelle_creation"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
-        pc = perfs_courant.get(pdv.id)
-        pp = perfs_prec.get(pdv.id)
+        # ── EXCLUSION 4 : PDV FLOTTE (numéro de flotte)
+        if pdv.numero_flotte:
+            exclusions["flotte"] += 1
+            exclusions_detail["flotte"].append(pdv_mini(pdv, mt_p, mt_c))
+            continue
 
+        # Critère : somme du MONTANT DES TRANSACTIONS des 2 mois
+        # montant_transaction = volume réel d'argent brassé (CASHIN + CASHOUT)
+        mt_courant = pc.montant_transaction if pc else 0.0
+        mt_prec    = pp.montant_transaction if pp else 0.0
+        mt_total   = mt_courant + mt_prec   # Somme 2 mois comparée au seuil
+
+        # On garde aussi le CA pour affichage info
         ca_courant = pc.ca if pc else 0.0
-        ca_prec = pp.ca if pp else 0.0
-        ca_total = ca_courant + ca_prec
-        nb_ops_courant = pc.nb_operations if pc else 0
-        nb_ops_prec = pp.nb_operations if pp else 0
-        nb_ops_total = nb_ops_courant + nb_ops_prec
+        ca_prec    = pp.ca if pp else 0.0
 
-        # ── EXCLUSION 4 : 0 opérations sur les 2 mois (= inactifs)
+        nb_ops_courant = pc.nb_operations if pc else 0
+        nb_ops_prec    = pp.nb_operations if pp else 0
+        nb_ops_total   = nb_ops_courant + nb_ops_prec
+
+        # ── EXCLUSION 4 : 0 opérations sur les 2 mois (= inactifs purs)
         if nb_ops_total == 0:
             exclusions["inactif_zero_ops"] += 1
-            exclusions_detail["inactif_zero_ops"].append(pdv_mini(pdv, ca_prec, ca_courant))
+            exclusions_detail["inactif_zero_ops"].append(pdv_mini(pdv, mt_prec, mt_courant))
             continue
 
-        if ca_total < seuil:
+        # PDV à récupérer : montant transactions cumulé des 2 mois < seuil
+        if mt_total < seuil:
             actions = db.query(TerrainAction).filter(TerrainAction.pdv_id == pdv.id).order_by(
                 TerrainAction.date_action.desc()
             ).first()
@@ -565,16 +582,16 @@ def get_recovery_liste(
                 "date_activation": pdv.date_activation.isoformat() if pdv.date_activation else None,
                 "numero_flotte": pdv.numero_flotte,
                 "nouvelle_creation": pdv.nouvelle_creation,
-                "ca_mois_courant": round(ca_courant, 2),
-                "ca_mois_precedent": round(ca_prec, 2),
-                "ca_total": round(ca_total, 2),
+                "ca_mois_courant":   round(mt_courant, 2),
+                "ca_mois_precedent": round(mt_prec, 2),
+                "ca_total":          round(mt_total, 2),
                 "nb_operations_courant": nb_ops_courant,
-                "nb_operations_prec": nb_ops_prec,
-                "deja_en_recuperation": deja_en_recuperation,
+                "nb_operations_prec":    nb_ops_prec,
+                "deja_en_recuperation":  deja_en_recuperation,
                 "mois_recuperation_precedent": mois_recuperation_precedent,
             })
 
-    # Trier par CA total croissant (les plus critiques en premier)
+    # Trier par montant total croissant (les plus critiques en premier)
     liste.sort(key=lambda x: x["ca_total"])
 
     return {
@@ -808,8 +825,8 @@ def upsert_pdv_tracking(
 
 @router.get("/alerts/recommendations")
 def get_recommendations(
-    annee: int = Query(2026),
-    semaine: int = Query(52),
+    annee: Optional[int] = Query(None),
+    semaine: Optional[int] = Query(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -818,9 +835,29 @@ def get_recommendations(
     - PDVs en forte baisse → intervention
     - Zones avec problèmes groupés
     - Récupérations à lancer
+    Si annee/semaine non fournis, utilise la dernière semaine disponible en base.
     """
+    from app.models.performance import WeeklyPerformance
+    from sqlalchemy import func as sqlfunc
+
+    # Détecter automatiquement la dernière semaine disponible
+    if annee is None or semaine is None:
+        last = db.query(
+            WeeklyPerformance.annee,
+            WeeklyPerformance.semaine
+        ).filter(WeeklyPerformance.est_actif == True).order_by(
+            WeeklyPerformance.annee.desc(),
+            WeeklyPerformance.semaine.desc()
+        ).first()
+        if last:
+            annee = annee or last.annee
+            semaine = semaine or last.semaine
+        else:
+            annee = annee or 2026
+            semaine = semaine or 1
+
     recommendations = generate_weekly_recommendations(db, annee=annee, semaine=semaine)
-    
+
     return {
         "count": len(recommendations),
         "semaine": semaine,

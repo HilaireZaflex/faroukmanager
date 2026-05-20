@@ -45,7 +45,8 @@ def get_stats(db: Session = Depends(get_db)):
     pdvs_par_superviseur = {}
     for pdv in pdvs:
         if pdv.statut != PDVStatut.DESACTIVE:
-            pdvs_par_type[pdv.type_pdv.value] = pdvs_par_type.get(pdv.type_pdv.value, 0) + 1
+            type_key = pdv.type_pdv.value if pdv.type_pdv else 'NEANT'
+            pdvs_par_type[type_key] = pdvs_par_type.get(type_key, 0) + 1
             if pdv.zone:
                 pdvs_par_zone[pdv.zone] = pdvs_par_zone.get(pdv.zone, 0) + 1
             if pdv.superviseur:
@@ -252,16 +253,29 @@ def list_pdvs(
     statut: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000)
+    limit: int = Query(100, ge=1, le=1000),
+    current_user: User = Depends(get_current_user)
 ):
     """Liste des PDVs avec filtres complets — M1 du CDC"""
+    from app.api.routes.auth import get_pdv_filters
+    user_filters = get_pdv_filters(current_user)
+
     query = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
 
-    if zone:
+    # ── Filtre automatique selon le rôle de l'utilisateur ──
+    if 'superviseur' in user_filters:
+        query = query.filter(PDV.superviseur.ilike(f"%{user_filters['superviseur']}%"))
+    if 'gestionnaire' in user_filters:
+        query = query.filter(PDV.gestionnaire.ilike(f"%{user_filters['gestionnaire']}%"))
+    if 'zone' in user_filters:
+        query = query.filter(PDV.zone == user_filters['zone'])
+
+    # ── Filtres manuels (si pas déjà fixés par le rôle) ──
+    if zone and 'zone' not in user_filters:
         query = query.filter(PDV.zone == zone)
-    if superviseur:
+    if superviseur and 'superviseur' not in user_filters:
         query = query.filter(PDV.superviseur.ilike(f"%{superviseur}%"))
-    if gestionnaire:
+    if gestionnaire and 'gestionnaire' not in user_filters:
         query = query.filter(PDV.gestionnaire.ilike(f"%{gestionnaire}%"))
     if type_pdv:
         query = query.filter(PDV.type_pdv == type_pdv)
@@ -278,7 +292,16 @@ def list_pdvs(
             )
         )
 
-    pdvs = query.order_by(PDV.nom).offset(skip).limit(limit).all()
+    from sqlalchemy import case
+    pdvs = query.order_by(
+        case(
+            (PDV.statut == 'ACTIF', 0),
+            (PDV.statut == 'RECUPERATION', 1),
+            (PDV.statut == 'INACTIF', 2),
+            else_=3
+        ),
+        PDV.nom
+    ).offset(skip).limit(limit).all()
     return [PDVOut.from_orm(pdv) for pdv in pdvs]
 
 

@@ -8,6 +8,14 @@
   flex: 1;
   margin-left: var(--sidebar-width);
   min-height: 100vh;
-  transition: margin-left 0.25s cubic-bezier(0.4,0,0.2,1);
+  transition: margin-left 0.28s cubic-bezier(0.4,0,0.2,1);
   overflow-x: hidden;
+  width: calc(100% - var(--sidebar-width));
+  box-sizing: border-box;
+}
+
+/* Quand la sidebar est collapsée, le main-content s'adapte */
+.layout:has(.sidebar.collapsed) .main-content {
+  margin-left: var(--sidebar-collapsed);
+  width: calc(100% - var(--sidebar-collapsed));
 }

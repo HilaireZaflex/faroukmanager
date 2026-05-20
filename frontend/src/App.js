@@ -20,6 +20,17 @@ import WhatIfPage from './pages/WhatIfPage';
 import AccueilPage from './pages/AccueilPage';
 import CartePage from './pages/CartePage';
 import RecoveryListePage from './pages/RecoveryListePage';
+import OMyDashboardPage from './pages/OMyDashboardPage';
+import OMyWeeklyDashboardPage from './pages/OMyWeeklyDashboardPage';
+import NafamaDashboardPage from './pages/NafamaDashboardPage';
+import NafamaWeeklyDashboardPage from './pages/NafamaWeeklyDashboardPage';
+import KaabuDashboardPage from './pages/KaabuDashboardPage';
+import KaabuWeeklyDashboardPage from './pages/KaabuWeeklyDashboardPage';
+import GestionReseauPage from './pages/GestionReseauPage';
+import ProspectionPage from './pages/ProspectionPage';
+import IndicatorsPage from './pages/IndicatorsPage';
+import CommissionsPage from './pages/CommissionsPage';
+import EvaluationsPage from './pages/EvaluationsPage';
 
 // Layout
 import Layout from './components/layout/Layout';
@@ -63,7 +74,18 @@ function App() {
                 <Route path="/ia/whatif" element={<WhatIfPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/superviseurs" element={<SuperviseurPage />} />
+                <Route path="/reseau" element={<GestionReseauPage />} />
+                <Route path="/prospection" element={<ProspectionPage />} />
+                <Route path="/indicateurs" element={<IndicatorsPage />} />
+                <Route path="/commissions" element={<CommissionsPage />} />
+                <Route path="/evaluations" element={<EvaluationsPage />} />
                 <Route path="/import" element={<ImportPage />} />
+                <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
+                <Route path="/omy/dashboard/weekly" element={<OMyWeeklyDashboardPage />} />
+                <Route path="/nafama/dashboard" element={<NafamaDashboardPage />} />
+                <Route path="/nafama/dashboard/weekly" element={<NafamaWeeklyDashboardPage />} />
+                <Route path="/kaabu/dashboard" element={<KaabuDashboardPage />} />
+                <Route path="/kaabu/dashboard/weekly" element={<KaabuWeeklyDashboardPage />} />
                 <Route path="/" element={<Navigate to="/accueil" replace />} />
               </Routes>
             </Layout>

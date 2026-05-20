@@ -137,7 +137,7 @@ export default function SuperviseurPage() {
 
                 <div className="superviseur-kpis">
                   <div className="superviseur-kpi">
-                    <div className="superviseur-kpi-value" style={{ fontSize:14 }}>{formatCA(n.ca)}</div>
+                    <div className="superviseur-kpi-value" style={{ fontSize:14 }}>{formatCA(n.montant_transaction || n.ca)}</div>
                     <div className="superviseur-kpi-label">CA Mensuel</div>
                   </div>
                   <div className="superviseur-kpi">
@@ -177,7 +177,7 @@ export default function SuperviseurPage() {
                 <YAxis stroke="var(--text-secondary)" />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Bar dataKey="ca" fill="#FF6900" name="CA Total" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="ca" fill="#FF6900" name="Montant Transaction" radius={[8, 8, 0, 0]} />
                 <Bar dataKey="actifs" fill="#00d68f" name="PDVs Actifs" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -226,7 +226,7 @@ export default function SuperviseurPage() {
                 <tr>
                   <th>Rang</th>
                   <th>Superviseur</th>
-                  <th>CA Total</th>
+                  <th>Montant Transaction</th>
                   <th>PDVs Actifs</th>
                   <th>PDVs Inactifs</th>
                   <th>Score Santé</th>
@@ -241,7 +241,7 @@ export default function SuperviseurPage() {
                   <tr key={i}>
                     <td style={{ fontWeight: 700, color: 'var(--primary)' }}>{getMedalEmoji(i + 1)} #{i + 1}</td>
                     <td style={{ fontWeight: 600 }}>{n.superviseur}</td>
-                    <td style={{ color: 'var(--primary)' }}>{formatCA(n.ca)}</td>
+                    <td style={{ color: 'var(--primary)' }}>{formatCA(n.montant_transaction || n.ca)}</td>
                     <td style={{ color: 'var(--success)', fontWeight: 600 }}>{n.actifs}</td>
                     <td style={{ color: 'var(--danger)', fontWeight: 600 }}>{n.inactifs}</td>
                     <td>
@@ -301,7 +301,7 @@ export default function SuperviseurPage() {
                         <tr key={pdv.id}>
                           <td style={{ fontWeight: 600 }}>{pdv.nom}</td>
                           <td>{pdv.zone}</td>
-                          <td>{formatCA(pdv.ca)}</td>
+                          <td>{formatCA(pdv.montant_transaction || pdv.ca)}</td>
                           <td>
                             <span
                               className="badge"

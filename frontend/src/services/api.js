@@ -1,7 +1,7 @@
 import axios from 'axios';
 import useAuthStore from '../store/authStore';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://aroukmanager-backend.onrender.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://faroukmanager-backend.onrender.com/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -1,67 +1,78 @@
 .kpi-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
+  border-left: 4px solid var(--kpi-color, var(--primary));
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 28px 24px 22px;
   position: relative;
   overflow: hidden;
   transition: var(--transition);
   cursor: default;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 .kpi-card:hover {
   border-color: var(--kpi-color, var(--primary));
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.25);
 }
 .kpi-top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  gap: 8px;
 }
 .kpi-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+  line-height: 1.4;
+  flex: 1;
 }
 .kpi-icon-wrap {
-  width: 34px; height: 34px;
-  border-radius: 9px;
+  width: 40px; height: 40px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--kpi-color, var(--primary)) 15%, transparent);
   display: flex; align-items: center; justify-content: center;
   color: var(--kpi-color, var(--primary));
+  flex-shrink: 0;
 }
 .kpi-value {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 800;
   color: var(--text-primary);
   line-height: 1.1;
-  letter-spacing: -0.5px;
+  letter-spacing: -1px;
+  margin-bottom: 6px;
 }
 .kpi-subtitle {
   font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 6px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.5;
 }
 .kpi-trend {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-top: 10px;
-  font-size: 11px;
+  margin-top: 12px;
+  font-size: 12px;
   font-weight: 600;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 20px;
 }
 .kpi-trend.up { background: var(--success-bg); color: var(--success); }
 .kpi-trend.down { background: var(--danger-bg); color: var(--danger); }
 .kpi-glow {
   position: absolute;
-  bottom: -20px; right: -20px;
-  width: 80px; height: 80px;
+  bottom: -30px; right: -30px;
+  width: 100px; height: 100px;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--kpi-color, var(--primary)) 20%, transparent), transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--kpi-color, var(--primary)) 12%, transparent), transparent 70%);
   pointer-events: none;
 }

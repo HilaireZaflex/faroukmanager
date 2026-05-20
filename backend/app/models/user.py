@@ -9,6 +9,8 @@ class UserRole(str, enum.Enum):
     MANAGER = "manager"
     SUPERVISEUR = "superviseur"
     TELECONSEILLERE = "teleconseillere"
+    DEVELOPPEUR = "developpeur"
+    RC = "rc"  # Responsable Commercial
 
 class User(Base):
     __tablename__ = "users"

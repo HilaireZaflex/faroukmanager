@@ -5,96 +5,147 @@ from app.models.performance import WeeklyPerformance, MonthlyPerformance
 from app.models.action import TerrainAction
 from typing import Dict, Any, List
 
+def _perf_montant_transaction(p) -> float:
+    """Retourne montant_transaction si disponible, sinon ca (compatibilité)."""
+    mt = getattr(p, 'montant_transaction', None)
+    return mt if mt else (p.ca or 0.0)
+
+def _perf_montant_ca(p) -> float:
+    return getattr(p, 'montant_ca', None) or 0.0
+
+def _perf_commission_pdg(p) -> float:
+    return getattr(p, 'commission_pdg', None) or 0.0
+
+def _perf_commission_revendeur(p) -> float:
+    return getattr(p, 'commission_revendeur', None) or 0.0
+
+def _perf_ratio(p) -> float:
+    return getattr(p, 'ratio_ca_transaction', None) or 0.0
+
+
 def get_monthly_dashboard(db: Session, annee: int, mois: int, filters: Dict[str, Any] = None) -> Dict[str, Any]:
-    """Get monthly dashboard data."""
-    # Base query for monthly performance
+    """Get monthly dashboard data avec nouveaux champs montant_transaction, montant_ca, commissions."""
     query = db.query(MonthlyPerformance).filter(
-        and_(
-            MonthlyPerformance.annee == annee,
-            MonthlyPerformance.mois == mois
-        )
+        and_(MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois)
     )
-    
     if filters:
         if filters.get("zone"):
             query = query.join(PDV).filter(PDV.zone == filters["zone"])
         if filters.get("superviseur"):
             query = query.join(PDV).filter(PDV.superviseur == filters["superviseur"])
-    
+
     performances = query.all()
-    
-    # Calculate aggregates
-    total_ca = sum(p.ca for p in performances)
-    total_operations = sum(p.nb_operations for p in performances)
-    total_depots = sum(p.nb_depots for p in performances)
-    total_retraits = sum(p.nb_retraits for p in performances)
-    montant_depots = sum(p.montant_depots for p in performances)
-    montant_retraits = sum(p.montant_retraits for p in performances)
-    active_pdvs = sum(1 for p in performances if p.est_actif)
-    
-    # Calculate average variation
+
+    # ── Volumes de base ──────────────────────────────────────────────────────
+    total_montant_transaction = sum(_perf_montant_transaction(p) for p in performances)
+    total_montant_ca          = sum(_perf_montant_ca(p) for p in performances)
+    total_commission_pdg      = sum(_perf_commission_pdg(p) for p in performances)
+    total_commission_revendeur = sum(_perf_commission_revendeur(p) for p in performances)
+    total_operations   = sum(p.nb_operations for p in performances)
+    total_depots       = sum(p.nb_depots for p in performances)
+    total_retraits     = sum(p.nb_retraits for p in performances)
+    montant_depots     = sum(p.montant_depots for p in performances)
+    montant_retraits   = sum(p.montant_retraits for p in performances)
+    active_pdvs        = sum(1 for p in performances if p.est_actif)
+    n                  = len(performances)
+
+    # ── Indicateurs qualité ──────────────────────────────────────────────────
+    # Ratio CA/Transaction global : mesure la part des retraits dans le volume
+    ratio_ca_transaction = round(
+        (total_montant_ca / total_montant_transaction * 100) if total_montant_transaction > 0 else 0.0, 2
+    )
+    # PDV à faible CA (bonne transaction mais mauvais CA — trop de dépôts)
+    avg_ratio = sum(_perf_ratio(p) for p in performances) / n if n > 0 else 0
+    pdvs_faible_ca = sum(1 for p in performances if _perf_ratio(p) < avg_ratio * 0.5 and p.est_actif)
+
     variations = [p.taux_variation for p in performances if p.taux_variation]
     avg_variation = sum(variations) / len(variations) if variations else 0.0
-    
+
+    # ── Compatibilité ascendante : total_ca = montant_transaction ────────────
+    total_ca = total_montant_transaction
+
     return {
         "annee": annee,
         "mois": mois,
-        "total_ca": total_ca,
-        "total_operations": total_operations,
-        "total_depots": total_depots,
-        "total_retraits": total_retraits,
-        "montant_depots": montant_depots,
-        "montant_retraits": montant_retraits,
-        "active_pdvs": active_pdvs,
-        "total_pdvs": len(performances),
-        "avg_variation": avg_variation,
-        "taux_activite": (active_pdvs / len(performances) * 100) if performances else 0.0
+        # Nouveau nommage
+        "total_montant_transaction": round(total_montant_transaction, 2),
+        "total_montant_ca":          round(total_montant_ca, 2),
+        "total_commission_pdg":      round(total_commission_pdg, 2),
+        "total_commission_revendeur": round(total_commission_revendeur, 2),
+        "ratio_ca_transaction":      ratio_ca_transaction,
+        "pdvs_faible_ca":            pdvs_faible_ca,
+        # Compatibilité (ancien nom)
+        "total_ca": round(total_ca, 2),
+        # Opérations
+        "total_operations":  total_operations,
+        "total_depots":      total_depots,
+        "total_retraits":    total_retraits,
+        "montant_depots":    round(montant_depots, 2),
+        "montant_retraits":  round(montant_retraits, 2),
+        "active_pdvs":       active_pdvs,
+        "total_pdvs":        n,
+        "avg_variation":     round(avg_variation, 2),
+        "taux_activite":     round((active_pdvs / n * 100) if n > 0 else 0.0, 1),
     }
 
 def get_weekly_dashboard(db: Session, annee: int, semaine: int, filters: Dict[str, Any] = None) -> Dict[str, Any]:
-    """Get weekly dashboard data."""
-    # Base query for weekly performance
+    """Get weekly dashboard data avec nouveaux champs montant_transaction, montant_ca, commissions."""
     query = db.query(WeeklyPerformance).filter(
-        and_(
-            WeeklyPerformance.annee == annee,
-            WeeklyPerformance.semaine == semaine
-        )
+        and_(WeeklyPerformance.annee == annee, WeeklyPerformance.semaine == semaine)
     )
-    
     if filters:
         if filters.get("zone"):
             query = query.join(PDV).filter(PDV.zone == filters["zone"])
         if filters.get("superviseur"):
             query = query.join(PDV).filter(PDV.superviseur == filters["superviseur"])
-    
+
     performances = query.all()
-    
-    # Calculate aggregates
-    total_ca = sum(p.ca for p in performances)
-    total_operations = sum(p.nb_operations for p in performances)
-    total_depots = sum(p.nb_depots for p in performances)
-    total_retraits = sum(p.nb_retraits for p in performances)
-    montant_depots = sum(p.montant_depots for p in performances)
-    montant_retraits = sum(p.montant_retraits for p in performances)
-    active_pdvs = sum(1 for p in performances if p.est_actif)
-    
-    # Calculate average variation
+
+    total_montant_transaction  = sum(_perf_montant_transaction(p) for p in performances)
+    total_montant_ca           = sum(_perf_montant_ca(p) for p in performances)
+    total_commission_pdg       = sum(_perf_commission_pdg(p) for p in performances)
+    total_commission_revendeur = sum(_perf_commission_revendeur(p) for p in performances)
+    total_operations  = sum(p.nb_operations for p in performances)
+    total_depots      = sum(p.nb_depots for p in performances)
+    total_retraits    = sum(p.nb_retraits for p in performances)
+    montant_depots    = sum(p.montant_depots for p in performances)
+    montant_retraits  = sum(p.montant_retraits for p in performances)
+    active_pdvs       = sum(1 for p in performances if p.est_actif)
+    n                 = len(performances)
+
+    ratio_ca_transaction = round(
+        (total_montant_ca / total_montant_transaction * 100) if total_montant_transaction > 0 else 0.0, 2
+    )
+    avg_ratio = sum(_perf_ratio(p) for p in performances) / n if n > 0 else 0
+    pdvs_faible_ca = sum(1 for p in performances if _perf_ratio(p) < avg_ratio * 0.5 and p.est_actif)
+
     variations = [p.taux_variation for p in performances if p.taux_variation]
     avg_variation = sum(variations) / len(variations) if variations else 0.0
-    
+
+    total_ca = total_montant_transaction  # compatibilité
+
     return {
         "annee": annee,
         "semaine": semaine,
-        "total_ca": total_ca,
+        # Nouveau nommage
+        "total_montant_transaction": round(total_montant_transaction, 2),
+        "total_montant_ca":          round(total_montant_ca, 2),
+        "total_commission_pdg":      round(total_commission_pdg, 2),
+        "total_commission_revendeur": round(total_commission_revendeur, 2),
+        "ratio_ca_transaction":      ratio_ca_transaction,
+        "pdvs_faible_ca":            pdvs_faible_ca,
+        # Compatibilité
+        "total_ca": round(total_ca, 2),
+        # Opérations
         "total_operations": total_operations,
-        "total_depots": total_depots,
-        "total_retraits": total_retraits,
-        "montant_depots": montant_depots,
-        "montant_retraits": montant_retraits,
-        "active_pdvs": active_pdvs,
-        "total_pdvs": len(performances),
-        "avg_variation": avg_variation,
-        "taux_activite": (active_pdvs / len(performances) * 100) if performances else 0.0
+        "total_depots":     total_depots,
+        "total_retraits":   total_retraits,
+        "montant_depots":   round(montant_depots, 2),
+        "montant_retraits": round(montant_retraits, 2),
+        "active_pdvs":      active_pdvs,
+        "total_pdvs":       n,
+        "avg_variation":    round(avg_variation, 2),
+        "taux_activite":    round((active_pdvs / n * 100) if n > 0 else 0.0, 1),
     }
 
 def get_pareto_analysis(db: Session, annee: int, mois: int) -> Dict[str, Any]:

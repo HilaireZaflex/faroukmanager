@@ -58,6 +58,29 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
         )
     return current_user
 
+
+def get_pdv_filters(user: User) -> dict:
+    """
+    Retourne les filtres PDV automatiques selon le rôle de l'utilisateur.
+    - Admin / Manager : voient TOUT (aucun filtre)
+    - Superviseur     : filtre par son nom (champ superviseur)
+    - RC              : filtre par son nom (champ gestionnaire)
+    - Développeur     : filtre par sa zone
+    - Téléconseillère : filtre par sa zone
+    """
+    role = str(user.role).lower().replace('userrole.', '')
+    nom_complet = f"{user.prenom} {user.nom}".strip() if user.prenom else user.nom
+
+    if role in ('admin', 'manager'):
+        return {}  # Pas de filtre — voient tout
+    elif role == 'superviseur':
+        return {'superviseur': nom_complet}
+    elif role == 'rc':
+        return {'gestionnaire': nom_complet}
+    elif role in ('developpeur', 'teleconseillere'):
+        return {'zone': user.zone} if user.zone else {}
+    return {}
+
 @router.post("/auth/login", response_model=Token)
 def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     """Login with email and password"""

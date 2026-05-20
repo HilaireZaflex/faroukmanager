@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://faroukmanager.onrender.com",
         "https://faroukmanager-frontend.onrender.com",
-        "https://aroukmanager-backend.onrender.com",
+        "https://faroukmanager-backend.onrender.com",
     ]
 
     ADMIN_EMAIL: str = "admin@faroukmanager.com"
@@ -29,5 +29,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Autoriser variables .env additionnelles (notif providers, etc.)
 
 settings = Settings()

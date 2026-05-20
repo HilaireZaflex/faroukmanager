@@ -19,17 +19,20 @@ class PDVBase(BaseModel):
     superviseur: Optional[str] = None
     gestionnaire: Optional[str] = None
     teleconseillere: Optional[str] = None
+    developpeur: Optional[str] = None
+    adresse: Optional[str] = None
     telephone: Optional[str] = None
     email_contact: Optional[str] = None
     nom_gerant: Optional[str] = None
     date_activation: Optional[datetime] = None
-    numero_flotte: bool = False
-    sim_au_bureau: bool = False
-    sim_coupee: bool = False
-    nouvelle_creation: bool = False
-    health_score: float = 50.0
+    numero_flotte: Optional[bool] = False
+    sim_au_bureau: Optional[bool] = False
+    sim_coupee: Optional[bool] = False
+    nouvelle_creation: Optional[bool] = False
+    single_wallet: Optional[bool] = False
+    health_score: Optional[float] = 50.0
     segment: Optional[str] = None
-    score_risque: float = 0.0
+    score_risque: Optional[float] = 0.0
     notes: Optional[str] = None
 
 class PDVCreate(PDVBase):

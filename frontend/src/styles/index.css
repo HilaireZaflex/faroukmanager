@@ -22,8 +22,8 @@
   --warning-bg: rgba(255, 165, 2, 0.1);
   --info: #3742fa;
   --info-bg: rgba(55, 66, 250, 0.1);
-  --sidebar-width: 260px;
-  --sidebar-collapsed: 72px;
+  --sidebar-width: 256px;
+  --sidebar-collapsed: 66px;
   --header-height: 64px;
   --radius: 14px;
   --radius-sm: 8px;
@@ -139,8 +139,31 @@ tbody tr:last-child td { border-bottom: none; }
 
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.grid-3-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.grid-2-kpi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+
+/* Section KPI avec titre */
+.kpi-section { margin-bottom: 32px; }
+.kpi-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  padding-left: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kpi-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
 .col-span-2 { grid-column: span 2; }
 
 .progress-bar { height: 6px; background: rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden; }
@@ -166,8 +189,10 @@ tbody tr:last-child td { border-bottom: none; }
 .gap-16 { gap: 16px; }
 .mt-16 { margin-top: 16px; }
 .mt-24 { margin-top: 24px; }
-.mb-16 { margin-bottom: 16px; }
-.mb-24 { margin-bottom: 24px; }
+.mb-8  { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 20px; }
+.mb-24 { margin-bottom: 32px; }
+.mb-32 { margin-bottom: 40px; }
 
 @media (max-width: 1024px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } .grid-3 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .page { padding: 16px; } .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; } .page-header { flex-direction: column; align-items: flex-start; } }

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs
+from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions
 import app.models  # noqa - ensures all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -16,7 +16,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://faroukmanager.onrender.com",
+        "https://faroukmanager-frontend.onrender.com",
         "http://localhost:3000",
         "http://localhost:5173",
     ],
@@ -33,6 +33,17 @@ app.include_router(analytics.router, prefix="/api", tags=["Analytics IA"])
 app.include_router(reports.router, prefix="/api", tags=["Rapports"])
 app.include_router(performance.router, prefix="/api", tags=["Performances"])
 app.include_router(superviseurs.router, prefix="/api", tags=["Superviseurs"])
+app.include_router(gestionnaires.router, prefix="/api", tags=["Gestionnaires"])
+app.include_router(potentialites.router, prefix="/api", tags=["Potentialites"])
+app.include_router(grades.router, prefix="/api", tags=["Grades"])
+app.include_router(envois.router, prefix="/api", tags=["Envois"])
+app.include_router(prospects.router, prefix="/api", tags=["Prospection"])
+app.include_router(prospect_extras.router, prefix="/api", tags=["Prospection - Extras"])
+app.include_router(indicators.router, prefix="/api", tags=["Indicateurs"])
+app.include_router(commissions.router, prefix="/api", tags=["Commissions"])
+app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
+app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
+app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 
 @app.get("/")
 def root():

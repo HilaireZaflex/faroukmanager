@@ -207,6 +207,145 @@ function ImportSection({ icon: Icon, title, description, endpoint, label, templa
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────
+// ─── Import EXPORT Orange Component ───────────────────────────────────────
+function ImportExportOrange({ queryClient }) {
+  const [file, setFile] = useState(null);
+  const [mode, setMode] = useState('mensuel');
+  const [annee, setAnnee] = useState(new Date().getFullYear());
+  const [mois, setMois] = useState(new Date().getMonth() + 1);
+  const [semaine, setSemaine] = useState('');
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+  const submit = async () => {
+    if (!file) return toast.error('Sélectionnez un fichier EXPORT Orange');
+    setLoading(true); setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('mode', mode);
+      fd.append('annee', annee);
+      if (mode === 'mensuel') fd.append('mois', mois);
+      else if (semaine) fd.append('semaine', semaine);
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const res = await api.post('/performance/import-export-orange', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setResult(res.data);
+      queryClient?.invalidateQueries();
+      toast.success(`Import terminé ! ${res.data.created} créés, ${res.data.updated} mis à jour`);
+    } catch (err) {
+      toast.error('Erreur : ' + (err.response?.data?.detail || err.message));
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 'var(--radius)', padding: 20, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: 22 }}>📊</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Import direct fichier EXPORT Orange</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Structure attendue : Numero revendeur · Grade · Service · Nombre transaction · Montant transaction · Transaction CA · Commission PDG · Commission revendeur · Date transaction
+          </div>
+        </div>
+      </div>
+
+      {/* Info colonnes */}
+      <div style={{ background: 'rgba(255,105,0,0.06)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+        ✅ <b>Calculé automatiquement :</b><br/>
+        &nbsp;&nbsp;• <b>Montant Transaction</b> = Dépôts (CASHIN) + Retraits (CASHOUT)<br/>
+        &nbsp;&nbsp;• <b>Montant CA</b> = Somme "Transaction CA" (base des commissions Orange)<br/>
+        &nbsp;&nbsp;• <b>Commission PDG</b> = Somme "Commission PDG" (votre part réseau)<br/>
+        &nbsp;&nbsp;• <b>Commission Revendeur</b> = Somme "Commission revendeur" (part des PDV)<br/>
+        &nbsp;&nbsp;• <b>Ratio CA/Transaction</b> = Montant CA / Montant Transaction × 100
+      </div>
+
+      {/* Contrôles */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mode *</div>
+          <select value={mode} onChange={e => setMode(e.target.value)}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="mensuel">📅 Mensuel</option>
+            <option value="hebdo">📆 Hebdomadaire</option>
+          </select>
+        </label>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Année *</div>
+          <input type="number" value={annee} onChange={e => setAnnee(parseInt(e.target.value))} min={2020} max={2030}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}/>
+        </label>
+        {mode === 'mensuel' ? (
+          <label style={{ fontSize: 12 }}>
+            <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mois *</div>
+            <select value={mois} onChange={e => setMois(parseInt(e.target.value))}
+              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+              {MOIS_NOMS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+            </select>
+          </label>
+        ) : (
+          <label style={{ fontSize: 12 }}>
+            <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Semaine (optionnel)</div>
+            <input type="number" value={semaine} onChange={e => setSemaine(e.target.value)} min={1} max={52} placeholder="Toutes"
+              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}/>
+          </label>
+        )}
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Fichier EXPORT *</div>
+          <input type="file" accept=".xlsx,.xls" onChange={e => setFile(e.target.files[0])}
+            style={{ width: '100%', padding: '6px 0', fontSize: 12, color: 'var(--text-primary)' }}/>
+        </label>
+      </div>
+
+      {file && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+          📎 {file.name} ({(file.size / 1024 / 1024).toFixed(1)} Mo)
+        </div>
+      )}
+
+      <button onClick={submit} disabled={loading || !file}
+        style={{ padding: '10px 20px', background: loading ? 'var(--text-muted)' : '#FF6900', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13 }}>
+        {loading ? '⏳ Import en cours…' : '🚀 Importer le fichier EXPORT Orange'}
+      </button>
+
+      {result && (
+        <div style={{ marginTop: 16, padding: 14, background: result.created + result.updated > 0 ? 'rgba(0,214,143,0.08)' : 'rgba(255,71,87,0.08)', borderRadius: 8, borderLeft: `3px solid ${result.created + result.updated > 0 ? 'var(--success)' : 'var(--danger)'}` }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>
+            {result.created + result.updated > 0 ? '✅ Import terminé !' : '⚠️ Import terminé avec avertissements'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 12 }}>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#00d68f' }}>{result.created}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Créés</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#ffa502' }}>{result.updated}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Mis à jour</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#3742fa' }}>{result.pdv_periodes_traitees}</div>
+              <div style={{ color: 'var(--text-muted)' }}>PDV × Périodes</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: result.pdv_non_trouves > 0 ? '#ff4757' : '#00d68f' }}>{result.pdv_non_trouves}</div>
+              <div style={{ color: 'var(--text-muted)' }}>PDV non trouvés</div>
+            </div>
+          </div>
+          {result.pdv_non_trouves > 0 && (
+            <div style={{ marginTop: 10, fontSize: 11, color: '#ff4757' }}>
+              ⚠️ PDV non trouvés en base : {result.exemples_non_trouves.join(', ')}{result.pdv_non_trouves > 10 ? '...' : ''}
+              <br/>💡 Assurez-vous d'importer d'abord la liste des PDVs avec leurs vrais numéros Orange.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ImportPage() {
   const queryClient = useQueryClient();
 
@@ -245,11 +384,17 @@ export default function ImportPage() {
         queryClient={queryClient}
       />
 
+      {/* ── OMY ─────────────────────────────────────────────────────────────── */}
+      <div style={{ margin: '32px 0 16px', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#FF6900' }}>🟠 Données OMY</h2>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Performances mensuelles et hebdomadaires de l'indicateur OMY</p>
+      </div>
+
       {/* Section 2 : Données Mensuelles */}
       <ImportSection
         icon={Calendar}
-        title="📅 Import Performances Mensuelles"
-        description="Importez les données de performance mensuelle : CA, nombre d'opérations, dépôts, retraits par PDV pour un mois donné. Colonnes requises: numero_pdv, annee, mois, ca, nb_operations, nb_depots, montant_depots, nb_retraits, montant_retraits, est_actif."
+        title="📅 Import Performances Mensuelles OMY"
+        description="Importez votre fichier OMY mensuel directement — la feuille SOURCE est détectée automatiquement. Colonnes acceptées : PDV, Année, Mois, CA, NBRE OPERATIONS, Nbre dépôt, Montant Dépôt, Nbre Retrait, Montant Retrait."
         endpoint="/performance/monthly"
         label="Données Mensuelles"
         templateType="mensuel"
@@ -260,12 +405,78 @@ export default function ImportPage() {
       {/* Section 3 : Données Hebdomadaires */}
       <ImportSection
         icon={CalendarDays}
-        title="📆 Import Performances Hebdomadaires"
-        description="Importez les données de performance hebdomadaire : CA, opérations, dépôts, retraits par PDV pour une semaine donnée (numéro de semaine ISO). Colonnes requises: numero_pdv, annee, semaine, ca, nb_operations, nb_depots, montant_depots, nb_retraits, montant_retraits, est_actif."
+        title="📆 Import Performances Hebdomadaires OMY"
+        description="Importez votre fichier OMY hebdomadaire directement — la feuille SOURCE est détectée automatiquement. Colonnes acceptées : PDV, Année, Semaine (ex: S14), CA, NBRE OPERATIONS, Nbre dépôt, Montant Dépôt, Nbre Retrait, Montant Retrait."
         endpoint="/performance/weekly"
         label="Données Hebdomadaires"
         templateType="hebdo"
         color="#00d68f"
+        queryClient={queryClient}
+      />
+
+      {/* ── EXPORT ORANGE ────────────────────────────────────────────────────── */}
+      <div style={{ margin: '32px 0 16px', borderBottom: '1px solid rgba(255,105,0,0.4)', paddingBottom: 12 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#FF6900' }}>🟠 Import EXPORT Orange (Fichier Direct)</h2>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+          Importez directement le fichier <b>EXPORT_XXXXXXXXX.xlsx</b> exporté depuis la plateforme Orange Mali.
+          Calcule automatiquement : Montant Transaction, Montant CA, Commission PDG, Commission Revendeur, Ratio CA/Transaction.
+        </p>
+      </div>
+      <ImportExportOrange queryClient={queryClient} />
+
+      {/* ── NAFAMA ─────────────────────────────────────────────────────────── */}
+      <div style={{ margin: '32px 0 16px', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#00d68f' }}>🟢 Données NAFAMA</h2>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Performances spécifiques à l'indicateur NAFAMA</p>
+      </div>
+
+      <ImportSection
+        icon={Calendar}
+        title="📅 Import NAFAMA — Mensuel"
+        description="Importez les performances mensuelles NAFAMA. Colonnes requises: numero_pdv, annee, mois, ca, nb_operations, est_actif. L'indicateur NAFAMA sera automatiquement assigné."
+        endpoint="/performance/monthly?indicateur=NAFAMA"
+        label="NAFAMA Mensuel"
+        templateType="mensuel"
+        color="#00d68f"
+        queryClient={queryClient}
+      />
+
+      <ImportSection
+        icon={CalendarDays}
+        title="📆 Import NAFAMA — Hebdomadaire"
+        description="Importez les performances hebdomadaires NAFAMA. Colonnes requises: numero_pdv, annee, semaine, ca, nb_operations, est_actif."
+        endpoint="/performance/weekly?indicateur=NAFAMA"
+        label="NAFAMA Hebdomadaire"
+        templateType="hebdo"
+        color="#00d68f"
+        queryClient={queryClient}
+      />
+
+      {/* ── KAABU ──────────────────────────────────────────────────────────── */}
+      <div style={{ margin: '32px 0 16px', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#a29bfe' }}>🟣 Données KAABU</h2>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Performances spécifiques à l'indicateur KAABU</p>
+      </div>
+
+      <ImportSection
+        icon={Calendar}
+        title="📅 Import KAABU — Mensuel"
+        description="Importez les performances mensuelles KAABU. Colonnes requises: numero_pdv, annee, mois, ca, nb_operations, est_actif. L'indicateur KAABU sera automatiquement assigné."
+        endpoint="/performance/monthly?indicateur=KAABU"
+        label="KAABU Mensuel"
+        templateType="mensuel"
+        color="#a29bfe"
+        queryClient={queryClient}
+      />
+
+      <ImportSection
+        icon={CalendarDays}
+        title="📆 Import KAABU — Hebdomadaire"
+        description="Importez les performances hebdomadaires KAABU. Colonnes requises: numero_pdv, annee, semaine, ca, nb_operations, est_actif."
+        endpoint="/performance/weekly?indicateur=KAABU"
+        label="KAABU Hebdomadaire"
+        templateType="hebdo"
+        color="#a29bfe"
         queryClient={queryClient}
       />
 
@@ -297,44 +508,46 @@ export default function ImportPage() {
           {/* Monthly columns */}
           <div>
             <h4 style={{ fontSize: 12, fontWeight: 700, color: '#3742fa', marginBottom: 10, textTransform: 'uppercase' }}>📅 Performance Mensuelle</h4>
+            <p style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>✅ Format natif OMY accepté</p>
             {[
-              ['numero_pdv *', 'Référence du PDV'],
-              ['annee *', 'Année (ex: 2025)'],
-              ['mois *', 'Mois 1-12'],
-              ['ca *', 'Chiffre d\'affaires (FCFA)'],
-              ['nb_operations', 'Nombre total d\'opérations'],
-              ['nb_depots', 'Nombre de dépôts'],
-              ['montant_depots', 'Montant total dépôts (FCFA)'],
-              ['nb_retraits', 'Nombre de retraits'],
-              ['montant_retraits', 'Montant total retraits (FCFA)'],
-              ['est_actif', 'true / false (actif ce mois)'],
+              ['PDV *', 'Numéro du PDV'],
+              ['Année *', 'Année (ex: 2026)'],
+              ['Mois *', 'Mois 1-12 ou nom (Janvier...)'],
+              ['CA *', 'Chiffre d\'affaires (FCFA)'],
+              ['NBRE OPERATIONS', 'Nombre total d\'opérations'],
+              ['Nbre dépôt', 'Nombre de dépôts'],
+              ['Montant Dépôt', 'Montant total dépôts (FCFA)'],
+              ['Nbre Retrait', 'Nombre de retraits'],
+              ['Montant Retrait', 'Montant total retraits (FCFA)'],
             ].map(([col, desc]) => (
               <div key={col} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                 <code style={{ fontSize: 10, background: 'rgba(55,66,250,0.1)', color: '#3742fa', padding: '2px 6px', borderRadius: 4, flexShrink: 0, alignSelf: 'flex-start' }}>{col}</code>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{desc}</span>
               </div>
             ))}
+            <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 6, fontStyle: 'italic' }}>💡 Feuille "SOURCE" détectée automatiquement</p>
           </div>
           {/* Weekly columns */}
           <div>
             <h4 style={{ fontSize: 12, fontWeight: 700, color: '#00d68f', marginBottom: 10, textTransform: 'uppercase' }}>📆 Performance Hebdomadaire</h4>
+            <p style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>✅ Format natif OMY accepté</p>
             {[
-              ['numero_pdv *', 'Référence du PDV'],
-              ['annee *', 'Année (ex: 2025)'],
-              ['semaine *', 'Semaine ISO 1-52'],
-              ['ca *', 'Chiffre d\'affaires (FCFA)'],
-              ['nb_operations', 'Nombre total d\'opérations'],
-              ['nb_depots', 'Nombre de dépôts'],
-              ['montant_depots', 'Montant total dépôts (FCFA)'],
-              ['nb_retraits', 'Nombre de retraits'],
-              ['montant_retraits', 'Montant total retraits (FCFA)'],
-              ['est_actif', 'true / false (actif cette semaine)'],
+              ['PDV *', 'Numéro du PDV'],
+              ['Année *', 'Année (ex: 2026)'],
+              ['Semaine *', 'S6, S14... ou numéro 1-52'],
+              ['CA *', 'Chiffre d\'affaires (FCFA)'],
+              ['NBRE OPERATIONS', 'Nombre total d\'opérations'],
+              ['Nbre dépôt', 'Nombre de dépôts'],
+              ['Montant Dépôt', 'Montant total dépôts (FCFA)'],
+              ['Nbre Retrait', 'Nombre de retraits'],
+              ['Montant Retrait', 'Montant total retraits (FCFA)'],
             ].map(([col, desc]) => (
               <div key={col} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                 <code style={{ fontSize: 10, background: 'rgba(0,214,143,0.1)', color: '#00d68f', padding: '2px 6px', borderRadius: 4, flexShrink: 0, alignSelf: 'flex-start' }}>{col}</code>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{desc}</span>
               </div>
             ))}
+            <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 6, fontStyle: 'italic' }}>💡 Feuille "SOURCE" détectée automatiquement</p>
           </div>
         </div>
       </div>

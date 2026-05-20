@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
-import { FileText, Download, BarChart3, Calendar } from 'lucide-react';
+import { FileText, Download, BarChart3, Calendar, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -83,24 +83,62 @@ export default function ReportsPage() {
             <div style={{ textAlign:'center', color:'var(--text-secondary)', padding:30 }}>Aucune donnée disponible</div>
           )}
 
-          <button className="btn btn-primary" style={{ width:'100%', marginTop:20, justifyContent:'center' }} onClick={async () => {
-            if (!report) { toast.error('Aucune donnée à exporter'); return; }
-            const rows = [
-              { Indicateur: 'CA Total', Valeur: report.total_ca || 0 },
-              { Indicateur: 'PDVs Actifs', Valeur: report.pdvs_actifs || 0 },
-              { Indicateur: 'PDVs Inactifs', Valeur: report.pdvs_inactifs || 0 },
-              { Indicateur: 'Taux Activité (%)', Valeur: (report.taux_activite || 0).toFixed(1) },
-              { Indicateur: 'CA Moyen/PDV', Valeur: report.ca_moyen_pdv || report.average_ca || 0 },
-              { Indicateur: 'Nb Opérations', Valeur: report.total_operations || 0 },
-            ];
-            const ws = XLSX.utils.json_to_sheet(rows);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, `Rapport ${MOIS_NOMS[mois]} ${annee}`);
-            XLSX.writeFile(wb, `rapport_orange_mali_${annee}_${String(mois).padStart(2,'0')}.xlsx`);
-            toast.success('Rapport exporté en Excel !');
-          }}>
-            <Download size={15}/> Exporter Excel
-          </button>
+          <div style={{ display:'flex', gap:10, marginTop:20 }}>
+            <button className="btn btn-primary" style={{ flex:1, justifyContent:'center' }} onClick={async () => {
+              if (!report) { toast.error('Aucune donnée à exporter'); return; }
+              const rows = [
+                { Indicateur: 'CA Total', Valeur: report.total_ca || 0 },
+                { Indicateur: 'PDVs Actifs', Valeur: report.pdvs_actifs || 0 },
+                { Indicateur: 'PDVs Inactifs', Valeur: report.pdvs_inactifs || 0 },
+                { Indicateur: 'Taux Activité (%)', Valeur: (report.taux_activite || 0).toFixed(1) },
+                { Indicateur: 'CA Moyen/PDV', Valeur: report.ca_moyen_pdv || report.average_ca || 0 },
+                { Indicateur: 'Nb Opérations', Valeur: report.total_operations || 0 },
+              ];
+              const ws = XLSX.utils.json_to_sheet(rows);
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, `Rapport ${MOIS_NOMS[mois]} ${annee}`);
+              XLSX.writeFile(wb, `rapport_orange_mali_${annee}_${String(mois).padStart(2,'0')}.xlsx`);
+              toast.success('Rapport exporté en Excel !');
+            }}>
+              <Download size={15}/> Excel
+            </button>
+            <button className="btn btn-ghost" style={{ flex:1, justifyContent:'center' }} onClick={() => {
+              if (!report) { toast.error('Aucune donnée à exporter'); return; }
+              const w = window.open('', '_blank');
+              w.document.write(`
+                <html><head><title>Rapport Orange Mali - ${MOIS_NOMS[mois]} ${annee}</title>
+                <style>
+                  body{font-family:Arial,sans-serif;padding:40px;color:#111;max-width:800px;margin:0 auto}
+                  h1{color:#FF6900;font-size:24px;margin-bottom:4px}
+                  p{color:#666;font-size:13px;margin-top:0}
+                  table{width:100%;border-collapse:collapse;margin-top:24px}
+                  th{background:#FF6900;color:#fff;padding:10px 14px;text-align:left;font-size:13px}
+                  td{padding:10px 14px;border-bottom:1px solid #eee;font-size:13px}
+                  tr:nth-child(even) td{background:#fff8f4}
+                  .footer{margin-top:40px;color:#999;font-size:11px;text-align:center}
+                  @media print{button{display:none}}
+                </style></head>
+                <body>
+                <button onclick="window.print()" style="background:#FF6900;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;margin-bottom:20px">🖨️ Imprimer / Enregistrer PDF</button>
+                <h1>Rapport Orange Mali</h1>
+                <p>${MOIS_NOMS[mois]} ${annee} — Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
+                <table>
+                  <tr><th>Indicateur</th><th>Valeur</th></tr>
+                  <tr><td>CA Total</td><td><strong>${formatCA(report.total_ca)}</strong></td></tr>
+                  <tr><td>PDVs Actifs</td><td><strong style="color:green">${report.pdvs_actifs || 0}</strong></td></tr>
+                  <tr><td>PDVs Inactifs</td><td><strong style="color:red">${report.pdvs_inactifs || 0}</strong></td></tr>
+                  <tr><td>Taux Activité</td><td><strong>${(report.taux_activite||0).toFixed(1)}%</strong></td></tr>
+                  <tr><td>CA Moyen / PDV</td><td><strong>${formatCA(report.ca_moyen_pdv || report.average_ca)}</strong></td></tr>
+                  <tr><td>Nb Opérations</td><td><strong>${(report.total_operations||0).toLocaleString('fr-FR')}</strong></td></tr>
+                </table>
+                <div class="footer">FaroukManager — Rapport automatique Orange Mali</div>
+                </body></html>`);
+              w.document.close();
+              toast.success('Aperçu PDF ouvert dans un nouvel onglet');
+            }}>
+              <Printer size={15}/> PDF
+            </button>
+          </div>
         </div>
 
         {/* Feuille de route */}

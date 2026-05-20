@@ -51,7 +51,14 @@ function SectionTitle({ emoji, title, link, navigate }) {
 }
 
 export default function AccueilPage() {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
+
+  // Recharger le profil utilisateur depuis l'API pour avoir les données à jour
+  useQuery('current-user-profile', () => api.get('/auth/me').then(r => r.data), {
+    onSuccess: (data) => { if (data && data.nom) setUser({ ...user, ...data }); },
+    staleTime: 300000,
+    retry: false,
+  });
   const navigate = useNavigate();
   const now = new Date();
   const mois = now.getMonth() + 1;
@@ -141,8 +148,10 @@ export default function AccueilPage() {
           <StatCard icon={Activity} value={stats?.actifs || '--'} label="PDVs Actifs" sub="Ce mois" color="var(--success)" onClick={() => navigate('/pdvs')} />
           <StatCard icon={AlertTriangle} value={stats?.inactifs || '--'} label="PDVs Inactifs" sub="Requièrent attention" color="var(--danger)" onClick={() => navigate('/alerts')} />
           <StatCard icon={RefreshCw} value={stats?.en_recuperation || '--'} label="En Récupération" sub={`Taux: ${recovery?.taux_recuperation?.toFixed(0) || 0}%`} color="var(--warning)" onClick={() => navigate('/recovery')} />
-          <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_ca || 0)} label="CA Mensuel" sub={`Cumul: ${fmtM(dashboard?.ca_cumule || 0)}`} color="var(--primary)" onClick={() => navigate('/dashboard')} />
+          <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_montant_transaction || dashboard?.total_ca || 0)} label="Montant Transaction" sub={`Dépôts + Retraits · ${['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][mois-1]} ${annee}`} color="var(--primary)" onClick={() => navigate('/dashboard')} />
+          <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_montant_ca || 0)} label="Montant CA" sub={`${(dashboard?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} color="#00d68f" onClick={() => navigate('/dashboard')} />
           <StatCard icon={Activity} value={(dashboard?.total_operations || 0).toLocaleString('fr-FR')} label="Opérations" sub="Dépôts + Retraits" color="#3742fa" onClick={() => navigate('/dashboard')} />
+          <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_commission_pdg || 0)} label="Commission PDG" sub="Part réseau Orange" color="#a29bfe" onClick={() => navigate('/commissions')} />
           <StatCard icon={Brain} value={healthData?.average_health?.toFixed(1) || '--'} label="Score Santé Moyen" sub="Health Score IA (/100)" color="#a29bfe" onClick={() => navigate('/ia')} badge="IA" />
           <StatCard icon={Award} value={predictions?.total_at_risk || '--'} label="PDVs à Risque IA" sub={`${predictions?.high_risk_count || 0} critiques`} color="var(--danger)" onClick={() => navigate('/ia')} badge="IA" />
         </div>

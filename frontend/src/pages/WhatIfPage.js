@@ -13,24 +13,49 @@ const formatCA = (v) => {
   return `${v} FCFA`;
 };
 
-const ZONES = ['Bamako Centre', 'Bamako Nord', 'Bamako Sud', 'Bamako Est', 'Kati', 'Sikasso', 'Ségou', 'Koulikoro'];
+// Hook pour récupérer les dernières données disponibles
+function useLastAvailable() {
+  return useQuery('last-available', () =>
+    api.get('/dashboard/last-available').then(r => r.data),
+    { staleTime: 300000 }
+  );
+}
+
+// Hook pour récupérer le heatmap avec les dernières données
+function useHeatmap() {
+  const { data: last } = useLastAvailable();
+  const annee = last?.last_month?.annee || new Date().getFullYear();
+  const mois = last?.last_month?.mois || new Date().getMonth() + 1;
+  return useQuery(['whatif-heatmap', annee, mois], () =>
+    api.get('/analytics/heatmap', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 120000, enabled: !!(annee && mois) }
+  );
+}
 
 // ========== SCENARIO 1: Recover Inactive PDVs ==========
 function Scenario1() {
   const [numPDVs, setNumPDVs] = useState(5);
+  const { data: last } = useLastAvailable();
+  const { data: heatmap } = useHeatmap();
+
   const { data: stats } = useQuery('pdv-stats', () =>
-    api.get('/pdvs/stats').then(r => r.data).catch(() => ({ inactifs: 60, ca_total: 141321325, actifs: 140 })),
+    api.get('/pdvs/stats').then(r => r.data),
     { staleTime: 120000 }
   );
 
-  // Calculer CA moyen par PDV actif depuis les stats réelles
-  const avgCA = stats?.ca_total && stats?.actifs ? Math.round(stats.ca_total / stats.actifs) : 1009438;
-  const inactifsCount = stats?.inactifs || 60;
+  // Données réelles : CA total réseau depuis heatmap, inactifs depuis stats
+  const totalCAReseau = Object.values(heatmap?.data || {}).reduce((s, z) => s + (z.ca || 0), 0);
+  const totalActifs = Object.values(heatmap?.data || {}).reduce((s, z) => s + (z.count || 0), 0);
+  const avgCA = totalActifs > 0 ? Math.round(totalCAReseau / totalActifs) : (stats?.ca_moyen || 0);
+  const inactifsCount = stats?.inactifs || 0;
+  const maxSlider = Math.min(inactifsCount, 100);
   const estimatedGain = numPDVs * avgCA;
+  const caAvant = totalCAReseau;
+  const caApres = totalCAReseau + estimatedGain;
 
   const chartData = [
-    { name: 'Avant', ca: 0 },
-    { name: 'Après', ca: estimatedGain }
+    { name: 'CA Actuel', ca: caAvant },
+    { name: `+${numPDVs} PDVs récupérés`, ca: caApres }
   ];
 
   return (
@@ -47,7 +72,7 @@ function Scenario1() {
             <input
               type="range"
               min="1"
-              max="30"
+              max={maxSlider || 30}
               value={numPDVs}
               onChange={(e) => setNumPDVs(parseInt(e.target.value))}
               className="slider"
@@ -55,22 +80,26 @@ function Scenario1() {
             <div className="slider-value">{numPDVs} PDVs</div>
           </div>
           <div className="info-text">
-            PDVs inactifs disponibles: {inactifsCount}
+            PDVs inactifs disponibles: <strong>{inactifsCount}</strong>
           </div>
         </div>
 
         <div className="scenario-stats">
           <div className="stat-box">
+            <span className="stat-label">CA Réseau Actuel</span>
+            <span className="stat-value">{formatCA(caAvant)}</span>
+          </div>
+          <div className="stat-box">
             <span className="stat-label">CA Moyen par PDV Actif</span>
             <span className="stat-value">{formatCA(avgCA)}</span>
           </div>
           <div className="stat-box">
-            <span className="stat-label">Gain Estimé/Mois</span>
+            <span className="stat-label">Gain Estimé</span>
             <span className="stat-value gain">{formatCA(estimatedGain)}</span>
           </div>
           <div className="stat-box">
             <span className="stat-label">Gain en %</span>
-            <span className="stat-value">{((estimatedGain / (avgCA * 100)) * 100).toFixed(1)}%</span>
+            <span className="stat-value gain">{caAvant > 0 ? ((estimatedGain / caAvant) * 100).toFixed(1) : '0'}%</span>
           </div>
         </div>
 
@@ -92,18 +121,18 @@ function Scenario1() {
 
 // ========== SCENARIO 2: Zone Recovery ==========
 function Scenario2() {
-  const [selectedZone, setSelectedZone] = useState('Bamako Centre');
-  const { data: heatmap } = useQuery('whatif-heatmap', () =>
-    api.get('/analytics/heatmap', { params: { annee: new Date().getFullYear(), mois: new Date().getMonth() + 1 } }).then(r => r.data),
-    { staleTime: 120000 }
-  );
+  const { data: heatmap } = useHeatmap();
+  const zones = Object.keys(heatmap?.data || {}).sort();
+  const [selectedZone, setSelectedZone] = useState('');
+  const [targetPct, setTargetPct] = useState(20);
 
-  const zoneData = heatmap?.data?.[selectedZone] || { ca: 0, count: 0, health_avg: 0 };
+  const activeZone = selectedZone || zones[0] || '';
+  const zoneData = heatmap?.data?.[activeZone] || { ca: 0, count: 0, health_avg: 0 };
   const currentCA = zoneData.ca || 0;
-  const potentialCA = currentCA * 1.2; // +20% hypothetical
+  const potentialCA = currentCA * (1 + targetPct / 100);
   const gain = potentialCA - currentCA;
 
-  // Simulate recovery curve
+  // Simulate recovery curve sur 12 semaines
   const recoveryData = Array.from({ length: 12 }, (_, i) => ({
     week: `S${i + 1}`,
     current: currentCA + (gain * (i / 12)),
@@ -120,11 +149,20 @@ function Scenario2() {
       <div className="scenario-content">
         <div className="form-group">
           <label>Sélectionnez une zone</label>
-          <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)}>
-            {ZONES.map(zone => (
+          <select value={activeZone} onChange={(e) => setSelectedZone(e.target.value)}>
+            {zones.length > 0 ? zones.map(zone => (
               <option key={zone} value={zone}>{zone}</option>
-            ))}
+            )) : <option value="">Chargement...</option>}
           </select>
+        </div>
+
+        <div className="slider-group">
+          <label>Objectif de croissance zone</label>
+          <div className="slider-container">
+            <input type="range" min="5" max="100" step="5" value={targetPct}
+              onChange={(e) => setTargetPct(parseInt(e.target.value))} className="slider" />
+            <div className="slider-value">+{targetPct}%</div>
+          </div>
         </div>
 
         <div className="scenario-stats">
@@ -133,7 +171,7 @@ function Scenario2() {
             <span className="stat-value">{formatCA(currentCA)}</span>
           </div>
           <div className="stat-box">
-            <span className="stat-label">CA Potentiel (+20%)</span>
+            <span className="stat-label">CA Potentiel (+{targetPct}%)</span>
             <span className="stat-value potentiel">{formatCA(potentialCA)}</span>
           </div>
           <div className="stat-box">
@@ -141,7 +179,7 @@ function Scenario2() {
             <span className="stat-value gain">{formatCA(gain)}</span>
           </div>
           <div className="stat-box">
-            <span className="stat-label">PDVs Actifs</span>
+            <span className="stat-label">PDVs Actifs dans la zone</span>
             <span className="stat-value">{zoneData.count || 0}</span>
           </div>
         </div>
@@ -173,13 +211,12 @@ function Scenario2() {
 // ========== SCENARIO 3: New PDVs ==========
 function Scenario3() {
   const [numNewPDVs, setNumNewPDVs] = useState(5);
-  const [selectedZone, setSelectedZone] = useState('Bamako Centre');
-  const { data: heatmap } = useQuery('whatif-heatmap', () =>
-    api.get('/analytics/heatmap', { params: { annee: new Date().getFullYear(), mois: new Date().getMonth() + 1 } }).then(r => r.data),
-    { staleTime: 120000 }
-  );
+  const { data: heatmap } = useHeatmap();
+  const zones = Object.keys(heatmap?.data || {}).sort();
+  const [selectedZone, setSelectedZone] = useState('');
 
-  const zoneData = heatmap?.data?.[selectedZone] || { ca: 0, count: 0 };
+  const activeZone = selectedZone || zones[0] || '';
+  const zoneData = heatmap?.data?.[activeZone] || { ca: 0, count: 0 };
   const zoneAvgCA = zoneData.ca && zoneData.count ? zoneData.ca / zoneData.count : 2000000;
   const estimatedNewCA = numNewPDVs * zoneAvgCA;
 
@@ -202,11 +239,11 @@ function Scenario3() {
 
       <div className="scenario-content">
         <div className="form-group">
-          <label>Zone</label>
-          <select value={selectedZone} onChange={(e) => setSelectedZone(e.target.value)}>
-            {ZONES.map(zone => (
+          <label>Zone cible</label>
+          <select value={activeZone} onChange={(e) => setSelectedZone(e.target.value)}>
+            {zones.length > 0 ? zones.map(zone => (
               <option key={zone} value={zone}>{zone}</option>
-            ))}
+            )) : <option value="">Chargement...</option>}
           </select>
         </div>
 
@@ -227,7 +264,7 @@ function Scenario3() {
 
         <div className="scenario-stats">
           <div className="stat-box">
-            <span className="stat-label">CA Moyen Zone ({selectedZone})</span>
+            <span className="stat-label">CA Moyen PDV dans {activeZone || '...'}</span>
             <span className="stat-value">{formatCA(zoneAvgCA)}</span>
           </div>
           <div className="stat-box">

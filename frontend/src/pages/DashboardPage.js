@@ -68,12 +68,26 @@ function TabOverview({ annee, mois }) {
   );
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 60000 });
 
-  const totalCA = dashboard?.total_ca || 0;
-  const activePDVs = dashboard?.active_pdvs || 0;
+  // ── Nouveaux champs ──────────────────────────────────────────────────────
+  const totalMontantTransaction = dashboard?.total_montant_transaction || dashboard?.total_ca || 0;
+  const totalMontantCA          = dashboard?.total_montant_ca || 0;
+  const totalCommissionPDG      = dashboard?.total_commission_pdg || 0;
+  const totalCommissionRevendeur = dashboard?.total_commission_revendeur || 0;
+  const ratioCaTransaction      = dashboard?.ratio_ca_transaction || 0;
+  const pdvsFaibleCA            = dashboard?.pdvs_faible_ca || 0;
+  // ── Champs existants ─────────────────────────────────────────────────────
+  const activePDVs   = dashboard?.active_pdvs || 0;
   const inactivePDVs = dashboard?.inactive_pdvs || 0;
-  const totalPDVs = dashboard?.total_pdvs || stats?.total_pdvs || 0;
-  const taux = dashboard?.taux_activite || 0;
-  const caaCumule = dashboard?.ca_cumule || 0;
+  const totalPDVs    = dashboard?.total_pdvs || stats?.total_pdvs || 0;
+  const taux         = dashboard?.taux_activite || 0;
+  const caaCumule    = dashboard?.ca_cumule || 0;
+  const avgCA        = dashboard?.average_ca || (totalPDVs > 0 ? totalMontantTransaction / totalPDVs : 0);
+  const avgVariation = dashboard?.avg_variation || 0;
+  const totalOps     = dashboard?.total_operations || 0;
+  const totalDepots  = dashboard?.total_depots || 0;
+  const totalRetraits = dashboard?.total_retraits || 0;
+  const montantDepots  = dashboard?.montant_depots || 0;
+  const montantRetraits = dashboard?.montant_retraits || 0;
 
   const caByZone = dashboard?.ca_by_zone
     ? Object.entries(dashboard.ca_by_zone).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca)
@@ -88,36 +102,44 @@ function TabOverview({ annee, mois }) {
     ? Object.entries(dashboard.ca_by_type).map(([type, ca]) => ({ type, ca }))
     : [];
 
-  const avgCA = dashboard?.average_ca || 0;
-  const avgVariation = dashboard?.avg_variation || 0;
-  const totalOps = dashboard?.total_operations || 0;
-  const totalDepots = dashboard?.total_depots || 0;
-  const totalRetraits = dashboard?.total_retraits || 0;
-  const montantDepots = dashboard?.montant_depots || 0;
-  const montantRetraits = dashboard?.montant_retraits || 0;
-
   return (
     <div>
-      {/* KPIs row 1 */}
-      <div className="grid-4 mb-16">
-        <KPICard title="CA Total" formatted={formatCA(totalCA)} icon={DollarSign} color="#FF6900" loading={isLoading} subtitle={`${MOIS_NOMS[mois]} ${annee}`} />
-        <KPICard title="CA Cumulé" formatted={formatCA(caaCumule)} icon={TrendingUp} color="#a29bfe" loading={isLoading} subtitle={`Jan → ${MOIS_NOMS[mois]} ${annee}`} />
-        <KPICard title="PDVs Actifs" value={activePDVs} icon={Store} color="#00d68f" loading={isLoading} subtitle={`sur ${totalPDVs} PDVs`} />
-        <KPICard title="Taux Activité" formatted={`${taux.toFixed(1)}%`} icon={Activity} color={taux >= 70 ? '#00d68f' : taux >= 50 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Objectif: 75%" />
+      {/* ── Section 1 : Volumes Financiers ── */}
+      <div className="kpi-section">
+        <div className="kpi-section-title">💰 Volumes Financiers</div>
+        <div className="grid-3-kpi mb-24">
+          <KPICard title="Montant Transaction" formatted={formatCA(totalMontantTransaction)} icon={DollarSign} color="#FF6900" loading={isLoading} subtitle={`${MOIS_NOMS[mois]} ${annee} · Dépôts + Retraits`} />
+          <KPICard title="Montant CA" formatted={formatCA(totalMontantCA)} icon={DollarSign} color="#00d68f" loading={isLoading} subtitle={`${ratioCaTransaction.toFixed(1)}% du volume transaction`} />
+          <KPICard title="Moy. Transaction / PDV" formatted={formatCA(avgCA)} icon={DollarSign} color="#ffa502" loading={isLoading} subtitle={`Sur ${totalPDVs} PDVs`} />
+        </div>
       </div>
-      {/* KPIs row 2 */}
-      <div className="grid-4 mb-16">
-        <KPICard title="CA Moyen / PDV" formatted={formatCA(avgCA)} icon={DollarSign} color="#ffa502" loading={isLoading} />
-        <KPICard title="Variation Moy." formatted={`${avgVariation >= 0 ? '+' : ''}${avgVariation.toFixed(0)}%`} icon={TrendingUp} color={avgVariation >= 0 ? '#00d68f' : '#ff4757'} loading={isLoading} />
-        <KPICard title="PDVs Inactifs" value={inactivePDVs} icon={AlertTriangle} color="#ff4757" loading={isLoading} subtitle={`${(100 - taux).toFixed(1)}% du réseau`} />
-        <KPICard title="Total Opérations" value={totalOps} icon={Activity} color="#3742fa" loading={isLoading} />
+      {/* ── Section 2 : Commissions Orange ── */}
+      <div className="kpi-section">
+        <div className="kpi-section-title">🏆 Commissions Orange</div>
+        <div className="grid-3-kpi mb-24">
+          <KPICard title="Commission PDG" formatted={formatCA(totalCommissionPDG)} icon={DollarSign} color="#a29bfe" loading={isLoading} subtitle="Part réseau Orange (votre part)" />
+          <KPICard title="Commission Revendeur" formatted={formatCA(totalCommissionRevendeur)} icon={DollarSign} color="#fd79a8" loading={isLoading} subtitle="Part PDV Orange" />
+          <KPICard title="Ratio CA / Transaction" formatted={`${ratioCaTransaction.toFixed(1)}%`} icon={Activity} color={ratioCaTransaction >= 10 ? '#00d68f' : ratioCaTransaction >= 5 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Qualité des operations (plus = mieux)" />
+        </div>
       </div>
-      {/* KPIs row 3 - Dépôts/Retraits */}
-      <div className="grid-4 mb-24">
-        <KPICard title="Nb Dépôts" value={totalDepots} icon={TrendingUp} color="#00d68f" loading={isLoading} />
-        <KPICard title="Montant Dépôts" formatted={formatCA(montantDepots)} icon={DollarSign} color="#00d68f" loading={isLoading} />
-        <KPICard title="Nb Retraits" value={totalRetraits} icon={TrendingDown} color="#fd79a8" loading={isLoading} />
-        <KPICard title="Montant Retraits" formatted={formatCA(montantRetraits)} icon={DollarSign} color="#fd79a8" loading={isLoading} />
+      {/* ── Section 3 : Activite Reseau ── */}
+      <div className="kpi-section">
+        <div className="kpi-section-title">📊 Activité du Réseau</div>
+        <div className="grid-3-kpi mb-24">
+          <KPICard title="PDVs Actifs" value={activePDVs} icon={Store} color="#00d68f" loading={isLoading} subtitle={`${taux.toFixed(1)}% du réseau · Objectif 75%`} />
+          <KPICard title="PDVs Inactifs" value={inactivePDVs} icon={AlertTriangle} color="#ff4757" loading={isLoading} subtitle={`${(100 - taux).toFixed(1)}% du réseau`} />
+          <KPICard title="Total Opérations" value={totalOps} icon={Activity} color="#3742fa" loading={isLoading} subtitle={`${totalDepots} dépôts · ${totalRetraits} retraits`} />
+        </div>
+      </div>
+      {/* ── Section 4 : Depots et Retraits ── */}
+      <div className="kpi-section">
+        <div className="kpi-section-title">🔄 Dépôts et Retraits</div>
+        <div className="grid-4 mb-24">
+          <KPICard title="Montant Dépôts" formatted={formatCA(montantDepots)} icon={TrendingUp} color="#00d68f" loading={isLoading} subtitle={`${totalDepots} opérations`} />
+          <KPICard title="Montant Retraits" formatted={formatCA(montantRetraits)} icon={TrendingDown} color="#fd79a8" loading={isLoading} subtitle={`${totalRetraits} opérations`} />
+          <KPICard title="Variation Moy." formatted={`${avgVariation >= 0 ? '+' : ''}${avgVariation.toFixed(1)}%`} icon={TrendingUp} color={avgVariation >= 0 ? '#00d68f' : '#ff4757'} loading={isLoading} subtitle="vs mois précédent" />
+          <KPICard title="PDVs Faible CA" value={pdvsFaibleCA} icon={AlertTriangle} color="#ffa502" loading={isLoading} subtitle="Peu de retraits vs dépôts" />
+        </div>
       </div>
 
       <div className="charts-row mb-24">

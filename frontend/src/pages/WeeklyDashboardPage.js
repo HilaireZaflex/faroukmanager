@@ -70,19 +70,43 @@ function OngletVueEnsemble({ annee, semaine }) {
     ? Object.entries(dash.ca_by_superviseur).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8)
     : [];
 
+  const totalTransaction  = dash?.total_montant_transaction || dash?.total_ca || 0;
+  const totalCA           = dash?.total_montant_ca || 0;
+  const commPDG           = dash?.total_commission_pdg || 0;
+  const commRev           = dash?.total_commission_revendeur || 0;
+  const ratio             = dash?.ratio_ca_transaction || 0;
+  const pdvsFaibleCA      = dash?.pdvs_faible_ca || 0;
+  const taux              = dash?.taux_activite || 0;
+
   return (
     <div>
-      <div className="grid-4 mb-24">
-        <KPICard title="CA Semaine" formatted={formatCA(dash?.total_ca)} icon={Activity} color="#FF6900" loading={isLoading} />
-        <KPICard title="PDVs Actifs" value={dash?.active_pdvs} icon={Users} color="#00d68f" loading={isLoading} />
-        <KPICard title="PDVs Inactifs" value={dash?.inactive_pdvs} icon={AlertTriangle} color="#ff4757" loading={isLoading} />
-        <KPICard title="Taux Activité" formatted={`${(dash?.taux_activite || 0).toFixed(1)}%`} icon={Zap} color="#a29bfe" loading={isLoading} />
+      {/* ── Section 1 : Volumes Financiers ── */}
+      <div className="kpi-section">
+        <div className="kpi-section-title">💰 Volumes Financiers</div>
+        <div className="grid-3-kpi mb-24">
+          <KPICard title="Montant Transaction" formatted={formatCA(totalTransaction)} icon={Activity} color="#FF6900" loading={isLoading} subtitle="Dépôts + Retraits de la semaine" />
+          <KPICard title="Montant CA" formatted={formatCA(totalCA)} icon={Activity} color="#00d68f" loading={isLoading} subtitle={`${ratio.toFixed(1)}% du volume transaction`} />
+          <KPICard title="Taux Activité" formatted={`${taux.toFixed(1)}%`} icon={Zap} color={taux >= 70 ? '#00d68f' : taux >= 50 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Objectif: 75% du réseau" />
+        </div>
       </div>
-      <div className="grid-4 mb-24">
-        <KPICard title="Total Opérations" value={dash?.total_operations} icon={Activity} color="#3742fa" loading={isLoading} />
-        <KPICard title="Dépôts" value={dash?.total_depots} icon={TrendingUp} color="#00d68f" loading={isLoading} />
-        <KPICard title="Retraits" value={dash?.total_retraits} icon={TrendingDown} color="#ffa502" loading={isLoading} />
-        <KPICard title="Variation Moy." formatted={`${(dash?.avg_variation || 0).toFixed(1)}%`} icon={TrendingUp} color="#fd79a8" loading={isLoading} />
+      {/* ── Section 2 : Commissions Orange ── */}
+      <div className="kpi-section">
+        <div className="kpi-section-title">🏆 Commissions Orange</div>
+        <div className="grid-3-kpi mb-24">
+          <KPICard title="Commission PDG" formatted={formatCA(commPDG)} icon={Activity} color="#a29bfe" loading={isLoading} subtitle="Part réseau Orange (votre part)" />
+          <KPICard title="Commission Revendeur" formatted={formatCA(commRev)} icon={Activity} color="#fd79a8" loading={isLoading} subtitle="Part PDV Orange" />
+          <KPICard title="Ratio CA / Transaction" formatted={`${ratio.toFixed(1)}%`} icon={Zap} color={ratio >= 10 ? '#00d68f' : ratio >= 5 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Qualité des operations" />
+        </div>
+      </div>
+      {/* ── Section 3 : Activite Reseau ── */}
+      <div className="kpi-section">
+        <div className="kpi-section-title">📊 Activité du Réseau</div>
+        <div className="grid-4 mb-24">
+          <KPICard title="PDVs Actifs" value={dash?.active_pdvs} icon={Users} color="#00d68f" loading={isLoading} subtitle={`${taux.toFixed(1)}% du réseau`} />
+          <KPICard title="Total Opérations" value={dash?.total_operations} icon={Activity} color="#3742fa" loading={isLoading} subtitle={`${dash?.total_depots} dépôts · ${dash?.total_retraits} retraits`} />
+          <KPICard title="Variation Moy." formatted={`${(dash?.avg_variation || 0).toFixed(1)}%`} icon={TrendingUp} color="#fd79a8" loading={isLoading} subtitle="vs semaine précédente" />
+          <KPICard title="PDVs Faible CA" value={pdvsFaibleCA} icon={AlertTriangle} color="#ffa502" loading={isLoading} subtitle="Peu de retraits vs dépôts" />
+        </div>
       </div>
 
       <div className="grid-2 mb-24">

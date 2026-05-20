@@ -169,8 +169,8 @@ function TypeBadge({ type }) {
 }
 
 export default function RecoveryListePage() {
-  // Mois par défaut = Mars 2026 (dernier mois disponible en base)
-  const [mois, setMois]     = useState(3);
+  // Mois par défaut = Avril 2026 (dernier mois disponible en base)
+  const [mois, setMois]     = useState(4);
   const [annee, setAnnee]   = useState(2026);
   const [seuil, setSeuil]   = useState(5_000_000);
   const [seuilInput, setSeuilInput] = useState('5000000');
@@ -358,7 +358,7 @@ export default function RecoveryListePage() {
         <div className="rl-kpi-card kpi-red">
           <div className="val">{data?.total ?? '—'}</div>
           <div className="lbl">PDV à récupérer</div>
-          <div className="sub">CA &lt; {fmt(seuil)} FCFA</div>
+          <div className="sub">Montant transactions 2 mois &lt; {fmt(seuil)} FCFA</div>
         </div>
         <div className="rl-kpi-card kpi-dark">
           <div className="val">{nbZero}</div>
@@ -391,6 +391,7 @@ export default function RecoveryListePage() {
             { key: 'activation_recente',label: '📅 Activation < 1 mois',   cls: 'excl-recent' },
             { key: 'nouvelle_creation', label: '✨ Nouvelles créations',    cls: 'excl-new'    },
             { key: 'inactif_zero_ops',  label: '💤 Inactifs 0 opérations', cls: 'excl-inactif'},
+            { key: 'flotte',            label: '🚗 Numéros Flotte (15)',    cls: 'excl-flotte' },
           ].map(({ key, label, cls }) => (
             data.exclusions[key] > 0 && (
               <button
@@ -493,17 +494,17 @@ export default function RecoveryListePage() {
                   </th>
                   <th className="th-right" onClick={() => handleSort('ca_mois_precedent')}>
                     <span style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}>
-                      CA {data?.mois_precedent_nom} <SortIco col="ca_mois_precedent" />
+                      Montant Trans. {data?.mois_precedent_nom} <SortIco col="ca_mois_precedent" />
                     </span>
                   </th>
                   <th className="th-right" onClick={() => handleSort('ca_mois_courant')}>
                     <span style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}>
-                      CA {data?.mois_courant_nom} <SortIco col="ca_mois_courant" />
+                      Montant Trans. {data?.mois_courant_nom} <SortIco col="ca_mois_courant" />
                     </span>
                   </th>
                   <th className="th-right" onClick={() => handleSort('ca_total')} style={{ color:'#ff6b81' }}>
                     <span style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}>
-                      CA Total <SortIco col="ca_total" />
+                      Total 2 mois <SortIco col="ca_total" />
                     </span>
                   </th>
                   <th className="th-center">Infos</th>
@@ -613,10 +614,44 @@ export default function RecoveryListePage() {
             <div className="rl-modal-header">
               <h3>{exclusionModal.label}</h3>
               <span className="rl-modal-count">{exclusionModal.liste.length} PDV exclus</span>
+              <button
+                onClick={() => {
+                  // Export Excel CSV
+                  const rows = [
+                    ['#','N° PDV','Nom','Type','Zone','Sous-zone','Superviseur','Gestionnaire','Téléphone','Date Activation',
+                     `Montant Trans. ${data?.mois_precedent_nom}`,`Montant Trans. ${data?.mois_courant_nom}`,'Total 2 mois'].join(';'),
+                    ...exclusionModal.liste.map((p, i) => [
+                      i+1, p.numero_pdv, p.nom||'', p.type_pdv||'', p.zone||'', p.sous_zone||'',
+                      p.superviseur||'', p.gestionnaire||'', p.telephone||'',
+                      p.date_activation ? p.date_activation.slice(0,10) : '',
+                      p.ca_mois_precedent||0, p.ca_mois_courant||0, p.ca_total||0
+                    ].join(';'))
+                  ].join('\n')
+                  const blob = new Blob(['\uFEFF'+rows], { type: 'text/csv;charset=utf-8;' })
+                  const url  = URL.createObjectURL(blob)
+                  const a    = document.createElement('a')
+                  a.href = url
+                  a.download = `exclus_${exclusionModal.key}_${data?.mois_courant_nom||''}_${annee}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+                style={{
+                  background: '#1a7a4a', color: '#fff', border: 'none',
+                  borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 600, marginRight: 8
+                }}
+              >
+                ⬇️ Exporter Excel
+              </button>
               <button className="rl-modal-close" onClick={() => setExclusionModal(null)}>✕</button>
             </div>
             <p className="rl-modal-sub" style={{ marginBottom: 16 }}>
               Ces PDV ont été automatiquement exclus de la liste de récupération.
+              Total montant transactions : <strong>
+                {new Intl.NumberFormat('fr-FR').format(
+                  exclusionModal.liste.reduce((s, p) => s + (p.ca_total || 0), 0)
+                )} FCFA
+              </strong>
             </p>
             <div className="rl-excl-table-wrap">
               <table className="rl-table">
@@ -631,9 +666,9 @@ export default function RecoveryListePage() {
                     <th>Gestionnaire</th>
                     <th>Téléphone</th>
                     <th>Date Activ.</th>
-                    <th className="th-right">CA {data?.mois_precedent_nom}</th>
-                    <th className="th-right">CA {data?.mois_courant_nom}</th>
-                    <th className="th-right">CA Total</th>
+                    <th className="th-right">Montant Trans. {data?.mois_precedent_nom}</th>
+                    <th className="th-right">Montant Trans. {data?.mois_courant_nom}</th>
+                    <th className="th-right">Total 2 mois</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -668,7 +703,7 @@ export default function RecoveryListePage() {
           <div className="rl-modal" onClick={e => e.stopPropagation()}>
             <h3><Settings size={18} color="#FF6900" /> Seuil de récupération</h3>
             <p className="rl-modal-sub">
-              PDV dont le CA cumulé sur 2 mois est inférieur à ce seuil.
+              PDV dont le montant total des transactions sur 2 mois consécutifs est inférieur à ce seuil.
             </p>
             <label>Nouveau seuil (FCFA)</label>
             <input

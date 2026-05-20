@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
+from app.api.routes.auth import get_current_user, get_pdv_filters
+from app.models.user import User
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 from typing import Optional
@@ -38,7 +40,14 @@ def _filter_perfs_by_pdv(performances, pdv_map, zone=None, superviseur=None, ges
 def _build_classement(perf_pdv_pairs, key_fn, top_n=10):
     """Construit un classement top/bottom N."""
     sorted_pairs = sorted(perf_pdv_pairs, key=lambda x: key_fn(x[0]), reverse=True)
+    def _perf_mt(p):
+        """Montant Transaction fiable = depots + retraits."""
+        mt = getattr(p, 'montant_transaction', None)
+        if mt and mt > 0:
+            return mt
+        return (p.montant_depots or 0.0) + (p.montant_retraits or 0.0)
     def to_dict(rank, p, pdv):
+        mt = _perf_mt(p)
         return {
             "rang": rank,
             "pdv_id": pdv.id,
@@ -50,7 +59,12 @@ def _build_classement(perf_pdv_pairs, key_fn, top_n=10):
             "type_pdv": pdv.type_pdv.value,
             "quartier": pdv.quartier,
             "medaille": pdv.medaille.value if pdv.medaille else "AUCUNE",
-            "ca": p.ca,
+            "ca": mt,                        # compatibilité frontend (renommé montant_transaction)
+            "montant_transaction": mt,        # nouveau nom correct
+            "montant_ca": getattr(p, 'montant_ca', None) or 0.0,
+            "commission_pdg": getattr(p, 'commission_pdg', None) or 0.0,
+            "commission_revendeur": getattr(p, 'commission_revendeur', None) or 0.0,
+            "ratio_ca_transaction": getattr(p, 'ratio_ca_transaction', None) or 0.0,
             "nb_operations": p.nb_operations,
             "nb_depots": p.nb_depots,
             "montant_depots": p.montant_depots,
@@ -76,8 +90,15 @@ def monthly_dashboard(
     quartier: Optional[str] = None,
     sous_zone: Optional[str] = None,
     top_n: int = Query(10, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
 ):
     """Dashboard mensuel complet — M2 du CDC."""
+    # ── Filtre automatique selon rôle ──────────────────────────────────────────
+    f = get_pdv_filters(current_user)
+    superviseur = superviseur or f.get('superviseur')
+    gestionnaire = gestionnaire or f.get('gestionnaire')
+    zone = zone or f.get('zone')
+
     # Toutes les perfs du mois
     all_perfs = db.query(MonthlyPerformance).filter(
         MonthlyPerformance.annee == annee,
@@ -99,8 +120,29 @@ def monthly_dashboard(
             annee, mois = latest
             pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv, quartier, sous_zone)
 
+    # ── Helpers nouveaux champs ───────────────────────────────────────────────
+    def _mt(p):
+        """Montant Transaction = montant_depots + montant_retraits (calcul direct et fiable)."""
+        mt = getattr(p, 'montant_transaction', None)
+        if mt and mt > 0:
+            return mt
+        # Fallback : recalcul depuis dépôts+retraits si montant_transaction non disponible
+        return (p.montant_depots or 0.0) + (p.montant_retraits or 0.0)
+    def _mca(p):   return getattr(p, 'montant_ca', None) or 0.0
+    def _cpdg(p):  return getattr(p, 'commission_pdg', None) or 0.0
+    def _crev(p):  return getattr(p, 'commission_revendeur', None) or 0.0
+    def _ratio(p): return getattr(p, 'ratio_ca_transaction', None) or 0.0
+
     # KPIs globaux
-    total_ca = sum(p.ca for p, _ in pairs)
+    total_montant_transaction  = sum(_mt(p)   for p, _ in pairs)
+    total_montant_ca           = sum(_mca(p)  for p, _ in pairs)
+    total_commission_pdg       = sum(_cpdg(p) for p, _ in pairs)
+    total_commission_revendeur = sum(_crev(p) for p, _ in pairs)
+    ratio_ca_transaction = round(
+        (total_montant_ca / total_montant_transaction * 100) if total_montant_transaction > 0 else 0.0, 2
+    )
+    # Compatibilité : total_ca = montant_transaction
+    total_ca = total_montant_transaction
     total_operations = sum(p.nb_operations for p, _ in pairs)
     total_depots = sum(p.nb_depots for p, _ in pairs)
     montant_depots = sum(p.montant_depots for p, _ in pairs)
@@ -110,6 +152,10 @@ def monthly_dashboard(
     inactive_pdvs = len(pairs) - active_pdvs
     taux_activite = (active_pdvs / len(pairs) * 100) if pairs else 0.0
     avg_ca = total_ca / len(pairs) if pairs else 0.0
+
+    # PDV à faible CA (ratio < 50% de la moyenne)
+    avg_ratio = sum(_ratio(p) for p, _ in pairs) / len(pairs) if pairs else 0
+    pdvs_faible_ca = sum(1 for p, _ in pairs if _ratio(p) < avg_ratio * 0.5 and p.est_actif)
 
     # Taux de variation moyen vs mois précédent
     variations = [p.taux_variation for p, _ in pairs if p.taux_variation]
@@ -121,36 +167,36 @@ def monthly_dashboard(
         MonthlyPerformance.mois <= mois
     ).all()
     ca_cumule_pairs = _filter_perfs_by_pdv(ca_cumule_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv, quartier, sous_zone)
-    ca_cumule = sum(p.ca for p, _ in ca_cumule_pairs)
+    ca_cumule = sum(_mt(p) for p, _ in ca_cumule_pairs)
 
-    # Répartition par zone
+    # Répartition par zone (basé sur montant_transaction)
     ca_by_zone = {}
     for p, pdv in pairs:
         z = pdv.zone or "Inconnue"
-        ca_by_zone[z] = ca_by_zone.get(z, 0) + p.ca
+        ca_by_zone[z] = ca_by_zone.get(z, 0) + _mt(p)
 
     # Répartition par superviseur
     ca_by_superviseur = {}
     for p, pdv in pairs:
         s = pdv.superviseur or "Non assigné"
-        ca_by_superviseur[s] = ca_by_superviseur.get(s, 0) + p.ca
+        ca_by_superviseur[s] = ca_by_superviseur.get(s, 0) + _mt(p)
 
     # Répartition par type PDV
     ca_by_type = {}
     count_by_type = {}
     for p, pdv in pairs:
         t = pdv.type_pdv.value
-        ca_by_type[t] = ca_by_type.get(t, 0) + p.ca
+        ca_by_type[t] = ca_by_type.get(t, 0) + _mt(p)
         count_by_type[t] = count_by_type.get(t, 0) + 1
 
     # Répartition par gestionnaire
     ca_by_gestionnaire = {}
     for p, pdv in pairs:
         g = pdv.gestionnaire or "Non assigné"
-        ca_by_gestionnaire[g] = ca_by_gestionnaire.get(g, 0) + p.ca
+        ca_by_gestionnaire[g] = ca_by_gestionnaire.get(g, 0) + _mt(p)
 
-    # Classements CA
-    top_ca, bottom_ca = _build_classement(pairs, lambda p: p.ca, top_n)
+    # Classements Montant Transaction (remplace CA)
+    top_ca, bottom_ca = _build_classement(pairs, lambda p: _mt(p), top_n)
 
     # Classements dépôts
     top_depots, bottom_depots = _build_classement(pairs, lambda p: p.montant_depots, top_n)
@@ -164,7 +210,7 @@ def monthly_dashboard(
         s = pdv.superviseur or "Non assigné"
         if s not in classement_superviseur:
             classement_superviseur[s] = {"ca": 0, "nb_pdvs": 0, "actifs": 0, "inactifs": 0}
-        classement_superviseur[s]["ca"] += p.ca
+        classement_superviseur[s]["ca"] += _mt(p)
         classement_superviseur[s]["nb_pdvs"] += 1
         if p.est_actif:
             classement_superviseur[s]["actifs"] += 1
@@ -182,7 +228,7 @@ def monthly_dashboard(
         g = pdv.gestionnaire or "Non assigné"
         if g not in classement_gestionnaire:
             classement_gestionnaire[g] = {"ca": 0, "nb_pdvs": 0, "actifs": 0}
-        classement_gestionnaire[g]["ca"] += p.ca
+        classement_gestionnaire[g]["ca"] += _mt(p)
         classement_gestionnaire[g]["nb_pdvs"] += 1
         if p.est_actif:
             classement_gestionnaire[g]["actifs"] += 1
@@ -191,29 +237,36 @@ def monthly_dashboard(
         key=lambda x: x["ca"], reverse=True
     )
 
-    # PDV à traiter en urgence (CA très faible, actifs)
+    # PDV à traiter en urgence (Transaction très faible, actifs)
     urgents = sorted(
-        [(p, pdv) for p, pdv in pairs if p.est_actif and p.ca < avg_ca * 0.3],
-        key=lambda x: x[0].ca
+        [(p, pdv) for p, pdv in pairs if p.est_actif and _mt(p) < avg_ca * 0.3],
+        key=lambda x: _mt(x[0])
     )[:top_n]
 
     return {
         "annee": annee,
         "mois": mois,
-        # KPIs principaux
-        "total_ca": total_ca,
-        "ca_cumule": ca_cumule,
+        # ── Nouveaux KPIs ──────────────────────────────────────────────────
+        "total_montant_transaction":  round(total_montant_transaction, 2),
+        "total_montant_ca":           round(total_montant_ca, 2),
+        "total_commission_pdg":       round(total_commission_pdg, 2),
+        "total_commission_revendeur": round(total_commission_revendeur, 2),
+        "ratio_ca_transaction":       ratio_ca_transaction,
+        "pdvs_faible_ca":             pdvs_faible_ca,
+        # ── KPIs compatibilité ─────────────────────────────────────────────
+        "total_ca": round(total_ca, 2),
+        "ca_cumule": round(ca_cumule, 2),
         "total_operations": total_operations,
         "total_depots": total_depots,
-        "montant_depots": montant_depots,
+        "montant_depots": round(montant_depots, 2),
         "total_retraits": total_retraits,
-        "montant_retraits": montant_retraits,
+        "montant_retraits": round(montant_retraits, 2),
         "active_pdvs": active_pdvs,
         "inactive_pdvs": inactive_pdvs,
         "total_pdvs": len(pairs),
-        "taux_activite": taux_activite,
-        "average_ca": avg_ca,
-        "avg_variation": avg_variation,
+        "taux_activite": round(taux_activite, 1),
+        "average_ca": round(avg_ca, 2),
+        "avg_variation": round(avg_variation, 2),
         # Répartitions
         "ca_by_zone": ca_by_zone,
         "ca_by_superviseur": ca_by_superviseur,
@@ -247,8 +300,15 @@ def weekly_dashboard(
     type_pdv: Optional[str] = None,
     sous_zone: Optional[str] = None,
     top_n: int = Query(10, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
 ):
     """Dashboard hebdomadaire complet — M3 du CDC."""
+    # ── Filtre automatique selon rôle ──────────────────────────────────────────
+    f = get_pdv_filters(current_user)
+    superviseur = superviseur or f.get('superviseur')
+    gestionnaire = gestionnaire or f.get('gestionnaire')
+    zone = zone or f.get('zone')
+
     all_perfs = db.query(WeeklyPerformance).filter(
         WeeklyPerformance.annee == annee,
         WeeklyPerformance.semaine == semaine
@@ -269,7 +329,29 @@ def weekly_dashboard(
             annee, semaine = latest
             pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv)
 
-    total_ca = sum(p.ca for p, _ in pairs)
+    # ── Helpers nouveaux champs hebdo ────────────────────────────────────────
+    def _wmt(p):
+        """Montant Transaction = montant_depots + montant_retraits (calcul direct et fiable)."""
+        mt = getattr(p, 'montant_transaction', None)
+        if mt and mt > 0:
+            return mt
+        return (p.montant_depots or 0.0) + (p.montant_retraits or 0.0)
+    def _wmca(p):  return getattr(p, 'montant_ca', None) or 0.0
+    def _wcpdg(p): return getattr(p, 'commission_pdg', None) or 0.0
+    def _wcrev(p): return getattr(p, 'commission_revendeur', None) or 0.0
+    def _wratio(p): return getattr(p, 'ratio_ca_transaction', None) or 0.0
+
+    total_montant_transaction  = sum(_wmt(p)   for p, _ in pairs)
+    total_montant_ca           = sum(_wmca(p)  for p, _ in pairs)
+    total_commission_pdg       = sum(_wcpdg(p) for p, _ in pairs)
+    total_commission_revendeur = sum(_wcrev(p) for p, _ in pairs)
+    ratio_ca_transaction = round(
+        (total_montant_ca / total_montant_transaction * 100) if total_montant_transaction > 0 else 0.0, 2
+    )
+    avg_ratio_w = sum(_wratio(p) for p, _ in pairs) / len(pairs) if pairs else 0
+    pdvs_faible_ca = sum(1 for p, _ in pairs if _wratio(p) < avg_ratio_w * 0.5 and p.est_actif)
+    total_ca = total_montant_transaction  # compatibilité
+
     total_operations = sum(p.nb_operations for p, _ in pairs)
     total_depots = sum(p.nb_depots for p, _ in pairs)
     total_retraits = sum(p.nb_retraits for p, _ in pairs)
@@ -284,22 +366,26 @@ def weekly_dashboard(
     ca_by_zone = {}
     for p, pdv in pairs:
         z = pdv.zone or "Inconnue"
-        ca_by_zone[z] = ca_by_zone.get(z, 0) + p.ca
+        ca_by_zone[z] = ca_by_zone.get(z, 0) + _wmt(p)
 
     ca_by_superviseur = {}
     for p, pdv in pairs:
         s = pdv.superviseur or "Non assigné"
-        ca_by_superviseur[s] = ca_by_superviseur.get(s, 0) + p.ca
+        ca_by_superviseur[s] = ca_by_superviseur.get(s, 0) + _wmt(p)
 
     ca_by_type = {}
     for p, pdv in pairs:
         t = pdv.type_pdv.value
-        ca_by_type[t] = ca_by_type.get(t, 0) + p.ca
+        ca_by_type[t] = ca_by_type.get(t, 0) + _wmt(p)
 
     # Listes actifs/inactifs
     actifs_list = [
         {"pdv_id": pdv.id, "nom": pdv.nom, "zone": pdv.zone, "superviseur": pdv.superviseur,
-         "gestionnaire": pdv.gestionnaire, "type_pdv": pdv.type_pdv.value, "ca": p.ca, "nb_operations": p.nb_operations}
+         "gestionnaire": pdv.gestionnaire, "type_pdv": pdv.type_pdv.value,
+         "ca": p.ca, "montant_transaction": _wmt(p), "montant_ca": _wmca(p),
+         "commission_pdg": _wcpdg(p), "nb_operations": p.nb_operations,
+         "taux_variation": p.taux_variation or 0, "quartier": pdv.quartier,
+         "nom_gerant": pdv.nom_gerant, "medaille": getattr(p, 'medaille', None)}
         for p, pdv in pairs if p.est_actif
     ]
     inactifs_list = [
@@ -343,18 +429,25 @@ def weekly_dashboard(
     return {
         "annee": annee,
         "semaine": semaine,
-        # KPIs
-        "total_ca": total_ca,
+        # ── Nouveaux KPIs ──────────────────────────────────────────────────
+        "total_montant_transaction":  round(total_montant_transaction, 2),
+        "total_montant_ca":           round(total_montant_ca, 2),
+        "total_commission_pdg":       round(total_commission_pdg, 2),
+        "total_commission_revendeur": round(total_commission_revendeur, 2),
+        "ratio_ca_transaction":       ratio_ca_transaction,
+        "pdvs_faible_ca":             pdvs_faible_ca,
+        # ── KPIs compatibilité ─────────────────────────────────────────────
+        "total_ca": round(total_ca, 2),
         "total_operations": total_operations,
         "total_depots": total_depots,
-        "montant_depots": montant_depots,
+        "montant_depots": round(montant_depots, 2),
         "total_retraits": total_retraits,
-        "montant_retraits": montant_retraits,
+        "montant_retraits": round(montant_retraits, 2),
         "active_pdvs": active_pdvs,
         "inactive_pdvs": inactive_pdvs,
         "total_pdvs": len(pairs),
-        "taux_activite": taux_activite,
-        "avg_variation": avg_variation,
+        "taux_activite": round(taux_activite, 1),
+        "avg_variation": round(avg_variation, 2),
         # Répartitions
         "ca_by_zone": ca_by_zone,
         "ca_by_superviseur": ca_by_superviseur,
@@ -371,6 +464,26 @@ def weekly_dashboard(
         # Classements
         "top_pdvs": top_ca,
         "bottom_pdvs": bottom_ca,
+        "all_pdvs": [{
+            "pdv_id": pdv.id,
+            "numero_pdv": pdv.numero_pdv,
+            "nom": pdv.nom,
+            "zone": pdv.zone,
+            "sous_zone": pdv.sous_zone,
+            "superviseur": pdv.superviseur,
+            "gestionnaire": pdv.gestionnaire,
+            "type_pdv": pdv.type_pdv.value,
+            "quartier": pdv.quartier,
+            "nom_gerant": pdv.nom_gerant,
+            "ca": p.ca,
+            "montant_transaction": _wmt(p),
+            "montant_ca": _wmca(p),
+            "commission_pdg": _wcpdg(p),
+            "commission_revendeur": _wcrev(p),
+            "nb_operations": p.nb_operations,
+            "taux_variation": p.taux_variation or 0,
+            "est_actif": p.est_actif,
+        } for p, pdv in sorted(pairs, key=lambda x: x[0].ca, reverse=True)],
     }
 
 
@@ -393,13 +506,23 @@ def pareto_analysis(
     if not pairs:
         return {"total_ca": 0, "pareto_pdvs": [], "top_20_percent": [], "gini_coefficient": 0}
 
+    def _pmt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
+    def _pmca(p): return getattr(p, 'montant_ca', None) or 0
+    def _pcpdg(p): return getattr(p, 'commission_pdg', None) or 0
+
     total_ca = sum(p.ca for p, _ in pairs)
+    total_mt = sum(_pmt(p) for p, _ in pairs)
+    total_mca = sum(_pmca(p) for p, _ in pairs)
+    total_cpdg = sum(_pcpdg(p) for p, _ in pairs)
     sorted_pairs = sorted(pairs, key=lambda x: x[0].ca, reverse=True)
 
     pareto_list = []
     cumul = 0
     pareto_count = 0
     for p, pdv in sorted_pairs:
+        mt = _pmt(p)
+        mca = _pmca(p)
+        cpdg = _pcpdg(p)
         cumul += p.ca
         pct = (cumul / total_ca * 100) if total_ca else 0
         pareto_list.append({
@@ -409,8 +532,18 @@ def pareto_analysis(
             "nom": pdv.nom,
             "zone": pdv.zone,
             "superviseur": pdv.superviseur,
+            "gestionnaire": pdv.gestionnaire,
             "ca": p.ca,
+            "montant_transaction": mt,
+            "montant_ca": mca,
+            "commission_pdg": cpdg,
+            "commission_revendeur": getattr(p, 'commission_revendeur', None) or 0,
+            "ratio_ca_transaction": getattr(p, 'ratio_ca_transaction', None) or 0,
+            "nb_operations": p.nb_operations,
             "pct_ca": (p.ca / total_ca * 100) if total_ca else 0,
+            "pct_montant_transaction": (mt / total_mt * 100) if total_mt else 0,
+            "pct_montant_ca": (mca / total_mca * 100) if total_mca else 0,
+            "pct_commission_pdg": (cpdg / total_cpdg * 100) if total_cpdg else 0,
             "cumul_ca": cumul,
             "cumul_pct": pct,
             "dans_pareto": pct <= cible,
@@ -437,6 +570,9 @@ def pareto_analysis(
         "annee": annee,
         "mois": mois,
         "total_ca": total_ca,
+        "total_montant_transaction": total_mt,
+        "total_montant_ca": total_mca,
+        "total_commission_pdg": total_cpdg,
         "total_pdvs": len(pairs),
         "pareto_count": pareto_count,
         "pareto_percentage": (pareto_count / len(pairs) * 100) if pairs else 0,
@@ -564,26 +700,31 @@ def pdv_records(db: Session = Depends(get_db)):
     
     records = []
     
+    def _pmt(p):
+        mt = getattr(p, 'montant_transaction', None)
+        if mt and mt > 0: return mt
+        return (p.montant_depots or 0.0) + (p.montant_retraits or 0.0)
+
     for pdv in pdvs:
         perfs = db.query(MonthlyPerformance).filter(
             MonthlyPerformance.pdv_id == pdv.id
-        ).order_by(MonthlyPerformance.ca.desc()).all()
-        
+        ).order_by(MonthlyPerformance.montant_transaction.desc()).all()
+
         if not perfs:
             continue
-        
-        ca_max = perfs[0].ca
-        ca_min = perfs[-1].ca if perfs else 0
+
+        ca_max = _pmt(perfs[0])
+        ca_min = _pmt(perfs[-1]) if perfs else 0
         mois_ca_max = f"{perfs[0].annee}-{perfs[0].mois:02d}" if perfs else ""
-        
+
         # Count how many times in top 10 per month
         top_10_count = 0
         for annee, mois in latest_12_months:
             month_perfs = db.query(MonthlyPerformance).filter(
                 MonthlyPerformance.annee == annee,
                 MonthlyPerformance.mois == mois
-            ).order_by(MonthlyPerformance.ca.desc()).limit(10).all()
-            
+            ).order_by(MonthlyPerformance.montant_transaction.desc()).limit(10).all()
+
             if any(p.pdv_id == pdv.id for p in month_perfs):
                 top_10_count += 1
         
@@ -626,7 +767,7 @@ def network_stats(db: Session = Depends(get_db)):
             MonthlyPerformance.annee == latest[0],
             MonthlyPerformance.mois == latest[1]
         ).all()
-        ca_mois = sum(p.ca for p in perfs)
+        ca_mois = sum((getattr(p,'montant_transaction',None) or (p.montant_depots+p.montant_retraits) or p.ca or 0) for p in perfs)
         ca_total = db.query(func.sum(MonthlyPerformance.ca)).scalar() or 0
 
     health_scores = [p.health_score for p in pdvs if p.health_score]
@@ -715,6 +856,11 @@ def monthly_inactive(
             "nom_gerant": pdv.nom_gerant,
             "numero_personnel": pdv.numero_personnel,
             "type_pdv": pdv.type_pdv.value,
+            "ca": p.ca or 0,
+            "montant_transaction": getattr(p, 'montant_transaction', None) or p.ca or 0,
+            "montant_ca": getattr(p, 'montant_ca', None) or 0,
+            "commission_pdg": getattr(p, 'commission_pdg', None) or 0,
+            "nb_operations": p.nb_operations or 0,
             "nb_mois_consecutifs_inactif": nb_mois_inactif,
             "alerte": alerte,
         })
@@ -737,14 +883,26 @@ def monthly_declining(
     seuil: float = Query(-10.0),
 ):
     """Retourne les PDVs en baisse par rapport au mois précédent."""
+    prev_mois = mois - 1 if mois > 1 else 12
+    prev_annee = annee if mois > 1 else annee - 1
+
     all_perfs = db.query(MonthlyPerformance).filter(
         MonthlyPerformance.annee == annee,
         MonthlyPerformance.mois == mois
     ).all()
-    
+
+    prev_perfs = {p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+        MonthlyPerformance.annee == prev_annee,
+        MonthlyPerformance.mois == prev_mois
+    ).all()}
+
     pdv_map = _get_pdv_map(db)
     pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone=zone, superviseur=superviseur)
-    
+
+    def _mt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
+    def _mca(p): return getattr(p, 'montant_ca', None) or 0
+    def _cpdg(p): return getattr(p, 'commission_pdg', None) or 0
+
     result_pdvs = []
     for p, pdv in pairs:
         if p.taux_variation is not None and p.taux_variation <= seuil:
@@ -770,10 +928,16 @@ def monthly_declining(
                 "nom_gerant": pdv.nom_gerant,
                 "numero_personnel": pdv.numero_personnel,
                 "type_pdv": pdv.type_pdv.value,
-                "ca": p.ca,
-                "ca_precedent": p.ca_mois_precedent,
+                "ca": p.ca or 0,
+                "ca_precedent": prev_perfs[pdv.id].ca if pdv.id in prev_perfs else 0,
+                "montant_transaction": _mt(p),
+                "montant_transaction_precedent": _mt(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
+                "montant_ca": _mca(p),
+                "montant_ca_precedent": _mca(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
+                "commission_pdg": _cpdg(p),
+                "commission_pdg_precedent": _cpdg(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
                 "taux_baisse": p.taux_variation,
-                "nb_operations": p.nb_operations,
+                "nb_operations": p.nb_operations or 0,
                 "alerte": alerte,
             })
     
@@ -820,11 +984,43 @@ def monthly_evolution(
     if zone:
         all_pdv_ids = {pid for pid in all_pdv_ids if pdv_map.get(pid) and pdv_map[pid].zone == zone}
 
+    def _mt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
+    def _mca(p): return getattr(p, 'montant_ca', None) or 0
+    def _cpdg(p): return getattr(p, 'commission_pdg', None) or 0
+
     # Calcul totaux
     total_ca_actuel = sum(perfs_actuel[pid].ca for pid in all_pdv_ids if pid in perfs_actuel)
     total_ca_precedent = sum(perfs_precedent[pid].ca for pid in all_pdv_ids if pid in perfs_precedent)
+    total_mt_actuel = sum(_mt(perfs_actuel[pid]) for pid in all_pdv_ids if pid in perfs_actuel)
+    total_mt_precedent = sum(_mt(perfs_precedent[pid]) for pid in all_pdv_ids if pid in perfs_precedent)
+    total_mca_actuel = sum(_mca(perfs_actuel[pid]) for pid in all_pdv_ids if pid in perfs_actuel)
+    total_mca_precedent = sum(_mca(perfs_precedent[pid]) for pid in all_pdv_ids if pid in perfs_precedent)
+    total_cpdg_actuel = sum(_cpdg(perfs_actuel[pid]) for pid in all_pdv_ids if pid in perfs_actuel)
+    total_cpdg_precedent = sum(_cpdg(perfs_precedent[pid]) for pid in all_pdv_ids if pid in perfs_precedent)
     variation_totale = total_ca_actuel - total_ca_precedent
     taux_variation_total = round((variation_totale / total_ca_precedent * 100) if total_ca_precedent > 0 else 0, 1)
+
+    def _build_group(group_dict, label_key):
+        result = []
+        for k, d in sorted(group_dict.items(), key=lambda x: x[1]["mt_actuel"], reverse=True):
+            var_ca = d["ca_actuel"] - d["ca_precedent"]
+            var_mt = d["mt_actuel"] - d["mt_precedent"]
+            var_mca = d["mca_actuel"] - d["mca_precedent"]
+            var_cpdg = d["cpdg_actuel"] - d["cpdg_precedent"]
+            taux = round((var_ca / d["ca_precedent"] * 100) if d["ca_precedent"] > 0 else 0)
+            entry = {
+                label_key: k,
+                "ca_actuel": d["ca_actuel"], "ca_precedent": d["ca_precedent"],
+                "montant_transaction_actuel": d["mt_actuel"], "montant_transaction_precedent": d["mt_precedent"],
+                "montant_ca_actuel": d["mca_actuel"], "montant_ca_precedent": d["mca_precedent"],
+                "commission_pdg_actuel": d["cpdg_actuel"], "commission_pdg_precedent": d["cpdg_precedent"],
+                "variation": var_ca, "variation_mt": var_mt, "variation_mca": var_mca, "variation_cpdg": var_cpdg,
+                "taux": taux,
+            }
+            result.append(entry)
+        return result
+
+    def _init_group(): return {"ca_actuel":0,"ca_precedent":0,"mt_actuel":0,"mt_precedent":0,"mca_actuel":0,"mca_precedent":0,"cpdg_actuel":0,"cpdg_precedent":0}
 
     # Par superviseur
     par_superviseur = {}
@@ -832,21 +1028,18 @@ def monthly_evolution(
         pdv = pdv_map.get(pid)
         if not pdv: continue
         s = pdv.superviseur or "Non assigné"
-        if s not in par_superviseur:
-            par_superviseur[s] = {"ca_actuel": 0, "ca_precedent": 0}
+        if s not in par_superviseur: par_superviseur[s] = _init_group()
         if pid in perfs_actuel:
             par_superviseur[s]["ca_actuel"] += perfs_actuel[pid].ca
+            par_superviseur[s]["mt_actuel"] += _mt(perfs_actuel[pid])
+            par_superviseur[s]["mca_actuel"] += _mca(perfs_actuel[pid])
+            par_superviseur[s]["cpdg_actuel"] += _cpdg(perfs_actuel[pid])
         if pid in perfs_precedent:
             par_superviseur[s]["ca_precedent"] += perfs_precedent[pid].ca
-
-    par_superviseur_list = []
-    for s, data in sorted(par_superviseur.items(), key=lambda x: x[1]["ca_actuel"], reverse=True):
-        variation = data["ca_actuel"] - data["ca_precedent"]
-        taux = round((variation / data["ca_precedent"] * 100) if data["ca_precedent"] > 0 else 0)
-        par_superviseur_list.append({
-            "superviseur": s, "ca_actuel": data["ca_actuel"],
-            "ca_precedent": data["ca_precedent"], "variation": variation, "taux": taux,
-        })
+            par_superviseur[s]["mt_precedent"] += _mt(perfs_precedent[pid])
+            par_superviseur[s]["mca_precedent"] += _mca(perfs_precedent[pid])
+            par_superviseur[s]["cpdg_precedent"] += _cpdg(perfs_precedent[pid])
+    par_superviseur_list = _build_group(par_superviseur, "superviseur")
 
     # Par gestionnaire
     par_gestionnaire = {}
@@ -854,36 +1047,48 @@ def monthly_evolution(
         pdv = pdv_map.get(pid)
         if not pdv: continue
         g = pdv.gestionnaire or "Non assigné"
-        if g not in par_gestionnaire:
-            par_gestionnaire[g] = {"ca_actuel": 0, "ca_precedent": 0}
+        if g not in par_gestionnaire: par_gestionnaire[g] = _init_group()
         if pid in perfs_actuel:
             par_gestionnaire[g]["ca_actuel"] += perfs_actuel[pid].ca
+            par_gestionnaire[g]["mt_actuel"] += _mt(perfs_actuel[pid])
+            par_gestionnaire[g]["mca_actuel"] += _mca(perfs_actuel[pid])
+            par_gestionnaire[g]["cpdg_actuel"] += _cpdg(perfs_actuel[pid])
         if pid in perfs_precedent:
             par_gestionnaire[g]["ca_precedent"] += perfs_precedent[pid].ca
-
-    par_gestionnaire_list = []
-    for g, data in sorted(par_gestionnaire.items(), key=lambda x: x[1]["ca_actuel"], reverse=True):
-        variation = data["ca_actuel"] - data["ca_precedent"]
-        taux = round((variation / data["ca_precedent"] * 100) if data["ca_precedent"] > 0 else 0)
-        par_gestionnaire_list.append({
-            "gestionnaire": g, "ca_actuel": data["ca_actuel"],
-            "ca_precedent": data["ca_precedent"], "variation": variation, "taux": taux,
-        })
+            par_gestionnaire[g]["mt_precedent"] += _mt(perfs_precedent[pid])
+            par_gestionnaire[g]["mca_precedent"] += _mca(perfs_precedent[pid])
+            par_gestionnaire[g]["cpdg_precedent"] += _cpdg(perfs_precedent[pid])
+    par_gestionnaire_list = _build_group(par_gestionnaire, "gestionnaire")
 
     # Par PDV
     par_pdv_list = []
     for pid in all_pdv_ids:
         pdv = pdv_map.get(pid)
         if not pdv: continue
-        ca_actuel = perfs_actuel[pid].ca if pid in perfs_actuel else 0
-        ca_precedent = perfs_precedent[pid].ca if pid in perfs_precedent else 0
+        p_act = perfs_actuel.get(pid)
+        p_pre = perfs_precedent.get(pid)
+        ca_actuel = p_act.ca if p_act else 0
+        ca_precedent = p_pre.ca if p_pre else 0
+        mt_actuel = _mt(p_act) if p_act else 0
+        mt_precedent = _mt(p_pre) if p_pre else 0
+        mca_actuel = _mca(p_act) if p_act else 0
+        mca_precedent = _mca(p_pre) if p_pre else 0
+        cpdg_actuel = _cpdg(p_act) if p_act else 0
+        cpdg_precedent = _cpdg(p_pre) if p_pre else 0
         variation = ca_actuel - ca_precedent
         taux = round((variation / ca_precedent * 100) if ca_precedent > 0 else 0)
         par_pdv_list.append({
             "pdv_id": pdv.id, "numero_pdv": pdv.numero_pdv, "nom": pdv.nom,
             "zone": pdv.zone, "superviseur": pdv.superviseur,
             "ca_actuel": ca_actuel, "ca_precedent": ca_precedent,
-            "variation": variation, "taux": taux, "est_hausse": variation >= 0,
+            "montant_transaction_actuel": mt_actuel, "montant_transaction_precedent": mt_precedent,
+            "montant_ca_actuel": mca_actuel, "montant_ca_precedent": mca_precedent,
+            "commission_pdg_actuel": cpdg_actuel, "commission_pdg_precedent": cpdg_precedent,
+            "variation": variation,
+            "variation_mt": mt_actuel - mt_precedent,
+            "variation_mca": mca_actuel - mca_precedent,
+            "variation_cpdg": cpdg_actuel - cpdg_precedent,
+            "taux": taux, "est_hausse": variation >= 0,
         })
 
     par_pdv_list = sorted(par_pdv_list, key=lambda x: abs(x["variation"]), reverse=True)[:100]
@@ -892,6 +1097,9 @@ def monthly_evolution(
         "annee": annee, "mois": mois,
         "prev_annee": prev_annee, "prev_mois": prev_mois,
         "total_ca_actuel": total_ca_actuel, "total_ca_precedent": total_ca_precedent,
+        "total_montant_transaction_actuel": total_mt_actuel, "total_montant_transaction_precedent": total_mt_precedent,
+        "total_montant_ca_actuel": total_mca_actuel, "total_montant_ca_precedent": total_mca_precedent,
+        "total_commission_pdg_actuel": total_cpdg_actuel, "total_commission_pdg_precedent": total_cpdg_precedent,
         "variation_totale": variation_totale, "taux_variation_total": taux_variation_total,
         "par_superviseur": par_superviseur_list,
         "par_gestionnaire": par_gestionnaire_list,
@@ -906,87 +1114,82 @@ def monthly_progression(
     annee: Optional[int] = None,
     top_n: int = Query(20, ge=1, le=100),
 ):
-    """Statistiques de progression historique des PDVs."""
+    """Statistiques de progression historique des PDVs — version optimisée (1 seule requête SQL)."""
     from datetime import datetime
-    
+    from collections import defaultdict
+
     if annee is None:
         annee = datetime.now().year
-    
-    pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
-    
+
+    # Charger TOUTES les perfs de l'année en une seule requête
+    all_perfs = db.query(MonthlyPerformance).filter(
+        MonthlyPerformance.annee == annee
+    ).all()
+
+    # Charger tous les PDVs en une seule requête
+    pdvs = {p.id: p for p in db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()}
+
+    # Grouper par (annee, mois) et calculer les rangs
+    mois_perfs = defaultdict(list)
+    for p in all_perfs:
+        mois_perfs[(p.annee, p.mois)].append(p)
+
+    rang_map = {}
+    for (y, m), perfs_mois in mois_perfs.items():
+        sorted_perfs = sorted(perfs_mois, key=lambda x: x.ca, reverse=True)
+        for i, p in enumerate(sorted_perfs):
+            rang_map[(p.pdv_id, y, m)] = i + 1
+
+    # Grouper toutes les perfs par pdv_id
+    perfs_par_pdv = defaultdict(list)
+    for p in all_perfs:
+        perfs_par_pdv[p.pdv_id].append(p)
+
     result_pdvs = []
-    for pdv in pdvs:
-        # Toutes les performances mensuelles
-        perfs = db.query(MonthlyPerformance).filter(
-            MonthlyPerformance.pdv_id == pdv.id
-        ).order_by(MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()).all()
-        
+    for pdv_id, pdv in pdvs.items():
+        perfs = sorted(perfs_par_pdv.get(pdv_id, []), key=lambda x: (x.annee, x.mois), reverse=True)
         if not perfs:
             continue
-        
-        # Compter top 10 et top 50 pour chaque mois
+
+        def _pmt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
+        def _pmca(p): return getattr(p, 'montant_ca', None) or 0
+        def _pcpdg(p): return getattr(p, 'commission_pdg', None) or 0
+
         nb_fois_top10 = 0
         nb_fois_top50 = 0
+        ca_max = 0; mt_max = 0; mca_max = 0; cpdg_max = 0
         mois_meilleur_ca = None
-        ca_max = 0
+        ca_min = float('inf'); mt_min = float('inf'); mca_min = float('inf'); cpdg_min = float('inf')
         mois_pire_ca = None
-        ca_min = float('inf')
-        
-        # Grouper par mois unique
-        mois_uniques = {}
-        for p in perfs:
-            key = (p.annee, p.mois)
-            if key not in mois_uniques:
-                mois_uniques[key] = []
-            mois_uniques[key].append(p)
-        
-        for (y, m), month_perfs in mois_uniques.items():
-            # Trouver tous les PDVs de ce mois
-            all_month_perfs = db.query(MonthlyPerformance).filter(
-                MonthlyPerformance.annee == y,
-                MonthlyPerformance.mois == m
-            ).all()
-            sorted_month = sorted(all_month_perfs, key=lambda x: x.ca, reverse=True)
-            
-            # Trouver la perf du PDV courant dans ce mois
-            pdv_perf = next((p for p in month_perfs), None)
-            if pdv_perf:
-                rank = next((i+1 for i, p in enumerate(sorted_month) if p.pdv_id == pdv.id), None)
-                if rank and rank <= 10:
-                    nb_fois_top10 += 1
-                if rank and rank <= 50:
-                    nb_fois_top50 += 1
-                
-                if pdv_perf.ca > ca_max:
-                    ca_max = pdv_perf.ca
-                    mois_meilleur_ca = f"{y}-{m:02d}"
-                
-                if pdv_perf.est_actif and pdv_perf.ca > 0 and pdv_perf.ca < ca_min:
-                    ca_min = pdv_perf.ca
-                    mois_pire_ca = f"{y}-{m:02d}"
-        
-        if ca_min == float('inf'):
-            ca_min = 0
-        
-        # Historique des 12 derniers mois
         historique = []
-        for p in perfs[:12]:  # Les 12 premiers (les plus récents)
-            all_month_perfs = db.query(MonthlyPerformance).filter(
-                MonthlyPerformance.annee == p.annee,
-                MonthlyPerformance.mois == p.mois
-            ).all()
-            sorted_month = sorted(all_month_perfs, key=lambda x: x.ca, reverse=True)
-            rang = next((i+1 for i, sp in enumerate(sorted_month) if sp.pdv_id == pdv.id), None)
-            
+
+        for p in perfs:
+            rang = rang_map.get((pdv_id, p.annee, p.mois))
+            if rang and rang <= 10:
+                nb_fois_top10 += 1
+            if rang and rang <= 50:
+                nb_fois_top50 += 1
+            mt = _pmt(p); mca = _pmca(p); cpdg = _pcpdg(p)
+            if p.ca > ca_max:
+                ca_max = p.ca; mt_max = mt; mca_max = mca; cpdg_max = cpdg
+                mois_meilleur_ca = f"{p.annee}-{p.mois:02d}"
+            if p.est_actif and p.ca > 0 and p.ca < ca_min:
+                ca_min = p.ca; mt_min = mt; mca_min = mca; cpdg_min = cpdg
+                mois_pire_ca = f"{p.annee}-{p.mois:02d}"
             historique.append({
                 "annee": p.annee,
                 "mois": p.mois,
                 "ca": p.ca,
+                "montant_transaction": mt,
+                "montant_ca": mca,
+                "commission_pdg": cpdg,
                 "rang": rang,
             })
-        
+
+        if ca_min == float('inf'): ca_min = 0; mt_min = 0; mca_min = 0; cpdg_min = 0
+
         result_pdvs.append({
-            "pdv_id": pdv.id,
+            "pdv_id": pdv_id,
             "numero_pdv": pdv.numero_pdv,
             "nom": pdv.nom,
             "zone": pdv.zone,
@@ -995,14 +1198,13 @@ def monthly_progression(
             "nb_fois_top50": nb_fois_top50,
             "mois_meilleur_ca": mois_meilleur_ca,
             "mois_pire_ca": mois_pire_ca,
-            "ca_max": ca_max,
-            "ca_min": ca_min,
+            "ca_max": ca_max, "montant_transaction_max": mt_max, "montant_ca_max": mca_max, "commission_pdg_max": cpdg_max,
+            "ca_min": ca_min, "montant_transaction_min": mt_min, "montant_ca_min": mca_min, "commission_pdg_min": cpdg_min,
             "historique_mensuel": historique,
         })
-    
-    # Trier par nb_fois_top10 descendant
+
     result_pdvs = sorted(result_pdvs, key=lambda x: x["nb_fois_top10"], reverse=True)[:top_n]
-    
+
     return {
         "annee": annee,
         "total_pdvs": len(result_pdvs),
@@ -1075,6 +1277,11 @@ def weekly_inactive(
             "nom_gerant": pdv.nom_gerant,
             "numero_personnel": pdv.numero_personnel,
             "type_pdv": pdv.type_pdv.value,
+            "ca": p.ca or 0,
+            "montant_transaction": getattr(p, 'montant_transaction', None) or p.ca or 0,
+            "montant_ca": getattr(p, 'montant_ca', None) or 0,
+            "commission_pdg": getattr(p, 'commission_pdg', None) or 0,
+            "nb_operations": p.nb_operations or 0,
             "nb_semaines_consecutives_inactif": nb_semaines_inactif,
             "alerte": alerte,
         })
@@ -1097,11 +1304,23 @@ def weekly_declining(
     seuil: float = Query(-10.0),
 ):
     """Retourne les PDVs en baisse par rapport à la semaine précédente."""
+    prev_semaine = semaine - 1 if semaine > 1 else 52
+    prev_annee = annee if semaine > 1 else annee - 1
+
     all_perfs = db.query(WeeklyPerformance).filter(
         WeeklyPerformance.annee == annee,
         WeeklyPerformance.semaine == semaine
     ).all()
-    
+
+    prev_perfs = {p.pdv_id: p for p in db.query(WeeklyPerformance).filter(
+        WeeklyPerformance.annee == prev_annee,
+        WeeklyPerformance.semaine == prev_semaine
+    ).all()}
+
+    def _wmt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
+    def _wmca(p): return getattr(p, 'montant_ca', None) or 0
+    def _wcpdg(p): return getattr(p, 'commission_pdg', None) or 0
+
     pdv_map = _get_pdv_map(db)
     pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone=zone, superviseur=superviseur)
     
@@ -1130,8 +1349,14 @@ def weekly_declining(
                 "nom_gerant": pdv.nom_gerant,
                 "numero_personnel": pdv.numero_personnel,
                 "type_pdv": pdv.type_pdv.value,
-                "ca": p.ca,
-                "ca_precedent": p.ca_semaine_precedente,
+                "ca": p.ca or 0,
+                "ca_precedent": prev_perfs[pdv.id].ca if pdv.id in prev_perfs else 0,
+                "montant_transaction": _wmt(p),
+                "montant_transaction_precedent": _wmt(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
+                "montant_ca": _wmca(p),
+                "montant_ca_precedent": _wmca(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
+                "commission_pdg": _wcpdg(p),
+                "commission_pdg_precedent": _wcpdg(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
                 "taux_baisse": p.taux_variation,
                 "nb_operations": p.nb_operations,
                 "alerte": alerte,
@@ -1176,57 +1401,91 @@ def weekly_evolution(
     if zone:
         all_pdv_ids = {pid for pid in all_pdv_ids if pdv_map.get(pid) and pdv_map[pid].zone == zone}
 
+    def _wmt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
+    def _wmca(p): return getattr(p, 'montant_ca', None) or 0
+    def _wcpdg(p): return getattr(p, 'commission_pdg', None) or 0
+    def _wi(): return {"ca_actuel":0,"ca_precedent":0,"mt_actuel":0,"mt_precedent":0,"mca_actuel":0,"mca_precedent":0,"cpdg_actuel":0,"cpdg_precedent":0}
+
     total_ca_actuel = sum(perfs_actuel[pid].ca for pid in all_pdv_ids if pid in perfs_actuel)
     total_ca_precedent = sum(perfs_precedent[pid].ca for pid in all_pdv_ids if pid in perfs_precedent)
+    total_mt_actuel = sum(_wmt(perfs_actuel[pid]) for pid in all_pdv_ids if pid in perfs_actuel)
+    total_mt_precedent = sum(_wmt(perfs_precedent[pid]) for pid in all_pdv_ids if pid in perfs_precedent)
+    total_mca_actuel = sum(_wmca(perfs_actuel[pid]) for pid in all_pdv_ids if pid in perfs_actuel)
+    total_mca_precedent = sum(_wmca(perfs_precedent[pid]) for pid in all_pdv_ids if pid in perfs_precedent)
+    total_cpdg_actuel = sum(_wcpdg(perfs_actuel[pid]) for pid in all_pdv_ids if pid in perfs_actuel)
+    total_cpdg_precedent = sum(_wcpdg(perfs_precedent[pid]) for pid in all_pdv_ids if pid in perfs_precedent)
     variation_totale = total_ca_actuel - total_ca_precedent
     taux_variation_total = round((variation_totale / total_ca_precedent * 100) if total_ca_precedent > 0 else 0, 1)
+
+    def _build_wgroup(group_dict, label_key):
+        result = []
+        for k, d in sorted(group_dict.items(), key=lambda x: x[1]["mt_actuel"], reverse=True):
+            taux = round(((d["ca_actuel"]-d["ca_precedent"]) / d["ca_precedent"] * 100) if d["ca_precedent"] > 0 else 0)
+            result.append({label_key: k,
+                "ca_actuel": d["ca_actuel"], "ca_precedent": d["ca_precedent"],
+                "montant_transaction_actuel": d["mt_actuel"], "montant_transaction_precedent": d["mt_precedent"],
+                "montant_ca_actuel": d["mca_actuel"], "montant_ca_precedent": d["mca_precedent"],
+                "commission_pdg_actuel": d["cpdg_actuel"], "commission_pdg_precedent": d["cpdg_precedent"],
+                "variation": d["ca_actuel"]-d["ca_precedent"], "taux": taux})
+        return result
 
     par_superviseur = {}
     for pid in all_pdv_ids:
         pdv = pdv_map.get(pid)
         if not pdv: continue
         s = pdv.superviseur or "Non assigné"
-        if s not in par_superviseur:
-            par_superviseur[s] = {"ca_actuel": 0, "ca_precedent": 0}
-        if pid in perfs_actuel: par_superviseur[s]["ca_actuel"] += perfs_actuel[pid].ca
-        if pid in perfs_precedent: par_superviseur[s]["ca_precedent"] += perfs_precedent[pid].ca
-
-    par_superviseur_list = []
-    for s, data in sorted(par_superviseur.items(), key=lambda x: x[1]["ca_actuel"], reverse=True):
-        variation = data["ca_actuel"] - data["ca_precedent"]
-        taux = round((variation / data["ca_precedent"] * 100) if data["ca_precedent"] > 0 else 0)
-        par_superviseur_list.append({"superviseur": s, "ca_actuel": data["ca_actuel"],
-            "ca_precedent": data["ca_precedent"], "variation": variation, "taux": taux})
+        if s not in par_superviseur: par_superviseur[s] = _wi()
+        if pid in perfs_actuel:
+            par_superviseur[s]["ca_actuel"] += perfs_actuel[pid].ca
+            par_superviseur[s]["mt_actuel"] += _wmt(perfs_actuel[pid])
+            par_superviseur[s]["mca_actuel"] += _wmca(perfs_actuel[pid])
+            par_superviseur[s]["cpdg_actuel"] += _wcpdg(perfs_actuel[pid])
+        if pid in perfs_precedent:
+            par_superviseur[s]["ca_precedent"] += perfs_precedent[pid].ca
+            par_superviseur[s]["mt_precedent"] += _wmt(perfs_precedent[pid])
+            par_superviseur[s]["mca_precedent"] += _wmca(perfs_precedent[pid])
+            par_superviseur[s]["cpdg_precedent"] += _wcpdg(perfs_precedent[pid])
+    par_superviseur_list = _build_wgroup(par_superviseur, "superviseur")
 
     par_gestionnaire = {}
     for pid in all_pdv_ids:
         pdv = pdv_map.get(pid)
         if not pdv: continue
         g = pdv.gestionnaire or "Non assigné"
-        if g not in par_gestionnaire:
-            par_gestionnaire[g] = {"ca_actuel": 0, "ca_precedent": 0}
-        if pid in perfs_actuel: par_gestionnaire[g]["ca_actuel"] += perfs_actuel[pid].ca
-        if pid in perfs_precedent: par_gestionnaire[g]["ca_precedent"] += perfs_precedent[pid].ca
-
-    par_gestionnaire_list = []
-    for g, data in sorted(par_gestionnaire.items(), key=lambda x: x[1]["ca_actuel"], reverse=True):
-        variation = data["ca_actuel"] - data["ca_precedent"]
-        taux = round((variation / data["ca_precedent"] * 100) if data["ca_precedent"] > 0 else 0)
-        par_gestionnaire_list.append({"gestionnaire": g, "ca_actuel": data["ca_actuel"],
-            "ca_precedent": data["ca_precedent"], "variation": variation, "taux": taux})
+        if g not in par_gestionnaire: par_gestionnaire[g] = _wi()
+        if pid in perfs_actuel:
+            par_gestionnaire[g]["ca_actuel"] += perfs_actuel[pid].ca
+            par_gestionnaire[g]["mt_actuel"] += _wmt(perfs_actuel[pid])
+            par_gestionnaire[g]["mca_actuel"] += _wmca(perfs_actuel[pid])
+            par_gestionnaire[g]["cpdg_actuel"] += _wcpdg(perfs_actuel[pid])
+        if pid in perfs_precedent:
+            par_gestionnaire[g]["ca_precedent"] += perfs_precedent[pid].ca
+            par_gestionnaire[g]["mt_precedent"] += _wmt(perfs_precedent[pid])
+            par_gestionnaire[g]["mca_precedent"] += _wmca(perfs_precedent[pid])
+            par_gestionnaire[g]["cpdg_precedent"] += _wcpdg(perfs_precedent[pid])
+    par_gestionnaire_list = _build_wgroup(par_gestionnaire, "gestionnaire")
 
     par_pdv_list = []
     for pid in all_pdv_ids:
         pdv = pdv_map.get(pid)
         if not pdv: continue
-        ca_actuel = perfs_actuel[pid].ca if pid in perfs_actuel else 0
-        ca_precedent = perfs_precedent[pid].ca if pid in perfs_precedent else 0
+        p_act = perfs_actuel.get(pid); p_pre = perfs_precedent.get(pid)
+        ca_actuel = p_act.ca if p_act else 0
+        ca_precedent = p_pre.ca if p_pre else 0
+        mt_actuel = _wmt(p_act) if p_act else 0; mt_precedent = _wmt(p_pre) if p_pre else 0
+        mca_actuel = _wmca(p_act) if p_act else 0; mca_precedent = _wmca(p_pre) if p_pre else 0
+        cpdg_actuel = _wcpdg(p_act) if p_act else 0; cpdg_precedent = _wcpdg(p_pre) if p_pre else 0
         variation = ca_actuel - ca_precedent
         taux = round((variation / ca_precedent * 100) if ca_precedent > 0 else 0)
         par_pdv_list.append({"pdv_id": pdv.id, "numero_pdv": pdv.numero_pdv, "nom": pdv.nom,
             "zone": pdv.zone, "superviseur": pdv.superviseur,
             "ca_actuel": ca_actuel, "ca_precedent": ca_precedent,
-            "variation": variation, "taux": taux, "est_hausse": variation >= 0})
+            "montant_transaction_actuel": mt_actuel, "montant_transaction_precedent": mt_precedent,
+            "montant_ca_actuel": mca_actuel, "montant_ca_precedent": mca_precedent,
+            "commission_pdg_actuel": cpdg_actuel, "commission_pdg_precedent": cpdg_precedent,
+            "variation": variation, "variation_mt": mt_actuel-mt_precedent,
+            "variation_mca": mca_actuel-mca_precedent, "variation_cpdg": cpdg_actuel-cpdg_precedent,
+            "taux": taux, "est_hausse": variation >= 0})
 
     par_pdv_list = sorted(par_pdv_list, key=lambda x: abs(x["variation"]), reverse=True)[:100]
 
@@ -1234,6 +1493,9 @@ def weekly_evolution(
         "annee": annee, "semaine": semaine,
         "prev_annee": prev_annee, "prev_semaine": prev_semaine,
         "total_ca_actuel": total_ca_actuel, "total_ca_precedent": total_ca_precedent,
+        "total_montant_transaction_actuel": total_mt_actuel, "total_montant_transaction_precedent": total_mt_precedent,
+        "total_montant_ca_actuel": total_mca_actuel, "total_montant_ca_precedent": total_mca_precedent,
+        "total_commission_pdg_actuel": total_cpdg_actuel, "total_commission_pdg_precedent": total_cpdg_precedent,
         "variation_totale": variation_totale, "taux_variation_total": taux_variation_total,
         "par_superviseur": par_superviseur_list,
         "par_gestionnaire": par_gestionnaire_list,
@@ -1247,98 +1509,82 @@ def weekly_progression(
     annee: int = Query(...),
     top_n: int = Query(20, ge=1, le=100),
 ):
-    """Statistiques de progression historique des PDVs pour les semaines."""
-    pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
+    """Statistiques de progression historique des PDVs — version optimisée (1 seule requête SQL)."""
+    # Charger TOUTES les perfs de l'année en une seule requête
+    all_perfs = db.query(WeeklyPerformance).filter(
+        WeeklyPerformance.annee == annee
+    ).all()
     
+    # Charger tous les PDVs en une seule requête
+    pdvs = {p.id: p for p in db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()}
+    
+    # Grouper par (annee, semaine) → liste triée par CA desc
+    from collections import defaultdict
+    semaine_perfs = defaultdict(list)
+    for p in all_perfs:
+        semaine_perfs[(p.annee, p.semaine)].append(p)
+    
+    # Calculer le rang de chaque PDV dans chaque semaine
+    # rang_map[(pdv_id, annee, semaine)] = rang
+    rang_map = {}
+    for (y, w), perfs_semaine in semaine_perfs.items():
+        sorted_perfs = sorted(perfs_semaine, key=lambda x: x.ca, reverse=True)
+        for i, p in enumerate(sorted_perfs):
+            rang_map[(p.pdv_id, y, w)] = i + 1
+
+    # Grouper toutes les perfs par pdv_id
+    perfs_par_pdv = defaultdict(list)
+    for p in all_perfs:
+        perfs_par_pdv[p.pdv_id].append(p)
+
     result_pdvs = []
-    for pdv in pdvs:
-        # Toutes les performances hebdomadaires
-        perfs = db.query(WeeklyPerformance).filter(
-            WeeklyPerformance.pdv_id == pdv.id
-        ).order_by(WeeklyPerformance.annee.desc(), WeeklyPerformance.semaine.desc()).all()
-        
+    for pdv_id, pdv in pdvs.items():
+        perfs = sorted(perfs_par_pdv.get(pdv_id, []), key=lambda x: (x.annee, x.semaine), reverse=True)
         if not perfs:
             continue
-        
-        # Compter top 10 et top 50 pour chaque semaine
-        nb_fois_top10 = 0
-        nb_fois_top50 = 0
+
+        def _wpmt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
+        def _wpmca(p): return getattr(p, 'montant_ca', None) or 0
+        def _wpcpdg(p): return getattr(p, 'commission_pdg', None) or 0
+
+        nb_fois_top10 = 0; nb_fois_top50 = 0
+        ca_max = 0; mt_max = 0; mca_max = 0; cpdg_max = 0
         semaine_meilleur_ca = None
-        ca_max = 0
+        ca_min = float('inf'); mt_min = float('inf'); mca_min = float('inf'); cpdg_min = float('inf')
         semaine_pire_ca = None
-        ca_min = float('inf')
-        
-        # Grouper par semaine unique
-        semaine_uniques = {}
-        for p in perfs:
-            key = (p.annee, p.semaine)
-            if key not in semaine_uniques:
-                semaine_uniques[key] = []
-            semaine_uniques[key].append(p)
-        
-        for (y, w), week_perfs in semaine_uniques.items():
-            # Trouver tous les PDVs de cette semaine
-            all_week_perfs = db.query(WeeklyPerformance).filter(
-                WeeklyPerformance.annee == y,
-                WeeklyPerformance.semaine == w
-            ).all()
-            sorted_week = sorted(all_week_perfs, key=lambda x: x.ca, reverse=True)
-            
-            # Trouver la perf du PDV courant dans cette semaine
-            pdv_perf = next((p for p in week_perfs), None)
-            if pdv_perf:
-                rank = next((i+1 for i, p in enumerate(sorted_week) if p.pdv_id == pdv.id), None)
-                if rank and rank <= 10:
-                    nb_fois_top10 += 1
-                if rank and rank <= 50:
-                    nb_fois_top50 += 1
-                
-                if pdv_perf.ca > ca_max:
-                    ca_max = pdv_perf.ca
-                    semaine_meilleur_ca = f"{y}-W{w:02d}"
-                
-                if pdv_perf.est_actif and pdv_perf.ca > 0 and pdv_perf.ca < ca_min:
-                    ca_min = pdv_perf.ca
-                    semaine_pire_ca = f"{y}-W{w:02d}"
-        
-        if ca_min == float('inf'):
-            ca_min = 0
-        
-        # Historique des 52 dernières semaines
         historique = []
-        for p in perfs[:52]:  # Les 52 premiers (les plus récents)
-            all_week_perfs = db.query(WeeklyPerformance).filter(
-                WeeklyPerformance.annee == p.annee,
-                WeeklyPerformance.semaine == p.semaine
-            ).all()
-            sorted_week = sorted(all_week_perfs, key=lambda x: x.ca, reverse=True)
-            rang = next((i+1 for i, sp in enumerate(sorted_week) if sp.pdv_id == pdv.id), None)
-            
+
+        for p in perfs:
+            rang = rang_map.get((pdv_id, p.annee, p.semaine))
+            if rang and rang <= 10: nb_fois_top10 += 1
+            if rang and rang <= 50: nb_fois_top50 += 1
+            mt = _wpmt(p); mca = _wpmca(p); cpdg = _wpcpdg(p)
+            if p.ca > ca_max:
+                ca_max = p.ca; mt_max = mt; mca_max = mca; cpdg_max = cpdg
+                semaine_meilleur_ca = f"{p.annee}-W{p.semaine:02d}"
+            if p.est_actif and p.ca > 0 and p.ca < ca_min:
+                ca_min = p.ca; mt_min = mt; mca_min = mca; cpdg_min = cpdg
+                semaine_pire_ca = f"{p.annee}-W{p.semaine:02d}"
             historique.append({
-                "annee": p.annee,
-                "semaine": p.semaine,
-                "ca": p.ca,
+                "annee": p.annee, "semaine": p.semaine,
+                "ca": p.ca, "montant_transaction": mt, "montant_ca": mca, "commission_pdg": cpdg,
                 "rang": rang,
             })
-        
+
+        if ca_min == float('inf'): ca_min = 0; mt_min = 0; mca_min = 0; cpdg_min = 0
+
         result_pdvs.append({
-            "pdv_id": pdv.id,
-            "numero_pdv": pdv.numero_pdv,
-            "nom": pdv.nom,
-            "zone": pdv.zone,
-            "superviseur": pdv.superviseur,
-            "nb_fois_top10": nb_fois_top10,
-            "nb_fois_top50": nb_fois_top50,
-            "semaine_meilleur_ca": semaine_meilleur_ca,
-            "semaine_pire_ca": semaine_pire_ca,
-            "ca_max": ca_max,
-            "ca_min": ca_min,
+            "pdv_id": pdv_id, "numero_pdv": pdv.numero_pdv, "nom": pdv.nom,
+            "zone": pdv.zone, "superviseur": pdv.superviseur,
+            "nb_fois_top10": nb_fois_top10, "nb_fois_top50": nb_fois_top50,
+            "semaine_meilleur_ca": semaine_meilleur_ca, "semaine_pire_ca": semaine_pire_ca,
+            "ca_max": ca_max, "montant_transaction_max": mt_max, "montant_ca_max": mca_max, "commission_pdg_max": cpdg_max,
+            "ca_min": ca_min, "montant_transaction_min": mt_min, "montant_ca_min": mca_min, "commission_pdg_min": cpdg_min,
             "historique_hebdo": historique,
         })
-    
-    # Trier par nb_fois_top10 descendant
+
     result_pdvs = sorted(result_pdvs, key=lambda x: x["nb_fois_top10"], reverse=True)[:top_n]
-    
+
     return {
         "annee": annee,
         "total_pdvs": len(result_pdvs),
@@ -1374,14 +1620,28 @@ def pdv_monthly_history(
             MonthlyPerformance.annee == p.annee,
             MonthlyPerformance.mois == p.mois
         ).all()
-        sorted_month = sorted(all_month_perfs, key=lambda x: x.ca, reverse=True)
+        sorted_month = sorted(all_month_perfs, key=lambda x: (getattr(x, 'montant_transaction', None) or x.ca or 0), reverse=True)
         rang_reseau = next((i+1 for i, sp in enumerate(sorted_month) if sp.pdv_id == pdv.id), None)
+        montant_transaction = getattr(p, 'montant_transaction', None) or p.ca or 0
+        montant_ca = getattr(p, 'montant_ca', None) or 0
+        commission_pdg = getattr(p, 'commission_pdg', None) or 0
+        commission_revendeur = getattr(p, 'commission_revendeur', None) or 0
+        ratio_ca_transaction = getattr(p, 'ratio_ca_transaction', None) or 0
         
         historique.append({
             "annee": p.annee,
             "mois": p.mois,
             "ca": p.ca,
+            "montant_transaction": montant_transaction,
+            "montant_ca": montant_ca,
+            "commission_pdg": commission_pdg,
+            "commission_revendeur": commission_revendeur,
+            "ratio_ca_transaction": ratio_ca_transaction,
             "nb_operations": p.nb_operations,
+            "nb_depots": p.nb_depots,
+            "montant_depots": p.montant_depots,
+            "nb_retraits": p.nb_retraits,
+            "montant_retraits": p.montant_retraits,
             "est_actif": p.est_actif,
             "taux_variation": p.taux_variation,
             "rang_reseau": rang_reseau,
@@ -1432,7 +1692,12 @@ def pdv_weekly_history(
             "annee": p.annee,
             "semaine": p.semaine,
             "ca": p.ca,
+            "montant_transaction": getattr(p, 'montant_transaction', None) or p.ca or 0,
+            "montant_ca": getattr(p, 'montant_ca', None) or 0,
+            "commission_pdg": getattr(p, 'commission_pdg', None) or 0,
             "nb_operations": p.nb_operations,
+            "montant_depots": p.montant_depots or 0,
+            "montant_retraits": p.montant_retraits or 0,
             "est_actif": p.est_actif,
             "taux_variation": p.taux_variation,
             "rang_reseau": rang_reseau,

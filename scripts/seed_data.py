@@ -229,16 +229,32 @@ def create_performance_data(db, pdvs):
             
             est_actif = ca > 0
             
+            nb_operations = random.randint(5, 50) if est_actif else 0
+            nb_depots = random.randint(2, 15) if est_actif else 0
+            montant_depots = random.randint(50000, 500000) if est_actif else 0
+            nb_retraits = random.randint(2, 15) if est_actif else 0
+            montant_retraits = random.randint(50000, 500000) if est_actif else 0
+            montant_transaction = max(0, ca)
+            montant_ca = round(min(montant_transaction, montant_retraits + random.uniform(0.75, 1.0) * montant_depots * 0.15), 2) if est_actif else 0
+            commission_pdg = round(montant_ca * random.uniform(0.008, 0.02), 2) if est_actif else 0
+            commission_revendeur = round(montant_ca * random.uniform(0.003, 0.01), 2) if est_actif else 0
+            ratio_ca_transaction = round((montant_ca / montant_transaction) * 100, 2) if montant_transaction > 0 else 0
+
             monthly_perf = MonthlyPerformance(
                 pdv_id=pdv.id,
                 annee=annee,
                 mois=mois,
-                ca=max(0, ca),
-                nb_operations=random.randint(5, 50) if est_actif else 0,
-                nb_depots=random.randint(2, 15) if est_actif else 0,
-                montant_depots=random.randint(50000, 500000) if est_actif else 0,
-                nb_retraits=random.randint(2, 15) if est_actif else 0,
-                montant_retraits=random.randint(50000, 500000) if est_actif else 0,
+                ca=montant_transaction,
+                montant_transaction=montant_transaction,
+                montant_ca=montant_ca,
+                nb_operations=nb_operations,
+                nb_depots=nb_depots,
+                montant_depots=montant_depots,
+                nb_retraits=nb_retraits,
+                montant_retraits=montant_retraits,
+                commission_pdg=commission_pdg,
+                commission_revendeur=commission_revendeur,
+                ratio_ca_transaction=ratio_ca_transaction,
                 est_actif=est_actif
             )
             db.add(monthly_perf)
@@ -262,24 +278,71 @@ def create_performance_data(db, pdvs):
             
             est_actif = weekly_ca > 0
             
+            nb_operations = random.randint(2, 15) if est_actif else 0
+            nb_depots = random.randint(1, 5) if est_actif else 0
+            montant_depots = random.randint(20000, 200000) if est_actif else 0
+            nb_retraits = random.randint(1, 5) if est_actif else 0
+            montant_retraits = random.randint(20000, 200000) if est_actif else 0
+            montant_transaction = max(0, weekly_ca)
+            montant_ca = round(min(montant_transaction, montant_retraits + random.uniform(0.75, 1.0) * montant_depots * 0.15), 2) if est_actif else 0
+            commission_pdg = round(montant_ca * random.uniform(0.008, 0.02), 2) if est_actif else 0
+            commission_revendeur = round(montant_ca * random.uniform(0.003, 0.01), 2) if est_actif else 0
+            ratio_ca_transaction = round((montant_ca / montant_transaction) * 100, 2) if montant_transaction > 0 else 0
+
             weekly_perf = WeeklyPerformance(
                 pdv_id=pdv.id,
                 annee=annee,
                 semaine=semaine,
-                ca=max(0, weekly_ca),
-                nb_operations=random.randint(2, 15) if est_actif else 0,
-                nb_depots=random.randint(1, 5) if est_actif else 0,
-                montant_depots=random.randint(20000, 200000) if est_actif else 0,
-                nb_retraits=random.randint(1, 5) if est_actif else 0,
-                montant_retraits=random.randint(20000, 200000) if est_actif else 0,
+                ca=montant_transaction,
+                montant_transaction=montant_transaction,
+                montant_ca=montant_ca,
+                nb_operations=nb_operations,
+                nb_depots=nb_depots,
+                montant_depots=montant_depots,
+                nb_retraits=nb_retraits,
+                montant_retraits=montant_retraits,
+                commission_pdg=commission_pdg,
+                commission_revendeur=commission_revendeur,
+                ratio_ca_transaction=ratio_ca_transaction,
                 est_actif=est_actif
             )
             db.add(weekly_perf)
             weekly_perfs.append(weekly_perf)
     
     db.commit()
+
+    # Calculer taux_variation mensuel (comparaison mois précédent)
+    all_monthly = db.query(MonthlyPerformance).order_by(
+        MonthlyPerformance.pdv_id, MonthlyPerformance.annee, MonthlyPerformance.mois
+    ).all()
+    perf_index = {(p.pdv_id, p.annee, p.mois): p for p in all_monthly}
+    for p in all_monthly:
+        prev_mois = p.mois - 1 if p.mois > 1 else 12
+        prev_annee = p.annee if p.mois > 1 else p.annee - 1
+        prev = perf_index.get((p.pdv_id, prev_annee, prev_mois))
+        if prev and prev.ca and prev.ca > 0:
+            p.taux_variation = round(((p.ca - prev.ca) / prev.ca) * 100, 2)
+        else:
+            p.taux_variation = 0.0
+
+    # Calculer taux_variation hebdomadaire (comparaison semaine précédente)
+    all_weekly = db.query(WeeklyPerformance).order_by(
+        WeeklyPerformance.pdv_id, WeeklyPerformance.annee, WeeklyPerformance.semaine
+    ).all()
+    weekly_index = {(p.pdv_id, p.annee, p.semaine): p for p in all_weekly}
+    for p in all_weekly:
+        prev_sem = p.semaine - 1 if p.semaine > 1 else 52
+        prev_ann = p.annee if p.semaine > 1 else p.annee - 1
+        prev = weekly_index.get((p.pdv_id, prev_ann, prev_sem))
+        if prev and prev.ca and prev.ca > 0:
+            p.taux_variation = round(((p.ca - prev.ca) / prev.ca) * 100, 2)
+        else:
+            p.taux_variation = 0.0
+
+    db.commit()
     print(f"✅ Created {len(monthly_perfs)} monthly performances")
     print(f"✅ Created {len(weekly_perfs)} weekly performances")
+    print(f"✅ taux_variation calculé pour {len(all_monthly)} mois et {len(all_weekly)} semaines")
 
 
 def create_terrain_actions(db):

@@ -223,12 +223,19 @@
   font-size: 11px;
   color: var(--text-secondary);
   font-weight: 500;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .stat-value {
-  font-size: 15px;
+  font-size: clamp(12px, 1.8vw, 15px);
   font-weight: 700;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .stat-value.gain {

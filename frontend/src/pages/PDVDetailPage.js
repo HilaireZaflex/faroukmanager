@@ -186,13 +186,14 @@ function TabInformations({ pdv }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <InfoRow label="Zone" value={pdv?.zone} />
             <InfoRow label="Sous-zone" value={pdv?.sous_zone} />
-            <InfoRow label="Quartier" value={pdv?.quartier} />
+            <InfoRow label="Quartier / Localité" value={pdv?.quartier} />
+            <InfoRow label="Adresse" value={pdv?.adresse} />
             <InfoRow label="Superviseur" value={pdv?.superviseur} />
             <InfoRow label="Gestionnaire" value={pdv?.gestionnaire} />
             <InfoRow label="Téléconseillère" value={pdv?.teleconseillere} />
-            <InfoRow label="Téléphone" value={pdv?.telephone} />
-            <InfoRow label="Nom gérant" value={pdv?.nom_gerant} />
-            <InfoRow label="Numéro personnel" value={pdv?.numero_personnel} />
+            <InfoRow label="Développeur" value={pdv?.developpeur} />
+            <InfoRow label="Nom du gérant" value={pdv?.nom} />
+            <InfoRow label="N° téléphone gérant" value={pdv?.numero_personnel} />
           </div>
         </div>
 
@@ -245,8 +246,8 @@ function TabPerformances({ pdv }) {
   const historique = pdv?.historique_mensuel || [];
   const caMax = Math.max(...historique.map((h) => h.ca || 0));
   const caMin = Math.min(...historique.map((h) => h.ca || 0));
-  const caMoyenne = historique.length > 0 ? historique.reduce((sum, h) => sum + (h.ca || 0), 0) / historique.length : 0;
-  const caTotal = historique.reduce((sum, h) => sum + (h.ca || 0), 0);
+  const caMoyenne = historique.length > 0 ? historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0) / historique.length : 0;
+  const caTotal = historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0);
 
   return (
     <div>
@@ -261,11 +262,11 @@ function TabPerformances({ pdv }) {
           <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--danger)' }}>{formatCA(caMin)}</div>
         </div>
         <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>CA Moyenne</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Moy. Transaction</div>
           <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--primary)' }}>{formatCA(caMoyenne)}</div>
         </div>
         <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>CA Total</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Transaction Total</div>
           <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--info)' }}>{formatCA(caTotal)}</div>
         </div>
       </div>
@@ -290,7 +291,7 @@ function TabPerformances({ pdv }) {
               <tr key={i}>
                 <td>{h.annee}</td>
                 <td>{MOIS_NOMS[h.mois]}</td>
-                <td style={{ fontWeight: 600 }}>{formatCA(h.ca)}</td>
+                <td style={{ fontWeight: 600 }}>{formatCA(h.montant_transaction || h.ca)}</td>
                 <td>{h.nb_operations || '—'}</td>
                 <td>{h.depots || '—'}</td>
                 <td>{h.retraits || '—'}</td>
@@ -592,7 +593,7 @@ export default function PDVDetailPage() {
               {pdv?.nom} {getMedal(pdv?.rank)}
             </h1>
             <p className="page-subtitle">
-              PDV #{pdv?.numero} • {pdv?.zone} • {pdv?.type_pdv || 'Type inconnu'}
+              PDV #{pdv?.numero_pdv} • {pdv?.zone} • {pdv?.type_pdv || 'Type inconnu'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

@@ -46,7 +46,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="login-logo">
           <div className="logo-circle">🟠</div>
-          <h1>FaroukManager</h1>
+          <h1>Farouk Distribution</h1>
           <p>Système de Gestion du Réseau PDV</p>
           <span className="orange-mali-badge">Orange Mali</span>
         </div>

@@ -518,6 +518,250 @@ function TabRecovery() {
 }
 
 // ============ MAIN PAGE ============
+// ============ TAB 4: ALERTES GESTIONNAIRES ============
+function TabAlertesGestionnaires() {
+  const NOW = new Date();
+  const annee = NOW.getFullYear();
+  const mois = NOW.getMonth() + 1;
+  const [seuil, setSeuil] = useState(30);
+
+  const { data: gests } = useQuery('gestionnaires-list',
+    () => api.get('/gestionnaires/').then(r => r.data), { staleTime: 300000 });
+
+  const { data: overviewData, isLoading } = useQuery(
+    ['gestionnaires-overview-alertes', annee, mois],
+    () => api.get('/gestionnaires/overview', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const overview = Array.isArray(overviewData) ? overviewData : [];
+  // Gestionnaires avec taux recouvrement faible
+  const faibleRecouvrement = overview.filter(g => g.taux_recouvrement < 70);
+  // Gestionnaires avec beaucoup de PDVs inactifs
+  const tropInactifs = overview.filter(g => g.nb_inactifs > 5);
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 }}>
+        <KPICard title="🔴 Faible Recouvrement" value={faibleRecouvrement.length} color="#ff4757" subtitle="Taux < 70%" />
+        <KPICard title="🟠 Trop d'Inactifs" value={tropInactifs.length} color="#ffa502" subtitle="> 5 PDVs inactifs" />
+        <KPICard title="✅ Gestionnaires OK" value={overview.length - faibleRecouvrement.length} color="#2ed573" subtitle="Performants" />
+      </div>
+
+      {isLoading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>Chargement...</div> : (
+        <>
+          {faibleRecouvrement.length > 0 && (
+            <div className="card mb-24" style={{ borderLeft: '3px solid #ff4757' }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: '#ff4757' }}>
+                🔴 Gestionnaires avec taux de recouvrement faible (&lt; 70%)
+              </h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Gestionnaire</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>CA Total</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Envoyé</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Récupéré</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Taux</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>PDVs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {faibleRecouvrement.map((g, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{g.gestionnaire}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--primary)' }}>{formatCA(g.ca_total)}</td>
+                      <td style={{ padding: '10px 12px', color: '#4a9eff' }}>{formatCA(g.montant_envoye)}</td>
+                      <td style={{ padding: '10px 12px', color: '#00d68f' }}>{formatCA(g.montant_recupere)}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontWeight: 700, color: g.taux_recouvrement < 50 ? '#ff4757' : '#ffa502' }}>
+                          {g.taux_recouvrement}%
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ color: '#2ed573' }}>{g.nb_actifs} actifs</span>
+                        {' / '}
+                        <span style={{ color: '#ff4757' }}>{g.nb_inactifs} inactifs</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tropInactifs.length > 0 && (
+            <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: '#ffa502' }}>
+                🟠 Gestionnaires avec trop de PDVs inactifs (&gt; 5)
+              </h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Gestionnaire</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>PDVs Actifs</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>PDVs Inactifs</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>% Inactifs</th>
+                    <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-secondary)', fontWeight: 600 }}>Zones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tropInactifs.map((g, i) => {
+                    const pctInactif = g.nb_pdvs > 0 ? Math.round(g.nb_inactifs / g.nb_pdvs * 100) : 0;
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: 600 }}>{g.gestionnaire}</td>
+                        <td style={{ padding: '10px 12px', color: '#2ed573', fontWeight: 700 }}>{g.nb_actifs}</td>
+                        <td style={{ padding: '10px 12px', color: '#ff4757', fontWeight: 700 }}>{g.nb_inactifs}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ fontWeight: 700, color: pctInactif > 50 ? '#ff4757' : '#ffa502' }}>{pctInactif}%</span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: 'var(--text-secondary)', fontSize: 11 }}>
+                          {(g.zones || []).slice(0, 3).join(', ')}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {faibleRecouvrement.length === 0 && tropInactifs.length === 0 && (
+            <div style={{ textAlign: 'center', padding: 40, background: 'rgba(46,213,115,0.05)', borderRadius: 12, border: '1px solid rgba(46,213,115,0.2)' }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+              <div style={{ color: '#2ed573', fontWeight: 700, fontSize: 15 }}>Tous les gestionnaires sont performants ce mois !</div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============ TAB 5: RISQUE DEGRADATION GRADE ============
+function TabRisqueDegradationGrade() {
+  const NOW = new Date();
+  const annee = NOW.getFullYear();
+  const mois = NOW.getMonth() + 1;
+
+  const { data, isLoading } = useQuery(
+    ['grades-alertes-alertspage', annee, mois],
+    () => api.get('/grades/alertes', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const alertes = Array.isArray(data) ? data : [];
+  const elevees = alertes.filter(a => a.risque === 'eleve');
+  const moderees = alertes.filter(a => a.risque === 'modere');
+
+  const GRADE_COLORS = { diamant: '#00d6ff', or: '#FFD700', argent: '#C0C0C0', fer: '#888888', cuivre: '#CD7F32' };
+  const GRADE_ICONS = { diamant: '💎', or: '🥇', argent: '🥈', fer: '🦾', cuivre: '🟤' };
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 24 }}>
+        <KPICard title="🔴 Risque Élevé" value={elevees.length} color="#ff4757" subtitle="CA < 90% du seuil" />
+        <KPICard title="🟠 Risque Modéré" value={moderees.length} color="#ffa502" subtitle="CA < 110% du seuil" />
+        <KPICard title="⚠️ Total en Risque" value={alertes.length} color="#ffa502" subtitle="PDVs à surveiller" />
+      </div>
+
+      {isLoading ? <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>Chargement...</div> : (
+        alertes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, background: 'rgba(46,213,115,0.05)', borderRadius: 12, border: '1px solid rgba(46,213,115,0.2)' }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+            <div style={{ color: '#2ed573', fontWeight: 700 }}>Aucun PDV en risque de dégradation de grade ce mois</div>
+          </div>
+        ) : (
+          <>
+            {elevees.length > 0 && (
+              <div className="card mb-24" style={{ borderLeft: '3px solid #ff4757' }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#ff4757', marginBottom: 14 }}>
+                  🔴 Risque élevé — CA inférieur à 90% du seuil de grade ({elevees.length} PDVs)
+                </h3>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>PDV</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>Zone</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>Gestionnaire</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>Grade Actuel</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>CA Actuel</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>Seuil</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>% Atteint</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {elevees.map((a, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i%2===0?'rgba(255,255,255,0.01)':'transparent' }}>
+                          <td style={{ padding: '9px 10px', fontWeight: 600 }}>{a.pdv_nom}</td>
+                          <td style={{ padding: '9px 10px', color: 'var(--text-secondary)', fontSize: 11 }}>{a.zone}</td>
+                          <td style={{ padding: '9px 10px', fontSize: 11 }}>{a.gestionnaire}</td>
+                          <td style={{ padding: '9px 10px' }}>
+                            <span style={{ color: GRADE_COLORS[a.grade], fontWeight: 700 }}>
+                              {GRADE_ICONS[a.grade]} {a.grade}
+                            </span>
+                          </td>
+                          <td style={{ padding: '9px 10px', color: 'var(--primary)', fontWeight: 700 }}>{formatCA(a.ca)}</td>
+                          <td style={{ padding: '9px 10px', color: 'var(--text-secondary)' }}>{formatCA(a.seuil_grade)}</td>
+                          <td style={{ padding: '9px 10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ width: 50, height: 5, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: `${Math.min(a.pct_seuil,100)}%`, height:'100%', background:'#ff4757', borderRadius: 3 }}/>
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#ff4757' }}>{a.pct_seuil}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {moderees.length > 0 && (
+              <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, color: '#ffa502', marginBottom: 14 }}>
+                  🟠 Risque modéré — CA entre 90% et 110% du seuil ({moderees.length} PDVs)
+                </h3>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>PDV</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>Zone</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>Grade</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>CA</th>
+                        <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)' }}>% Seuil</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {moderees.map((a, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '9px 10px', fontWeight: 600 }}>{a.pdv_nom}</td>
+                          <td style={{ padding: '9px 10px', color: 'var(--text-secondary)', fontSize: 11 }}>{a.zone}</td>
+                          <td style={{ padding: '9px 10px' }}>
+                            <span style={{ color: GRADE_COLORS[a.grade], fontWeight: 700 }}>{GRADE_ICONS[a.grade]} {a.grade}</span>
+                          </td>
+                          <td style={{ padding: '9px 10px', color: 'var(--primary)', fontWeight: 600 }}>{formatCA(a.ca)}</td>
+                          <td style={{ padding: '9px 10px' }}>
+                            <span style={{ fontWeight: 700, color: '#ffa502' }}>{a.pct_seuil}%</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )
+      )}
+    </div>
+  );
+}
+
 export default function AlertsPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('inactifs');
@@ -527,16 +771,18 @@ export default function AlertsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">🔔 Alertes & Récupérations</h1>
-          <p className="page-subtitle">Gestion des PDVs inactifs, baisses CA et récupérations</p>
+          <p className="page-subtitle">Gestion des PDVs inactifs, baisses CA, gestionnaires et grades</p>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="tabs-container mb-24">
         {[
-          { id: 'inactifs', label: '📵 PDVs Inactifs' },
-          { id: 'declining', label: '📉 Baisses CA' },
-          { id: 'recovery', label: '♻️ Récupérations' },
+          { id: 'inactifs',    label: '📵 PDVs Inactifs' },
+          { id: 'declining',   label: '📉 Baisses CA' },
+          { id: 'recovery',    label: '♻️ Récupérations' },
+          { id: 'gestionnaires', label: '👔 Gestionnaires' },
+          { id: 'grades',      label: '🏅 Risque Grades' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -550,9 +796,11 @@ export default function AlertsPage() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'inactifs' && <TabInactivePDVs />}
-        {activeTab === 'declining' && <TabDecliningCA />}
-        {activeTab === 'recovery' && <TabRecovery />}
+        {activeTab === 'inactifs'      && <TabInactivePDVs />}
+        {activeTab === 'declining'     && <TabDecliningCA />}
+        {activeTab === 'recovery'      && <TabRecovery />}
+        {activeTab === 'gestionnaires' && <TabAlertesGestionnaires />}
+        {activeTab === 'grades'        && <TabRisqueDegradationGrade />}
       </div>
     </div>
   );

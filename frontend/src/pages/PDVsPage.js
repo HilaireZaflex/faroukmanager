@@ -207,20 +207,24 @@ export default function PDVsPage() {
       {/* Stats mini */}
       <div className="pdv-mini-stats mb-24">
         <div className="mini-stat-card" style={{ '--color': '#00d68f' }}>
-          <span className="mini-stat-val">{stats?.actifs || 0}</span>
-          <span className="mini-stat-label">Actifs</span>
+          <span className="mini-stat-val">{stats?.total_pdvs || 0}</span>
+          <span className="mini-stat-label">Total PDV</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#ff4757' }}>
-          <span className="mini-stat-val">{stats?.inactifs || 0}</span>
-          <span className="mini-stat-label">Inactifs</span>
+        <div className="mini-stat-card" style={{ '--color': '#3b82f6' }}>
+          <span className="mini-stat-val">{stats?.pdvs_par_type?.RS || 0}</span>
+          <span className="mini-stat-label">RS</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#ffa502' }}>
-          <span className="mini-stat-val">{stats?.en_recuperation || 0}</span>
-          <span className="mini-stat-label">Récup.</span>
+        <div className="mini-stat-card" style={{ '--color': '#8b5cf6' }}>
+          <span className="mini-stat-val">{stats?.pdvs_par_type?.RNS || 0}</span>
+          <span className="mini-stat-label">RNS</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#FF6900' }}>
-          <span className="mini-stat-val">{((stats?.actifs / stats?.total_pdvs) * 100 || 0).toFixed(0)}%</span>
-          <span className="mini-stat-label">Taux activité</span>
+        <div className="mini-stat-card" style={{ '--color': '#f59e0b' }}>
+          <span className="mini-stat-val">{stats?.pdvs_par_type?.KIOSQUE || 0}</span>
+          <span className="mini-stat-label">KIOSQUE</span>
+        </div>
+        <div className="mini-stat-card" style={{ '--color': '#10b981' }}>
+          <span className="mini-stat-val">{stats?.pdvs_par_type?.RSF || 0}</span>
+          <span className="mini-stat-label">RSF</span>
         </div>
       </div>
 
@@ -266,8 +270,8 @@ export default function PDVsPage() {
                 <th>PDV</th>
                 <th>Zone</th>
                 <th>Type</th>
+                <th>Single Wallet</th>
                 <th>Statut</th>
-                <th>Health Score</th>
                 <th>Superviseur</th>
                 <th>Médaille</th>
                 <th></th>
@@ -294,8 +298,8 @@ export default function PDVsPage() {
                   <tr key={pdv.id} onClick={() => navigate(`/pdvs/${pdv.id}`)}>
                     <td>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{pdv.nom}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.numero_pdv}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '0.3px' }}>{pdv.numero_pdv}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
                       </div>
                     </td>
                     <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{pdv.zone}</span></td>
@@ -309,7 +313,12 @@ export default function PDVsPage() {
                         {STATUT_CONFIG[pdv.statut]?.label || pdv.statut}
                       </span>
                     </td>
-                    <td><HealthBar score={pdv.health_score || 0} /></td>
+                    <td>
+                      <span className={`badge ${pdv.single_wallet ? 'badge-success' : 'badge-neutral'}`}
+                        style={{ fontSize: 11 }}>
+                        {pdv.single_wallet ? '✓ OUI' : '✗ NON'}
+                      </span>
+                    </td>
                     <td><span style={{ fontSize: 12 }}>{pdv.superviseur || '—'}</span></td>
                     <td style={{ fontSize: 18 }}>{MEDAILLE[pdv.medaille] || ''}</td>
                     <td><ChevronRight size={16} style={{ color: 'var(--text-muted)' }}/></td>

@@ -78,43 +78,50 @@ def predict_decline(pdv_id: int, weekly_performances: List[WeeklyPerformance]) -
         mean_ca = np.mean(y) if np.mean(y) > 0 else 1
         trend_pct = (slope / mean_ca) * 100 if mean_ca > 0 else 0
         
-        # Determine risk level based on trend and consecutive declines
+        # Seuils recalibrés pour réseau OMY (CA moyen ~6.8M FCFA, médian ~3.3M)
+        # Risque basé sur % de baisse (trend_pct) + baisses consécutives
         explanation = ""
-        if consecutive_declines >= 3:
-            if slope < -50000:
+        abs_trend = abs(float(trend_pct))
+
+        if consecutive_declines >= 4:
+            if float(trend_pct) < -15:
                 risk_level = "HAUT"
-                probability = min(1.0, 0.7 + (abs(slope) / 100000) * 0.2)
-                explanation = f"{consecutive_declines} baisses consécutives, pente {trend_pct:.1f}%/sem"
-            elif slope < -10000:
+                probability = min(1.0, 0.7 + (abs_trend / 100) * 0.3)
+                explanation = f"{consecutive_declines} baisses consécutives, tendance {trend_pct:.1f}%/sem"
+            elif float(trend_pct) < -5:
                 risk_level = "MOYEN"
-                probability = min(1.0, 0.5 + (consecutive_declines / 5.0) * 0.2)
-                explanation = f"{consecutive_declines} baisses consécutives, pente {trend_pct:.1f}%/sem"
+                probability = min(1.0, 0.5 + (consecutive_declines / 10.0) * 0.2)
+                explanation = f"{consecutive_declines} baisses consécutives, tendance {trend_pct:.1f}%/sem"
             else:
                 risk_level = "MOYEN"
-                probability = 0.4 + (consecutive_declines / 5.0) * 0.1
+                probability = 0.4 + (consecutive_declines / 15.0)
                 explanation = f"{consecutive_declines} baisses consécutives légères"
-        elif slope < -50000:
-            risk_level = "HAUT"
-            probability = min(1.0, abs(slope) / 150000)
-            explanation = f"Déclin accéléré: pente {trend_pct:.1f}%/sem"
-        elif slope < -10000:
+        elif consecutive_declines >= 2 and float(trend_pct) < -10:
             risk_level = "MOYEN"
-            probability = min(1.0, abs(slope) / 300000)
-            explanation = f"Tendance baissière: pente {trend_pct:.1f}%/sem"
+            probability = min(1.0, 0.4 + abs_trend / 100)
+            explanation = f"{consecutive_declines} baisses consécutives, tendance {trend_pct:.1f}%/sem"
+        elif float(trend_pct) < -20:
+            risk_level = "HAUT"
+            probability = min(1.0, 0.65 + (abs_trend - 20) / 100)
+            explanation = f"Déclin accéléré: {trend_pct:.1f}%/sem"
+        elif float(trend_pct) < -10:
+            risk_level = "MOYEN"
+            probability = min(1.0, 0.4 + (abs_trend - 10) / 100)
+            explanation = f"Tendance baissière: {trend_pct:.1f}%/sem"
         else:
             risk_level = "FAIBLE"
-            probability = max(0.0, min(1.0, abs(slope) / 500000))
-            explanation = "Stabilité ou croissance"
+            probability = max(0.0, min(0.35, abs_trend / 100)) if float(trend_pct) < 0 else 0.0
+            explanation = "Stabilité ou croissance" if float(trend_pct) >= 0 else f"Légère baisse: {trend_pct:.1f}%/sem"
         
         return {
-            "probability": probability,
-            "predicted_ca_next_week": predicted_ca_next,
-            "trend_slope": slope,
-            "trend_pct": trend_pct,
-            "consecutive_declines": consecutive_declines,
+            "probability": float(probability),
+            "predicted_ca_next_week": float(predicted_ca_next),
+            "trend_slope": float(slope),
+            "trend_pct": float(trend_pct),
+            "consecutive_declines": int(consecutive_declines),
             "risk_level": risk_level,
             "explanation": explanation,
-            "confidence": confidence
+            "confidence": float(confidence)
         }
     except Exception as e:
         return {
@@ -122,7 +129,7 @@ def predict_decline(pdv_id: int, weekly_performances: List[WeeklyPerformance]) -
             "predicted_ca_next_week": 0.0,
             "trend_slope": 0.0,
             "trend_pct": 0.0,
-            "consecutive_declines": consecutive_declines,
+            "consecutive_declines": int(consecutive_declines),
             "risk_level": "FAIBLE",
             "explanation": f"Erreur calcul: {str(e)}",
             "confidence": 0.0
