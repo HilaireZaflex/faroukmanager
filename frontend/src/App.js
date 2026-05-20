@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 
@@ -47,6 +47,13 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  // Keep-alive: ping backend toutes les 10 min pour eviter le cold start
+  useEffect(() => {
+    const ping = () => fetch(`${process.env.REACT_APP_API_BASE_URL || "https://aroukmanager-backend.onrender.com/api"}/health`).catch(() => {});
+    ping();
+    const interval = setInterval(ping, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
   return (
     <Routes>
       {/* Public Routes */}

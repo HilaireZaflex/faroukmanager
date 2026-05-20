@@ -45,6 +45,10 @@ app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 @app.get("/")
 def root():
     return {"message": "FaroukManager API", "version": settings.APP_VERSION, "status": "running"}
