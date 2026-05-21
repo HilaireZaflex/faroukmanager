@@ -63,7 +63,7 @@ function TabOverview({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`nafama-overview`, annee, mois],
     () => api.get(`/performance/monthly/summary?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
@@ -114,7 +114,7 @@ function TabTopPDVs({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`nafama-top`, annee, mois],
     () => api.get(`/performance/monthly/top?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}&limit=20`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
@@ -146,7 +146,7 @@ function TabPareto({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`nafama-pareto`, annee, mois],
     () => api.get(`/performance/monthly/pareto?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
@@ -180,7 +180,7 @@ function TabEvolution({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`nafama-evolution`, annee],
     () => api.get(`/performance/monthly/evolution?annee=${annee}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
@@ -207,7 +207,7 @@ function TabInactivePDVs({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`nafama-inactifs`, annee, mois],
     () => api.get(`/performance/monthly/inactifs?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
@@ -236,7 +236,7 @@ function TabDecliningPDVs({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`nafama-baisse`, annee, mois],
     () => api.get(`/performance/monthly/declining?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
@@ -268,7 +268,7 @@ function TabProgression({ annee }) {
   const { data, isLoading } = useQuery(
     [`nafama-progression`, annee],
     () => api.get(`/performance/monthly/progression?annee=${annee}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;

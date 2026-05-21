@@ -64,16 +64,16 @@ export default function AccueilPage() {
   const mois = now.getMonth() + 1;
   const annee = now.getFullYear();
 
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 60000 });
+  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
   const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois], () =>
-    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data), { staleTime: 60000 });
-  const { data: segments } = useQuery('analytics-segments', () => api.get('/analytics/segments').then(r => r.data), { staleTime: 120000 });
-  const { data: predictions } = useQuery('analytics-predictions', () => api.get('/analytics/predictions').then(r => r.data), { staleTime: 120000 });
-  const { data: recovery } = useQuery('recovery-synthese', () => api.get('/alerts/recovery/synthese').then(r => r.data), { staleTime: 60000 });
-  const { data: healthData } = useQuery('analytics-health', () => api.get('/analytics/health-scores').then(r => r.data), { staleTime: 120000 });
-  const { data: recommandations } = useQuery('recommandations', () => api.get('/alerts/recommendations').then(r => r.data), { staleTime: 120000 });
+    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data), { staleTime: 300000 });
+  const { data: segments } = useQuery('analytics-segments', () => api.get('/analytics/segments').then(r => r.data), { staleTime: 300000 });
+  const { data: predictions } = useQuery('analytics-predictions', () => api.get('/analytics/predictions').then(r => r.data), { staleTime: 300000 });
+  const { data: recovery } = useQuery('recovery-synthese', () => api.get('/alerts/recovery/synthese').then(r => r.data), { staleTime: 300000 });
+  const { data: healthData } = useQuery('analytics-health', () => api.get('/analytics/health-scores').then(r => r.data), { staleTime: 300000 });
+  const { data: recommandations } = useQuery('recommandations', () => api.get('/alerts/recommendations').then(r => r.data), { staleTime: 300000 });
   const { data: superviseurs } = useQuery(['superviseurs-accueil', annee, mois], () =>
-    api.get('/superviseurs/stats', { params: { annee, mois } }).then(r => r.data), { staleTime: 120000 });
+    api.get('/superviseurs/stats', { params: { annee, mois } }).then(r => r.data), { staleTime: 300000 });
 
   const greeting = () => {
     const h = now.getHours();

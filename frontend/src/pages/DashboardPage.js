@@ -64,9 +64,9 @@ function TabOverview({ annee, mois }) {
   const { data: dashboard, isLoading } = useQuery(
     ['dashboard-monthly', annee, mois],
     () => api.get(`/dashboard/monthly?annee=${annee}&mois=${mois}`).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 60000 });
+  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
 
   // ── Nouveaux champs ──────────────────────────────────────────────────────
   const totalMontantTransaction = dashboard?.total_montant_transaction || dashboard?.total_ca || 0;
@@ -247,7 +247,7 @@ function TabTopPDVs({ annee, mois }) {
   const { data: topPDVs, isLoading } = useQuery(
     ['classements', annee, mois, topN],
     () => api.get(`/dashboard/classements?annee=${annee}&mois=${mois}&n=${topN}`).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
   const loadHistory = async (pdvId, pdvNom) => {
@@ -400,10 +400,10 @@ function TabPareto({ annee, mois }) {
   const { data: pareto, isLoading } = useQuery(
     ['pareto', annee, mois],
     () => api.get(`/dashboard/pareto?annee=${annee}&mois=${mois}`).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 60000 });
+  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
 
   const exportExcel = () => {
     if (!pareto?.pareto_pdvs) return;
@@ -534,7 +534,7 @@ function TabEvolution({ annee, mois }) {
   const { data: evolution, isLoading } = useQuery(
     ['evolution', annee, mois],
     () => api.get(`/dashboard/monthly-evolution?annee=${annee}&mois=${mois}`).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
   const totalVariation = (evolution?.total_ca_actuel || 0) - (evolution?.total_ca_precedent || 0);
@@ -649,7 +649,7 @@ function TabInactivePDVs({ annee, mois }) {
   const { data: inactifs, isLoading } = useQuery(
     ['inactifs', annee, mois],
     () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
   const exportExcel = () => {
@@ -738,7 +738,7 @@ function TabDecliningPDVs({ annee, mois }) {
   const { data: declining, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
     () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
   const exportExcel = () => {
@@ -840,7 +840,7 @@ function TabProgression({ annee }) {
   const { data: progression, isLoading } = useQuery(
     ['progression', annee],
     () => api.get(`/dashboard/monthly-progression?annee=${annee}`).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
   const [selectedPDV, setSelectedPDV] = useState(null);

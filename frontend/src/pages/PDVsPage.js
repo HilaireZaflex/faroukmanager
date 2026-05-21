@@ -155,10 +155,10 @@ export default function PDVsPage() {
   const { data: pdvs = [], isLoading } = useQuery(
     ['pdvs', params],
     () => api.get('/pdvs', { params }).then(r => r.data),
-    { keepPreviousData: true, staleTime: 30000 }
+    { keepPreviousData: true, staleTime: 300000 }
   );
 
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 60000 });
+  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
 
   const zones = stats?.pdvs_par_zone ? Object.keys(stats.pdvs_par_zone) : [];
 

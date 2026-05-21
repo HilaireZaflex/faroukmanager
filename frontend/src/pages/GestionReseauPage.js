@@ -130,13 +130,13 @@ function OngletSuperviseurs() {
       const list = Array.isArray(response.data) ? response.data : (response.data?.superviseurs || []);
       return list;
     },
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
   const { data: selectedPDVsData, isLoading: isLoadingPDVs } = useQuery(
     ['superviseurs-pdvs', selectedSuperviseur, annee, mois],
     () => api.get(`/superviseurs/${encodeURIComponent(selectedSuperviseur)}/pdvs`, { params: { annee, mois, semaine: 52 } }).then(r => r.data),
-    { enabled: !!selectedSuperviseur, staleTime: 30000 }
+    { enabled: !!selectedSuperviseur, staleTime: 300000 }
   );
 
   const superviseurs = Array.isArray(statsData) ? statsData : [];

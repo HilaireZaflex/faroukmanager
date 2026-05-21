@@ -47,7 +47,7 @@ function TabOverview({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`kaabu-overview`, annee, mois],
     () => api.get(`/performance/monthly/summary?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data || data.total_pdvs === 0) return <EmptyTab />;
@@ -94,7 +94,7 @@ function TabTopPDVs({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`kaabu-top`, annee, mois],
     () => api.get(`/performance/monthly/top?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}&limit=20`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyTab />;
@@ -121,7 +121,7 @@ function TabPareto({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`kaabu-pareto`, annee, mois],
     () => api.get(`/performance/monthly/pareto?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyTab />;
@@ -145,7 +145,7 @@ function TabEvolution({ annee }) {
   const { data, isLoading } = useQuery(
     [`kaabu-evolution`, annee],
     () => api.get(`/performance/monthly/evolution?annee=${annee}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyTab />;
@@ -169,7 +169,7 @@ function TabInactivePDVs({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`kaabu-inactifs`, annee, mois],
     () => api.get(`/performance/monthly/inactifs?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyTab message="Aucun PDV inactif ce mois ✅" />;
@@ -195,7 +195,7 @@ function TabDecliningPDVs({ annee, mois }) {
   const { data, isLoading } = useQuery(
     [`kaabu-baisse`, annee, mois],
     () => api.get(`/performance/monthly/declining?annee=${annee}&mois=${mois}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyTab message="Aucun PDV en baisse ce mois ✅" />;
@@ -224,7 +224,7 @@ function TabProgression({ annee }) {
   const { data, isLoading } = useQuery(
     [`kaabu-progression`, annee],
     () => api.get(`/performance/monthly/progression?annee=${annee}&indicateur=${INDICATEUR}`).then(r => r.data),
-    { staleTime: 60000, retry: false }
+    { staleTime: 300000, retry: false }
   );
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyTab />;

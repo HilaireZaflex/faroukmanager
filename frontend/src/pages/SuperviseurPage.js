@@ -28,13 +28,13 @@ export default function SuperviseurPage() {
       const list = Array.isArray(response.data) ? response.data : (response.data?.superviseurs || []);
       return list;
     },
-    { staleTime: 60000 }
+    { staleTime: 300000 }
   );
 
   const { data: selectedPDVsData, isLoading: isLoadingPDVs } = useQuery(
     ['superviseurs-pdvs', selectedSuperviseur],
     () => api.get(`/superviseurs/${encodeURIComponent(selectedSuperviseur)}/pdvs`).then(r => r.data),
-    { enabled: !!selectedSuperviseur, staleTime: 30000 }
+    { enabled: !!selectedSuperviseur, staleTime: 300000 }
   );
 
   // statsData est directement la liste des superviseurs

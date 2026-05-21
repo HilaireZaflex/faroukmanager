@@ -150,3 +150,28 @@ async def debug_pdv():
         }
     except Exception as e:
         return {"error": str(e), "type": str(type(e))}
+
+
+@app.get("/create-indexes")
+async def create_indexes():
+    """Créer les index SQL pour optimiser les performances"""
+    from app.core.database import engine
+    from sqlalchemy import text
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_monthly_perf_annee_mois ON monthly_performances(annee, mois)",
+        "CREATE INDEX IF NOT EXISTS idx_monthly_perf_pdv_id ON monthly_performances(pdv_id)",
+        "CREATE INDEX IF NOT EXISTS idx_monthly_perf_est_actif ON monthly_performances(est_actif)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_statut ON pdvs(statut)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_zone ON pdvs(zone)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_superviseur ON pdvs(superviseur)",
+    ]
+    results = []
+    with engine.connect() as conn:
+        for idx in indexes:
+            try:
+                conn.execute(text(idx))
+                results.append(f"✅ {idx.split('idx_')[1].split(' ON')[0]}")
+            except Exception as e:
+                results.append(f"⚠️ {str(e)}")
+        conn.commit()
+    return {"message": "Index créés", "results": results}
