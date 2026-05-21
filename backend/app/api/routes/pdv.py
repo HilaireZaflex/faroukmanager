@@ -300,6 +300,8 @@ def list_pdvs(
             (PDV.statut == 'INACTIF', 2),
             else_=3
         ),
+        case((PDV.zone == None, 1), else_=0),
+        PDV.zone,
         PDV.nom
     ).offset(skip).limit(limit).all()
     return [PDVOut.from_orm(pdv) for pdv in pdvs]
