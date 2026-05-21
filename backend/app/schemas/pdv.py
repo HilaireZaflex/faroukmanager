@@ -33,6 +33,7 @@ class PDVBase(BaseModel):
     health_score: Optional[float] = 50.0
     segment: Optional[str] = None
     score_risque: Optional[float] = 0.0
+    date_mise_a_jour: Optional[str] = None
     notes: Optional[str] = None
 
 class PDVCreate(PDVBase):
@@ -82,6 +83,7 @@ class PDVUpdate(BaseModel):
     health_score: Optional[float] = None
     segment: Optional[str] = None
     score_risque: Optional[float] = None
+    date_mise_a_jour: Optional[str] = None
     notes: Optional[str] = None
 
 class PDVOut(PDVBase):

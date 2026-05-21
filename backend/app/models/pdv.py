@@ -68,7 +68,7 @@ class PDV(Base):
     segment = Column(String, nullable=True)
     score_risque = Column(Float, default=0.0)
 
-    single_wallet = Column(String, nullable=True)
+    single_wallet = Column(Boolean, default=False)
     date_mise_a_jour = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
