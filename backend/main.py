@@ -126,3 +126,27 @@ async def migrate_pdv_columns():
             except Exception as e:
                 results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
     return {"message": "Migration terminée", "results": results}
+
+
+@app.get("/debug-pdv")
+async def debug_pdv():
+    """Debug: tester la requête PDV"""
+    from app.core.database import SessionLocal
+    from app.models.pdv import PDV
+    try:
+        db = SessionLocal()
+        count = db.query(PDV).count()
+        pdv = db.query(PDV).first()
+        db.close()
+        return {
+            "count": count,
+            "first_pdv": {
+                "id": pdv.id if pdv else None,
+                "numero_pdv": pdv.numero_pdv if pdv else None,
+                "nom": pdv.nom if pdv else None,
+                "single_wallet": str(pdv.single_wallet) if pdv else None,
+                "date_mise_a_jour": str(pdv.date_mise_a_jour) if pdv else None,
+            } if pdv else None
+        }
+    except Exception as e:
+        return {"error": str(e), "type": str(type(e))}
