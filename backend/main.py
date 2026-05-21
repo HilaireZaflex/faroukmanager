@@ -109,36 +109,3 @@ async def startup_event():
         db.close()
 
 
-@app.get("/reset-db-complet-temporaire")
-async def reset_db_complet():
-    """Route temporaire pour vider toutes les tables sauf users"""
-    from app.core.database import engine
-    from sqlalchemy import text
-    
-    tables_to_clear = [
-        "terrain_actions", "commission_entries", "commission_imports",
-        "dev_tasks", "dev_daily_goals", "dev_portfolios", "superviseur_pdv_objectives",
-        "eval_configs", "eval_campaigns", "eval_scores", "mystery_call_tasks",
-        "mystery_call_logs", "eval_manual_notes", "eval_objectives",
-        "indicators", "indicator_versions", "indicator_scores",
-        "call_campaigns", "call_tasks", "call_logs", "field_campaigns",
-        "field_visits", "indicator_tickets", "indicator_alert_rules",
-        "pdvs", "weekly_performances", "monthly_performances",
-        "prospects", "prospect_history", "prospect_attachments",
-        "puce_stock", "notifications", "dev_badges", "dev_objectives",
-        "post_activation_kpi", "workflow_config", "recoveries", "recovery_tracking",
-    ]
-    
-    results = []
-    with engine.connect() as conn:
-        conn.execute(text("PRAGMA foreign_keys = OFF"))
-        for table in tables_to_clear:
-            try:
-                conn.execute(text(f"DELETE FROM {table}"))
-                results.append(f"✅ {table}")
-            except Exception as e:
-                results.append(f"⚠️ {table}: {str(e)}")
-        conn.execute(text("PRAGMA foreign_keys = ON"))
-        conn.commit()
-    
-    return {"message": "Base de données vidée", "tables": results}
