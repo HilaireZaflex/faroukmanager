@@ -175,3 +175,59 @@ async def create_indexes():
                 results.append(f"⚠️ {str(e)}")
         conn.commit()
     return {"message": "Index créés", "results": results}
+
+
+@app.get("/sync-commissions")
+async def sync_commissions():
+    """Synchroniser les commissions depuis les performances mensuelles"""
+    from app.core.database import SessionLocal
+    from app.models.commission import CommissionEntry, PDVType as CommPDVType, ReversementStatus, TAUX_RESEAU, TAUX_PDV, TYPE_GERE_REVERSEMENT
+    from app.models.performance import MonthlyPerformance
+    from app.models.pdv import PDV
+    
+    db = SessionLocal()
+    db.query(CommissionEntry).delete()
+    db.commit()
+    
+    def get_comm_type(type_pdv):
+        if not type_pdv: return CommPDVType.RS
+        t = str(type_pdv.value if hasattr(type_pdv, 'value') else type_pdv).upper()
+        if 'RNS' in t: return CommPDVType.RNS
+        if 'RSF' in t: return CommPDVType.RSF
+        if 'KIOSQUE' in t: return CommPDVType.KIOSQUE
+        return CommPDVType.RS
+
+    inseres = 0
+    for MOIS, ANNEE in [(1,2026),(2,2026),(3,2026),(4,2026)]:
+        period_key = f"{ANNEE}-{MOIS:02d}"
+        perfs = db.query(MonthlyPerformance, PDV).join(
+            PDV, MonthlyPerformance.pdv_id == PDV.id
+        ).filter(
+            MonthlyPerformance.annee == ANNEE,
+            MonthlyPerformance.mois == MOIS,
+            MonthlyPerformance.est_actif == True,
+            MonthlyPerformance.commission_pdg > 0
+        ).all()
+        for perf, pdv in perfs:
+            try:
+                comm_type = get_comm_type(pdv.type_pdv)
+                montant_brut = perf.commission_pdg
+                gere_rev = TYPE_GERE_REVERSEMENT.get(comm_type, True)
+                db.add(CommissionEntry(
+                    pdv_id=pdv.id, pdv_numero=pdv.numero_pdv, pdv_nom=pdv.nom,
+                    pdv_type=comm_type, quartier=pdv.quartier, zone=pdv.zone,
+                    sous_zone=pdv.sous_zone, gestionnaire=pdv.gestionnaire,
+                    superviseur=pdv.superviseur, period_key=period_key,
+                    period_type="MONTHLY", montant_brut=montant_brut,
+                    montant_reseau=montant_brut*TAUX_RESEAU,
+                    montant_pdv=montant_brut*TAUX_PDV,
+                    gere_reversement=gere_rev,
+                    reversement_status=ReversementStatus.EN_ATTENTE if gere_rev else ReversementStatus.NON_APPLICABLE,
+                    montant_reverse=0.0, source="import_performances",
+                ))
+                inseres += 1
+            except: pass
+        db.commit()
+    
+    db.close()
+    return {"message": "Commissions synchronisées", "total": inseres}
