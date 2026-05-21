@@ -970,15 +970,30 @@ export default function DashboardPage() {
     }
   }, [lastAvailable]);
 
+  // Mois disponibles
+  const moisDisponibles = lastAvailable?.mois_disponibles || [];
+  const isMoisDispo = (a, m) => moisDisponibles.some(d => d.annee === a && d.mois === m);
+
   const prevMonth = () => {
-    if (mois === 1) { setMois(12); setAnnee(a => a - 1); }
-    else setMois(m => m - 1);
+    const newMois = mois === 1 ? 12 : mois - 1;
+    const newAnnee = mois === 1 ? annee - 1 : annee;
+    if (isMoisDispo(newAnnee, newMois)) {
+      setMois(newMois);
+      setAnnee(newAnnee);
+    }
   };
 
   const nextMonth = () => {
-    if (mois === 12) { setMois(1); setAnnee(a => a + 1); }
-    else setMois(m => m + 1);
+    const newMois = mois === 12 ? 1 : mois + 1;
+    const newAnnee = mois === 12 ? annee + 1 : annee;
+    if (isMoisDispo(newAnnee, newMois)) {
+      setMois(newMois);
+      setAnnee(newAnnee);
+    }
   };
+  
+  const canGoPrev = isMoisDispo(mois === 1 ? annee - 1 : annee, mois === 1 ? 12 : mois - 1);
+  const canGoNext = isMoisDispo(mois === 12 ? annee + 1 : annee, mois === 12 ? 1 : mois + 1);
 
   const tabs = [
     { id: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
@@ -1000,9 +1015,9 @@ export default function DashboardPage() {
         </div>
         <div className="dash-controls">
           <div className="month-nav">
-            <button className="btn btn-ghost btn-sm" onClick={prevMonth}><ChevronLeft size={16}/></button>
+            <button className="btn btn-ghost btn-sm" onClick={prevMonth} disabled={!canGoPrev} style={{opacity: canGoPrev ? 1 : 0.3, cursor: canGoPrev ? 'pointer' : 'not-allowed'}}><ChevronLeft size={16}/></button>
             <span className="month-label">{MOIS_NOMS[mois]} {annee}</span>
-            <button className="btn btn-ghost btn-sm" onClick={nextMonth}><ChevronRight size={16}/></button>
+            <button className="btn btn-ghost btn-sm" onClick={nextMonth} disabled={!canGoNext} style={{opacity: canGoNext ? 1 : 0.3, cursor: canGoNext ? 'pointer' : 'not-allowed'}}><ChevronRight size={16}/></button>
           </div>
         </div>
       </div>

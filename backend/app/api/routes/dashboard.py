@@ -1730,7 +1730,20 @@ def last_available(db: Session = Depends(get_db)):
         WeeklyPerformance.annee.desc(), WeeklyPerformance.semaine.desc()
     ).first()
 
+    # Tous les mois disponibles
+    from sqlalchemy import distinct
+    mois_dispo = db.query(
+        distinct(MonthlyPerformance.annee * 100 + MonthlyPerformance.mois)
+    ).order_by(
+        (MonthlyPerformance.annee * 100 + MonthlyPerformance.mois).asc()
+    ).all()
+    mois_disponibles = [
+        {"annee": m[0] // 100, "mois": m[0] % 100}
+        for m in mois_dispo
+    ]
+
     return {
         "last_month": {"annee": last_month[0], "mois": last_month[1]} if last_month else None,
         "last_week": {"annee": last_week[0], "semaine": last_week[1]} if last_week else None,
+        "mois_disponibles": mois_disponibles,
     }
