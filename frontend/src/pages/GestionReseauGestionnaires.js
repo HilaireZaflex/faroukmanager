@@ -18,6 +18,12 @@ function formatCA(v) {
 
 function TauxBadge({ taux }) {
   const color = taux >= 80 ? '#00d68f' : taux >= 50 ? '#ffaa00' : '#ff3d71';
+
+  const moisDisponibles = lastAvailable?.mois_disponibles || [];
+  const isMoisDispo = (a, m) => moisDisponibles.some(d => d.annee === a && d.mois === m);
+  const canGoPrev = isMoisDispo(mois === 1 ? annee - 1 : annee, mois === 1 ? 12 : mois - 1);
+  const canGoNext = isMoisDispo(mois === 12 ? annee + 1 : annee, mois === 12 ? 1 : mois + 1);
+
   return (
     <span style={{ fontWeight: 700, color }}>{taux}%</span>
   );

@@ -45,12 +45,12 @@ function OngletGestionnaires() {
       {/* Selecteur mois (uniquement pour les sous-onglets qui en ont besoin) */}
       {needsDate.includes(subTab) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <button onClick={() => { if(mois===1){setMois(12);setAnnee(a=>a-1);}else setMois(m=>m-1); }}
+          <button disabled={!canGoPrev} style={{opacity: canGoPrev?1:0.3}} onClick={() => { const nm=mois===1?12:mois-1; const na=mois===1?annee-1:annee; if(isMoisDispo(na,nm)){setMois(nm);setAnnee(na);} }}
             style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
             &lt;
           </button>
           <span style={{ fontSize: 13, fontWeight: 700, minWidth: 100, textAlign: 'center' }}>{MONTHS[mois-1]} {annee}</span>
-          <button onClick={() => { if(mois===12){setMois(1);setAnnee(a=>a+1);}else setMois(m=>m+1); }}
+          <button disabled={!canGoNext} style={{opacity: canGoNext?1:0.3}} onClick={() => { const nm=mois===12?1:mois+1; const na=mois===12?annee+1:annee; if(isMoisDispo(na,nm)){setMois(nm);setAnnee(na);} }}
             style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
             &gt;
           </button>

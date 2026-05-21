@@ -93,9 +93,9 @@ export default function SuperviseurPage() {
           <p className="page-subtitle">Comparaison des performances et KPIs par superviseur · {MONTHS[mois-1]} {annee}</p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => { if(mois===1){setMois(12);setAnnee(a=>a-1);}else setMois(m=>m-1); }}><ChevronLeft size={14}/></button>
+          <button className="btn btn-ghost btn-sm" disabled={!canGoPrev} style={{opacity: canGoPrev?1:0.3}} onClick={() => { const nm=mois===1?12:mois-1; const na=mois===1?annee-1:annee; if(isMoisDispo(na,nm)){setMois(nm);setAnnee(na);} }}><ChevronLeft size={14}/></button>
           <span style={{ fontSize:13, fontWeight:700, minWidth:100, textAlign:'center' }}>{MONTHS[mois-1]} {annee}</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => { if(mois===12){setMois(1);setAnnee(a=>a+1);}else setMois(m=>m+1); }}><ChevronRight size={14}/></button>
+          <button className="btn btn-ghost btn-sm" disabled={!canGoNext} style={{opacity: canGoNext?1:0.3}} onClick={() => { const nm=mois===12?1:mois+1; const na=mois===12?annee+1:annee; if(isMoisDispo(na,nm)){setMois(nm);setAnnee(na);} }}><ChevronRight size={14}/></button>
         </div>
       </div>
 

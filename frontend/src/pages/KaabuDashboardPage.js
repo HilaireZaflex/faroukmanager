@@ -293,9 +293,9 @@ export default function KaabuDashboardPage() {
         </div>
         <div className="dash-controls">
           <div className="month-nav">
-            <button className="btn btn-ghost btn-sm" onClick={prevMonth}><ChevronLeft size={16}/></button>
+            <button className="btn btn-ghost btn-sm" onClick={prevMonth} disabled={!canGoPrev} style={{opacity: canGoPrev ? 1 : 0.3, cursor: canGoPrev ? 'pointer' : 'not-allowed'}}><ChevronLeft size={16}/></button>
             <span className="month-label">{MOIS_NOMS[mois]} {annee}</span>
-            <button className="btn btn-ghost btn-sm" onClick={nextMonth}><ChevronRight size={16}/></button>
+            <button className="btn btn-ghost btn-sm" onClick={nextMonth} disabled={!canGoNext} style={{opacity: canGoNext ? 1 : 0.3, cursor: canGoNext ? 'pointer' : 'not-allowed'}}><ChevronRight size={16}/></button>
           </div>
         </div>
       </div>
