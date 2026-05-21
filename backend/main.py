@@ -109,3 +109,20 @@ async def startup_event():
         db.close()
 
 
+
+
+@app.get("/migrate-pdv-columns")
+async def migrate_pdv_columns():
+    """Migration temporaire: ajoute les colonnes manquantes à la table pdvs"""
+    from app.core.database import engine
+    from sqlalchemy import text
+    results = []
+    with engine.connect() as conn:
+        for col, col_type in [("single_wallet", "VARCHAR"), ("date_mise_a_jour", "VARCHAR")]:
+            try:
+                conn.execute(text(f"ALTER TABLE pdvs ADD COLUMN {col} {col_type}"))
+                conn.commit()
+                results.append(f"✅ Colonne {col} ajoutée")
+            except Exception as e:
+                results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
+    return {"message": "Migration terminée", "results": results}
