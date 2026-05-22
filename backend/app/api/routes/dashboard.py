@@ -1742,8 +1742,21 @@ def last_available(db: Session = Depends(get_db)):
         for m in mois_dispo
     ]
 
+    # Toutes les semaines disponibles
+    from sqlalchemy import distinct as dist2
+    semaines_dispo = db.query(
+        dist2(WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine)
+    ).order_by(
+        (WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine).asc()
+    ).all()
+    semaines_disponibles = [
+        {"annee": s[0] // 100, "semaine": s[0] % 100}
+        for s in semaines_dispo
+    ]
+
     return {
         "last_month": {"annee": last_month[0], "mois": last_month[1]} if last_month else None,
         "last_week": {"annee": last_week[0], "semaine": last_week[1]} if last_week else None,
         "mois_disponibles": mois_disponibles,
+        "semaines_disponibles": semaines_disponibles,
     }

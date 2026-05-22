@@ -271,8 +271,12 @@ export default function NafamaWeeklyDashboardPage() {
     }
   }, [lastAvailable]);
 
-  const prevWeek = () => { if (semaine === 1) { setSemaine(52); setAnnee(a => a - 1); } else setSemaine(s => s - 1); };
-  const nextWeek = () => { if (semaine === 52) { setSemaine(1); setAnnee(a => a + 1); } else setSemaine(s => s + 1); };
+  const semDisponibles = lastAvailable?.semaines_disponibles || [];
+  const isSemDispo = (a, s) => semDisponibles.some(d => d.annee === a && d.semaine === s);
+  const canGoPrevSem = isSemDispo(semaine <= 1 ? annee - 1 : annee, semaine <= 1 ? 52 : semaine - 1);
+  const canGoNextSem = isSemDispo(semaine >= 52 ? annee + 1 : annee, semaine >= 52 ? 1 : semaine + 1);
+  const prevWeek = () => { const ns=semaine<=1?52:semaine-1; const na=semaine<=1?annee-1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
+  const nextWeek = () => { const ns=semaine>=52?1:semaine+1; const na=semaine>=52?annee+1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
 
   const tabs = [
     { key: 'overview',     label: "🏠 Vue d'ensemble" },

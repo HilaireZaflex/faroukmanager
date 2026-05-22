@@ -888,8 +888,12 @@ export default function OMyWeeklyDashboardPage() {
     }
   }, [lastAvailable]);
 
-  const prevWeek = () => { if (semaine === 1) { setSemaine(52); setAnnee(a => a - 1); } else setSemaine(s => s - 1); };
-  const nextWeek = () => { if (semaine === 52) { setSemaine(1); setAnnee(a => a + 1); } else setSemaine(s => s + 1); };
+  const semDisponibles = lastAvailable?.semaines_disponibles || [];
+  const isSemDispo = (a, s) => semDisponibles.some(d => d.annee === a && d.semaine === s);
+  const canGoPrevSem = isSemDispo(semaine <= 1 ? annee - 1 : annee, semaine <= 1 ? 52 : semaine - 1);
+  const canGoNextSem = isSemDispo(semaine >= 52 ? annee + 1 : annee, semaine >= 52 ? 1 : semaine + 1);
+  const prevWeek = () => { const ns=semaine<=1?52:semaine-1; const na=semaine<=1?annee-1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
+  const nextWeek = () => { const ns=semaine>=52?1:semaine+1; const na=semaine>=52?annee+1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
 
   const tabs = [
     { key: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
@@ -922,11 +926,11 @@ export default function OMyWeeklyDashboardPage() {
             </select>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '8px 16px' }}>
-            <button onClick={prevWeek} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>‹</button>
+            <button onClick={prevWeek} disabled={!canGoPrevSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoPrevSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoPrevSem?1:0.3 }}>‹</button>
             <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', minWidth: 130, textAlign: 'center' }}>
               Semaine {semaine} · {annee}
             </span>
-            <button onClick={nextWeek} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>›</button>
+            <button onClick={nextWeek} disabled={!canGoNextSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoNextSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoNextSem?1:0.3 }}>›</button>
           </div>
         </div>
       </div>
