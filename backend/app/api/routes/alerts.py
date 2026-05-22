@@ -148,7 +148,7 @@ class RecommendationsResponse(BaseModel):
 @router.get("/alerts/inactive", response_model=InactiveAlertsResponse)
 def list_inactive_alerts(
     annee: int = Query(2026, description="Année"),
-    semaine: int = Query(52, description="Semaine (1-52)"),
+    semaine: int = Query(None, description="Semaine (1-52, None=dernière disponible)"),
     zone: Optional[str] = Query(None),
     superviseur: Optional[str] = Query(None),
     type_pdv: Optional[str] = Query(None),
@@ -162,6 +162,16 @@ def list_inactive_alerts(
     - Pour chaque PDV inactif, calcule combien de semaines CONSÉCUTIVES il est inactif
     - Retourne liste triée par semaines_consecutives_inactif DESC
     """
+    # Utiliser la dernière semaine disponible si non fournie
+    if semaine is None:
+        last = db.query(WeeklyPerformance.annee, WeeklyPerformance.semaine).filter(
+            WeeklyPerformance.est_actif == True
+        ).order_by(WeeklyPerformance.annee.desc(), WeeklyPerformance.semaine.desc()).first()
+        if last:
+            annee, semaine = int(last[0]), int(last[1])
+        else:
+            annee, semaine = 2026, 20
+
     inactive_pdvs = get_inactive_pdvs_with_history(
         db,
         annee=annee,
@@ -182,7 +192,7 @@ def list_inactive_alerts(
 @router.get("/alerts/declining", response_model=DecliningAlertsResponse)
 def list_declining_alerts(
     annee: int = Query(2026, description="Année"),
-    semaine: int = Query(52, description="Semaine (1-52)"),
+    semaine: int = Query(None, description="Semaine (1-52, None=dernière disponible)"),
     seuil: float = Query(15.0, description="Seuil de baisse (%)"),
     zone: Optional[str] = Query(None),
     superviseur: Optional[str] = Query(None),
@@ -191,8 +201,18 @@ def list_declining_alerts(
 ):
     """
     GET /alerts/declining - PDVs avec baisse de CA significative
-    - Cherche WeeklyPerformance(annee, semaine) avec taux_variation < -seuil
-    - Pour chaque PDV, récupère historique 4 semaines
+    # Si semaine non fournie, utiliser la dernière semaine disponible
+    if semaine is None or annee is None:
+        last = db.query(WeeklyPerformance.annee, WeeklyPerformance.semaine).filter(
+            WeeklyPerformance.est_actif == True
+        ).order_by(WeeklyPerformance.annee.desc(), WeeklyPerformance.semaine.desc()).first()
+        if last:
+            annee, semaine = int(last[0]), int(last[1])
+        else:
+            annee, semaine = 2026, 20
+
+    # - Cherche WeeklyPerformance(annee, semaine) avec taux_variation < -seuil
+    # - Pour chaque PDV, récupère historique 4 semaines
     - Calcule score_risque et type_baisse (ANORMALE si > 30% ou 3 sem consécutives)
     - Retourne liste triée par taux_variation ASC (plus grandes baisses en premier)
     """
