@@ -16,7 +16,6 @@ class RolePermission(Base):
     sidebar_config = Column(JSON, nullable=False, default=dict)
 
 # Créer la table si elle n'existe pas
-Base.metadata.create_all(bind=engine)
 
 # ── Permissions sidebar par défaut ──────────────────────────────────────────
 DEFAULT_SIDEBAR = {
