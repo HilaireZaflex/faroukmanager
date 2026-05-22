@@ -1,0 +1,6 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL npm run build"
+
+[deploy]
+startCommand = "node server.js"
