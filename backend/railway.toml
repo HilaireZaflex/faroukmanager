@@ -1,7 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt --break-system-packages"
 
 [deploy]
-startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "python3 -m uvicorn main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "on_failure"
