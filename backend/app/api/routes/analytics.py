@@ -105,9 +105,21 @@ def get_segments(db: Session = Depends(get_db)):
         "segments": result
     }
 
+# Cache pour les prédictions (valide 10 minutes)
+_predictions_cache = {}
+_predictions_cache_time = {}
+
 @router.get("/analytics/predictions")
 def get_decline_predictions(db: Session = Depends(get_db)):
-    """GET /analytics/predictions"""
+    """GET /analytics/predictions - avec cache 10 minutes"""
+    import time
+    cache_key = "predictions"
+    now = time.time()
+    
+    # Retourner le cache si disponible et < 10 min
+    if cache_key in _predictions_cache and (now - _predictions_cache_time.get(cache_key, 0)) < 600:
+        return _predictions_cache[cache_key]
+    
     at_risk_pdvs = get_at_risk_pdvs(db, threshold=0.3)
     network_forecast = forecast_network_ca(db, horizon_weeks=4)
 
@@ -124,7 +136,7 @@ def get_decline_predictions(db: Session = Depends(get_db)):
     medium_risk = [p for p in at_risk_pdvs if 0.4 <= p["probability"] < 0.65]
     low_risk = [p for p in at_risk_pdvs if p["probability"] < 0.4]
     
-    return {
+    result = {
         "total_at_risk": len(at_risk_pdvs),
         "high_risk_count": len(high_risk),
         "medium_risk_count": len(medium_risk),
@@ -134,13 +146,22 @@ def get_decline_predictions(db: Session = Depends(get_db)):
         "low_risk_pdvs": low_risk[:20],
         "network_forecast": network_forecast
     }
+    _predictions_cache[cache_key] = result
+    _predictions_cache_time[cache_key] = now
+    return result
 
 @router.get("/analytics/forecast")
 def get_ca_forecast(db: Session = Depends(get_db)):
-    """GET /analytics/forecast
-    Retourne forecast_network_ca(db, horizon_weeks=4)
-    """
-    return forecast_network_ca(db, horizon_weeks=4)
+    """GET /analytics/forecast - avec cache 10 minutes"""
+    import time
+    cache_key = "forecast"
+    now = time.time()
+    if cache_key in _predictions_cache and (now - _predictions_cache_time.get(cache_key, 0)) < 600:
+        return _predictions_cache[cache_key]
+    result = forecast_network_ca(db, horizon_weeks=4)
+    _predictions_cache[cache_key] = result
+    _predictions_cache_time[cache_key] = now
+    return result
 
 @router.get("/analytics/gini")
 def get_gini_coefficient(db: Session = Depends(get_db)):
