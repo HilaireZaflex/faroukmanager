@@ -184,3 +184,35 @@ async def optimize_db():
                 results.append(f"⚠️ {str(e)[:50]}")
         conn.commit()
     return {"results": results}
+
+
+@app.post("/import-weekly-json")
+async def import_weekly_json(request: Request):
+    from app.core.database import SessionLocal
+    from app.models.performance import WeeklyPerformance
+    from app.models.pdv import PDV
+    data = await request.json()
+    db = SessionLocal()
+    db.query(WeeklyPerformance).delete()
+    db.commit()
+    pdvs_db = {p.numero_pdv: p for p in db.query(PDV).all()}
+    inseres = 0
+    for item in data:
+        pdv = pdvs_db.get(item['numero_pdv'])
+        if not pdv: continue
+        db.add(WeeklyPerformance(
+            pdv_id=pdv.id, annee=item['annee'], semaine=item['semaine'],
+            ca=item['montant_transaction'], montant_transaction=item['montant_transaction'],
+            montant_ca=item['montant_ca'], nb_operations=item['nb_operations'],
+            nb_depots=item['nb_depots'], montant_depots=item['montant_depots'],
+            nb_retraits=item['nb_retraits'], montant_retraits=item['montant_retraits'],
+            commission_pdg=item['commission_pdg'], commission_revendeur=item['commission_revendeur'],
+            ratio_ca_transaction=(item['montant_ca']/item['montant_transaction']*100) if item['montant_transaction'] > 0 else 0,
+            est_actif=True, indicateur=item.get('indicateur','OMY'),
+        ))
+        inseres += 1
+        if inseres % 500 == 0:
+            db.commit()
+    db.commit()
+    db.close()
+    return {"message": "Import terminé", "total": inseres}
