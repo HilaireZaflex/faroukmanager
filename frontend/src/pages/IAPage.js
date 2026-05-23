@@ -309,7 +309,7 @@ function TabRecommendations() {
         <Zap size={16} color="#FF6900" />
         <span>
           <strong>📋 10 Actions Prioritaires IA — Semaine S{recsData?.semaine}/{recsData?.annee} :</strong> Générées automatiquement à partir de l'analyse en temps réel 
-          des {predictions?.total_pdvs || 1172} PDVs. Chaque action est classée par priorité et type d'intervention : urgente, terrain, préventive, fidélisation ou croissance.
+          des 1172 PDVs. Chaque action est classée par priorité et type d'intervention : urgente, terrain, préventive, fidélisation ou croissance.
         </span>
       </div>
 
@@ -739,7 +739,7 @@ function TabCompetition() {
         <Zap size={16} color="#FF6900" />
         <span>
           <strong>⚔️ Dashboard Compétition Réseau Orange Mali :</strong> Vue consolidée du classement général du réseau.
-          Classement en temps réel des {predictions?.total_pdvs || 1172} PDVs par CA et santé. Narration automatique générée par l'IA pour les rapports de direction.
+          Classement en temps réel des 1172 PDVs par CA et santé. Narration automatique générée par l'IA pour les rapports de direction.
           Export PowerPoint disponible pour les présentations managériales.
         </span>
       </div>
@@ -842,7 +842,7 @@ export default function IAPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">🧠 Intelligence Artificielle — Réseau Orange Mali</h1>
-          <p className="page-subtitle">Analyse prédictive · Segmentation comportementale · Recommandations automatiques · {predictions?.total_pdvs || 1172} PDVs analysés en temps réel</p>
+          <p className="page-subtitle">Analyse prédictive · Segmentation comportementale · Recommandations automatiques · 1172 PDVs analysés en temps réel</p>
         </div>
       </div>
 
@@ -851,7 +851,7 @@ export default function IAPage() {
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 20px' }}>
           <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>Santé Réseau</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: avgHealth >= 70 ? '#00d68f' : avgHealth >= 50 ? '#ffa502' : '#ff4757' }}>{avgHealth.toFixed(1)}<span style={{ fontSize: 14, color: '#8a8a9a' }}>/100</span></div>
-          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Score moyen des {predictions?.total_pdvs || 1172} PDVs</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Score moyen des 1172 PDVs</div>
         </div>
         <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 'var(--radius)', padding: '16px 20px' }}>
           <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 1 }}>🏆 Champions</div>
