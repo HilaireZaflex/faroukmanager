@@ -130,3 +130,57 @@ async def migrate_pdv_columns():
             except Exception as e:
                 results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
     return {"message": "Migration terminée", "results": results}
+
+
+@app.get("/sync-commissions-v2")
+async def sync_commissions_v2():
+    from app.core.database import SessionLocal
+    from app.models.commission import CommissionEntry, ReversementStatus
+    from app.models.performance import MonthlyPerformance
+    from app.models.pdv import PDV, PDVType
+    db = SessionLocal()
+    db.query(CommissionEntry).delete()
+    db.commit()
+    
+    TAUX_RESEAU = 0.466
+    TAUX_PDV = 0.25
+    
+    inseres = 0
+    for MOIS, ANNEE in [(1,2026),(2,2026),(3,2026),(4,2026)]:
+        period_key = f"{ANNEE}-{MOIS:02d}"
+        perfs = db.query(MonthlyPerformance, PDV).join(
+            PDV, MonthlyPerformance.pdv_id == PDV.id
+        ).filter(
+            MonthlyPerformance.annee == ANNEE,
+            MonthlyPerformance.mois == MOIS,
+            MonthlyPerformance.est_actif == True,
+            MonthlyPerformance.commission_pdg > 0
+        ).all()
+        for perf, pdv in perfs:
+            try:
+                from app.models.commission import PDVType as CommPDVType
+                t = str(pdv.type_pdv.value if pdv.type_pdv else 'RS').upper()
+                if 'RNS' in t: ct = CommPDVType.RNS
+                elif 'RSF' in t: ct = CommPDVType.RSF
+                elif 'KIOSQUE' in t: ct = CommPDVType.KIOSQUE
+                else: ct = CommPDVType.RS
+                
+                montant_brut = perf.commission_pdg
+                db.add(CommissionEntry(
+                    pdv_id=pdv.id, pdv_numero=pdv.numero_pdv, pdv_nom=pdv.nom,
+                    pdv_type=ct, quartier=pdv.quartier, zone=pdv.zone,
+                    sous_zone=pdv.sous_zone, gestionnaire=pdv.gestionnaire,
+                    superviseur=pdv.superviseur, period_key=period_key,
+                    period_type="MONTHLY", montant_brut=montant_brut,
+                    montant_reseau=montant_brut*TAUX_RESEAU,
+                    montant_pdv=montant_brut*TAUX_PDV,
+                    gere_reversement=True,
+                    reversement_status=ReversementStatus.EN_ATTENTE,
+                    montant_reverse=0.0, source="import_performances",
+                ))
+                inseres += 1
+            except Exception as e:
+                pass
+        db.commit()
+    db.close()
+    return {"message": "Commissions synchronisées", "total": inseres}
