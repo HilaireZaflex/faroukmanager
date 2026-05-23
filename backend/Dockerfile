@@ -4,5 +4,5 @@ RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/li
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-CMD python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
-# force rebuild Fri May 22 18:15:40 GMT 2026
+RUN chmod +x start.sh
+CMD ["/bin/bash", "start.sh"]
