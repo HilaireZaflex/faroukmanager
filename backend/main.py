@@ -158,3 +158,29 @@ async def optimize_db():
                 results.append(f"⚠️ {str(e)[:50]}")
         conn.commit()
     return {"message": "Optimisation terminée", "results": results}
+
+
+@app.get("/optimize-db")
+async def optimize_db():
+    from app.core.database import engine
+    from sqlalchemy import text
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_monthly_annee_mois ON monthly_performances(annee, mois)",
+        "CREATE INDEX IF NOT EXISTS idx_monthly_pdv_id ON monthly_performances(pdv_id)",
+        "CREATE INDEX IF NOT EXISTS idx_monthly_est_actif ON monthly_performances(est_actif)",
+        "CREATE INDEX IF NOT EXISTS idx_weekly_annee_sem ON weekly_performances(annee, semaine)",
+        "CREATE INDEX IF NOT EXISTS idx_weekly_pdv_id ON weekly_performances(pdv_id)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_zone ON pdvs(zone)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_superviseur ON pdvs(superviseur)",
+        "CREATE INDEX IF NOT EXISTS idx_comm_period ON commission_entries(period_key)",
+    ]
+    results = []
+    with engine.connect() as conn:
+        for idx in indexes:
+            try:
+                conn.execute(text(idx))
+                results.append(f"✅ {idx.split('idx_')[1].split(' ON')[0]}")
+            except Exception as e:
+                results.append(f"⚠️ {str(e)[:50]}")
+        conn.commit()
+    return {"results": results}
