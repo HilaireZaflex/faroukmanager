@@ -138,6 +138,9 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
 export default function PDVsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [periodeType, setPeriodeType] = useState('mensuel');
+  const [selectedMois, setSelectedMois] = useState(null);
+  const [selectedSemaine, setSelectedSemaine] = useState(null);
   const [search, setSearch] = useState('');
   const [zone, setZone] = useState('');
   const [statut, setStatut] = useState('');
@@ -158,6 +161,15 @@ export default function PDVsPage() {
     { keepPreviousData: true, staleTime: 300000 }
   );
 
+  const { data: lastAvailable } = useQuery('last-available', () => api.get('/dashboard/last-available').then(r => r.data), { staleTime: 300000 });
+  const mois = selectedMois || lastAvailable?.last_month?.mois || new Date().getMonth() + 1;
+  const annee = lastAvailable?.last_month?.annee || new Date().getFullYear();
+  const lastSemaine = selectedSemaine || lastAvailable?.last_week?.semaine;
+  const lastSemaineAnnee = lastAvailable?.last_week?.annee;
+  const MOIS_NOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const moisDisponibles = lastAvailable?.mois_disponibles || [];
+  const semainesDisponibles = lastAvailable?.semaines_disponibles || [];
+  
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
 
   const zones = stats?.pdvs_par_zone ? Object.keys(stats.pdvs_par_zone) : [];
@@ -205,6 +217,34 @@ export default function PDVsPage() {
       </div>
 
       {/* Stats mini */}
+      {/* ── Sélecteur de période ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 8, padding: 4, gap: 4 }}>
+          <button onClick={() => setPeriodeType('mensuel')} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: periodeType === 'mensuel' ? 'var(--primary)' : 'transparent', color: periodeType === 'mensuel' ? '#fff' : 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+            📅 Mensuel
+          </button>
+          <button onClick={() => setPeriodeType('hebdo')} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: periodeType === 'hebdo' ? 'var(--primary)' : 'transparent', color: periodeType === 'hebdo' ? '#fff' : 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+            📆 Hebdomadaire
+          </button>
+        </div>
+        {periodeType === 'mensuel' ? (
+          <select value={selectedMois || mois} onChange={e => setSelectedMois(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}>
+            {moisDisponibles.map(m => (
+              <option key={m.mois} value={m.mois}>{MOIS_NOMS[m.mois-1]} {m.annee}</option>
+            ))}
+          </select>
+        ) : (
+          <select value={selectedSemaine || lastSemaine} onChange={e => setSelectedSemaine(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}>
+            {semainesDisponibles.map(s => (
+              <option key={s.semaine} value={s.semaine}>Semaine {s.semaine} · {s.annee}</option>
+            ))}
+          </select>
+        )}
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          {periodeType === 'mensuel' ? `📊 ${MOIS_NOMS[(selectedMois||mois)-1]} ${annee}` : `📊 Semaine ${selectedSemaine||lastSemaine} · ${lastSemaineAnnee}`}
+        </span>
+      </div>
+
       <div className="pdv-mini-stats mb-24">
         <div className="mini-stat-card" style={{ '--color': '#00d68f' }}>
           <span className="mini-stat-val">{stats?.total_pdvs || 0}</span>
