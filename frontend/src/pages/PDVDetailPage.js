@@ -293,11 +293,11 @@ function TabPerformances({ pdv }) {
                 <td>{MOIS_NOMS[h.mois]}</td>
                 <td style={{ fontWeight: 600 }}>{formatCA(h.montant_transaction || h.ca)}</td>
                 <td>{h.nb_operations || '—'}</td>
-                <td>{h.depots || '—'}</td>
-                <td>{h.retraits || '—'}</td>
+                <td>{h.nb_depots ? `${h.nb_depots} (${(h.montant_depots/1000000).toFixed(1)}M)` : '—'}</td>
+                <td>{h.nb_retraits ? `${h.nb_retraits} (${(h.montant_retraits/1000000).toFixed(1)}M)` : '—'}</td>
                 <td>
-                  <span style={{ color: h.variation >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-                    {h.variation >= 0 ? '+' : ''}{h.variation}%
+                  <span style={{ color: (h.taux_variation || 0) >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                    {h.taux_variation >= 0 ? '+' : ''}{(h.taux_variation || 0).toFixed(1)}%
                   </span>
                 </td>
                 <td>
@@ -305,9 +305,9 @@ function TabPerformances({ pdv }) {
                     className="badge"
                     style={{
                       background:
-                        h.statut === 'actif'
+                        h.est_actif === true
                           ? 'var(--success-bg)'
-                          : h.statut === 'inactif'
+                          : h.est_actif === false
                             ? 'var(--danger-bg)'
                             : 'var(--warning-bg)',
                       color:
@@ -318,7 +318,7 @@ function TabPerformances({ pdv }) {
                             : 'var(--warning)',
                     }}
                   >
-                    {h.statut}
+                    {h.est_actif ? 'Actif' : 'Inactif'}
                   </span>
                 </td>
               </tr>
