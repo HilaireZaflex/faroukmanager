@@ -61,12 +61,27 @@ export default function AccueilPage() {
   });
   const navigate = useNavigate();
   const now = new Date();
-  const mois = now.getMonth() + 1;
-  const annee = now.getFullYear();
+  const [periodeType, setPeriodeType] = React.useState('mensuel'); // 'mensuel' ou 'hebdo'
+  const [selectedMois, setSelectedMois] = React.useState(null);
+  const [selectedSemaine, setSelectedSemaine] = React.useState(null);
+  
+  // Utiliser le dernier mois/semaine disponible depuis l'API
+  const { data: lastAvailable } = useQuery('last-available', () => 
+    api.get('/dashboard/last-available').then(r => r.data), { staleTime: 300000 });
+  
+  const mois = selectedMois || lastAvailable?.last_month?.mois || (now.getMonth() + 1);
+  const annee = lastAvailable?.last_month?.annee || now.getFullYear();
+  const lastSemaine = selectedSemaine || lastAvailable?.last_week?.semaine;
+  const lastSemaineAnnee = lastAvailable?.last_week?.annee;
+  
+  const MOIS_NOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const moisDisponibles = lastAvailable?.mois_disponibles || [];
+  const semainesDisponibles = lastAvailable?.semaines_disponibles || [];
 
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
   const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois], () =>
-    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data), { staleTime: 300000 });
+    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data), 
+    { staleTime: 300000, enabled: !!lastAvailable });
   const { data: segments } = useQuery('analytics-segments', () => api.get('/analytics/segments').then(r => r.data), { staleTime: 300000 });
   const { data: predictions } = useQuery('analytics-predictions', () => api.get('/analytics/predictions').then(r => r.data), { staleTime: 300000 });
   const { data: recovery } = useQuery('recovery-synthese', () => api.get('/alerts/recovery/synthese').then(r => r.data), { staleTime: 300000 });
@@ -138,6 +153,34 @@ export default function AccueilPage() {
           <div style={{ fontSize:13, fontWeight:600 }}>Tableau de bord en temps réel</div>
           <div style={{ fontSize:11, color:'var(--text-secondary)', marginTop:4 }}>Données mises à jour automatiquement</div>
         </div>
+      </div>
+
+      {/* ── Sélecteur de période ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: 8, padding: 4, gap: 4 }}>
+          <button onClick={() => setPeriodeType('mensuel')} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: periodeType === 'mensuel' ? 'var(--primary)' : 'transparent', color: periodeType === 'mensuel' ? '#fff' : 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+            📅 Mensuel
+          </button>
+          <button onClick={() => setPeriodeType('hebdo')} style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: periodeType === 'hebdo' ? 'var(--primary)' : 'transparent', color: periodeType === 'hebdo' ? '#fff' : 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+            📆 Hebdomadaire
+          </button>
+        </div>
+        {periodeType === 'mensuel' ? (
+          <select value={selectedMois || mois} onChange={e => setSelectedMois(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}>
+            {moisDisponibles.map(m => (
+              <option key={m.mois} value={m.mois}>{MOIS_NOMS[m.mois-1]} {m.annee}</option>
+            ))}
+          </select>
+        ) : (
+          <select value={selectedSemaine || lastSemaine} onChange={e => setSelectedSemaine(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13 }}>
+            {semainesDisponibles.map(s => (
+              <option key={s.semaine} value={s.semaine}>Semaine {s.semaine} · {s.annee}</option>
+            ))}
+          </select>
+        )}
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          {periodeType === 'mensuel' ? `📊 Données de ${MOIS_NOMS[(selectedMois||mois)-1]} ${annee}` : `📊 Données de la semaine ${selectedSemaine||lastSemaine} · ${lastSemaineAnnee}`}
+        </span>
       </div>
 
       {/* ── KPIs principaux ── */}

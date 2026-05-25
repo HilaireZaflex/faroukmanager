@@ -23,9 +23,23 @@ def get_stats(db: Session = Depends(get_db)):
 
     total = len([p for p in pdvs if p.statut != PDVStatut.DESACTIVE])
     actifs = len([p for p in pdvs if p.statut == PDVStatut.ACTIF])
-    inactifs = len([p for p in pdvs if p.statut == PDVStatut.INACTIF])
     en_recuperation = len([p for p in pdvs if p.statut == PDVStatut.RECUPERATION])
     nouvelles_creations = len([p for p in pdvs if p.nouvelle_creation])
+    
+    # Inactifs = PDVs sans opérations lors du dernier mois disponible
+    from app.models.performance import MonthlyPerformance
+    from sqlalchemy import func
+    last_period = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).order_by(
+        MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
+    ).first()
+    if last_period:
+        inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
+            MonthlyPerformance.annee == last_period[0],
+            MonthlyPerformance.mois == last_period[1],
+            MonthlyPerformance.est_actif == False
+        ).scalar() or 0
+    else:
+        inactifs = 0
 
     # Dernière période disponible
     latest = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).distinct().order_by(
