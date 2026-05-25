@@ -265,23 +265,23 @@ export default function PDVsPage() {
 
       <div className="pdv-mini-stats mb-24">
         <div className="mini-stat-card" style={{ '--color': '#00d68f' }}>
-          <span className="mini-stat-val">{stats?.total_pdvs || 0}</span>
+          <span className="mini-stat-val">{activeDash?.total_pdvs || statsBase?.total_pdvs || 0}</span>
           <span className="mini-stat-label">Total PDVs</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#10b981' }}>
-          <span className="mini-stat-val">{stats?.actifs || 0}</span>
+          <span className="mini-stat-val">{activeDash?.active_pdvs || statsBase?.actifs || 0}</span>
           <span className="mini-stat-label">✅ Actifs</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#ef4444' }}>
-          <span className="mini-stat-val">{stats?.inactifs || 0}</span>
+          <span className="mini-stat-val">{activeDash?.inactive_pdvs || statsBase?.inactifs || 0}</span>
           <span className="mini-stat-label">🔴 Inactifs</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#f59e0b' }}>
-          <span className="mini-stat-val">{stats?.en_recuperation || 0}</span>
+          <span className="mini-stat-val">{statsBase?.en_recuperation || 0}</span>
           <span className="mini-stat-label">⚠️ Récupération</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#3b82f6' }}>
-          <span className="mini-stat-val">{stats?.nouvelles_creations || 0}</span>
+          <span className="mini-stat-val">{statsBase?.nouvelles_creations || 0}</span>
           <span className="mini-stat-label">🆕 Nvelles Créations</span>
         </div>
       </div>
