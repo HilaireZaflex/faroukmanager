@@ -197,7 +197,7 @@ export default function PDVsPage() {
     nouvelles_creations: pdvsFiltered.filter(p => p?.nouvelle_creation).length,
   };
 
-  const zones = stats?.pdvs_par_zone ? Object.keys(stats.pdvs_par_zone) : [];
+  const zones = statsBase?.pdvs_par_zone ? Object.keys(statsBase.pdvs_par_zone) : [];
 
   const handleExportExcel = async () => {
     try {
@@ -233,7 +233,7 @@ export default function PDVsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Points de Vente</h1>
-          <p className="page-subtitle">{stats?.total_pdvs || 0} PDVs enregistrés · {stats?.actifs || 0} actifs</p>
+          <p className="page-subtitle">{dynamicStats.total_pdvs || 0} PDVs enregistrés · {dynamicStats.actifs || 0} actifs</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-ghost btn-sm" onClick={handleExportExcel}><Download size={14}/> Exporter Excel</button>
