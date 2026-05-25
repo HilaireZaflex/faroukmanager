@@ -16,10 +16,25 @@ router = APIRouter()
 
 # ─── STATS (doit être avant /{pdv_id}) ───────────────────────────────────────
 @router.get("/pdvs/stats")
-def get_stats(db: Session = Depends(get_db)):
+def get_stats(
+    zone: str = Query(None, description="Filtrer par zone"),
+    type_pdv: str = Query(None, description="Filtrer par type PDV"),
+    superviseur: str = Query(None, description="Filtrer par superviseur"),
+    db: Session = Depends(get_db)
+):
     """Statistiques globales du réseau PDV — M1"""
     from sqlalchemy import and_
-    pdvs = db.query(PDV).all()
+    query = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+    if zone:
+        query = query.filter(PDV.zone == zone)
+    if type_pdv:
+        from app.models.pdv import PDVType as PT
+        try:
+            query = query.filter(PDV.type_pdv == PT(type_pdv))
+        except: pass
+    if superviseur:
+        query = query.filter(PDV.superviseur == superviseur)
+    pdvs = query.all()
 
     total = len([p for p in pdvs if p.statut != PDVStatut.DESACTIVE])
     actifs = len([p for p in pdvs if p.statut == PDVStatut.ACTIF])

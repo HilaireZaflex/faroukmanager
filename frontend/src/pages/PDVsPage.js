@@ -180,21 +180,22 @@ export default function PDVsPage() {
   
   const activeDash = periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly;
 
-  // Récupérer les PDVs filtrés pour calculer les stats dynamiques
-  const { data: pdvsFiltres } = useQuery(
-    ['pdvs-filtres-stats', zone, typePdv, annee, mois, lastSemaine, periodeType],
-    () => api.get('/pdvs', { params: { limit: 2000, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}) } }).then(r => r.data),
-    { staleTime: 300000, enabled: true }
+  // Stats dynamiques selon filtres actifs (zone, type, superviseur)
+  const { data: dynamicStatsRaw } = useQuery(
+    ['pdvs-stats-filtres', zone, typePdv],
+    () => api.get('/pdvs/stats', { params: { 
+      ...(zone ? { zone } : {}), 
+      ...(typePdv ? { type_pdv: typePdv } : {}) 
+    }}).then(r => r.data),
+    { staleTime: 300000 }
   );
 
-  // Calculer les stats dynamiques selon les filtres actifs
-  const pdvsFiltered = Array.isArray(pdvsFiltres) ? pdvsFiltres : [];
   const dynamicStats = {
-    total_pdvs: pdvsFiltered.length,
-    actifs: pdvsFiltered.filter(p => p?.statut === 'ACTIF').length,
-    inactifs: pdvsFiltered.filter(p => p?.statut === 'INACTIF').length,
-    en_recuperation: pdvsFiltered.filter(p => p?.statut === 'RECUPERATION').length,
-    nouvelles_creations: pdvsFiltered.filter(p => p?.nouvelle_creation).length,
+    total_pdvs: dynamicStatsRaw?.total_pdvs || 0,
+    actifs: dynamicStatsRaw?.actifs || 0,
+    inactifs: dynamicStatsRaw?.inactifs || 0,
+    en_recuperation: dynamicStatsRaw?.en_recuperation || 0,
+    nouvelles_creations: dynamicStatsRaw?.nouvelles_creations || 0,
   };
 
   const zones = statsBase?.pdvs_par_zone ? Object.keys(statsBase.pdvs_par_zone) : [];
