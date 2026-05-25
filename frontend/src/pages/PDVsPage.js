@@ -170,7 +170,25 @@ export default function PDVsPage() {
   const moisDisponibles = lastAvailable?.mois_disponibles || [];
   const semainesDisponibles = lastAvailable?.semaines_disponibles || [];
   
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
+  const { data: statsBase } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
+  const { data: dashboardMonthly } = useQuery(['pdv-dashboard-monthly', annee, mois], () =>
+    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 300000, enabled: periodeType === 'mensuel' && !!lastAvailable });
+  const { data: dashboardWeekly } = useQuery(['pdv-dashboard-weekly', lastSemaineAnnee, lastSemaine], () =>
+    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine } }).then(r => r.data),
+    { staleTime: 300000, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
+  
+  const activeDash = periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly;
+  
+  // Stats enrichies avec données de la période active
+  const stats = {
+    ...statsBase,
+    inactifs: periodeType === 'mensuel' 
+      ? (activeDash?.pdvs_inactifs || statsBase?.inactifs || 0)
+      : (activeDash?.pdvs_inactifs || statsBase?.inactifs || 0),
+    actifs: activeDash?.pdvs_actifs || statsBase?.actifs || 0,
+    nouvelles_creations: statsBase?.nouvelles_creations || 0,
+  };
 
   const zones = stats?.pdvs_par_zone ? Object.keys(stats.pdvs_par_zone) : [];
 

@@ -81,7 +81,13 @@ export default function AccueilPage() {
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
   const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois], () =>
     api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data), 
-    { staleTime: 300000, enabled: !!lastAvailable });
+    { staleTime: 300000, enabled: !!lastAvailable && periodeType === 'mensuel' });
+  const { data: dashboardHebdo } = useQuery(['dashboard-weekly', lastSemaineAnnee, lastSemaine], () =>
+    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine } }).then(r => r.data), 
+    { staleTime: 300000, enabled: !!lastAvailable && periodeType === 'hebdo' && !!lastSemaine });
+  
+  // Données actives selon la période sélectionnée
+  const activeData = periodeType === 'mensuel' ? dashboard : dashboardHebdo;
   const { data: segments } = useQuery('analytics-segments', () => api.get('/analytics/segments').then(r => r.data), { staleTime: 300000 });
   const { data: predictions } = useQuery('analytics-predictions', () => api.get('/analytics/predictions').then(r => r.data), { staleTime: 300000 });
   const { data: recovery } = useQuery('recovery-synthese', () => api.get('/alerts/recovery/synthese').then(r => r.data), { staleTime: 300000 });
@@ -192,7 +198,7 @@ export default function AccueilPage() {
           <StatCard icon={AlertTriangle} value={stats?.inactifs || '--'} label="PDVs Inactifs" sub="Requièrent attention" color="var(--danger)" onClick={() => navigate('/alerts')} />
           <StatCard icon={RefreshCw} value={stats?.en_recuperation || '--'} label="En Récupération" sub={`Taux: ${recovery?.taux_recuperation?.toFixed(0) || 0}%`} color="var(--warning)" onClick={() => navigate('/recovery')} />
           <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_montant_transaction || dashboard?.total_ca || 0)} label="Montant Transaction" sub={`Dépôts + Retraits · ${['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][mois-1]} ${annee}`} color="var(--primary)" onClick={() => navigate('/dashboard')} />
-          <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_montant_ca || 0)} label="Montant CA" sub={`${(dashboard?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} color="#00d68f" onClick={() => navigate('/dashboard')} />
+          <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_montant_ca || 0)} label="Montant CA" sub={`${(activeData?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} color="#00d68f" onClick={() => navigate('/dashboard')} />
           <StatCard icon={Activity} value={(dashboard?.total_operations || 0).toLocaleString('fr-FR')} label="Opérations" sub="Dépôts + Retraits" color="#3742fa" onClick={() => navigate('/dashboard')} />
           <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_commission_pdg || 0)} label="Commission PDG" sub="Part réseau Orange" color="#a29bfe" onClick={() => navigate('/commissions')} />
           <StatCard icon={Brain} value={healthData?.average_health?.toFixed(1) || '--'} label="Score Santé Moyen" sub="Health Score IA (/100)" color="#a29bfe" onClick={() => navigate('/ia')} badge="IA" />
