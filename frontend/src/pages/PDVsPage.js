@@ -179,15 +179,22 @@ export default function PDVsPage() {
     { staleTime: 300000, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
   
   const activeDash = periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly;
-  
-  // Stats enrichies avec données de la période active
-  const stats = {
-    ...statsBase,
-    inactifs: periodeType === 'mensuel' 
-      ? (activeDash?.pdvs_inactifs || statsBase?.inactifs || 0)
-      : (activeDash?.pdvs_inactifs || statsBase?.inactifs || 0),
-    actifs: activeDash?.pdvs_actifs || statsBase?.actifs || 0,
-    nouvelles_creations: statsBase?.nouvelles_creations || 0,
+
+  // Récupérer les PDVs filtrés pour calculer les stats dynamiques
+  const { data: pdvsFiltres } = useQuery(
+    ['pdvs-filtres-stats', zone, typePdv, annee, mois, lastSemaine, periodeType],
+    () => api.get('/pdvs', { params: { limit: 2000, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}) } }).then(r => r.data),
+    { staleTime: 300000, enabled: true }
+  );
+
+  // Calculer les stats dynamiques selon les filtres actifs
+  const pdvsFiltered = pdvsFiltres || [];
+  const dynamicStats = {
+    total_pdvs: pdvsFiltered.length,
+    actifs: pdvsFiltered.filter(p => p.statut === 'ACTIF').length,
+    inactifs: pdvsFiltered.filter(p => p.statut === 'INACTIF').length,
+    en_recuperation: pdvsFiltered.filter(p => p.statut === 'RECUPERATION').length,
+    nouvelles_creations: pdvsFiltered.filter(p => p.nouvelle_creation).length,
   };
 
   const zones = stats?.pdvs_par_zone ? Object.keys(stats.pdvs_par_zone) : [];
@@ -265,23 +272,23 @@ export default function PDVsPage() {
 
       <div className="pdv-mini-stats mb-24">
         <div className="mini-stat-card" style={{ '--color': '#00d68f', cursor: 'pointer', outline: statut === '' ? '2px solid #00d68f' : 'none' }} onClick={() => { setStatut(''); setPage(0); }}>
-          <span className="mini-stat-val">{activeDash?.total_pdvs || statsBase?.total_pdvs || 0}</span>
+          <span className="mini-stat-val">{dynamicStats.total_pdvs || 0}</span>
           <span className="mini-stat-label">Total PDVs</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut('ACTIF'); setPage(0); }}>
-          <span className="mini-stat-val">{activeDash?.active_pdvs || statsBase?.actifs || 0}</span>
+          <span className="mini-stat-val">{dynamicStats.actifs || 0}</span>
           <span className="mini-stat-label">✅ Actifs</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: statut === 'INACTIF' ? '2px solid #ef4444' : 'none' }} onClick={() => { setStatut('INACTIF'); setPage(0); }}>
-          <span className="mini-stat-val">{activeDash?.inactive_pdvs || statsBase?.inactifs || 0}</span>
+          <span className="mini-stat-val">{dynamicStats.inactifs || 0}</span>
           <span className="mini-stat-label">🔴 Inactifs</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#f59e0b', cursor: 'pointer', outline: statut === 'RECUPERATION' ? '2px solid #f59e0b' : 'none' }} onClick={() => { setStatut('RECUPERATION'); setPage(0); }}>
-          <span className="mini-stat-val">{statsBase?.en_recuperation || 0}</span>
+          <span className="mini-stat-val">{dynamicStats.en_recuperation || 0}</span>
           <span className="mini-stat-label">⚠️ Récupération</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: statut === 'NOUVELLE' ? '2px solid #3b82f6' : 'none' }} onClick={() => { setStatut(''); setPage(0); /* filtre nouvelles créations */ }}>
-          <span className="mini-stat-val">{statsBase?.nouvelles_creations || 0}</span>
+          <span className="mini-stat-val">{dynamicStats.nouvelles_creations || 0}</span>
           <span className="mini-stat-label">🆕 Nvelles Créations</span>
         </div>
       </div>
