@@ -48,10 +48,13 @@ def get_stats(
         MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
     ).first()
     if last_period:
+        # Récupérer les IDs des PDVs filtrés
+        pdv_ids = [p.id for p in pdvs]
         inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
             MonthlyPerformance.annee == last_period[0],
             MonthlyPerformance.mois == last_period[1],
-            MonthlyPerformance.est_actif == False
+            MonthlyPerformance.est_actif == False,
+            MonthlyPerformance.pdv_id.in_(pdv_ids)
         ).scalar() or 0
     else:
         inactifs = 0
