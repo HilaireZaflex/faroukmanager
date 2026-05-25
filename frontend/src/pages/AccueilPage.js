@@ -104,8 +104,8 @@ export default function AccueilPage() {
   };
 
   // Données pour graphique zones
-  const zoneData = dashboard?.ca_by_zone
-    ? Object.entries(dashboard.ca_by_zone).map(([zone, ca]) => ({ zone: zone.replace('Bamako ','Bko '), ca: Math.round(ca), fullZone: zone })).sort((a,b) => b.ca - a.ca)
+  const zoneData = activeData?.ca_by_zone
+    ? Object.entries(activeData?.ca_by_zone || {}).map(([zone, ca]) => ({ zone: zone.replace('Bamako ','Bko '), ca: Math.round(ca), fullZone: zone })).sort((a,b) => b.ca - a.ca)
     : [];
 
   // Données segments pour PieChart
@@ -198,8 +198,8 @@ export default function AccueilPage() {
           <StatCard icon={AlertTriangle} value={stats?.inactifs || '--'} label="PDVs Inactifs" sub="Requièrent attention" color="var(--danger)" onClick={() => navigate('/alerts')} />
           <StatCard icon={RefreshCw} value={stats?.en_recuperation || '--'} label="En Récupération" sub={`Taux: ${recovery?.taux_recuperation?.toFixed(0) || 0}%`} color="var(--warning)" onClick={() => navigate('/recovery')} />
           <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_montant_transaction || dashboard?.total_ca || 0)} label="Montant Transaction" sub={`Dépôts + Retraits · ${['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][mois-1]} ${annee}`} color="var(--primary)" onClick={() => navigate('/dashboard')} />
-          <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_montant_ca || 0)} label="Montant CA" sub={`${(activeData?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} color="#00d68f" onClick={() => navigate('/dashboard')} />
-          <StatCard icon={Activity} value={(dashboard?.total_operations || 0).toLocaleString('fr-FR')} label="Opérations" sub="Dépôts + Retraits" color="#3742fa" onClick={() => navigate('/dashboard')} />
+          <StatCard icon={TrendingUp} value={fmtM(activeData?.total_montant_ca || 0)} label="Montant CA" sub={`${(activeData?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} color="#00d68f" onClick={() => navigate('/dashboard')} />
+          <StatCard icon={Activity} value={(activeData?.total_operations || 0).toLocaleString('fr-FR')} label="Opérations" sub="Dépôts + Retraits" color="#3742fa" onClick={() => navigate('/dashboard')} />
           <StatCard icon={TrendingUp} value={fmtM(dashboard?.total_commission_pdg || 0)} label="Commission PDG" sub="Part réseau Orange" color="#a29bfe" onClick={() => navigate('/commissions')} />
           <StatCard icon={Brain} value={healthData?.average_health?.toFixed(1) || '--'} label="Score Santé Moyen" sub="Health Score IA (/100)" color="#a29bfe" onClick={() => navigate('/ia')} badge="IA" />
           <StatCard icon={Award} value={predictions?.total_at_risk || '--'} label="PDVs à Risque IA" sub={`${predictions?.high_risk_count || 0} critiques`} color="var(--danger)" onClick={() => navigate('/ia')} badge="IA" />
