@@ -188,13 +188,13 @@ export default function PDVsPage() {
   );
 
   // Calculer les stats dynamiques selon les filtres actifs
-  const pdvsFiltered = pdvsFiltres || [];
+  const pdvsFiltered = Array.isArray(pdvsFiltres) ? pdvsFiltres : [];
   const dynamicStats = {
     total_pdvs: pdvsFiltered.length,
-    actifs: pdvsFiltered.filter(p => p.statut === 'ACTIF').length,
-    inactifs: pdvsFiltered.filter(p => p.statut === 'INACTIF').length,
-    en_recuperation: pdvsFiltered.filter(p => p.statut === 'RECUPERATION').length,
-    nouvelles_creations: pdvsFiltered.filter(p => p.nouvelle_creation).length,
+    actifs: pdvsFiltered.filter(p => p?.statut === 'ACTIF').length,
+    inactifs: pdvsFiltered.filter(p => p?.statut === 'INACTIF').length,
+    en_recuperation: pdvsFiltered.filter(p => p?.statut === 'RECUPERATION').length,
+    nouvelles_creations: pdvsFiltered.filter(p => p?.nouvelle_creation).length,
   };
 
   const zones = stats?.pdvs_par_zone ? Object.keys(stats.pdvs_par_zone) : [];
