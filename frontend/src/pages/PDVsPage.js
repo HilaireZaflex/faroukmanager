@@ -208,23 +208,23 @@ export default function PDVsPage() {
       <div className="pdv-mini-stats mb-24">
         <div className="mini-stat-card" style={{ '--color': '#00d68f' }}>
           <span className="mini-stat-val">{stats?.total_pdvs || 0}</span>
-          <span className="mini-stat-label">Total PDV</span>
-        </div>
-        <div className="mini-stat-card" style={{ '--color': '#3b82f6' }}>
-          <span className="mini-stat-val">{stats?.pdvs_par_type?.RS || 0}</span>
-          <span className="mini-stat-label">RS</span>
-        </div>
-        <div className="mini-stat-card" style={{ '--color': '#8b5cf6' }}>
-          <span className="mini-stat-val">{stats?.pdvs_par_type?.RNS || 0}</span>
-          <span className="mini-stat-label">RNS</span>
-        </div>
-        <div className="mini-stat-card" style={{ '--color': '#f59e0b' }}>
-          <span className="mini-stat-val">{stats?.pdvs_par_type?.KIOSQUE || 0}</span>
-          <span className="mini-stat-label">KIOSQUE</span>
+          <span className="mini-stat-label">Total PDVs</span>
         </div>
         <div className="mini-stat-card" style={{ '--color': '#10b981' }}>
-          <span className="mini-stat-val">{stats?.pdvs_par_type?.RSF || 0}</span>
-          <span className="mini-stat-label">RSF</span>
+          <span className="mini-stat-val">{stats?.actifs || 0}</span>
+          <span className="mini-stat-label">✅ Actifs</span>
+        </div>
+        <div className="mini-stat-card" style={{ '--color': '#ef4444' }}>
+          <span className="mini-stat-val">{stats?.inactifs || 0}</span>
+          <span className="mini-stat-label">🔴 Inactifs</span>
+        </div>
+        <div className="mini-stat-card" style={{ '--color': '#f59e0b' }}>
+          <span className="mini-stat-val">{stats?.en_recuperation || 0}</span>
+          <span className="mini-stat-label">⚠️ Récupération</span>
+        </div>
+        <div className="mini-stat-card" style={{ '--color': '#3b82f6' }}>
+          <span className="mini-stat-val">{stats?.nouvelles_creations || 0}</span>
+          <span className="mini-stat-label">🆕 Nvelles Créations</span>
         </div>
       </div>
 

@@ -25,6 +25,7 @@ def get_stats(db: Session = Depends(get_db)):
     actifs = len([p for p in pdvs if p.statut == PDVStatut.ACTIF])
     inactifs = len([p for p in pdvs if p.statut == PDVStatut.INACTIF])
     en_recuperation = len([p for p in pdvs if p.statut == PDVStatut.RECUPERATION])
+    nouvelles_creations = len([p for p in pdvs if p.nouvelle_creation])
 
     # Dernière période disponible
     latest = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).distinct().order_by(
@@ -57,6 +58,7 @@ def get_stats(db: Session = Depends(get_db)):
         "actifs": actifs,
         "inactifs": inactifs,
         "en_recuperation": en_recuperation,
+        "nouvelles_creations": nouvelles_creations,
         "ca_total": ca_total,
         "ca_moyen": ca_moyen,
         "pdvs_par_type": pdvs_par_type,
