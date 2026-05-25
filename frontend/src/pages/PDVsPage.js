@@ -171,12 +171,12 @@ export default function PDVsPage() {
   const semainesDisponibles = lastAvailable?.semaines_disponibles || [];
   
   const { data: statsBase } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
-  const { data: dashboardMonthly } = useQuery(['pdv-dashboard-monthly', annee, mois], () =>
-    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data),
-    { staleTime: 300000, enabled: periodeType === 'mensuel' && !!lastAvailable });
-  const { data: dashboardWeekly } = useQuery(['pdv-dashboard-weekly', lastSemaineAnnee, lastSemaine], () =>
-    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine } }).then(r => r.data),
-    { staleTime: 300000, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
+  const { data: dashboardMonthly } = useQuery(['pdv-dashboard-monthly', annee, mois, zone, typePdv], () =>
+    api.get('/dashboard/monthly', { params: { annee, mois, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}) } }).then(r => r.data),
+    { staleTime: 0, enabled: periodeType === 'mensuel' && !!lastAvailable });
+  const { data: dashboardWeekly } = useQuery(['pdv-dashboard-weekly', lastSemaineAnnee, lastSemaine, zone, typePdv], () =>
+    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}) } }).then(r => r.data),
+    { staleTime: 0, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
   
   const activeDash = periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly;
 
@@ -190,10 +190,11 @@ export default function PDVsPage() {
     { staleTime: 0, cacheTime: 0 }
   );
 
+  // Utiliser activeDash (période) pour actifs/inactifs, dynamicStatsRaw pour le reste
   const dynamicStats = {
-    total_pdvs: dynamicStatsRaw?.total_pdvs || 0,
-    actifs: dynamicStatsRaw?.actifs || 0,
-    inactifs: dynamicStatsRaw?.inactifs || 0,
+    total_pdvs: activeDash?.total_pdvs || dynamicStatsRaw?.total_pdvs || 0,
+    actifs: activeDash?.active_pdvs || dynamicStatsRaw?.actifs || 0,
+    inactifs: activeDash?.inactive_pdvs || dynamicStatsRaw?.inactifs || 0,
     en_recuperation: dynamicStatsRaw?.en_recuperation || 0,
     nouvelles_creations: dynamicStatsRaw?.nouvelles_creations || 0,
   };
