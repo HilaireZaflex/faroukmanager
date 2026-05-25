@@ -264,23 +264,23 @@ export default function PDVsPage() {
       </div>
 
       <div className="pdv-mini-stats mb-24">
-        <div className="mini-stat-card" style={{ '--color': '#00d68f' }}>
+        <div className="mini-stat-card" style={{ '--color': '#00d68f', cursor: 'pointer', outline: statut === '' ? '2px solid #00d68f' : 'none' }} onClick={() => { setStatut(''); setPage(0); }}>
           <span className="mini-stat-val">{activeDash?.total_pdvs || statsBase?.total_pdvs || 0}</span>
           <span className="mini-stat-label">Total PDVs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#10b981' }}>
+        <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut('ACTIF'); setPage(0); }}>
           <span className="mini-stat-val">{activeDash?.active_pdvs || statsBase?.actifs || 0}</span>
           <span className="mini-stat-label">✅ Actifs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#ef4444' }}>
+        <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: statut === 'INACTIF' ? '2px solid #ef4444' : 'none' }} onClick={() => { setStatut('INACTIF'); setPage(0); }}>
           <span className="mini-stat-val">{activeDash?.inactive_pdvs || statsBase?.inactifs || 0}</span>
           <span className="mini-stat-label">🔴 Inactifs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#f59e0b' }}>
+        <div className="mini-stat-card" style={{ '--color': '#f59e0b', cursor: 'pointer', outline: statut === 'RECUPERATION' ? '2px solid #f59e0b' : 'none' }} onClick={() => { setStatut('RECUPERATION'); setPage(0); }}>
           <span className="mini-stat-val">{statsBase?.en_recuperation || 0}</span>
           <span className="mini-stat-label">⚠️ Récupération</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#3b82f6' }}>
+        <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: statut === 'NOUVELLE' ? '2px solid #3b82f6' : 'none' }} onClick={() => { setStatut(''); setPage(0); /* filtre nouvelles créations */ }}>
           <span className="mini-stat-val">{statsBase?.nouvelles_creations || 0}</span>
           <span className="mini-stat-label">🆕 Nvelles Créations</span>
         </div>
