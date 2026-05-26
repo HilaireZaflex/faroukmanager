@@ -76,12 +76,13 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 // ============ TAB 1: Vue d'ensemble ============
 function TabOverview({ annee, mois }) {
-  const { data: dashboard, isLoading } = useQuery(
-    ['dashboard-monthly', annee, mois],
-    () => api.get(`/dashboard/monthly?annee=${annee}&mois=${mois}`).then(r => r.data),
+  const { data: omyData, isLoading } = useQuery(
+    ['omy-complet', annee, mois],
+    () => api.get(`/dashboard/omy-complet?annee=${annee}&mois=${mois}`).then(r => r.data),
     { staleTime: 300000 }
   );
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
+  const dashboard = omyData?.dashboard;
+  const stats = omyData ? { total_pdvs: omyData.dashboard?.total_pdvs } : null;
 
   const totalMontantTransaction = dashboard?.total_montant_transaction || dashboard?.total_ca || 0;
   const totalMontantCA          = dashboard?.total_montant_ca || 0;
@@ -1057,19 +1058,20 @@ export default function OMyDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [criterion, setCriterion] = useState('montant_transaction');
 
-  // Charger le dernier mois disponible et l'utiliser par défaut
-  const { data: lastAvailable } = useQuery(
-    'last-available',
-    () => api.get('/dashboard/last-available').then(r => r.data),
+  // Charger toutes les données en 1 requête agrégée
+  const { data: omyComplet } = useQuery(
+    ['omy-complet-main', annee, mois],
+    () => api.get(`/dashboard/omy-complet?annee=${annee}&mois=${mois}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  const lastAvailable = omyComplet?.last_available;
 
   useEffect(() => {
     if (lastAvailable?.last_month) {
       setAnnee(lastAvailable.last_month.annee);
       setMois(lastAvailable.last_month.mois);
     }
-  }, [lastAvailable]);
+  }, [lastAvailable?.last_month?.mois]);
 
   // Mois disponibles
   const moisDisponibles = lastAvailable?.mois_disponibles || [];
