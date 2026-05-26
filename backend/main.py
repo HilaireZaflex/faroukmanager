@@ -348,7 +348,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
                           "ca": float(m.montant_transaction or 0), "nb_operations": m.nb_operations,
                           "superviseur": p.superviseur} for m, p in top_pdvs],
             "ca_by_zone": {z.zone: {"ca": float(z.ca or 0), "count": z.count, "actifs": int(z.actifs_total or 0)} 
-                          for z in zones_agg if z.zone},
+                          for z in zones_agg if z.zone and str(z.zone) != "nan"},
         }
     finally:
         db.close()
