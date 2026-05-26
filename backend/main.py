@@ -244,7 +244,7 @@ async def accueil_complet(
             "dashboard_mensuel": {
                 "total_pdvs": total_pdvs,
                 "active_pdvs": pdvs_actifs_count,
-                "inactive_pdvs": inactifs,
+                "inactive_pdvs": inactifs_count,
                 "total_montant_transaction": float(monthly_agg.ca or 0),
                 "total_montant_ca": float(monthly_agg.montant_ca or 0),
                 "total_operations": int(monthly_agg.ops or 0),
@@ -315,6 +315,11 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
         semaines_dispo = db.query(func.distinct(WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine)).order_by(
             (WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine).asc()).all()
 
+        inactifs_count = db.query(func.count(MonthlyPerformance.id)).filter(
+            MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois,
+            MonthlyPerformance.est_actif == False
+        ).scalar() or 0
+
         ca_total = float(monthly_agg.ca or 0)
         montant_ca = float(monthly_agg.montant_ca or 0)
 
@@ -328,7 +333,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
             "dashboard": {
                 "total_pdvs": total_pdvs,
                 "active_pdvs": pdvs_actifs_count,
-                "inactive_pdvs": inactifs,
+                "inactive_pdvs": inactifs_count,
                 "total_montant_transaction": ca_total,
                 "total_montant_ca": montant_ca,
                 "total_operations": int(monthly_agg.ops or 0),
@@ -342,7 +347,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
             "top_pdvs": [{"numero_pdv": p.numero_pdv, "nom": p.nom, "zone": p.zone, 
                           "ca": float(m.montant_transaction or 0), "nb_operations": m.nb_operations,
                           "superviseur": p.superviseur} for m, p in top_pdvs],
-            "ca_by_zone": {z.zone: {"ca": float(z.ca or 0), "count": z.count, "actifs": int(z.actifs or 0)} 
+            "ca_by_zone": {z.zone: {"ca": float(z.ca or 0), "count": z.count, "actifs": int(z.actifs_total or 0)} 
                           for z in zones_agg if z.zone},
         }
     finally:
