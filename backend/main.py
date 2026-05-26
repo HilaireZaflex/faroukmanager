@@ -212,11 +212,14 @@ async def accueil_complet(
             func.sum(MonthlyPerformance.montant_ca).label('montant_ca'),
             func.sum(MonthlyPerformance.nb_operations).label('ops'),
             func.sum(MonthlyPerformance.commission_pdg).label('comm'),
-            func.sum(func.cast(MonthlyPerformance.est_actif, func.Integer)).label('pdvs_actifs'),
         ).filter(
             MonthlyPerformance.annee == annee,
             MonthlyPerformance.mois == mois
         ).first()
+        pdvs_actifs_count = db.query(func.count(MonthlyPerformance.id)).filter(
+            MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois,
+            MonthlyPerformance.est_actif == True
+        ).scalar() or 0
         
         # Inactifs ce mois
         inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
@@ -240,7 +243,7 @@ async def accueil_complet(
             },
             "dashboard_mensuel": {
                 "total_pdvs": total_pdvs,
-                "active_pdvs": int(monthly_agg.pdvs_actifs or 0),
+                "active_pdvs": pdvs_actifs_count,
                 "inactive_pdvs": inactifs,
                 "total_montant_transaction": float(monthly_agg.ca or 0),
                 "total_montant_ca": float(monthly_agg.montant_ca or 0),
@@ -272,8 +275,12 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
             func.sum(MonthlyPerformance.commission_revendeur).label('comm_rev'),
             func.sum(MonthlyPerformance.nb_depots).label('depots'),
             func.sum(MonthlyPerformance.nb_retraits).label('retraits'),
-            func.sum(func.case((MonthlyPerformance.est_actif == True, 1), else_=0)).label('pdvs_actifs'),
+
         ).filter(MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois).first()
+        pdvs_actifs_count = db.query(func.count(MonthlyPerformance.id)).filter(
+            MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois,
+            MonthlyPerformance.est_actif == True
+        ).scalar() or 0
 
         inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
             MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois,
@@ -320,7 +327,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
             },
             "dashboard": {
                 "total_pdvs": total_pdvs,
-                "active_pdvs": int(monthly_agg.pdvs_actifs or 0),
+                "active_pdvs": pdvs_actifs_count,
                 "inactive_pdvs": inactifs,
                 "total_montant_transaction": ca_total,
                 "total_montant_ca": montant_ca,
@@ -330,7 +337,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
                 "total_depots": int(monthly_agg.depots or 0),
                 "total_retraits": int(monthly_agg.retraits or 0),
                 "ratio_ca_transaction": round(montant_ca / ca_total * 100, 2) if ca_total > 0 else 0,
-                "taux_activite": round(int(monthly_agg.pdvs_actifs or 0) / total_pdvs * 100, 1) if total_pdvs > 0 else 0,
+                "taux_activite": round(pdvs_actifs_count / total_pdvs * 100, 1) if total_pdvs > 0 else 0,
             },
             "top_pdvs": [{"numero_pdv": p.numero_pdv, "nom": p.nom, "zone": p.zone, 
                           "ca": float(m.montant_transaction or 0), "nb_operations": m.nb_operations,
