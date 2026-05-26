@@ -105,23 +105,24 @@ def get_segments(db: Session = Depends(get_db)):
         "segments": result
     }
 
-# Cache pour les prédictions (valide 10 minutes)
-_predictions_cache = {}
-_predictions_cache_time = {}
-
 @router.get("/analytics/predictions")
 def get_decline_predictions(db: Session = Depends(get_db)):
-    """GET /analytics/predictions - avec cache 10 minutes"""
-    import time
-    cache_key = "predictions"
-    now = time.time()
-    
-    # Retourner le cache si disponible et < 10 min
-    if cache_key in _predictions_cache and (now - _predictions_cache_time.get(cache_key, 0)) < 600:
-        return _predictions_cache[cache_key]
-    
-    at_risk_pdvs = get_at_risk_pdvs(db, threshold=0.3)
-    network_forecast = forecast_network_ca(db, horizon_weeks=4)
+    """GET /analytics/predictions - avec cache global"""
+    import sys
+    # Utiliser le cache global de main.py
+    try:
+        main_module = sys.modules.get("main") or __import__("main")
+        cached = main_module.get_cache("predictions")
+        if cached:
+            at_risk_pdvs = cached["at_risk"]
+            network_forecast = cached["forecast"]
+        else:
+            at_risk_pdvs = get_at_risk_pdvs(db, threshold=0.3)
+            network_forecast = forecast_network_ca(db, horizon_weeks=4)
+            main_module.set_cache("predictions", {"at_risk": at_risk_pdvs, "forecast": network_forecast})
+    except:
+        at_risk_pdvs = get_at_risk_pdvs(db, threshold=0.3)
+        network_forecast = forecast_network_ca(db, horizon_weeks=4)
 
     # Corriger la cohérence risk_level / probability
     for p in at_risk_pdvs:

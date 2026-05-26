@@ -1,5 +1,21 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+import time
+
+# Cache global en mémoire (survit aux requêtes, pas aux redémarrages)
+_APP_CACHE = {}
+_APP_CACHE_TIME = {}
+CACHE_TTL = 600  # 10 minutes
+
+def get_cache(key):
+    if key in _APP_CACHE and (time.time() - _APP_CACHE_TIME.get(key, 0)) < CACHE_TTL:
+        return _APP_CACHE[key]
+    return None
+
+def set_cache(key, value):
+    _APP_CACHE[key] = value
+    _APP_CACHE_TIME[key] = time.time()
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions
@@ -87,6 +103,28 @@ async def reset_admin():
 
 @app.on_event("startup")
 async def startup_event():
+    # Précalculer les données lentes en arrière-plan
+    asyncio.create_task(warmup_cache())
+
+async def warmup_cache():
+    """Précalculer les données lentes au démarrage"""
+    import asyncio
+    await asyncio.sleep(5)  # Attendre que le serveur soit prêt
+    try:
+        from app.core.database import SessionLocal
+        from app.ai.predictions import get_at_risk_pdvs, forecast_network_ca
+        db = SessionLocal()
+        print("🔥 Warmup cache: calcul des prédictions...")
+        at_risk = get_at_risk_pdvs(db, threshold=0.3)
+        forecast = forecast_network_ca(db, horizon_weeks=4)
+        set_cache("predictions", {"at_risk": at_risk, "forecast": forecast})
+        print(f"✅ Warmup terminé: {len(at_risk)} PDVs à risque calculés")
+        db.close()
+    except Exception as e:
+        print(f"⚠️ Warmup échoué: {e}")
+
+@app.on_event("startup")
+async def startup_event_original():
     from app.core.security import get_password_hash
     from app.core.database import SessionLocal
     from app.models.user import User, UserRole
@@ -130,3 +168,32 @@ async def migrate_pdv_columns():
             except Exception as e:
                 results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
     return {"message": "Migration terminée", "results": results}
+
+
+@app.get("/create-indexes-v2")
+async def create_indexes_v2():
+    """Créer tous les index SQL nécessaires"""
+    from app.core.database import engine
+    from sqlalchemy import text
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_mp_annee_mois ON monthly_performances(annee, mois)",
+        "CREATE INDEX IF NOT EXISTS idx_mp_pdv_actif ON monthly_performances(pdv_id, est_actif)",
+        "CREATE INDEX IF NOT EXISTS idx_mp_ca ON monthly_performances(ca DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_wp_annee_sem ON weekly_performances(annee, semaine)",
+        "CREATE INDEX IF NOT EXISTS idx_wp_pdv_actif ON weekly_performances(pdv_id, est_actif)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_zone ON pdvs(zone)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_superviseur ON pdvs(superviseur)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_statut ON pdvs(statut)",
+        "CREATE INDEX IF NOT EXISTS idx_pdv_segment ON pdvs(segment)",
+        "CREATE INDEX IF NOT EXISTS idx_comm_period ON commission_entries(period_key)",
+    ]
+    results = []
+    with engine.connect() as conn:
+        for idx in indexes:
+            try:
+                conn.execute(text(idx))
+                results.append(f"✅ {idx.split('idx_')[1].split(' ON')[0]}")
+            except Exception as e:
+                results.append(f"⚠️ {str(e)[:50]}")
+        conn.commit()
+    return {"results": results}
