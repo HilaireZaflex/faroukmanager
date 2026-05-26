@@ -65,29 +65,31 @@ export default function AccueilPage() {
   const [selectedMois, setSelectedMois] = React.useState(null);
   const [selectedSemaine, setSelectedSemaine] = React.useState(null);
   
-  // Utiliser le dernier mois/semaine disponible depuis l'API
-  const { data: lastAvailable } = useQuery('last-available', () => 
-    api.get('/dashboard/last-available').then(r => r.data), { staleTime: 300000 });
+  // ENDPOINT AGRÉGÉ: last-available + pdv-stats + dashboard en 1 requête
+  const { data: accueilData } = useQuery('accueil-complet', () => 
+    api.get('/dashboard/accueil-complet', { params: { annee: now.getFullYear(), mois: now.getMonth() + 1 } }).then(r => r.data),
+    { staleTime: 300000 });
+
+  const lastAvailable = accueilData?.last_available;
+  const stats = accueilData?.pdv_stats;
+  
+  const MOIS_NOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const moisDisponibles = lastAvailable?.mois_disponibles || [];
+  const semainesDisponibles = lastAvailable?.semaines_disponibles || [];
   
   const mois = selectedMois || lastAvailable?.last_month?.mois || (now.getMonth() + 1);
   const annee = lastAvailable?.last_month?.annee || now.getFullYear();
   const lastSemaine = selectedSemaine || lastAvailable?.last_week?.semaine;
   const lastSemaineAnnee = lastAvailable?.last_week?.annee;
-  
-  const MOIS_NOMS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-  const moisDisponibles = lastAvailable?.mois_disponibles || [];
-  const semainesDisponibles = lastAvailable?.semaines_disponibles || [];
 
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
-  const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois], () =>
-    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data), 
-    { staleTime: 300000, enabled: !!lastAvailable && periodeType === 'mensuel' });
   const { data: dashboardHebdo } = useQuery(['dashboard-weekly', lastSemaineAnnee, lastSemaine], () =>
-    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine } }).then(r => r.data), 
-    { staleTime: 300000, enabled: !!lastAvailable && periodeType === 'hebdo' && !!lastSemaine });
-  
-  // Données actives selon la période sélectionnée
-  const activeData = periodeType === 'mensuel' ? dashboard : dashboardHebdo;
+    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine } }).then(r => r.data),
+    { staleTime: 300000, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
+
+  // Données actives selon la période
+  const activeData = periodeType === 'mensuel' 
+    ? (accueilData?.dashboard_mensuel)
+    : dashboardHebdo;
   const { data: segments } = useQuery('analytics-segments', () => api.get('/analytics/segments').then(r => r.data), { staleTime: 300000 });
   const { data: predictions } = useQuery('analytics-predictions', () => api.get('/analytics/predictions').then(r => r.data), { staleTime: 300000 });
   const { data: recovery } = useQuery('recovery-synthese', () => api.get('/alerts/recovery/synthese').then(r => r.data), { staleTime: 300000 });
