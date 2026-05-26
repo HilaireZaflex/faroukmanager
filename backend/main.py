@@ -300,7 +300,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
             PDV.zone,
             func.count(MonthlyPerformance.id).label('count'),
             func.sum(MonthlyPerformance.montant_transaction).label('ca'),
-            func.sum(func.case((MonthlyPerformance.est_actif == True, 1), else_=0)).label('actifs'),
+            func.count(MonthlyPerformance.id).label('actifs_total'),
         ).join(PDV, MonthlyPerformance.pdv_id == PDV.id).filter(
             MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois, PDV.zone != None
         ).group_by(PDV.zone).all()
