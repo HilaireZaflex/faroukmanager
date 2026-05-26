@@ -1053,25 +1053,33 @@ function TabProgression({ annee, criterion }) {
 // ============ MAIN COMPONENT ============
 export default function OMyDashboardPage() {
   const now = new Date();
-  const [annee, setAnnee] = useState(now.getFullYear());
-  const [mois, setMois] = useState(now.getMonth() + 1);
+  const [annee, setAnnee] = useState(2026);
+  const [mois, setMois] = useState(4); // Dernier mois avec données
   const [activeTab, setActiveTab] = useState('overview');
   const [criterion, setCriterion] = useState('montant_transaction');
 
-  // Charger toutes les données en 1 requête agrégée
+  // D'abord charger last-available pour connaître le dernier mois
+  const { data: lastAvailableData } = useQuery(
+    'last-available-omy',
+    () => api.get('/dashboard/last-available').then(r => r.data),
+    { staleTime: 600000 }
+  );
+
+  useEffect(() => {
+    if (lastAvailableData?.last_month) {
+      setAnnee(lastAvailableData.last_month.annee);
+      setMois(lastAvailableData.last_month.mois);
+    }
+  }, [lastAvailableData?.last_month?.mois]);
+
+  const lastAvailable = lastAvailableData;
+
+  // Puis charger les données OMY avec les bons mois/annee
   const { data: omyComplet } = useQuery(
     ['omy-complet-main', annee, mois],
     () => api.get(`/dashboard/omy-complet?annee=${annee}&mois=${mois}`).then(r => r.data),
-    { staleTime: 300000 }
+    { staleTime: 300000, enabled: !!lastAvailableData }
   );
-  const lastAvailable = omyComplet?.last_available;
-
-  useEffect(() => {
-    if (lastAvailable?.last_month) {
-      setAnnee(lastAvailable.last_month.annee);
-      setMois(lastAvailable.last_month.mois);
-    }
-  }, [lastAvailable?.last_month?.mois]);
 
   // Mois disponibles
   const moisDisponibles = lastAvailable?.mois_disponibles || [];
