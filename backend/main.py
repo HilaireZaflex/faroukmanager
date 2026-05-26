@@ -212,7 +212,7 @@ async def accueil_complet(
             func.sum(MonthlyPerformance.montant_ca).label('montant_ca'),
             func.sum(MonthlyPerformance.nb_operations).label('ops'),
             func.sum(MonthlyPerformance.commission_pdg).label('comm'),
-            func.sum(MonthlyPerformance.est_actif.cast('int')).label('pdvs_actifs'),
+            func.sum(func.cast(MonthlyPerformance.est_actif, func.Integer)).label('pdvs_actifs'),
         ).filter(
             MonthlyPerformance.annee == annee,
             MonthlyPerformance.mois == mois
@@ -272,7 +272,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
             func.sum(MonthlyPerformance.commission_revendeur).label('comm_rev'),
             func.sum(MonthlyPerformance.nb_depots).label('depots'),
             func.sum(MonthlyPerformance.nb_retraits).label('retraits'),
-            func.cast(func.sum(MonthlyPerformance.est_actif.cast('int')), func.Integer).label('pdvs_actifs'),
+            func.sum(func.case((MonthlyPerformance.est_actif == True, 1), else_=0)).label('pdvs_actifs'),
         ).filter(MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois).first()
 
         inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
@@ -293,7 +293,7 @@ async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
             PDV.zone,
             func.count(MonthlyPerformance.id).label('count'),
             func.sum(MonthlyPerformance.montant_transaction).label('ca'),
-            func.sum(MonthlyPerformance.est_actif.cast('int')).label('actifs'),
+            func.sum(func.case((MonthlyPerformance.est_actif == True, 1), else_=0)).label('actifs'),
         ).join(PDV, MonthlyPerformance.pdv_id == PDV.id).filter(
             MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois, PDV.zone != None
         ).group_by(PDV.zone).all()
