@@ -250,3 +250,93 @@ async def accueil_complet(
         }
     finally:
         db.close()
+
+
+@app.get("/api/dashboard/omy-complet")
+async def omy_complet(annee: int = 2026, mois: int = 4, semaine: int = None):
+    """Endpoint agrégé - toutes les données du dashboard OMY en 1 requête"""
+    from app.core.database import SessionLocal
+    from app.models.performance import MonthlyPerformance, WeeklyPerformance
+    from app.models.pdv import PDV, PDVStatut
+    from sqlalchemy import func, desc
+    
+    db = SessionLocal()
+    try:
+        # 1. Stats globales du mois
+        monthly_agg = db.query(
+            func.count(MonthlyPerformance.id).label('total'),
+            func.sum(MonthlyPerformance.montant_transaction).label('ca'),
+            func.sum(MonthlyPerformance.montant_ca).label('montant_ca'),
+            func.sum(MonthlyPerformance.nb_operations).label('ops'),
+            func.sum(MonthlyPerformance.commission_pdg).label('comm'),
+            func.sum(MonthlyPerformance.commission_revendeur).label('comm_rev'),
+            func.sum(MonthlyPerformance.nb_depots).label('depots'),
+            func.sum(MonthlyPerformance.nb_retraits).label('retraits'),
+            func.cast(func.sum(MonthlyPerformance.est_actif.cast('int')), func.Integer).label('pdvs_actifs'),
+        ).filter(MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois).first()
+
+        inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
+            MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois,
+            MonthlyPerformance.est_actif == False
+        ).scalar()
+
+        total_pdvs = db.query(func.count(PDV.id)).scalar()
+
+        # 2. Top 10 PDVs
+        top_pdvs = db.query(MonthlyPerformance, PDV).join(PDV).filter(
+            MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois,
+            MonthlyPerformance.est_actif == True
+        ).order_by(desc(MonthlyPerformance.montant_transaction)).limit(10).all()
+
+        # 3. Stats par zone
+        zones_agg = db.query(
+            PDV.zone,
+            func.count(MonthlyPerformance.id).label('count'),
+            func.sum(MonthlyPerformance.montant_transaction).label('ca'),
+            func.sum(MonthlyPerformance.est_actif.cast('int')).label('actifs'),
+        ).join(PDV, MonthlyPerformance.pdv_id == PDV.id).filter(
+            MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois, PDV.zone != None
+        ).group_by(PDV.zone).all()
+
+        # 4. Last available
+        last_month = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).order_by(
+            MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()).first()
+        last_week = db.query(WeeklyPerformance.annee, WeeklyPerformance.semaine).order_by(
+            WeeklyPerformance.annee.desc(), WeeklyPerformance.semaine.desc()).first()
+        mois_dispo = db.query(func.distinct(MonthlyPerformance.annee * 100 + MonthlyPerformance.mois)).order_by(
+            (MonthlyPerformance.annee * 100 + MonthlyPerformance.mois).asc()).all()
+        semaines_dispo = db.query(func.distinct(WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine)).order_by(
+            (WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine).asc()).all()
+
+        ca_total = float(monthly_agg.ca or 0)
+        montant_ca = float(monthly_agg.montant_ca or 0)
+
+        return {
+            "last_available": {
+                "last_month": {"annee": last_month[0], "mois": last_month[1]} if last_month else None,
+                "last_week": {"annee": last_week[0], "semaine": last_week[1]} if last_week else None,
+                "mois_disponibles": [{"annee": m[0]//100, "mois": m[0]%100} for m in mois_dispo],
+                "semaines_disponibles": [{"annee": s[0]//100, "semaine": s[0]%100} for s in semaines_dispo],
+            },
+            "dashboard": {
+                "total_pdvs": total_pdvs,
+                "active_pdvs": int(monthly_agg.pdvs_actifs or 0),
+                "inactive_pdvs": inactifs,
+                "total_montant_transaction": ca_total,
+                "total_montant_ca": montant_ca,
+                "total_operations": int(monthly_agg.ops or 0),
+                "total_commission_pdg": float(monthly_agg.comm or 0),
+                "total_commission_revendeur": float(monthly_agg.comm_rev or 0),
+                "total_depots": int(monthly_agg.depots or 0),
+                "total_retraits": int(monthly_agg.retraits or 0),
+                "ratio_ca_transaction": round(montant_ca / ca_total * 100, 2) if ca_total > 0 else 0,
+                "taux_activite": round(int(monthly_agg.pdvs_actifs or 0) / total_pdvs * 100, 1) if total_pdvs > 0 else 0,
+            },
+            "top_pdvs": [{"numero_pdv": p.numero_pdv, "nom": p.nom, "zone": p.zone, 
+                          "ca": float(m.montant_transaction or 0), "nb_operations": m.nb_operations,
+                          "superviseur": p.superviseur} for m, p in top_pdvs],
+            "ca_by_zone": {z.zone: {"ca": float(z.ca or 0), "count": z.count, "actifs": int(z.actifs or 0)} 
+                          for z in zones_agg if z.zone},
+        }
+    finally:
+        db.close()
