@@ -168,3 +168,85 @@ async def migrate_pdv_columns():
             except Exception as e:
                 results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
     return {"message": "Migration terminée", "results": results}
+
+
+@app.get("/api/dashboard/accueil-complet")
+async def accueil_complet(
+    annee: int = 2026,
+    mois: int = 4,
+    db = None
+):
+    """Endpoint agrégé - toutes les données de l'accueil en 1 requête"""
+    from app.core.database import SessionLocal
+    from app.models.performance import MonthlyPerformance, WeeklyPerformance
+    from app.models.pdv import PDV, PDVStatut
+    from sqlalchemy import func
+    
+    db = SessionLocal()
+    try:
+        # 1. Last available
+        last_month = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).order_by(
+            MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
+        ).first()
+        last_week = db.query(WeeklyPerformance.annee, WeeklyPerformance.semaine).order_by(
+            WeeklyPerformance.annee.desc(), WeeklyPerformance.semaine.desc()
+        ).first()
+        
+        mois_dispo = db.query(
+            func.distinct(MonthlyPerformance.annee * 100 + MonthlyPerformance.mois)
+        ).order_by((MonthlyPerformance.annee * 100 + MonthlyPerformance.mois).asc()).all()
+        
+        semaines_dispo = db.query(
+            func.distinct(WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine)
+        ).order_by((WeeklyPerformance.annee * 100 + WeeklyPerformance.semaine).asc()).all()
+
+        # 2. Stats PDVs
+        total_pdvs = db.query(func.count(PDV.id)).scalar()
+        actifs_db = db.query(func.count(PDV.id)).filter(PDV.statut == PDVStatut.ACTIF).scalar()
+        recup = db.query(func.count(PDV.id)).filter(PDV.statut == PDVStatut.RECUPERATION).scalar()
+        
+        # 3. Dashboard mensuel agrégé
+        monthly_agg = db.query(
+            func.count(MonthlyPerformance.id).label('total'),
+            func.sum(MonthlyPerformance.montant_transaction).label('ca'),
+            func.sum(MonthlyPerformance.montant_ca).label('montant_ca'),
+            func.sum(MonthlyPerformance.nb_operations).label('ops'),
+            func.sum(MonthlyPerformance.commission_pdg).label('comm'),
+            func.sum(MonthlyPerformance.est_actif.cast('int')).label('pdvs_actifs'),
+        ).filter(
+            MonthlyPerformance.annee == annee,
+            MonthlyPerformance.mois == mois
+        ).first()
+        
+        # Inactifs ce mois
+        inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
+            MonthlyPerformance.annee == annee,
+            MonthlyPerformance.mois == mois,
+            MonthlyPerformance.est_actif == False
+        ).scalar()
+
+        return {
+            "last_available": {
+                "last_month": {"annee": last_month[0], "mois": last_month[1]} if last_month else None,
+                "last_week": {"annee": last_week[0], "semaine": last_week[1]} if last_week else None,
+                "mois_disponibles": [{"annee": m[0]//100, "mois": m[0]%100} for m in mois_dispo],
+                "semaines_disponibles": [{"annee": s[0]//100, "semaine": s[0]%100} for s in semaines_dispo],
+            },
+            "pdv_stats": {
+                "total_pdvs": total_pdvs,
+                "actifs": actifs_db,
+                "inactifs": inactifs,
+                "en_recuperation": recup,
+            },
+            "dashboard_mensuel": {
+                "total_pdvs": total_pdvs,
+                "active_pdvs": int(monthly_agg.pdvs_actifs or 0),
+                "inactive_pdvs": inactifs,
+                "total_montant_transaction": float(monthly_agg.ca or 0),
+                "total_montant_ca": float(monthly_agg.montant_ca or 0),
+                "total_operations": int(monthly_agg.ops or 0),
+                "total_commission_pdg": float(monthly_agg.comm or 0),
+            }
+        }
+    finally:
+        db.close()
