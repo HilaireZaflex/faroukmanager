@@ -106,14 +106,14 @@ function TabDashboard({ period }) {
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">💰 Total Orange Mali a distribué</div>
-          <div className="stat-value" style={{ fontSize: 17 }}>{fmtM(data.total_brut)}</div>
+          <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.total_brut)}</div>
           <small style={{ color: 'var(--text-muted)' }}>
             Commission totale versée par Orange (PDG + PDVs)
           </small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
           <div className="stat-label">🏦 Dont reçu par le PDG</div>
-          <div className="stat-value" style={{ fontSize: 17 }}>{fmtM(data.montant_recu_pdg)}</div>
+          <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.montant_recu_pdg)}</div>
           <small style={{ color: 'var(--text-muted)' }}>
             = 30% de toutes les commissions Orange<br/>
             <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -426,7 +426,7 @@ function TabEvolution() {
             const hR = d.brut > 0 ? (d.reseau / maxBrut * 180) : 4;
             return (
               <div key={d.period_key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700 }}>{fmtM(d.reseau)}</div>
+                <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700 }}>{fmt(d.reseau)}</div>
                 <div style={{ width: '100%', position: 'relative', height: h }}>
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: h, background: '#8b5cf620', borderRadius: '4px 4px 0 0' }}/>
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: hR, background: 'var(--success)', borderRadius: '4px 4px 0 0' }}/>
