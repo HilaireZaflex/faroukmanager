@@ -244,9 +244,13 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     commission_nette = commission_brute_total + total_reste
 
     # ── Montant total reçu par le PDG en trésorerie ───────────────────────────
-    # PDG reçoit 30% de toutes les commissions brutes
-    # commission_brute_total = total_reseau = Σ(montant_reseau) = Σ(brut * 30%)
-    montant_recu_pdg = round(commission_brute_total, 2)
+    # RNS/RSF  → PDG reçoit 30% du brut (Orange paye 70% directement aux PDVs)
+    # RS/KIOSQUE → PDG reçoit 100% du brut (il reverse ensuite 70% aux PDVs)
+    montant_recu_pdg = round(
+        commission_brute_rns_rsf  # 30% des RNS/RSF
+        + sum(e.montant_brut for e in ents_geres),  # 100% des RS/KIOSQUE
+        2
+    )
 
     # ── Ventilation par type ───────────────────────────────────────────────────
     by_type = {}
@@ -334,8 +338,8 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         # ── Lecture réseau (3 niveaux) ─────────────────────────────────────
         "commission_brute": {
             "total":      round(commission_brute_total, 2),
-            "rns_rsf":    round(commission_brute_rns_rsf, 2),     # 30% reçus directement
-            "rs_kiosque": round(commission_brute_rs_kiosque, 2),  # 30% sur les 100% reçus
+            "rns_rsf":    round(commission_brute_rns_rsf, 2),          # 30% reçus par le PDG
+            "rs_kiosque": round(sum(e.montant_brut for e in ents_geres), 2),  # 100% reçus par le PDG (avant reversement)
         },
         "montant_en_transit": {
             "total":          round(montant_en_transit, 2),  # 70% RS+KIOSQUE reçus par PDG
