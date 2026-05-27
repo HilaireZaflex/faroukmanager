@@ -252,12 +252,24 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         MP.annee == annee_int, MP.mois == mois_int, MP.est_actif == True
     ).scalar() or 0
     
-    # ── Taux de variation vs mois précédent ─────────────────────────────────
+    # ── Taux de variation vs mois précédent (avec même filtre type PDV) ───────
     mois_prec = mois_int - 1 if mois_int > 1 else 12
     annee_prec = annee_int if mois_int > 1 else annee_int - 1
-    total_brut_prec = db.query(sqlfunc.sum(MP.commission_pdg)).filter(
-        MP.annee == annee_prec, MP.mois == mois_prec, MP.est_actif == True
-    ).scalar() or 0
+    
+    # Recalculer total_brut du mois précédent avec le même filtre type PDV
+    from app.models.pdv import PDV as PDVModel
+    query_prec = db.query(sqlfunc.sum(MP.commission_pdg)).join(
+        PDVModel, MP.pdv_id == PDVModel.id
+    ).filter(MP.annee == annee_prec, MP.mois == mois_prec, MP.est_actif == True)
+    
+    # Appliquer le même filtre de type si présent
+    if pdv_type:
+        from app.models.commission import PDVType as CommPDVType
+        try:
+            query_prec = query_prec.filter(PDVModel.type_pdv == pdv_type.value)
+        except: pass
+    
+    total_brut_prec = query_prec.scalar() or 0
     taux_variation = round(((total_brut - total_brut_prec) / total_brut_prec * 100), 2) if total_brut_prec > 0 else 0
 
     # ── Montant que le PDG garde définitivement ───────────────────────────────
