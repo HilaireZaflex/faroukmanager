@@ -358,8 +358,16 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         # = ce que le PDG a réellement EN CAISSE maintenant
 
         "montant_recu_pdg": round(montant_recu_pdg, 2),
-        # Commission Revendeur = 70% RNS/RSF (payé directement par Orange aux PDVs)
-        "commission_revendeur_total": round(sum(e.montant_pdv for e in ents_directs), 2),
+        # Commission Revendeur = directement depuis monthly_performances (fichier Excel Orange)
+        from app.models.performance import MonthlyPerformance as MP
+        from sqlalchemy import func as sqlfunc
+        year_str, month_str = period_key.split('-')
+        comm_rev_total = db.query(sqlfunc.sum(MP.commission_revendeur)).filter(
+            MP.annee == int(year_str),
+            MP.mois == int(month_str),
+            MP.est_actif == True
+        ).scalar() or 0
+        "commission_revendeur_total": round(comm_rev_total, 2),
         # = 30%(RNS+RSF) + 100%(RS+KIOSQUE) = total reçu en trésorerie
 
         # ── Ventilations ──────────────────────────────────────────────────
