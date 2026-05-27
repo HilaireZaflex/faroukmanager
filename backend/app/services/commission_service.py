@@ -243,6 +243,16 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     # = ses 30% + les 70% RS/KIOSQUE pas encore reversés
     commission_nette = commission_brute_total + total_reste
 
+    # ── Commission Revendeur depuis monthly_performances (= fichier Excel Orange) ──
+    from app.models.performance import MonthlyPerformance as MP
+    from sqlalchemy import func as sqlfunc
+    year_str, month_str = period_key.split("-")
+    comm_rev_total = db.query(sqlfunc.sum(MP.commission_revendeur)).filter(
+        MP.annee == int(year_str),
+        MP.mois == int(month_str),
+        MP.est_actif == True
+    ).scalar() or 0
+
     # ── Montant que le PDG garde définitivement ───────────────────────────────
     # RNS/RSF  → PDG garde tout le montant (déjà sa part, Orange paye les PDVs séparément)
     # RS/KIOSQUE → PDG garde 30% (il reverse 70% aux PDVs)
@@ -358,7 +368,7 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         # = ce que le PDG a réellement EN CAISSE maintenant
 
         "montant_recu_pdg": round(montant_recu_pdg, 2),
-        "commission_revendeur_total": round(total_pdv, 2),
+        "commission_revendeur_total": round(comm_rev_total, 2),
         # = 30%(RNS+RSF) + 100%(RS+KIOSQUE) = total reçu en trésorerie
 
         # ── Ventilations ──────────────────────────────────────────────────
