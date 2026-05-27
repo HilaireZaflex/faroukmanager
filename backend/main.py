@@ -168,3 +168,51 @@ async def migrate_pdv_columns():
             except Exception as e:
                 results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
     return {"message": "Migration terminée", "results": results}
+
+
+@app.get("/resync-comm-final")
+async def resync_comm_final():
+    from app.core.database import SessionLocal
+    from app.models.commission import CommissionEntry, PDVType as CommPDVType, ReversementStatus, TAUX_RESEAU, TAUX_PDV, TYPE_GERE_REVERSEMENT
+    from app.models.performance import MonthlyPerformance
+    from app.models.pdv import PDV
+    from sqlalchemy import func
+    db = SessionLocal()
+    db.query(CommissionEntry).delete()
+    db.commit()
+    def get_comm_type(type_pdv):
+        if not type_pdv: return CommPDVType.RS
+        t = str(type_pdv.value if hasattr(type_pdv, 'value') else type_pdv).upper()
+        if 'RNS' in t: return CommPDVType.RNS
+        elif 'RSF' in t: return CommPDVType.RSF
+        elif 'KIOSQUE' in t: return CommPDVType.KIOSQUE
+        return CommPDVType.RS
+    inseres = 0
+    for MOIS, ANNEE in [(1,2026),(2,2026),(3,2026),(4,2026)]:
+        period_key = f"{ANNEE}-{MOIS:02d}"
+        # Tous les PDVs actifs avec commission > 0
+        perfs = db.query(MonthlyPerformance, PDV).join(PDV, MonthlyPerformance.pdv_id == PDV.id).filter(
+            MonthlyPerformance.annee == ANNEE, MonthlyPerformance.mois == MOIS,
+            MonthlyPerformance.est_actif == True, MonthlyPerformance.commission_pdg > 0
+        ).all()
+        for perf, pdv in perfs:
+            comm_type = get_comm_type(pdv.type_pdv)
+            gere_rev = TYPE_GERE_REVERSEMENT.get(comm_type, True)
+            montant_brut = perf.commission_pdg
+            db.add(CommissionEntry(
+                pdv_id=pdv.id, pdv_numero=pdv.numero_pdv, pdv_nom=pdv.nom,
+                pdv_type=comm_type, quartier=pdv.quartier, zone=pdv.zone,
+                sous_zone=pdv.sous_zone, gestionnaire=pdv.gestionnaire,
+                superviseur=pdv.superviseur, period_key=period_key, period_type="MONTHLY",
+                montant_brut=montant_brut,
+                montant_reseau=round(montant_brut*TAUX_RESEAU, 2),
+                montant_pdv=round(montant_brut*TAUX_PDV, 2),
+                gere_reversement=gere_rev,
+                reversement_status=ReversementStatus.EN_ATTENTE if gere_rev else ReversementStatus.NON_APPLICABLE,
+                montant_reverse=0.0, source="import_performances",
+            ))
+            inseres += 1
+        db.commit()
+    total = db.query(func.sum(CommissionEntry.montant_brut)).filter(CommissionEntry.period_key == '2026-04').scalar()
+    db.close()
+    return {"total": inseres, "total_brut_avril": round(total, 2)}
