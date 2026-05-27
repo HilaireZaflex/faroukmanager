@@ -358,6 +358,8 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         # = ce que le PDG a réellement EN CAISSE maintenant
 
         "montant_recu_pdg": round(montant_recu_pdg, 2),
+        # Commission Revendeur = 70% RNS/RSF (payé directement par Orange aux PDVs)
+        "commission_revendeur_total": round(sum(e.montant_pdv for e in ents_directs), 2),
         # = 30%(RNS+RSF) + 100%(RS+KIOSQUE) = total reçu en trésorerie
 
         # ── Ventilations ──────────────────────────────────────────────────
