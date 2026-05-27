@@ -243,12 +243,12 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     # = ses 30% + les 70% RS/KIOSQUE pas encore reversés
     commission_nette = commission_brute_total + total_reste
 
-    # ── Montant total reçu par le PDG en trésorerie ───────────────────────────
-    # RNS/RSF  → Le montant (montant_brut) EST DÉJÀ la part du PDG (ce qu'Orange lui verse)
-    # RS/KIOSQUE → PDG reçoit 100% du brut, reverse 70% aux PDVs, garde 30%
+    # ── Montant que le PDG garde définitivement ───────────────────────────────
+    # RNS/RSF  → PDG garde tout le montant (déjà sa part, Orange paye les PDVs séparément)
+    # RS/KIOSQUE → PDG garde 30% (il reverse 70% aux PDVs)
     montant_recu_pdg = round(
-        sum(e.montant_brut for e in ents_directs)   # RNS/RSF: montant reçu par le PDG directement
-        + sum(e.montant_brut for e in ents_geres),  # RS/KIOSQUE: 100% reçu avant reversement
+        sum(e.montant_brut for e in ents_directs)          # RNS/RSF: montant PDG garde en entier
+        + sum(e.montant_reseau for e in ents_geres),       # RS/KIOSQUE: 30% que le PDG garde
         2
     )
 
