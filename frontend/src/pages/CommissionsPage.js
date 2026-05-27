@@ -192,16 +192,19 @@ function TabDashboard({ period }) {
         {/* Barre RS/KIOSQUE */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-            <span>🟧 RS / KIOSQUE — Orange verse 100% au PDG, qui paie ensuite le PDV</span>
-            <span>{data.n_pdv_geres} PDV</span>
+            <span>🟧 RS / KIOSQUE — Orange verse <b>100%</b> au PDG ({data.n_pdv_geres} PDV)</span>
+            <span style={{fontWeight:700, color:'var(--warning)'}}>Brut reçu: {fmt(cb.rs_kiosque)}</span>
           </div>
-          <div style={{ display: 'flex', height: 26, borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', height: 28, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
             <div style={{ width: '30%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
-              30% PDG ({fmt(cb.rs_kiosque)})
+              30% PDG garde = {fmt(cb.rs_kiosque * 0.3)}
             </div>
             <div style={{ flex: 1, background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
-              70% PDV ({fmt(cb.rs_kiosque ? (cb.rs_kiosque / 0.3 * 0.7) : 0)})
+              70% PDG reverse au PDV = {fmt(cb.rs_kiosque * 0.7)}
             </div>
+          </div>
+          <div style={{fontSize: 11, color: 'var(--text-muted)', marginTop: 4}}>
+            💡 Le PDG reçoit les {fmt(cb.rs_kiosque)} d'Orange, garde 30% et reverse 70% aux PDVs
           </div>
         </div>
       </div>
