@@ -108,14 +108,14 @@ function TabDashboard({ period }) {
           <div className="stat-label">💰 Total Orange Mali a distribué</div>
           <div className="stat-value" style={{ fontSize: 17 }}>{fmtM(data.total_brut)}</div>
           <small style={{ color: 'var(--text-muted)' }}>
-            Toutes commissions confondues (PDG + PDV)
+            Commission totale versée par Orange (PDG + PDVs)
           </small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
           <div className="stat-label">🏦 Dont reçu par le PDG</div>
           <div className="stat-value" style={{ fontSize: 17 }}>{fmtM(data.montant_recu_pdg)}</div>
           <small style={{ color: 'var(--text-muted)' }}>
-            = ses 30% sur tout + 100% des RS/KIOSQUE<br/>
+            = 30% de toutes les commissions Orange<br/>
             <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
               (le reste va directement aux PDV via Orange)
             </span>
@@ -129,12 +129,12 @@ function TabDashboard({ period }) {
         {/* 30% PDG */}
         <div style={{ padding: 18, background: 'rgba(34,197,94,0.08)', borderRadius: 10, borderLeft: '4px solid var(--success)' }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
-            🟢 Part du PDG — Commission réseau (30%)
+            🟢 Commission PDG — 30% du total Orange
           </div>
           <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>{fmt(cb.total)}</div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span>📦 PDV RNS/RSF <span style={{fontSize:10,opacity:0.7}}>(Orange paye le PDV lui-même)</span></span>
+              <span>📦 PDV RNS/RSF <span style={{fontSize:10,opacity:0.7}}>(Orange paye directement le PDV)</span></span>
               <b style={{ color: 'var(--text-primary)' }}>{fmt(cb.rns_rsf)}</b>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -143,7 +143,7 @@ function TabDashboard({ period }) {
             </div>
           </div>
           <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(34,197,94,0.12)', borderRadius: 6, fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
-            ✅ Ce montant appartient définitivement au PDG
+            ✅ Ce montant appartient définitivement au PDG{data.commission_par_type?.RNS === 0 && data.commission_par_type?.RSF === 0 ? " · Aucun PDV RNS/RSF actif ce mois" : ""}
           </div>
         </div>
 
