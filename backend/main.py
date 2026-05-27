@@ -168,3 +168,46 @@ async def migrate_pdv_columns():
             except Exception as e:
                 results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
     return {"message": "Migration terminée", "results": results}
+
+
+@app.post("/import-perfs-json")
+async def import_perfs_json(request: Request):
+    """Import direct des performances depuis JSON"""
+    from app.core.database import SessionLocal
+    from app.models.performance import MonthlyPerformance
+    from app.models.pdv import PDV
+    
+    data = await request.json()
+    db = SessionLocal()
+    pdvs_db = {p.numero_pdv: p for p in db.query(PDV).all()}
+    
+    updated = 0
+    for item in data:
+        pdv = pdvs_db.get(str(item['numero_pdv']))
+        if not pdv: continue
+        
+        perf = db.query(MonthlyPerformance).filter(
+            MonthlyPerformance.pdv_id == pdv.id,
+            MonthlyPerformance.annee == item['annee'],
+            MonthlyPerformance.mois == item['mois']
+        ).first()
+        
+        if perf:
+            perf.montant_transaction = item['montant_transaction']
+            perf.montant_ca = item['montant_ca']
+            perf.ca = item['montant_transaction']
+            perf.nb_operations = item['nb_operations']
+            perf.nb_depots = item['nb_depots']
+            perf.montant_depots = item['montant_depots']
+            perf.nb_retraits = item['nb_retraits']
+            perf.montant_retraits = item['montant_retraits']
+            perf.commission_pdg = item['commission_pdg']
+            perf.commission_revendeur = item['commission_revendeur']
+            updated += 1
+        
+        if updated % 200 == 0:
+            db.commit()
+    
+    db.commit()
+    db.close()
+    return {"updated": updated}
