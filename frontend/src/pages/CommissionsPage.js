@@ -165,11 +165,11 @@ function TabDashboard({ period }) {
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
             🟣 Part reversée aux PDV (70%)
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6' }}>{fmt((cb.rs_kiosque||0)*0.7)}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6' }}>{fmt((data.commission_revendeur_total||0) + (cb.rs_kiosque||0)*0.7)}</div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <span>📦 RNS/RSF — <b>Payé directement par Orange aux PDVs</b> (hors flux PDG)</span>
-              <b style={{ color: '#8b5cf6' }}>— (Orange direct)</b>
+              <span>📦 RNS/RSF — <b>Commission Revendeur</b> payée directement par Orange aux PDVs</span>
+              <b style={{ color: '#8b5cf6' }}>{fmt(data.commission_revendeur_total||0)}</b>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>🏪 RS/KIOSQUE — <b>70% que le PDG reverse aux PDVs</b> (sur {fmt(cb.rs_kiosque||0)} reçus)</span>
