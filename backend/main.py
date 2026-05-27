@@ -211,3 +211,48 @@ async def import_perfs_json(request: Request):
     db.commit()
     db.close()
     return {"updated": updated}
+
+
+@app.get("/final-resync-comm")
+async def final_resync_comm():
+    from app.core.database import SessionLocal
+    from app.models.commission import CommissionEntry, PDVType as CommPDVType, ReversementStatus, TAUX_RESEAU, TAUX_PDV, TYPE_GERE_REVERSEMENT
+    from app.models.performance import MonthlyPerformance
+    from app.models.pdv import PDV
+    from sqlalchemy import func
+    db = SessionLocal()
+    db.query(CommissionEntry).delete()
+    db.commit()
+    def get_comm_type(t):
+        if not t: return CommPDVType.RS
+        t = str(t.value if hasattr(t, 'value') else t).upper()
+        if 'RNS' in t: return CommPDVType.RNS
+        elif 'RSF' in t: return CommPDVType.RSF
+        elif 'KIOSQUE' in t: return CommPDVType.KIOSQUE
+        return CommPDVType.RS
+    inseres = 0
+    for MOIS, ANNEE in [(1,2026),(2,2026),(3,2026),(4,2026)]:
+        period_key = f"{ANNEE}-{MOIS:02d}"
+        perfs = db.query(MonthlyPerformance, PDV).join(PDV, MonthlyPerformance.pdv_id == PDV.id).filter(
+            MonthlyPerformance.annee == ANNEE, MonthlyPerformance.mois == MOIS,
+            MonthlyPerformance.est_actif == True, MonthlyPerformance.commission_pdg > 0
+        ).all()
+        for perf, pdv in perfs:
+            ct = get_comm_type(pdv.type_pdv)
+            gere = TYPE_GERE_REVERSEMENT.get(ct, True)
+            mb = perf.commission_pdg
+            db.add(CommissionEntry(
+                pdv_id=pdv.id, pdv_numero=pdv.numero_pdv, pdv_nom=pdv.nom,
+                pdv_type=ct, quartier=pdv.quartier, zone=pdv.zone,
+                sous_zone=pdv.sous_zone, gestionnaire=pdv.gestionnaire,
+                superviseur=pdv.superviseur, period_key=period_key, period_type="MONTHLY",
+                montant_brut=mb, montant_reseau=round(mb*TAUX_RESEAU,2), montant_pdv=round(mb*TAUX_PDV,2),
+                gere_reversement=gere,
+                reversement_status=ReversementStatus.EN_ATTENTE if gere else ReversementStatus.NON_APPLICABLE,
+                montant_reverse=0.0, source="import_performances",
+            ))
+            inseres += 1
+        db.commit()
+    total = db.query(func.sum(CommissionEntry.montant_brut)).filter(CommissionEntry.period_key == '2026-04').scalar()
+    db.close()
+    return {"total": inseres, "total_brut_avril": round(total, 2)}
