@@ -117,11 +117,11 @@ function TabDashboard({ period }) {
           <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>70% RNS/RSF versés par Orange aux PDVs</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
-          <div className="stat-label">📊 Taux Commission/CA</div>
-          <div className="stat-value" style={{ fontSize: 20, color: '#f59e0b' }}>
-            {data.taux_reseau || 30}%
+          <div className="stat-label">📊 Variation vs mois précédent</div>
+          <div className="stat-value" style={{ fontSize: 20, color: (data.taux_variation||0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+            {(data.taux_variation||0) >= 0 ? '+' : ''}{(data.taux_variation||0).toFixed(2)}%
           </div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Part PDG sur total Orange (taux réseau)</small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Évolution Commission PDG vs mois précédent</small>
         </div>
 
         <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>

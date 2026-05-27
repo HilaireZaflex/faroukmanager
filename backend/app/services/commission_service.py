@@ -247,11 +247,18 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     from app.models.performance import MonthlyPerformance as MP
     from sqlalchemy import func as sqlfunc
     year_str, month_str = period_key.split("-")
+    annee_int, mois_int = int(year_str), int(month_str)
     comm_rev_total = db.query(sqlfunc.sum(MP.commission_revendeur)).filter(
-        MP.annee == int(year_str),
-        MP.mois == int(month_str),
-        MP.est_actif == True
+        MP.annee == annee_int, MP.mois == mois_int, MP.est_actif == True
     ).scalar() or 0
+    
+    # ── Taux de variation vs mois précédent ─────────────────────────────────
+    mois_prec = mois_int - 1 if mois_int > 1 else 12
+    annee_prec = annee_int if mois_int > 1 else annee_int - 1
+    total_brut_prec = db.query(sqlfunc.sum(MP.commission_pdg)).filter(
+        MP.annee == annee_prec, MP.mois == mois_prec, MP.est_actif == True
+    ).scalar() or 0
+    taux_variation = round(((total_brut - total_brut_prec) / total_brut_prec * 100), 2) if total_brut_prec > 0 else 0
 
     # ── Montant que le PDG garde définitivement ───────────────────────────────
     # RNS/RSF  → PDG garde tout le montant (déjà sa part, Orange paye les PDVs séparément)
@@ -345,6 +352,7 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         "total_reseau":  round(total_reseau, 2),  # Σ 30% de tout
         "total_pdv":    round(total_pdv, 2),     # = Commission Revendeur Excel (70% RNS/RSF)
         "taux_reseau": TAUX_RESEAU * 100,
+        "taux_variation": taux_variation,
         "taux_pdv":    TAUX_PDV * 100,
  
         # ── Décomposition par type de PDV ──────────────────────────────────
