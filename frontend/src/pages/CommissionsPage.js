@@ -129,21 +129,21 @@ function TabDashboard({ period }) {
         {/* 30% PDG */}
         <div style={{ padding: 18, background: 'rgba(34,197,94,0.08)', borderRadius: 10, borderLeft: '4px solid var(--success)' }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
-            🟢 Commission nette conservée par le PDG
+            🟢 Total reçu par le PDG d'Orange
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>{fmt((cb.rns_rsf || 0) + (cb.rs_kiosque || 0) * 0.3)}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>{fmt(data.montant_recu_pdg)}</div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <span>📦 RNS/RSF — PDG reçoit <b>30%</b> du brut ({fmt((cb.rns_rsf||0)/0.3)} brut)</span>
+              <span>📦 RNS/RSF — Orange verse ce montant au PDG <b>(total, pas de déduction)</b></span>
               <b style={{ color: 'var(--success)' }}>{fmt(cb.rns_rsf)}</b>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>🏪 RS/KIOSQUE — PDG reçoit <b>100%</b> ({fmt(cb.rs_kiosque)} brut) et garde <b>30%</b></span>
-              <b style={{ color: 'var(--success)' }}>{fmt((cb.rs_kiosque || 0) * 0.3)}</b>
+              <span>🏪 RS/KIOSQUE — Orange verse <b>100%</b> au PDG (il reverse 70% aux PDVs)</span>
+              <b style={{ color: 'var(--success)' }}>{fmt(cb.rs_kiosque)}</b>
             </div>
           </div>
           <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(34,197,94,0.12)', borderRadius: 6, fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
-            ✅ Montant net conservé définitivement par le PDG
+            ✅ Montant total versé par Orange au PDG = {fmt((cb.rns_rsf||0) + (cb.rs_kiosque||0))}
           </div>
         </div>
 
@@ -152,14 +152,14 @@ function TabDashboard({ period }) {
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
             🟣 Part reversée aux PDV (70%)
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6' }}>{fmt((cb.rns_rsf||0)/0.3*0.7 + (cb.rs_kiosque||0)*0.7)}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6' }}>{fmt((cb.rs_kiosque||0)*0.7)}</div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <span>📦 RNS/RSF — <b>70% payé directement par Orange au PDV</b></span>
-              <b style={{ color: '#8b5cf6' }}>{fmt((cb.rns_rsf||0)/0.3*0.7)}</b>
+              <span>📦 RNS/RSF — <b>Payé directement par Orange aux PDVs</b> (hors flux PDG)</span>
+              <b style={{ color: '#8b5cf6' }}>— (Orange direct)</b>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>🏪 RS/KIOSQUE — <b>70% payé par le PDG au PDV</b> (sur les {fmt(cb.rs_kiosque||0)} reçus)</span>
+              <span>🏪 RS/KIOSQUE — <b>70% que le PDG reverse aux PDVs</b> (sur {fmt(cb.rs_kiosque||0)} reçus)</span>
               <b style={{ color: '#8b5cf6' }}>{fmt((cb.rs_kiosque||0)*0.7)}</b>
             </div>
           </div>
