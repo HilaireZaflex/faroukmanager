@@ -143,7 +143,7 @@ function TabDashboard({ period }) {
             </div>
           </div>
           <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(34,197,94,0.12)', borderRadius: 6, fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
-            ✅ Ce montant appartient définitivement au PDG{data.commission_par_type?.RNS === 0 && data.commission_par_type?.RSF === 0 ? " · Aucun PDV RNS/RSF actif ce mois" : ""}
+            ✅ Ce montant appartient définitivement au PDG{data.commission_brute?.rns_rsf === 0 && data.commission_brute?.rns_rsf === 0 ? " · Aucun PDV RNS/RSF actif ce mois" : ""}
           </div>
         </div>
 
