@@ -129,42 +129,42 @@ function TabDashboard({ period }) {
         {/* 30% PDG */}
         <div style={{ padding: 18, background: 'rgba(34,197,94,0.08)', borderRadius: 10, borderLeft: '4px solid var(--success)' }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
-            🟢 Commission PDG — 30% du total Orange
+            🟢 Commission nette conservée par le PDG
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>{fmt(cb.total)}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>{fmt((cb.rns_rsf || 0) + (cb.rs_kiosque || 0) * 0.3)}</div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span>📦 PDV RNS/RSF <span style={{fontSize:10,opacity:0.7}}>(Orange paye directement le PDV)</span></span>
-              <b style={{ color: 'var(--text-primary)' }}>{fmt(cb.rns_rsf)}</b>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <span>📦 RNS/RSF — PDG reçoit <b>30%</b> du brut ({fmt((cb.rns_rsf||0)/0.3)} brut)</span>
+              <b style={{ color: 'var(--success)' }}>{fmt(cb.rns_rsf)}</b>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>🏪 PDV RS/KIOSQUE <span style={{fontSize:10,opacity:0.7}}>(Orange paye tout au PDG)</span></span>
-              <b style={{ color: 'var(--text-primary)' }}>{fmt(cb.rs_kiosque)}</b>
+              <span>🏪 RS/KIOSQUE — PDG reçoit <b>100%</b> ({fmt(cb.rs_kiosque)} brut) et garde <b>30%</b></span>
+              <b style={{ color: 'var(--success)' }}>{fmt((cb.rs_kiosque || 0) * 0.3)}</b>
             </div>
           </div>
           <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(34,197,94,0.12)', borderRadius: 6, fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
-            ✅ Ce montant appartient définitivement au PDG{data.commission_brute?.rns_rsf === 0 && data.commission_brute?.rns_rsf === 0 ? " · Aucun PDV RNS/RSF actif ce mois" : ""}
+            ✅ Montant net conservé définitivement par le PDG
           </div>
         </div>
 
         {/* 70% PDV */}
         <div style={{ padding: 18, background: 'rgba(139,92,246,0.10)', borderRadius: 10, borderLeft: '4px solid #8b5cf6' }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
-            🟣 Part des PDV — Commission PDV (70%)
+            🟣 Part reversée aux PDV (70%)
           </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6' }}>{fmt(data.total_brut - cb.total || 0)}</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6' }}>{fmt((cb.rns_rsf||0)/0.3*0.7 + (cb.rs_kiosque||0)*0.7)}</div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-              <span>📦 RNS/RSF <span style={{fontSize:10,opacity:0.7}}>(payé directement par Orange)</span></span>
-              <b style={{ color: 'var(--text-primary)' }}>{fmt(cb.rns_rsf ? (cb.rns_rsf / 0.3 * 0.7) : 0)}</b>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <span>📦 RNS/RSF — <b>70% payé directement par Orange au PDV</b></span>
+              <b style={{ color: '#8b5cf6' }}>{fmt((cb.rns_rsf||0)/0.3*0.7)}</b>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>🏪 RS/KIOSQUE <span style={{fontSize:10,opacity:0.7}}>(payé directement par le PDG)</span></span>
-              <b style={{ color: 'var(--text-primary)' }}>{fmt(cb.rs_kiosque ? (cb.rs_kiosque / 0.3 * 0.7) : 0)}</b>
+              <span>🏪 RS/KIOSQUE — <b>70% payé par le PDG au PDV</b> (sur les {fmt(cb.rs_kiosque||0)} reçus)</span>
+              <b style={{ color: '#8b5cf6' }}>{fmt((cb.rs_kiosque||0)*0.7)}</b>
             </div>
           </div>
           <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(139,92,246,0.12)', borderRadius: 6, fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>
-            ✅ Tous les PDV sont payés directement
+            ✅ Tous les PDVs reçoivent leur 70% (via Orange ou via le PDG)
           </div>
         </div>
       </div>
