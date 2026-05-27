@@ -244,12 +244,9 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     commission_nette = commission_brute_total + total_reste
 
     # ── Montant total reçu par le PDG en trésorerie ───────────────────────────
-    # RNS/RSF  → PDG reçoit seulement ses 30%
-    # RS/KIOSQUE → PDG reçoit 100%
-    montant_recu_pdg = (
-        commission_brute_rns_rsf
-        + sum(e.montant_brut for e in ents_geres)
-    )
+    # PDG reçoit 30% de toutes les commissions brutes
+    # commission_brute_total = total_reseau = Σ(montant_reseau) = Σ(brut * 30%)
+    montant_recu_pdg = round(commission_brute_total, 2)
 
     # ── Ventilation par type ───────────────────────────────────────────────────
     by_type = {}
