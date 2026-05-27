@@ -330,7 +330,7 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         "total_pdv":   round(total_pdv, 2),     # Σ 70%
         "taux_reseau": TAUX_RESEAU * 100,
         "taux_pdv":    TAUX_PDV * 100,
-
+ 
         # ── Lecture réseau (3 niveaux) ─────────────────────────────────────
         "commission_brute": {
             "total":      round(commission_brute_total, 2),

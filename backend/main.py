@@ -168,3 +168,37 @@ async def migrate_pdv_columns():
             except Exception as e:
                 results.append(f"⚠️ {col}: déjà existante ou erreur: {str(e)}")
     return {"message": "Migration terminée", "results": results}
+
+
+@app.get("/fix-commissions-types")
+async def fix_commissions_types():
+    """Corriger gere_reversement selon le type PDV"""
+    from app.core.database import SessionLocal
+    from app.models.commission import CommissionEntry, PDVType as CommPDVType, ReversementStatus, TAUX_RESEAU, TAUX_PDV, TYPE_GERE_REVERSEMENT
+    from sqlalchemy import func
+    
+    db = SessionLocal()
+    entries = db.query(CommissionEntry).all()
+    fixed = 0
+    
+    for e in entries:
+        correct_gere = TYPE_GERE_REVERSEMENT.get(e.pdv_type, True)
+        if e.gere_reversement != correct_gere:
+            e.gere_reversement = correct_gere
+            e.reversement_status = ReversementStatus.EN_ATTENTE if correct_gere else ReversementStatus.NON_APPLICABLE
+            fixed += 1
+    
+    db.commit()
+    
+    # Stats après correction
+    stats = db.query(
+        CommissionEntry.pdv_type,
+        CommissionEntry.gere_reversement,
+        func.count(CommissionEntry.id)
+    ).group_by(CommissionEntry.pdv_type, CommissionEntry.gere_reversement).all()
+    
+    db.close()
+    return {
+        "fixed": fixed,
+        "stats": [{"type": str(t), "gere": g, "count": c} for t, g, c in stats]
+    }
