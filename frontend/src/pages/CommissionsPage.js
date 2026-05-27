@@ -108,14 +108,14 @@ function TabDashboard({ period }) {
           <div className="stat-label">💰 Total Orange Mali a distribué</div>
           <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.total_brut)}</div>
           <small style={{ color: 'var(--text-muted)' }}>
-            Commission totale versée par Orange (PDG + PDVs)
+            30% RNS/RSF + 100% RS/KIOSQUE versés par Orange au PDG
           </small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
-          <div className="stat-label">🏦 Dont conservé par le PDG</div>
+          <div className="stat-label">🏦 Net conservé par le PDG</div>
           <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.montant_recu_pdg)}</div>
           <small style={{ color: 'var(--text-muted)' }}>
-            = RNS/RSF (totalité) + 30% des RS/KIOSQUE<br/>
+            = RNS/RSF reçus ({fmt(cb.rns_rsf||0)}) + 30% RS/KIOSQUE<br/>
             <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
               (les 70% RS/KIOSQUE sont reversés aux PDVs par le PDG)
             </span>

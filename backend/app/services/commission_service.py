@@ -328,18 +328,22 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         "n_pdv_directs": len(ents_directs),    # RNS + RSF
         "n_pdv_geres":   len(ents_geres),      # RS + KIOSQUE
 
-        # ── Montants globaux bruts ─────────────────────────────────────────
-        "total_brut":  round(total_brut, 2),   # 100% tous PDV
-        "total_reseau": round(total_reseau, 2), # Σ 30% = commission_brute_total
-        "total_pdv":   round(total_pdv, 2),     # Σ 70%
+        # ── Montants globaux (correspondance exacte fichier Orange Excel) ──────
+        # total_brut = Commission PDG dans Excel (ce qu'Orange verse au PDG)
+        # total_pdv  = Commission Revendeur dans Excel (70% RNS/RSF payé par Orange aux PDVs)
+        "total_brut":   round(total_brut, 2),    # = Commission PDG Excel (30% RNS/RSF + 100% RS/KIOSQUE)
+        "total_reseau":  round(total_reseau, 2),  # Σ 30% de tout
+        "total_pdv":    round(total_pdv, 2),     # = Commission Revendeur Excel (70% RNS/RSF)
         "taux_reseau": TAUX_RESEAU * 100,
         "taux_pdv":    TAUX_PDV * 100,
  
-        # ── Lecture réseau (3 niveaux) ─────────────────────────────────────
+        # ── Décomposition par type de PDV ──────────────────────────────────
+        # RNS/RSF: Orange verse 30% au PDG (commission_pdg) + 70% aux PDVs (commission_revendeur)
+        # RS/KIOSQUE: Orange verse 100% au PDG qui reverse 70% aux PDVs
         "commission_brute": {
-            "total":      round(commission_brute_total, 2),
-            "rns_rsf":    round(commission_brute_rns_rsf, 2),          # 30% reçus par le PDG
-            "rs_kiosque": round(sum(e.montant_brut for e in ents_geres), 2),  # 100% reçus par le PDG (avant reversement)
+            "total":      round(total_brut, 2),
+            "rns_rsf":    round(sum(e.montant_brut for e in ents_directs), 2),    # 30% RNS/RSF que PDG reçoit
+            "rs_kiosque": round(sum(e.montant_brut for e in ents_geres), 2),      # 100% RS/KIOSQUE que PDG reçoit
         },
         "montant_en_transit": {
             "total":          round(montant_en_transit, 2),  # 70% RS+KIOSQUE reçus par PDG
