@@ -23,6 +23,9 @@ const TYPE_CONFIG = {
 
 const MEDAILLE = { OR: '🥇', ARGENT: '🥈', BRONZE: '🥉', AUCUNE: '' };
 
+// Nettoyer les valeurs "nan" (venant d'imports pandas) → afficher "—"
+const clean = (val) => (!val || val === 'nan' || val === 'NaN' || val === 'None') ? null : val;
+
 function HealthBar({ score }) {
   const color = score >= 70 ? '#00d68f' : score >= 40 ? '#ffa502' : '#ff4757';
   return (
@@ -366,10 +369,10 @@ export default function PDVsPage() {
                     <td>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '0.3px' }}>{pdv.numero_pdv}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{clean(pdv.nom) || pdv.numero_pdv}</div>
                       </div>
                     </td>
-                    <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{pdv.zone}</span></td>
+                    <td><span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{clean(pdv.zone) || '—'}</span></td>
                     <td>
                       <span className={`badge ${TYPE_CONFIG[pdv.type_pdv]?.className || 'badge-neutral'}`}>
                         {TYPE_CONFIG[pdv.type_pdv]?.label || pdv.type_pdv}
@@ -386,7 +389,7 @@ export default function PDVsPage() {
                         {pdv.single_wallet ? '✓ OUI' : '✗ NON'}
                       </span>
                     </td>
-                    <td><span style={{ fontSize: 12 }}>{pdv.superviseur || '—'}</span></td>
+                    <td><span style={{ fontSize: 12 }}>{clean(pdv.superviseur) || '—'}</span></td>
                     <td style={{ fontSize: 18 }}>{MEDAILLE[pdv.medaille] || ''}</td>
                     <td><ChevronRight size={16} style={{ color: 'var(--text-muted)' }}/></td>
                   </tr>

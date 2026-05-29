@@ -72,6 +72,18 @@ def deactivate_pdv(db: Session, pdv_id: int) -> Optional[PDV]:
     db.refresh(db_pdv)
     return db_pdv
 
+def _clean_nan(val, default=None):
+    """Convertit les valeurs NaN/nan/None de pandas en None propre."""
+    import math
+    if val is None:
+        return default
+    if isinstance(val, float) and math.isnan(val):
+        return default
+    s = str(val).strip()
+    if s.lower() in ('nan', 'none', '', 'nat'):
+        return default
+    return s if isinstance(val, str) else val
+
 def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
     """Import PDVs from Excel file."""
     try:
@@ -88,40 +100,57 @@ def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
         for index, row in df.iterrows():
             try:
                 # Check if numero_pdv already exists
-                existing_pdv = db.query(PDV).filter(PDV.numero_pdv == row.get("numero_pdv")).first()
+                existing_pdv = db.query(PDV).filter(PDV.numero_pdv == str(row.get("numero_pdv", "")).strip()).first()
                 if existing_pdv:
                     failed_count += 1
                     errors.append(f"Row {index + 2}: PDV {row.get('numero_pdv')} already exists")
                     continue
                 
-                # Create PDV from row data
+                # Helper pour valeurs booléennes
+                def clean_bool(v, default=False):
+                    import math
+                    if v is None: return default
+                    if isinstance(v, float) and math.isnan(v): return default
+                    if isinstance(v, bool): return v
+                    return str(v).strip().lower() in ('1', 'true', 'oui', 'yes')
+
+                # Nettoyer les valeurs numériques
+                def clean_float(v, default=0.0):
+                    import math
+                    try:
+                        f = float(v)
+                        return default if math.isnan(f) else f
+                    except (TypeError, ValueError):
+                        return default
+
+                # Create PDV from row data — toutes les valeurs texte nettoyées
                 pdv_data = {
-                    "numero_pdv": row.get("numero_pdv"),
-                    "nom": row.get("nom"),
-                    "numero_personnel": row.get("numero_personnel"),
-                    "type_pdv": row.get("type_pdv", "RS"),
-                    "statut": row.get("statut", "ACTIF"),
-                    "medaille": row.get("medaille", "AUCUNE"),
-                    "zone": row.get("zone"),
-                    "sous_zone": row.get("sous_zone"),
-                    "quartier": row.get("quartier"),
-                    "commune": row.get("commune"),
-                    "latitude": row.get("latitude"),
-                    "longitude": row.get("longitude"),
-                    "superviseur": row.get("superviseur"),
-                    "gestionnaire": row.get("gestionnaire"),
-                    "teleconseillere": row.get("teleconseillere"),
-                    "telephone": row.get("telephone"),
-                    "email_contact": row.get("email_contact"),
-                    "nom_gerant": row.get("nom_gerant"),
-                    "numero_flotte": row.get("numero_flotte", False),
-                    "sim_au_bureau": row.get("sim_au_bureau", False),
-                    "sim_coupee": row.get("sim_coupee", False),
-                    "nouvelle_creation": row.get("nouvelle_creation", False),
-                    "health_score": float(row.get("health_score", 50.0)),
-                    "segment": row.get("segment"),
-                    "score_risque": float(row.get("score_risque", 0.0)),
-                    "notes": row.get("notes"),
+                    "numero_pdv": _clean_nan(row.get("numero_pdv")),
+                    "nom": _clean_nan(row.get("nom")),
+                    "numero_personnel": _clean_nan(row.get("numero_personnel")),
+                    "type_pdv": _clean_nan(row.get("type_pdv"), "RS"),
+                    "statut": _clean_nan(row.get("statut"), "ACTIF"),
+                    "medaille": _clean_nan(row.get("medaille"), "AUCUNE"),
+                    "zone": _clean_nan(row.get("zone")),
+                    "sous_zone": _clean_nan(row.get("sous_zone")),
+                    "quartier": _clean_nan(row.get("quartier")),
+                    "commune": _clean_nan(row.get("commune")),
+                    "latitude": clean_float(row.get("latitude"), None),
+                    "longitude": clean_float(row.get("longitude"), None),
+                    "superviseur": _clean_nan(row.get("superviseur")),
+                    "gestionnaire": _clean_nan(row.get("gestionnaire")),
+                    "teleconseillere": _clean_nan(row.get("teleconseillere")),
+                    "telephone": _clean_nan(row.get("telephone")),
+                    "email_contact": _clean_nan(row.get("email_contact")),
+                    "nom_gerant": _clean_nan(row.get("nom_gerant")),
+                    "numero_flotte": clean_bool(row.get("numero_flotte")),
+                    "sim_au_bureau": clean_bool(row.get("sim_au_bureau")),
+                    "sim_coupee": clean_bool(row.get("sim_coupee")),
+                    "nouvelle_creation": clean_bool(row.get("nouvelle_creation")),
+                    "health_score": clean_float(row.get("health_score"), 50.0),
+                    "segment": _clean_nan(row.get("segment")),
+                    "score_risque": clean_float(row.get("score_risque"), 0.0),
+                    "notes": _clean_nan(row.get("notes")),
                 }
                 
                 # Remove None values and create PDV

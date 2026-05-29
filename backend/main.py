@@ -153,6 +153,43 @@ async def startup_event_original():
 
 
 
+@app.get("/clean-nan-pdvs")
+async def clean_nan_pdvs():
+    """Nettoie tous les champs 'nan' (string) stockés en base dans la table pdvs"""
+    from app.core.database import SessionLocal
+    from app.models.pdv import PDV
+    from sqlalchemy import text
+
+    NAN_VALUES = ('nan', 'NaN', 'None', 'none', 'NAT', 'nat')
+    STRING_FIELDS = [
+        'nom', 'numero_personnel', 'zone', 'sous_zone', 'quartier',
+        'commune', 'superviseur', 'gestionnaire', 'teleconseillere',
+        'developpeur', 'adresse', 'telephone', 'email_contact',
+        'nom_gerant', 'notes', 'segment', 'date_mise_a_jour'
+    ]
+
+    db = SessionLocal()
+    try:
+        pdvs = db.query(PDV).all()
+        updated = 0
+        for pdv in pdvs:
+            changed = False
+            for field in STRING_FIELDS:
+                val = getattr(pdv, field, None)
+                if isinstance(val, str) and val.strip() in NAN_VALUES:
+                    setattr(pdv, field, None)
+                    changed = True
+            if changed:
+                updated += 1
+        db.commit()
+        return {
+            "message": f"✅ Nettoyage terminé : {updated} PDVs mis à jour sur {len(pdvs)} total",
+            "pdvs_updated": updated,
+            "pdvs_total": len(pdvs)
+        }
+    finally:
+        db.close()
+
 @app.get("/migrate-pdv-columns")
 async def migrate_pdv_columns():
     """Migration temporaire: ajoute les colonnes manquantes à la table pdvs"""
