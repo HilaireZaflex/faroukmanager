@@ -153,6 +153,40 @@ async def startup_event_original():
 
 
 
+@app.get("/clean-orphan-performances")
+async def clean_orphan_performances():
+    """Supprime les performances (mensuelle/hebdo) liées à des PDVs qui n'existent plus"""
+    from app.core.database import SessionLocal
+    from app.models.pdv import PDV
+    from sqlalchemy import text
+
+    db = SessionLocal()
+    try:
+        # Récupérer tous les IDs de PDVs valides
+        valid_ids = {row[0] for row in db.execute(text("SELECT id FROM pdvs")).fetchall()}
+
+        # Supprimer performances mensuelles orphelines
+        result_monthly = db.execute(text(
+            f"DELETE FROM monthly_performances WHERE pdv_id NOT IN ({','.join(str(i) for i in valid_ids)})"
+        ))
+        deleted_monthly = result_monthly.rowcount
+
+        # Supprimer performances hebdomadaires orphelines
+        result_weekly = db.execute(text(
+            f"DELETE FROM weekly_performances WHERE pdv_id NOT IN ({','.join(str(i) for i in valid_ids)})"
+        ))
+        deleted_weekly = result_weekly.rowcount
+
+        db.commit()
+        return {
+            "message": f"✅ Nettoyage terminé",
+            "performances_mensuelles_supprimees": deleted_monthly,
+            "performances_hebdomadaires_supprimees": deleted_weekly,
+            "pdvs_valides": len(valid_ids)
+        }
+    finally:
+        db.close()
+
 @app.get("/clean-nan-pdvs")
 async def clean_nan_pdvs():
     """Nettoie tous les champs 'nan' (string) stockés en base dans la table pdvs"""
