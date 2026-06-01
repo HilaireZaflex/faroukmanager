@@ -649,6 +649,7 @@ def monthly_summary(
     q = db.query(MonthlyPerformance, PDV).join(PDV, MonthlyPerformance.pdv_id == PDV.id).filter(
         MonthlyPerformance.annee == annee,
         MonthlyPerformance.mois == mois,
+        PDV.statut != 'DESACTIVE',
     )
     if indicateur:
         q = q.filter(MonthlyPerformance.indicateur == indicateur)
@@ -769,6 +770,7 @@ def weekly_summary(
     q = db.query(WeeklyPerformance, PDV).join(PDV, WeeklyPerformance.pdv_id == PDV.id).filter(
         WeeklyPerformance.annee == annee,
         WeeklyPerformance.semaine == semaine,
+        PDV.statut != 'DESACTIVE',
     )
     if indicateur:
         q = q.filter(WeeklyPerformance.indicateur == indicateur)
