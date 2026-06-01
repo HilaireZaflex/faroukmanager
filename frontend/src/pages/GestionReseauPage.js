@@ -40,18 +40,22 @@ function OngletGestionnaires() {
 
   const needsDate = ['overview', 'envois', 'classement'];
 
+  const canGoPrev = !(annee === 2025 && mois === 1);
+  const canGoNext = !(annee === new Date().getFullYear() && mois === new Date().getMonth() + 1);
+  const isMoisDispo = () => true;
+
   return (
     <div>
       {/* Selecteur mois (uniquement pour les sous-onglets qui en ont besoin) */}
       {needsDate.includes(subTab) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <button disabled={!canGoPrev} style={{opacity: canGoPrev?1:0.3}} onClick={() => { const nm=mois===1?12:mois-1; const na=mois===1?annee-1:annee; if(isMoisDispo(na,nm)){setMois(nm);setAnnee(na);} }}
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
+          <button disabled={!canGoPrev} onClick={() => { const nm=mois===1?12:mois-1; const na=mois===1?annee-1:annee; setMois(nm); setAnnee(na); }}
+            style={{ opacity: canGoPrev?1:0.3, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
             &lt;
           </button>
           <span style={{ fontSize: 13, fontWeight: 700, minWidth: 100, textAlign: 'center' }}>{MONTHS[mois-1]} {annee}</span>
-          <button disabled={!canGoNext} style={{opacity: canGoNext?1:0.3}} onClick={() => { const nm=mois===12?1:mois+1; const na=mois===12?annee+1:annee; if(isMoisDispo(na,nm)){setMois(nm);setAnnee(na);} }}
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
+          <button disabled={!canGoNext} onClick={() => { const nm=mois===12?1:mois+1; const na=mois===12?annee+1:annee; setMois(nm); setAnnee(na); }}
+            style={{ opacity: canGoNext?1:0.3, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
             &gt;
           </button>
         </div>
