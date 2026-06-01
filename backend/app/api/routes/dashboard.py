@@ -148,9 +148,13 @@ def monthly_dashboard(
     montant_depots = sum(p.montant_depots for p, _ in pairs)
     total_retraits = sum(p.nb_retraits for p, _ in pairs)
     montant_retraits = sum(p.montant_retraits for p, _ in pairs)
+    # Vrai total réseau (tous PDVs actifs, avec ou sans performances ce mois)
+    total_reseau = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).count()
     active_pdvs = sum(1 for p, _ in pairs if p.est_actif)
     inactive_pdvs = len(pairs) - active_pdvs
-    taux_activite = (active_pdvs / len(pairs) * 100) if pairs else 0.0
+    # PDVs sans données ce mois = dans le réseau mais pas dans les performances
+    pdvs_sans_donnees = total_reseau - len(pairs)
+    taux_activite = (active_pdvs / total_reseau * 100) if total_reseau > 0 else 0.0
     avg_ca = total_ca / len(pairs) if pairs else 0.0
 
     # PDV à faible CA (ratio < 50% de la moyenne)
@@ -263,7 +267,9 @@ def monthly_dashboard(
         "montant_retraits": round(montant_retraits, 2),
         "active_pdvs": active_pdvs,
         "inactive_pdvs": inactive_pdvs,
-        "total_pdvs": len(pairs),
+        "total_pdvs": total_reseau,
+        "pdvs_avec_donnees": len(pairs),
+        "pdvs_sans_donnees": pdvs_sans_donnees,
         "taux_activite": round(taux_activite, 1),
         "average_ca": round(avg_ca, 2),
         "avg_variation": round(avg_variation, 2),
@@ -357,9 +363,11 @@ def weekly_dashboard(
     total_retraits = sum(p.nb_retraits for p, _ in pairs)
     montant_depots = sum(p.montant_depots for p, _ in pairs)
     montant_retraits = sum(p.montant_retraits for p, _ in pairs)
+    # Vrai total réseau
+    total_reseau_w = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).count()
     active_pdvs = sum(1 for p, _ in pairs if p.est_actif)
     inactive_pdvs = len(pairs) - active_pdvs
-    taux_activite = (active_pdvs / len(pairs) * 100) if pairs else 0.0
+    taux_activite = (active_pdvs / total_reseau_w * 100) if total_reseau_w > 0 else 0.0
     variations = [p.taux_variation for p, _ in pairs if p.taux_variation]
     avg_variation = sum(variations) / len(variations) if variations else 0.0
 
@@ -445,7 +453,9 @@ def weekly_dashboard(
         "montant_retraits": round(montant_retraits, 2),
         "active_pdvs": active_pdvs,
         "inactive_pdvs": inactive_pdvs,
-        "total_pdvs": len(pairs),
+        "total_pdvs": total_reseau_w,
+        "pdvs_avec_donnees": len(pairs),
+        "pdvs_sans_donnees": total_reseau_w - len(pairs),
         "taux_activite": round(taux_activite, 1),
         "avg_variation": round(avg_variation, 2),
         # Répartitions
