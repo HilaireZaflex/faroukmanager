@@ -213,11 +213,33 @@ async def purge_desactives():
         numeros = [row[1] for row in desactives]
         ids_str = ','.join(ids)
         
-        # Supprimer toutes les données liées dans l'ordre
-        del_monthly = db.execute(text(f"DELETE FROM monthly_performances WHERE pdv_id IN ({ids_str})")).rowcount
-        del_weekly = db.execute(text(f"DELETE FROM weekly_performances WHERE pdv_id IN ({ids_str})")).rowcount
-        del_recoveries = db.execute(text(f"DELETE FROM recoveries WHERE pdv_id IN ({ids_str})")).rowcount if db.execute(text("SELECT to_regclass('recoveries')")).scalar() else 0
-        del_actions = db.execute(text(f"DELETE FROM terrain_actions WHERE pdv_id IN ({ids_str})")).rowcount
+        # Supprimer toutes les données liées dans l'ordre (toutes les FK)
+        tables_liees = [
+            "monthly_performances",
+            "weekly_performances", 
+            "terrain_actions",
+            "commission_entries",
+            "commission_imports",
+            "recoveries",
+            "recovery_tracking",
+            "eval_scores",
+            "indicator_scores",
+            "superviseur_pdv_objectives",
+            "post_activation_kpi",
+            "puce_stock",
+            "notifications",
+        ]
+        stats = {}
+        for table in tables_liees:
+            try:
+                # Vérifier si la table a une colonne pdv_id
+                check = db.execute(text(f"SELECT COUNT(*) FROM information_schema.columns WHERE table_name='{table}' AND column_name='pdv_id'")).scalar()
+                if check:
+                    n = db.execute(text(f"DELETE FROM {table} WHERE pdv_id IN ({ids_str})")).rowcount
+                    if n > 0:
+                        stats[table] = n
+            except Exception:
+                pass
         
         # Supprimer les PDVs eux-mêmes
         del_pdvs = db.execute(text(f"DELETE FROM pdvs WHERE statut = 'DESACTIVE'")).rowcount
@@ -226,9 +248,7 @@ async def purge_desactives():
         return {
             "message": f"✅ Purge complète terminée",
             "pdvs_supprimes": del_pdvs,
-            "performances_mensuelles_supprimees": del_monthly,
-            "performances_hebdomadaires_supprimees": del_weekly,
-            "actions_supprimees": del_actions,
+            "donnees_liees_supprimees": stats,
             "numeros_supprimes": numeros[:10]
         }
     except Exception as e:
