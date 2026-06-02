@@ -213,36 +213,31 @@ async def purge_desactives():
         numeros = [row[1] for row in desactives]
         ids_str = ','.join(ids)
         
-        # Supprimer toutes les données liées dans l'ordre (toutes les FK)
-        tables_liees = [
-            "monthly_performances",
-            "weekly_performances", 
-            "terrain_actions",
-            "commission_entries",
-            "commission_imports",
-            "recoveries",
-            "recovery_tracking",
-            "eval_scores",
-            "indicator_scores",
-            "superviseur_pdv_objectives",
-            "post_activation_kpi",
-            "puce_stock",
-            "notifications",
-        ]
+        # Trouver toutes les tables qui ont une FK vers pdvs via information_schema
+        fk_tables = db.execute(text("""
+            SELECT tc.table_name, kcu.column_name
+            FROM information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+                ON tc.constraint_name = kcu.constraint_name
+            JOIN information_schema.referential_constraints AS rc
+                ON tc.constraint_name = rc.constraint_name
+            JOIN information_schema.table_constraints AS ccu
+                ON ccu.constraint_name = rc.unique_constraint_name
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND ccu.table_name = 'pdvs'
+        """)).fetchall()
+        
         stats = {}
-        for table in tables_liees:
+        for table_name, col_name in fk_tables:
             try:
-                # Vérifier si la table a une colonne pdv_id
-                check = db.execute(text(f"SELECT COUNT(*) FROM information_schema.columns WHERE table_name='{table}' AND column_name='pdv_id'")).scalar()
-                if check:
-                    n = db.execute(text(f"DELETE FROM {table} WHERE pdv_id IN ({ids_str})")).rowcount
-                    if n > 0:
-                        stats[table] = n
-            except Exception:
-                pass
+                n = db.execute(text(f'DELETE FROM "{table_name}" WHERE "{col_name}" IN ({ids_str})')).rowcount
+                if n > 0:
+                    stats[table_name] = n
+            except Exception as e:
+                stats[f"{table_name}_erreur"] = str(e)[:50]
         
         # Supprimer les PDVs eux-mêmes
-        del_pdvs = db.execute(text(f"DELETE FROM pdvs WHERE statut = 'DESACTIVE'")).rowcount
+        del_pdvs = db.execute(text("DELETE FROM pdvs WHERE statut = 'DESACTIVE'")).rowcount
         
         db.commit()
         return {
