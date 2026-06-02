@@ -1014,6 +1014,63 @@ async def import_export_orange(
 
     db.commit()
 
+    # ── Créer des entrées est_actif=False pour les PDVs absents ──────────────
+    # Collecter toutes les périodes importées
+    inactif_created = 0
+    if mode == 'mensuel':
+        # Pour chaque (annee, mois) importé, créer des entrées inactives pour les PDVs absents
+        periodes = set((annee_v, periode_v) for (_, annee_v, periode_v) in data.keys())
+        for (annee_v, mois_v) in periodes:
+            pdv_ids_actifs = {
+                pdv_map[num] for (num, a, m) in data.keys()
+                if a == annee_v and m == mois_v and num in pdv_map
+            }
+            all_pdv_ids = set(pdv_map.values())
+            pdv_ids_absents = all_pdv_ids - pdv_ids_actifs
+            for pid in pdv_ids_absents:
+                existing = db.query(MonthlyPerformance).filter_by(
+                    pdv_id=pid, annee=annee_v, mois=mois_v
+                ).first()
+                if not existing:
+                    db.add(MonthlyPerformance(
+                        pdv_id=pid, annee=annee_v, mois=mois_v,
+                        nb_depots=0, montant_depots=0.0,
+                        nb_retraits=0, montant_retraits=0.0,
+                        nb_operations=0, montant_transaction=0.0,
+                        montant_ca=0.0, commission_pdg=0.0,
+                        commission_revendeur=0.0, ratio_ca_transaction=0.0,
+                        est_actif=False, ca=0.0,
+                    ))
+                    inactif_created += 1
+    else:
+        # Hebdo: pour chaque (annee, semaine) importée
+        periodes = set((annee_v, periode_v) for (_, annee_v, periode_v) in data.keys())
+        for (annee_v, sem_v) in periodes:
+            pdv_ids_actifs = {
+                pdv_map[num] for (num, a, s) in data.keys()
+                if a == annee_v and s == sem_v and num in pdv_map
+            }
+            all_pdv_ids = set(pdv_map.values())
+            pdv_ids_absents = all_pdv_ids - pdv_ids_actifs
+            for pid in pdv_ids_absents:
+                existing = db.query(WeeklyPerformance).filter_by(
+                    pdv_id=pid, annee=annee_v, semaine=sem_v
+                ).first()
+                if not existing:
+                    db.add(WeeklyPerformance(
+                        pdv_id=pid, annee=annee_v, semaine=sem_v,
+                        nb_depots=0, montant_depots=0.0,
+                        nb_retraits=0, montant_retraits=0.0,
+                        nb_operations=0, montant_transaction=0.0,
+                        montant_ca=0.0, commission_pdg=0.0,
+                        commission_revendeur=0.0, ratio_ca_transaction=0.0,
+                        est_actif=False, ca=0.0,
+                    ))
+                    inactif_created += 1
+
+    db.commit()
+    # ─────────────────────────────────────────────────────────────────────────
+
     return {
         "success": True,
         "mode": mode,
@@ -1021,6 +1078,7 @@ async def import_export_orange(
         "pdv_periodes_traitees": len(data),
         "created": created,
         "updated": updated,
+        "inactifs_crees": inactif_created,
         "skipped_pdv": skipped_pdv,
         "skipped_date": skipped_date,
         "pdv_non_trouves": len(not_found),
