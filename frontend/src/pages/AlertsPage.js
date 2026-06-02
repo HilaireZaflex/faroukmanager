@@ -24,20 +24,22 @@ function formatDate(dateStr) {
 }
 
 // ============ TAB 1: INACTIVE PDVs ============
-function TabInactivePDVs() {
+function TabInactivePDVs({ semaine, annee }) {
   const [zone, setZone] = useState('');
   const [superviseur, setSuperviseur] = useState('');
   const queryClient = useQueryClient();
+  const sem = semaine || CURRENT_WEEK;
+  const an = annee || CURRENT_YEAR;
 
   const { data: inactiveData, isLoading, error } = useQuery({
-    queryKey: ['alerts/inactive', CURRENT_YEAR, CURRENT_WEEK, zone, superviseur],
+    queryKey: ['alerts/inactive', an, sem, zone, superviseur],
     queryFn: async () => {
       const response = await api.get('/alerts/inactive', {
-        params: { annee: CURRENT_YEAR, semaine: CURRENT_WEEK, zone: zone || undefined, superviseur: superviseur || undefined },
+        params: { annee: an, semaine: sem, zone: zone || undefined, superviseur: superviseur || undefined },
       });
       return response.data;
     },
-    enabled: true,
+    enabled: !!sem && !!an,
   });
 
   const createActionMutation = useMutation({
@@ -237,18 +239,21 @@ function TabInactivePDVs() {
 }
 
 // ============ TAB 2: DECLINING CA ============
-function TabDecliningCA() {
+function TabDecliningCA({ mois, annee }) {
   const [seuil, setSeuil] = useState(15);
   const [zone, setZone] = useState('');
+  const m = mois || (now.getMonth() + 1);
+  const an = annee || CURRENT_YEAR;
 
   const { data: decliningData, isLoading, error } = useQuery({
-    queryKey: ['alerts/declining', CURRENT_YEAR, CURRENT_WEEK, seuil, zone],
+    queryKey: ['alerts/declining', an, m, seuil, zone],
     queryFn: async () => {
       const response = await api.get('/alerts/declining', {
-        params: { annee: CURRENT_YEAR, semaine: CURRENT_WEEK, seuil, zone: zone || undefined },
+        params: { annee: an, mois: m, seuil, zone: zone || undefined },
       });
       return response.data;
     },
+    enabled: !!m && !!an,
   });
 
   const zones = Array.from(new Set(decliningData?.pdvs?.map((p) => p.zone) || []));
@@ -382,23 +387,27 @@ function TabDecliningCA() {
 }
 
 // ============ TAB 3: RECOVERY ============
-function TabRecovery() {
+function TabRecovery({ mois, annee }) {
   const queryClient = useQueryClient();
+  const m = mois || (now.getMonth() + 1);
+  const an = annee || CURRENT_YEAR;
 
   const { data: recoveryData, isLoading, error } = useQuery({
-    queryKey: ['alerts/recovery'],
+    queryKey: ['alerts/recovery', an, m],
     queryFn: async () => {
-      const response = await api.get('/alerts/recovery');
+      const response = await api.get('/alerts/recovery', { params: { annee: an, mois: m } });
       return response.data;
     },
+    enabled: !!m && !!an,
   });
 
   const { data: recommendationsData } = useQuery({
-    queryKey: ['alerts/recommendations'],
+    queryKey: ['alerts/recommendations', an, m],
     queryFn: async () => {
-      const response = await api.get('/alerts/recommendations');
+      const response = await api.get('/alerts/recommendations', { params: { annee: an, mois: m } });
       return response.data;
     },
+    enabled: !!m && !!an,
   });
 
   const triggerVerificationMutation = useMutation({
@@ -519,19 +528,18 @@ function TabRecovery() {
 
 // ============ MAIN PAGE ============
 // ============ TAB 4: ALERTES GESTIONNAIRES ============
-function TabAlertesGestionnaires() {
-  const NOW = new Date();
-  const annee = NOW.getFullYear();
-  const mois = NOW.getMonth() + 1;
+function TabAlertesGestionnaires({ mois, annee }) {
+  const m = mois || (now.getMonth() + 1);
+  const an = annee || CURRENT_YEAR;
   const [seuil, setSeuil] = useState(30);
 
   const { data: gests } = useQuery('gestionnaires-list',
     () => api.get('/gestionnaires/').then(r => r.data), { staleTime: 300000 });
 
   const { data: overviewData, isLoading } = useQuery(
-    ['gestionnaires-overview-alertes', annee, mois],
-    () => api.get('/gestionnaires/overview', { params: { annee, mois } }).then(r => r.data),
-    { staleTime: 60000 }
+    ['gestionnaires-overview-alertes', an, m],
+    () => api.get('/gestionnaires/overview', { params: { annee: an, mois: m } }).then(r => r.data),
+    { staleTime: 60000, enabled: !!m && !!an }
   );
 
   const overview = Array.isArray(overviewData) ? overviewData : [];
@@ -640,15 +648,14 @@ function TabAlertesGestionnaires() {
 }
 
 // ============ TAB 5: RISQUE DEGRADATION GRADE ============
-function TabRisqueDegradationGrade() {
-  const NOW = new Date();
-  const annee = NOW.getFullYear();
-  const mois = NOW.getMonth() + 1;
+function TabRisqueDegradationGrade({ mois, annee }) {
+  const m = mois || (now.getMonth() + 1);
+  const an = annee || CURRENT_YEAR;
 
   const { data, isLoading } = useQuery(
-    ['grades-alertes-alertspage', annee, mois],
-    () => api.get('/grades/alertes', { params: { annee, mois } }).then(r => r.data),
-    { staleTime: 60000 }
+    ['grades-alertes-alertspage', an, m],
+    () => api.get('/grades/alertes', { params: { annee: an, mois: m } }).then(r => r.data),
+    { staleTime: 60000, enabled: !!m && !!an }
   );
 
   const alertes = Array.isArray(data) ? data : [];
@@ -766,6 +773,18 @@ export default function AlertsPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('inactifs');
 
+  // Charger la dernière période disponible
+  const { data: lastAvailable } = useQuery({
+    queryKey: ['last-available'],
+    queryFn: () => api.get('/dashboard/last-available').then(r => r.data),
+    staleTime: 300000,
+  });
+
+  const lastSemaine = lastAvailable?.last_week?.semaine || CURRENT_WEEK;
+  const lastAnnee = lastAvailable?.last_week?.annee || CURRENT_YEAR;
+  const lastMois = lastAvailable?.last_month?.mois || now.getMonth() + 1;
+  const lastMoisAnnee = lastAvailable?.last_month?.annee || CURRENT_YEAR;
+
   return (
     <div className="page">
       <div className="page-header">
@@ -796,11 +815,11 @@ export default function AlertsPage() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'inactifs'      && <TabInactivePDVs />}
-        {activeTab === 'declining'     && <TabDecliningCA />}
-        {activeTab === 'recovery'      && <TabRecovery />}
-        {activeTab === 'gestionnaires' && <TabAlertesGestionnaires />}
-        {activeTab === 'grades'        && <TabRisqueDegradationGrade />}
+        {activeTab === 'inactifs'      && <TabInactivePDVs semaine={lastSemaine} annee={lastAnnee} />}
+        {activeTab === 'declining'     && <TabDecliningCA mois={lastMois} annee={lastMoisAnnee} />}
+        {activeTab === 'recovery'      && <TabRecovery mois={lastMois} annee={lastMoisAnnee} />}
+        {activeTab === 'gestionnaires' && <TabAlertesGestionnaires mois={lastMois} annee={lastMoisAnnee} />}
+        {activeTab === 'grades'        && <TabRisqueDegradationGrade mois={lastMois} annee={lastMoisAnnee} />}
       </div>
     </div>
   );
