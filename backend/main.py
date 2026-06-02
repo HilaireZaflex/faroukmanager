@@ -197,6 +197,46 @@ async def clean_orphan_performances():
     finally:
         db.close()
 
+@app.get("/purge-desactives")
+async def purge_desactives():
+    """Supprime définitivement les PDVs DESACTIVES et toutes leurs données liées"""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        # Récupérer les IDs des PDVs DESACTIVES
+        desactives = db.execute(text("SELECT id, numero_pdv FROM pdvs WHERE statut = 'DESACTIVE'")).fetchall()
+        if not desactives:
+            return {"message": "✅ Aucun PDV DESACTIVE trouvé", "supprimés": 0}
+        
+        ids = [str(row[0]) for row in desactives]
+        numeros = [row[1] for row in desactives]
+        ids_str = ','.join(ids)
+        
+        # Supprimer toutes les données liées dans l'ordre
+        del_monthly = db.execute(text(f"DELETE FROM monthly_performances WHERE pdv_id IN ({ids_str})")).rowcount
+        del_weekly = db.execute(text(f"DELETE FROM weekly_performances WHERE pdv_id IN ({ids_str})")).rowcount
+        del_recoveries = db.execute(text(f"DELETE FROM recoveries WHERE pdv_id IN ({ids_str})")).rowcount if db.execute(text("SELECT to_regclass('recoveries')")).scalar() else 0
+        del_actions = db.execute(text(f"DELETE FROM terrain_actions WHERE pdv_id IN ({ids_str})")).rowcount
+        
+        # Supprimer les PDVs eux-mêmes
+        del_pdvs = db.execute(text(f"DELETE FROM pdvs WHERE statut = 'DESACTIVE'")).rowcount
+        
+        db.commit()
+        return {
+            "message": f"✅ Purge complète terminée",
+            "pdvs_supprimes": del_pdvs,
+            "performances_mensuelles_supprimees": del_monthly,
+            "performances_hebdomadaires_supprimees": del_weekly,
+            "actions_supprimees": del_actions,
+            "numeros_supprimes": numeros[:10]
+        }
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+
 @app.get("/db-info")
 async def db_info():
     """Diagnostic: affiche quelle base de données est utilisée"""
