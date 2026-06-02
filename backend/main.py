@@ -197,6 +197,37 @@ async def clean_orphan_performances():
     finally:
         db.close()
 
+@app.get("/db-info")
+async def db_info():
+    """Diagnostic: affiche quelle base de données est utilisée"""
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        url = settings.DATABASE_URL
+        db_type = "postgresql" if "postgresql" in url or "postgres" in url else "sqlite"
+        # Compter les tables
+        if db_type == "postgresql":
+            tables = db.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'")).fetchall()
+        else:
+            tables = db.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+        
+        pdv_count = db.execute(text("SELECT COUNT(*) FROM pdvs")).scalar()
+        perf_monthly = db.execute(text("SELECT COUNT(*) FROM monthly_performances")).scalar()
+        perf_weekly = db.execute(text("SELECT COUNT(*) FROM weekly_performances")).scalar()
+        
+        return {
+            "db_type": db_type,
+            "database_url_prefix": url[:30] + "...",
+            "tables": [t[0] for t in tables],
+            "pdvs": pdv_count,
+            "monthly_performances": perf_monthly,
+            "weekly_performances": perf_weekly
+        }
+    finally:
+        db.close()
+
 @app.get("/clean-nan-pdvs")
 async def clean_nan_pdvs():
     """Nettoie tous les champs 'nan' (string) stockés en base dans la table pdvs"""
