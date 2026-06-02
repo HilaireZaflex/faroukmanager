@@ -197,6 +197,48 @@ async def clean_orphan_performances():
     finally:
         db.close()
 
+@app.get("/update-taux-variation")
+async def update_taux_variation():
+    """Recalcule le taux_variation (semaine N vs N-1) pour toutes les performances hebdo"""
+    from app.core.database import SessionLocal
+    from app.models.performance import WeeklyPerformance
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        # Récupérer toutes les semaines distinctes
+        semaines = db.execute(text(
+            "SELECT DISTINCT annee, semaine FROM weekly_performances ORDER BY annee, semaine"
+        )).fetchall()
+        
+        updated = 0
+        for annee, semaine in semaines:
+            sem_prec = semaine - 1 if semaine > 1 else 52
+            annee_prec = annee if semaine > 1 else annee - 1
+            
+            # Mettre à jour taux_variation pour chaque PDV
+            db.execute(text(f"""
+                UPDATE weekly_performances w
+                SET taux_variation = CASE 
+                    WHEN prev.ca > 0 THEN ROUND(((w.ca - prev.ca) / prev.ca * 100)::numeric, 2)
+                    WHEN w.ca > 0 THEN 100.0
+                    ELSE 0.0
+                END
+                FROM (
+                    SELECT pdv_id, ca FROM weekly_performances
+                    WHERE annee = {annee_prec} AND semaine = {sem_prec}
+                ) prev
+                WHERE w.pdv_id = prev.pdv_id
+                AND w.annee = {annee} AND w.semaine = {semaine}
+            """))
+            updated += db.execute(text(
+                f"SELECT COUNT(*) FROM weekly_performances WHERE annee={annee} AND semaine={semaine}"
+            )).scalar()
+        
+        db.commit()
+        return {"message": f"✅ taux_variation recalculé", "semaines_traitees": len(semaines), "lignes_total": updated}
+    finally:
+        db.close()
+
 @app.get("/purge-desactives")
 async def purge_desactives():
     """Supprime définitivement les PDVs DESACTIVES et toutes leurs données liées"""

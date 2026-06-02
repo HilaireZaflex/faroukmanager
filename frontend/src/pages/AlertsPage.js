@@ -395,7 +395,7 @@ function TabRecovery({ mois, annee }) {
   const { data: recoveryData, isLoading, error } = useQuery({
     queryKey: ['alerts/recovery', an, m],
     queryFn: async () => {
-      const response = await api.get('/alerts/recovery', { params: { annee: an, mois: m } });
+      const response = await api.get('/alerts/recovery/tracking', { params: { annee: an, mois: m } });
       return response.data;
     },
     enabled: !!m && !!an,
