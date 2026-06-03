@@ -948,9 +948,16 @@ async def import_export_orange(
         rec['trans_ca'] += ca
         rec['comm_pdg'] += cpdg
         rec['comm_rev'] += crev
-        if svc == 'CASHIN':
+        # CASHIN = dépôts (argent envoyé au PDV)
+        if svc in ('CASHIN', 'CASH IN', 'DEPOT', 'CASHIN_REVERSAL'):
             rec['nb_depots'] += nb; rec['mt_depots'] += mt
-        elif svc == 'CASHOUT':
+        # CASHOUT + toutes variantes = retraits (argent récupéré du PDV)
+        elif svc in ('CASHOUT', 'CASH OUT', 'B2BCASHOUT', 'TXNCORRECT',
+                     'CASHOUT_REVERSAL', 'RETRAIT', 'B2B_CASHOUT',
+                     'CASHOUT_CORRECTION', 'CORRECTION'):
+            rec['nb_retraits'] += nb; rec['mt_retraits'] += mt
+        else:
+            # Tout autre service inconnu → compté dans les opérations totales
             rec['nb_retraits'] += nb; rec['mt_retraits'] += mt
 
     # Upsert en base
