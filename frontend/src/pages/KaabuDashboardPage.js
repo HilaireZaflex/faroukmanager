@@ -17,10 +17,8 @@ const MOIS_NOMS = {
 };
 
 function formatCA(value) {
-  if (!value && value !== 0) return '—';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return value.toLocaleString();
+  if (!value || isNaN(value)) return '0 FCFA';
+  return new Intl.NumberFormat('en-US').format(Math.round(value)) + ' FCFA';
 }
 
 const CustomTooltip = ({ active, payload, label }) => {

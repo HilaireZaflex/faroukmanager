@@ -22,11 +22,8 @@ const MOIS_NOMS = {
 const ZONE_COLORS = ['#FF6900', '#00d68f', '#3742fa', '#ffa502', '#ff4757', '#a29bfe', '#fd79a8', '#00cec9'];
 
 function formatCA(value) {
-  if (!value || value === 0) return '0 FCFA';
-  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)} Md FCFA`;
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} M FCFA`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)} K FCFA`;
-  return new Intl.NumberFormat('fr-FR').format(Math.round(value)) + ' FCFA';
+  if (!value || isNaN(value)) return '0 FCFA';
+  return new Intl.NumberFormat('en-US').format(Math.round(value)) + ' FCFA';
 }
 
 function getAlertLevel(value, type = 'inactif') {

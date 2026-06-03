@@ -13,8 +13,11 @@ import useAuthStore from '../store/authStore';
 import api from '../services/api';
 import './AccueilPage.css';
 
-const fmt = (v) => new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' FCFA';
-const fmtM = (v) => v >= 1e9 ? (v/1e9).toFixed(2)+' Mrd FCFA' : v >= 1e6 ? (v/1e6).toFixed(1)+' M FCFA' : fmt(v);
+const fmt = (v) => new Intl.NumberFormat('en-US').format(Math.round(v)) + ' FCFA';
+const fmtM = (v) => {
+  if (!v || isNaN(v)) return '0 FCFA';
+  return new Intl.NumberFormat('en-US').format(Math.round(v)) + ' FCFA';
+};
 const COLORS = { Champion:'#00d68f', Stable:'#3742fa', 'À surveiller':'#ffa502', Déclinant:'#ff4757', Inactif:'#747d8c', 'En croissance':'#ff9f43' };
 const SEG_COLORS = ['#00d68f','#3742fa','#ffa502','#ff4757','#747d8c','#ff9f43'];
 
