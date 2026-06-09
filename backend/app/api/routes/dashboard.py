@@ -173,11 +173,15 @@ def monthly_dashboard(
     ca_cumule_pairs = _filter_perfs_by_pdv(ca_cumule_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv, quartier, sous_zone)
     ca_cumule = sum(_mt(p) for p, _ in ca_cumule_pairs)
 
-    # Répartition par zone (basé sur montant_transaction)
+    # Répartition par zone selon plusieurs indicateurs
     ca_by_zone = {}
+    montant_ca_by_zone = {}
+    commission_pdg_by_zone = {}
     for p, pdv in pairs:
         z = pdv.zone or "Inconnue"
         ca_by_zone[z] = ca_by_zone.get(z, 0) + _mt(p)
+        montant_ca_by_zone[z] = montant_ca_by_zone.get(z, 0) + _mca(p)
+        commission_pdg_by_zone[z] = commission_pdg_by_zone.get(z, 0) + _cpdg(p)
 
     # Répartition par superviseur
     ca_by_superviseur = {}
@@ -275,6 +279,8 @@ def monthly_dashboard(
         "avg_variation": round(avg_variation, 2),
         # Répartitions
         "ca_by_zone": ca_by_zone,
+        "montant_ca_by_zone": montant_ca_by_zone,
+        "commission_pdg_by_zone": commission_pdg_by_zone,
         "ca_by_superviseur": ca_by_superviseur,
         "ca_by_gestionnaire": ca_by_gestionnaire,
         "ca_by_type": ca_by_type,
