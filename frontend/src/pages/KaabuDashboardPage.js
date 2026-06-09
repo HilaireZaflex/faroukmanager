@@ -18,7 +18,7 @@ const MOIS_NOMS = {
 
 function formatCA(value) {
   if (!value || isNaN(value)) return '0 FCFA';
-  return new Intl.NumberFormat('en-US').format(Math.round(value)) + ' FCFA';
+  return new Intl.NumberFormat('fr-FR').format(Math.round(value)) + ' FCFA';
 }
 
 const CustomTooltip = ({ active, payload, label }) => {

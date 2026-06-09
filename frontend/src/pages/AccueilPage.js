@@ -13,10 +13,11 @@ import useAuthStore from '../store/authStore';
 import api from '../services/api';
 import './AccueilPage.css';
 
-const fmt = (v) => new Intl.NumberFormat('en-US').format(Math.round(v)) + ' FCFA';
+// Formatage avec espaces comme séparateurs de milliers (fr-FR)
+const fmt = (v) => new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' FCFA';
 const fmtM = (v) => {
   if (!v || isNaN(v)) return '0 FCFA';
-  return new Intl.NumberFormat('en-US').format(Math.round(v)) + ' FCFA';
+  return new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' FCFA';
 };
 const COLORS = { Champion:'#00d68f', Stable:'#3742fa', 'À surveiller':'#ffa502', Déclinant:'#ff4757', Inactif:'#747d8c', 'En croissance':'#ff9f43' };
 const SEG_COLORS = ['#00d68f','#3742fa','#ffa502','#ff4757','#747d8c','#ff9f43'];
@@ -82,6 +83,12 @@ export default function AccueilPage() {
   const lastSemaineAnnee = lastAvailable?.last_week?.annee;
 
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
+  const { data: kaabuStats } = useQuery(['kaabu-stats', annee, mois], () =>
+    api.get('/dashboard/kaabu-stats', { params: { annee, mois } }).then(r => r.data).catch(() => null),
+    { staleTime: 300000, enabled: !!lastAvailable });
+  const { data: nafamaStats } = useQuery(['nafama-stats', annee, mois], () =>
+    api.get('/dashboard/nafama-stats', { params: { annee, mois } }).then(r => r.data).catch(() => null),
+    { staleTime: 300000, enabled: !!lastAvailable });
   const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois], () =>
     api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data),
     { staleTime: 300000, enabled: periodeType === 'mensuel' && !!lastAvailable });
@@ -105,10 +112,25 @@ export default function AccueilPage() {
     return 'Bonsoir';
   };
 
-  // Données pour graphique zones
-  const zoneData = activeData?.ca_by_zone
-    ? Object.entries(activeData?.ca_by_zone || {}).map(([zone, ca]) => ({ zone: zone.replace('Bamako ','Bko '), ca: Math.round(ca), fullZone: zone })).sort((a,b) => b.ca - a.ca)
-    : [];
+  // Indicateur sélectionné pour le graphique CA par zone
+  const [zoneIndicateur, setZoneIndicateur] = React.useState('montant_transaction');
+
+  // Données pour graphique zones selon l'indicateur sélectionné
+  const zoneDataRaw = (() => {
+    if (zoneIndicateur === 'montant_transaction') return activeData?.ca_by_zone || {};
+    if (zoneIndicateur === 'montant_ca') return activeData?.montant_ca_by_zone || activeData?.ca_by_zone || {};
+    if (zoneIndicateur === 'commission_pdg') return activeData?.commission_pdg_by_zone || {};
+    return activeData?.ca_by_zone || {};
+  })();
+  const zoneData = Object.entries(zoneDataRaw)
+    .map(([zone, ca]) => ({ zone: zone.replace('Bamako ','Bko '), ca: Math.round(ca), fullZone: zone }))
+    .sort((a,b) => b.ca - a.ca);
+
+  const ZONE_INDICATEURS = [
+    { key: 'montant_transaction', label: 'Montant Transactions' },
+    { key: 'montant_ca', label: 'Montant CA' },
+    { key: 'commission_pdg', label: 'Commission PDG' },
+  ];
 
   // Données segments pour PieChart
   const segData = segments?.segments
@@ -205,19 +227,36 @@ export default function AccueilPage() {
           <StatCard icon={TrendingUp} value={fmtM(activeData?.total_commission_pdg || 0)} label="Commission PDG" sub="Part réseau Orange" color="#a29bfe" onClick={() => navigate('/commissions')} />
           <StatCard icon={Brain} value={healthData?.average_health?.toFixed(1) || '--'} label="Score Santé Moyen" sub="Health Score IA (/100)" color="#a29bfe" onClick={() => navigate('/ia')} badge="IA" />
           <StatCard icon={Award} value={predictions?.total_at_risk || '--'} label="PDVs à Risque IA" sub={`${predictions?.high_risk_count || 0} critiques`} color="var(--danger)" onClick={() => navigate('/ia')} badge="IA" />
+          {/* ── Indicateurs Kaabu ── */}
+          <StatCard icon={Store} value={kaabuStats?.total_kaabu ?? (stats?.pdvs_par_type?.['KAABU'] || '--')} label="PDVs Kaabu" sub={`${kaabuStats?.taux_actifs?.toFixed(1) ?? '--'}% actifs`} color="#00cec9" onClick={() => navigate('/dashboard/kaabu')} badge="Kaabu" />
+          <StatCard icon={Activity} value={kaabuStats?.actifs ?? '--'} label="PDVs Kaabu Actifs" sub={periodeType === 'mensuel' ? `${MOIS_NOMS[(selectedMois||mois)-1]} ${annee}` : `Semaine ${selectedSemaine||lastSemaine}`} color="#00b894" onClick={() => navigate('/dashboard/kaabu')} badge="Kaabu" />
+          {/* ── Indicateur Nafama ── */}
+          <StatCard icon={Store} value={nafamaStats?.total_nafama ?? (stats?.pdvs_par_type?.['NAFAMA'] || '--')} label="PDVs Nafama" sub={`${nafamaStats?.taux_actifs?.toFixed(1) ?? '--'}% actifs`} color="#fd79a8" onClick={() => navigate('/dashboard/nafama')} badge="Nafama" />
         </div>
       </div>
 
       {/* ── CA par zone + Segments ── */}
       <div className="accueil-row">
         <div className="card flex-2">
-          <SectionTitle emoji="🗺️" title="CA par Zone" link="/superviseurs" navigate={navigate} />
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14, flexWrap:'wrap', gap:8 }}>
+            <h2 style={{ fontSize:15, fontWeight:700 }}>🗺️ Indicateur par Zone</h2>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {ZONE_INDICATEURS.map(ind => (
+                <button key={ind.key} onClick={() => setZoneIndicateur(ind.key)}
+                  style={{ padding:'4px 12px', borderRadius:6, border:'1px solid var(--border)', fontSize:11, fontWeight:600, cursor:'pointer',
+                    background: zoneIndicateur === ind.key ? 'var(--primary)' : 'var(--surface)',
+                    color: zoneIndicateur === ind.key ? '#fff' : 'var(--text-secondary)' }}>
+                  {ind.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={zoneData} margin={{ top:0, right:0, bottom:0, left:0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis dataKey="zone" tick={{ fontSize:11, fill:'var(--text-secondary)' }} />
               <YAxis tick={{ fontSize:10, fill:'var(--text-secondary)' }} tickFormatter={v => `${(v/1e6).toFixed(0)}M`} />
-              <Tooltip formatter={(v) => [fmtM(v), 'CA']} contentStyle={{ background:'#12121e', border:'1px solid var(--border)', borderRadius:8, fontSize:12 }} />
+              <Tooltip formatter={(v) => [fmtM(v), ZONE_INDICATEURS.find(i=>i.key===zoneIndicateur)?.label || 'Valeur']} contentStyle={{ background:'#12121e', border:'1px solid var(--border)', borderRadius:8, fontSize:12 }} />
               <Bar dataKey="ca" radius={[6,6,0,0]}>
                 {zoneData.map((entry, i) => <Cell key={i} fill={ZONE_COLORS[entry.fullZone] || 'var(--primary)'} />)}
               </Bar>
@@ -336,9 +375,9 @@ export default function AccueilPage() {
           )}
         </div>
         {recommandations?.count > 6 && (
-          <button className="btn btn-ghost btn-sm" style={{ marginTop:12, width:'100%', justifyContent:'center' }} onClick={() => navigate('/ia')}>
-            Voir toutes les {recommandations.count} recommandations →
-          </button>
+          <div style={{ marginTop:10, textAlign:'center', fontSize:11, color:'var(--text-muted)' }}>
+            + {recommandations.count - 6} autres recommandations dans <span style={{ color:'var(--primary)', cursor:'pointer' }} onClick={() => navigate('/ia')}>Intelligence IA →</span>
+          </div>
         )}
       </div>
 
