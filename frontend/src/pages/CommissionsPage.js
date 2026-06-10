@@ -375,7 +375,10 @@ function TabDetails({ period }) {
               {entries.map(e => (
                 <tr key={e.id}>
                   <td><b>{e.pdv_numero}</b></td>
-                  <td>{e.pdv_nom || '—'}</td>
+                  <td>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{e.pdv_numero || '—'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_nom}</div>
+                </td>
                   <td><span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span></td>
                   <td>{e.quartier || '—'}</td>
                   <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>{fmt(e.montant_brut)}</td>

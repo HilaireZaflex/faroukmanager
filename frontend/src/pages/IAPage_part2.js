@@ -262,7 +262,10 @@ function TabCompetition() {
                 {compData.top_10_pdvs?.map((pdv, idx) => (
                   <tr key={idx}>
                     <td>#{idx + 1}</td>
-                    <td>{pdv.nom}</td>
+                    <td>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv || pdv.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                  </td>
                     <td>{pdv.zone}</td>
                     <td>
                       {pdv.medaille === 'OR' && '🥇 OR'}

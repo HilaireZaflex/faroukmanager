@@ -178,7 +178,8 @@ function OngletVueEnsemble({ annee, semaine }) {
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>{i + 1}</td>
                     <td style={{ padding: '10px 12px' }}>
-                      <div style={{ fontWeight: 600, fontSize: 12 }}>{pdv.nom}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv || pdv.numero_personnel}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
                       <div style={{ fontSize: 10, color: '#8a8a9a' }}>{pdv.zone}</div>
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{formatCA(pdv.ca)}</td>
@@ -310,7 +311,8 @@ function OngletSuiviTop({ annee, semaine }) {
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
                   <td style={{ padding: '12px 14px' }}>
-                    <div style={{ fontWeight: 600 }}>{pdv.nom}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv || pdv.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
                     <div style={{ fontSize: 11, color: '#8a8a9a' }}>{pdv.zone}</div>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(pdv.ca)}</td>
