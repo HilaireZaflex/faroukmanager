@@ -106,7 +106,9 @@ export default function AccueilPage() {
   const activeData = periodeType === 'mensuel' ? dashboard : dashboardHebdo;
   const { data: segments } = useQuery('analytics-segments', () => api.get('/analytics/segments').then(r => r.data), { staleTime: 300000 });
   const { data: predictions } = useQuery('analytics-predictions', () => api.get('/analytics/predictions').then(r => r.data), { staleTime: 300000 });
-  const { data: recovery } = useQuery('recovery-synthese', () => api.get('/alerts/recovery/synthese').then(r => r.data), { staleTime: 300000 });
+  const { data: recovery } = useQuery(['recovery-tracking', annee, mois], () =>
+    api.get('/alerts/recovery/tracking', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 300000, enabled: !!lastAvailable });
   const { data: healthData } = useQuery('analytics-health', () => api.get('/analytics/health-scores').then(r => r.data), { staleTime: 300000 });
   const { data: recommandations } = useQuery('recommandations', () => api.get('/alerts/recommendations').then(r => r.data), { staleTime: 300000 });
   const { data: superviseurs } = useQuery(['superviseurs-accueil', annee, mois], () =>
@@ -313,10 +315,12 @@ export default function AccueilPage() {
           <SectionTitle emoji="🔄" title="Programme Récupération" link="/recovery" navigate={navigate} />
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {[
-              { label:'À récupérer', value: recovery?.a_recuperer || 0, color:'var(--warning)', icon:'🔍' },
-              { label:'Récupérées (SIM)', value: recovery?.recuperees || 0, color:'#3742fa', icon:'💳' },
-              { label:'Redéployées', value: recovery?.redeployees || 0, color:'var(--success)', icon:'✅' },
-              { label:'Taux de récupération', value: `${recovery?.taux_recuperation?.toFixed(0)||0}%`, color:'var(--primary)', icon:'📈' },
+              { label:'PDVs à récupérer', value: recovery?.total || 0, color:'var(--warning)', icon:'🔍' },
+              { label:'Identifiés', value: recovery?.identifie || 0, color:'#3742fa', icon:'🎯' },
+              { label:'Contactés', value: recovery?.contacte || 0, color:'#a29bfe', icon:'📞' },
+              { label:'SIM Récupérées', value: recovery?.sim_recuperee || 0, color:'var(--success)', icon:'💳' },
+              { label:'Redéployés', value: recovery?.redeploye || 0, color:'var(--primary)', icon:'✅' },
+              { label:'Taux récupération', value: `${recovery?.taux_recuperation?.toFixed(0)||0}%`, color:'#00d68f', icon:'📈' },
             ].map((r, i) => (
               <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', background:'rgba(255,255,255,0.02)', borderRadius:10, border:'1px solid var(--border)' }}>
                 <span style={{ fontSize:18 }}>{r.icon}</span>
