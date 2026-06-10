@@ -46,10 +46,20 @@ function StatCard({ icon: Icon, value, label, sub, color='var(--primary)', onCli
 }
 
 function SectionTitle({ emoji, title, link, navigate }) {
+  const handleClick = () => {
+    if (!link) return;
+    // Gérer les liens avec query params (?tab=...)
+    if (link.includes('?')) {
+      const [path, query] = link.split('?');
+      navigate({ pathname: path, search: '?' + query });
+    } else {
+      navigate(link);
+    }
+  };
   return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 14 }}>
       <h2 style={{ fontSize: 15, fontWeight: 700 }}>{emoji} {title}</h2>
-      {link && <button className="btn btn-ghost btn-sm" onClick={() => navigate(link)} style={{ fontSize:11 }}>Voir tout <ArrowRight size={11}/></button>}
+      {link && <button className="btn btn-ghost btn-sm" onClick={handleClick} style={{ fontSize:11 }}>Voir tout <ArrowRight size={11}/></button>}
     </div>
   );
 }
@@ -262,7 +272,7 @@ export default function AccueilPage() {
         </div>
 
         <div className="card flex-1">
-          <SectionTitle emoji="🎯" title="Segments PDV" link="/ia" navigate={navigate} />
+          <SectionTitle emoji="🎯" title="Segments PDV" link="/ia?tab=segmentation" navigate={navigate} />
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie data={segData} cx="50%" cy="50%" outerRadius={65} dataKey="value" label={false}>
@@ -286,7 +296,7 @@ export default function AccueilPage() {
       {/* ── Health Score + Récupération ── */}
       <div className="accueil-row">
         <div className="card flex-1">
-          <SectionTitle emoji="❤️" title="Distribution Health Score" link="/ia" navigate={navigate} />
+          <SectionTitle emoji="❤️" title="Distribution Health Score" link="/ia?tab=health" navigate={navigate} />
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={healthDist} margin={{ top:0, right:0, bottom:0, left:0 }}>
               <XAxis dataKey="range" tick={{ fontSize:10, fill:'var(--text-secondary)' }} />

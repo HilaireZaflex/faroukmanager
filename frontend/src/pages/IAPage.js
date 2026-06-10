@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from 'react-query';
 import { BarChart, Bar, PieChart, Pie, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { TrendingUp, TrendingDown, AlertTriangle, Award, Zap, ExternalLink } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import KPICard from '../components/common/KPICard';
@@ -807,7 +807,15 @@ function TabCompetition() {
 
 export default function IAPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('predictions');
+
+  // Lire le paramètre ?tab= dans l'URL pour activer le bon onglet
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab) setActiveTab(tab);
+  }, [location.search]);
 
   // KPIs globaux réseau pour l'entête
   const { data: healthData } = useQuery('ia-health-scores', () =>
