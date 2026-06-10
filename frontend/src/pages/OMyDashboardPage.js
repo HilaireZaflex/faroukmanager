@@ -617,6 +617,7 @@ function TabEvolution({ annee, mois, criterion }) {
     const taux = precedent > 0 ? Math.round((variation / precedent) * 100) : 0;
     return {
       nom: row[labelKey] || row.nom || '—',
+      numero_pdv: row.numero_pdv || row.numero_personnel || '',
       actuel,
       precedent,
       variation,
@@ -685,7 +686,16 @@ function TabEvolution({ annee, mois, criterion }) {
             {dataToShow.map((row, idx) => (
               <tr key={idx}>
                 <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                <td><strong>{row.nom}</strong></td>
+                <td>
+                  {activeSub === 'pdvs' && row.numero_pdv ? (
+                    <>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{row.numero_pdv}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{row.nom}</div>
+                    </>
+                  ) : (
+                    <strong>{row.nom}</strong>
+                  )}
+                </td>
                 <td>{formatCA(row.actuel)}</td>
                 <td>{formatCA(row.precedent)}</td>
                 <td style={{ color: row.variation >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
