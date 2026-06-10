@@ -1115,13 +1115,13 @@ export default function OMyDashboardPage() {
   const canGoNext = isMoisDispo(mois === 12 ? annee + 1 : annee, mois === 12 ? 1 : mois + 1);
 
   const tabs = [
-    { id: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
-    { id: 'top', label: '🏆 Top PDVs', icon: Trophy },
-    { id: 'pareto', label: '📊 Pareto', icon: BarChart3 },
-    { id: 'evolution', label: '📈 Évolution', icon: TrendingUp },
-    { id: 'inactifs', label: '😴 Inactifs', icon: Battery },
-    { id: 'declining', label: '📉 En Baisse', icon: TrendingDown },
-    { id: 'progression', label: '🎯 Progression', icon: Target },
+    { id: 'overview',    label: '🏠 Vue d\'ensemble', icon: Home },
+    { id: 'top',         label: '🏆 Suivi des Top',   icon: Trophy },
+    { id: 'pareto',      label: '📊 Rapport Pareto',  icon: BarChart3 },
+    { id: 'evolution',   label: '📈 Évolution',        icon: TrendingUp },
+    { id: 'inactifs',    label: '😴 PDV Inactifs',    icon: Battery },
+    { id: 'declining',   label: '📉 PDV en Baisse',   icon: TrendingDown },
+    { id: 'progression', label: '🎯 Progression',     icon: Target },
   ];
 
   return (
