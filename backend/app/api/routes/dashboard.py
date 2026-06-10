@@ -921,16 +921,28 @@ def monthly_declining(
 
     result_pdvs = []
     for p, pdv in pairs:
-        if p.taux_variation is not None and p.taux_variation <= seuil:
-            # Déterminer l'alerte basée sur la baisse
-            baisse_pct = abs(p.taux_variation)
+        mt_actuel = _mt(p)
+        prev_p = prev_perfs.get(pdv.id)
+        mt_precedent = _mt(prev_p) if prev_p else 0
+
+        # Calculer le taux de variation mensuel (actuel vs mois précédent)
+        if mt_precedent > 0:
+            taux = ((mt_actuel - mt_precedent) / mt_precedent) * 100
+        elif mt_actuel > 0:
+            taux = 100.0  # nouveau PDV actif
+        else:
+            taux = 0.0
+
+        # Filtrer selon le seuil (seuil est négatif, ex: -10 = baisse de 10%)
+        if taux <= seuil:
+            baisse_pct = abs(taux)
             if baisse_pct > 30:
                 alerte = "CRITIQUE"
             elif baisse_pct > 15:
                 alerte = "HAUTE"
             else:
                 alerte = "NORMALE"
-            
+
             result_pdvs.append({
                 "pdv_id": pdv.id,
                 "numero_pdv": pdv.numero_pdv,
@@ -945,19 +957,19 @@ def monthly_declining(
                 "numero_personnel": pdv.numero_personnel,
                 "type_pdv": pdv.type_pdv.value,
                 "ca": p.ca or 0,
-                "ca_precedent": prev_perfs[pdv.id].ca if pdv.id in prev_perfs else 0,
-                "montant_transaction": _mt(p),
-                "montant_transaction_precedent": _mt(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
+                "ca_precedent": prev_p.ca if prev_p else 0,
+                "montant_transaction": mt_actuel,
+                "montant_transaction_precedent": mt_precedent,
                 "montant_ca": _mca(p),
-                "montant_ca_precedent": _mca(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
+                "montant_ca_precedent": _mca(prev_p) if prev_p else 0,
                 "commission_pdg": _cpdg(p),
-                "commission_pdg_precedent": _cpdg(prev_perfs[pdv.id]) if pdv.id in prev_perfs else 0,
-                "taux_baisse": p.taux_variation,
+                "commission_pdg_precedent": _cpdg(prev_p) if prev_p else 0,
+                "taux_baisse": round(taux, 2),
                 "nb_operations": p.nb_operations or 0,
                 "alerte": alerte,
             })
-    
-    # Trier par taux de baisse décroissant
+
+    # Trier par taux de baisse (les plus fortes baisses en premier)
     result_pdvs = sorted(result_pdvs, key=lambda x: x["taux_baisse"])
     
     return {
