@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useHierarchicalFilters, HierarchicalFilters } from '../hooks/useHierarchicalFilters';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -389,9 +390,6 @@ function TabTopPDVs({ annee, mois }) {
 
 // ============ TAB 3: Rapport Pareto ============
 function TabPareto({ annee, mois }) {
-  const [zoneFilter, setZoneFilter] = useState('');
-  const [supFilter, setSupFilter] = useState('');
-  const [gestFilter, setGestFilter] = useState('');
   const [sortBy, setSortBy] = useState('rang');
 
   const { data: pareto, isLoading } = useQuery(
@@ -402,11 +400,15 @@ function TabPareto({ annee, mois }) {
 
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
 
+  const allPDVs = pareto?.pareto_pdvs || [];
+  const { zoneFilter, setZoneFilter, supFilter, setSupFilter, zoneList, supList, hasFilters, resetFilters } = useHierarchicalFilters(allPDVs);
+
   const exportExcel = () => {
     if (!pareto?.pareto_pdvs) return;
     const data = pareto.pareto_pdvs.map((pdv, idx) => ({
       'Rang': idx + 1,
-      'PDV': pdv.nom,
+      'PDV Numéro': pdv.numero_pdv,
+      'PDV Nom': pdv.nom,
       'Zone': pdv.zone,
       'Superviseur': pdv.superviseur,
       'CA': pdv.ca,
@@ -420,15 +422,9 @@ function TabPareto({ annee, mois }) {
     XLSX.writeFile(wb, `pareto-${annee}-${mois}.xlsx`);
   };
 
-  const allPDVs = pareto?.pareto_pdvs || [];
-  const zoneList = [...new Set(allPDVs.map(p => p.zone).filter(Boolean))];
-  const supList = [...new Set(allPDVs.map(p => p.superviseur).filter(Boolean))];
-  const gestList = [...new Set(allPDVs.map(p => p.gestionnaire).filter(Boolean))];
-
   const filteredPDVs = allPDVs.filter(p =>
     (!zoneFilter || p.zone === zoneFilter) &&
-    (!supFilter || p.superviseur === supFilter) &&
-    (!gestFilter || p.gestionnaire === gestFilter)
+    (!supFilter || p.superviseur === supFilter)
   );
 
   const fortImpact = filteredPDVs.filter(p => p.dans_pareto).reduce((sum, p) => sum + (p.ca || 0), 0);
@@ -451,24 +447,12 @@ function TabPareto({ annee, mois }) {
 
       <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <Filter size={16} style={{ color: '#8a8a9a' }} />
-        <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', fontSize: 13 }}>
-          <option value="">Toutes les zones</option>
-          {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
-        </select>
-        <select value={supFilter} onChange={e => setSupFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', fontSize: 13 }}>
-          <option value="">Tous les superviseurs</option>
-          {supList.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={gestFilter} onChange={e => setGestFilter(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', fontSize: 13 }}>
-          <option value="">Tous les gestionnaires</option>
-          {gestList.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
-        {(zoneFilter || supFilter || gestFilter) && (
-          <button onClick={() => { setZoneFilter(''); setSupFilter(''); setGestFilter(''); }}
-            style={{ padding: '7px 12px', borderRadius: 8, background: 'rgba(255,71,87,0.15)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 12, cursor: 'pointer' }}>
-            ✕ Effacer
-          </button>
-        )}
+        <HierarchicalFilters
+          zoneFilter={zoneFilter} setZoneFilter={setZoneFilter}
+          supFilter={supFilter} setSupFilter={setSupFilter}
+          zoneList={zoneList} supList={supList}
+          hasFilters={hasFilters} resetFilters={resetFilters}
+        />
         <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto' }}>
           <Download size={14} /> Excel
         </button>
