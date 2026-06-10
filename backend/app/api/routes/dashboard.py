@@ -201,12 +201,16 @@ def monthly_dashboard(
         montant_ca_by_gestionnaire[g] = montant_ca_by_gestionnaire.get(g, 0) + _mca(p)
         commission_pdg_by_gestionnaire[g] = commission_pdg_by_gestionnaire.get(g, 0) + _cpdg(p)
 
-    # Répartition par type PDV
+    # Répartition par type PDV (3 indicateurs)
     ca_by_type = {}
+    montant_ca_by_type = {}
+    commission_pdg_by_type = {}
     count_by_type = {}
     for p, pdv in pairs:
         t = pdv.type_pdv.value
         ca_by_type[t] = ca_by_type.get(t, 0) + _mt(p)
+        montant_ca_by_type[t] = montant_ca_by_type.get(t, 0) + _mca(p)
+        commission_pdg_by_type[t] = commission_pdg_by_type.get(t, 0) + _cpdg(p)
         count_by_type[t] = count_by_type.get(t, 0) + 1
 
     # Répartition par gestionnaire
@@ -300,6 +304,8 @@ def monthly_dashboard(
         "montant_ca_by_gestionnaire": montant_ca_by_gestionnaire,
         "commission_pdg_by_gestionnaire": commission_pdg_by_gestionnaire,
         "ca_by_type": ca_by_type,
+        "montant_ca_by_type": montant_ca_by_type,
+        "commission_pdg_by_type": commission_pdg_by_type,
         "count_by_type": count_by_type,
         # Classements
         "top_pdvs_ca": top_ca,

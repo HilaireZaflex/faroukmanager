@@ -153,12 +153,16 @@ function TabOverview({ annee, mois }) {
     return dashboard?.ca_by_gestionnaire || {};
   };
 
+  const getTypeData = () => {
+    if (graphIndicateur === 'montant_ca') return dashboard?.montant_ca_by_type || dashboard?.ca_by_type || {};
+    if (graphIndicateur === 'commission_pdg') return dashboard?.commission_pdg_by_type || {};
+    return dashboard?.ca_by_type || {};
+  };
+
   const caByZone = Object.entries(getZoneData()).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca);
   const caBySup = Object.entries(getSupData()).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8);
   const caByGest = Object.entries(getGestData()).map(([gest, ca]) => ({ gest, ca })).sort((a, b) => b.ca - a.ca).slice(0, 6);
-  const caByType = dashboard?.ca_by_type
-    ? Object.entries(dashboard.ca_by_type).map(([type, ca]) => ({ type, ca }))
-    : [];
+  const caByType = Object.entries(getTypeData()).map(([type, ca]) => ({ type, ca }));
 
   return (
     <div>
