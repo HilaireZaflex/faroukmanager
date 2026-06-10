@@ -184,7 +184,7 @@ function OngletVueEnsemble({ annee, semaine }) {
 
       <div className="grid-2">
         <div className="card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>🏆 Classement Superviseurs par {GRAPH_INDICATEURS_W.find(i=>i.key===graphIndicateur)?.label} — S{semaine} {annee}</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>🏆 Classement Superviseurs par {GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label} — S{semaine} {annee}</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
