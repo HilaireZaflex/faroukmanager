@@ -529,7 +529,10 @@ function OngletInactifs({ annee, semaine }) {
                 const alert = getAlertInfo(p.nb_semaines_consecutives_inactif || 1, 'inactif');
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '10px 14px', fontWeight: 600 }}>{p.nom}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                  </td>
                     <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.numero_personnel || '—'}</td>
                     <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
                     <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.zone || '—'}</td>
@@ -656,7 +659,10 @@ function OngletBaisse({ annee, semaine }) {
                 const alert = getAlertInfo(abs, 'baisse');
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '10px 14px', fontWeight: 600 }}>{p.nom}</td>
+                    <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                  </td>
                     <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.numero_personnel || '—'}</td>
                     <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
                     <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.zone || '—'}</td>
@@ -773,7 +779,10 @@ function OngletProgression({ annee, semaine }) {
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : pdvs.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: selectedPdv?.pdv_id === p.pdv_id ? 'rgba(255,105,0,0.05)' : 'transparent' }}>
-                  <td style={{ padding: '10px 14px', fontWeight: 600 }}>{p.nom}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                  </td>
                   <td style={{ padding: '10px 14px', color: '#8a8a9a' }}>{p.zone || '—'}</td>
                   <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
                   <td style={{ padding: '10px 14px', textAlign: 'center' }}>
@@ -982,7 +991,10 @@ function OngletPareto({ annee, semaine }) {
               {paretoList.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: p.dans_pareto ? 'rgba(0,214,143,0.03)' : 'transparent' }}>
                   <td style={{ padding: '10px 14px', textAlign: 'center', color: '#FF6900', fontWeight: 700 }}>{p.rang}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 600 }}>{p.nom}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                  </td>
                   <td style={{ padding: '10px 14px', color: '#8a8a9a' }}>{p.zone || '—'}</td>
                   <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700 }}>{formatCA(p.ca)}</td>
