@@ -183,11 +183,23 @@ def monthly_dashboard(
         montant_ca_by_zone[z] = montant_ca_by_zone.get(z, 0) + _mca(p)
         commission_pdg_by_zone[z] = commission_pdg_by_zone.get(z, 0) + _cpdg(p)
 
-    # Répartition par superviseur
+    # Répartition par superviseur (3 indicateurs)
     ca_by_superviseur = {}
+    montant_ca_by_superviseur = {}
+    commission_pdg_by_superviseur = {}
     for p, pdv in pairs:
         s = pdv.superviseur or "Non assigné"
         ca_by_superviseur[s] = ca_by_superviseur.get(s, 0) + _mt(p)
+        montant_ca_by_superviseur[s] = montant_ca_by_superviseur.get(s, 0) + _mca(p)
+        commission_pdg_by_superviseur[s] = commission_pdg_by_superviseur.get(s, 0) + _cpdg(p)
+
+    # Répartition par gestionnaire (3 indicateurs)
+    montant_ca_by_gestionnaire = {}
+    commission_pdg_by_gestionnaire = {}
+    for p, pdv in pairs:
+        g = pdv.gestionnaire or "Non assigné"
+        montant_ca_by_gestionnaire[g] = montant_ca_by_gestionnaire.get(g, 0) + _mca(p)
+        commission_pdg_by_gestionnaire[g] = commission_pdg_by_gestionnaire.get(g, 0) + _cpdg(p)
 
     # Répartition par type PDV
     ca_by_type = {}
@@ -282,7 +294,11 @@ def monthly_dashboard(
         "montant_ca_by_zone": montant_ca_by_zone,
         "commission_pdg_by_zone": commission_pdg_by_zone,
         "ca_by_superviseur": ca_by_superviseur,
+        "montant_ca_by_superviseur": montant_ca_by_superviseur,
+        "commission_pdg_by_superviseur": commission_pdg_by_superviseur,
         "ca_by_gestionnaire": ca_by_gestionnaire,
+        "montant_ca_by_gestionnaire": montant_ca_by_gestionnaire,
+        "commission_pdg_by_gestionnaire": commission_pdg_by_gestionnaire,
         "ca_by_type": ca_by_type,
         "count_by_type": count_by_type,
         # Classements

@@ -271,37 +271,58 @@ function TabOverview({ annee, mois }) {
           </div>
         </div>
 
-        {dashboard?.classement_superviseurs && dashboard.classement_superviseurs.length > 0 && (
-          <div className="card mb-16">
-            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs — {MOIS_NOMS[mois]} {annee}</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>CA Total</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>CA Moy.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboard.classement_superviseurs.map((s, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.superviseur}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{s.actifs ?? s.nb_pdvs ?? '—'}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{s.inactifs ?? '—'}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(s.ca_total ?? s.ca)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(s.ca_moyen ?? (s.ca / (s.nb_pdvs || 1)))}</td>
+        {dashboard?.classement_superviseurs && dashboard.classement_superviseurs.length > 0 && (() => {
+          // Trier le classement selon l'indicateur sélectionné
+          const supIndicData = graphIndicateur === 'montant_ca'
+            ? dashboard?.montant_ca_by_superviseur || {}
+            : graphIndicateur === 'commission_pdg'
+            ? dashboard?.commission_pdg_by_superviseur || {}
+            : null; // null = utiliser ca_total par défaut
+
+          const classement = supIndicData
+            ? [...dashboard.classement_superviseurs]
+                .map(s => ({ ...s, valeur_indic: supIndicData[s.superviseur] || 0 }))
+                .sort((a, b) => b.valeur_indic - a.valeur_indic)
+            : dashboard.classement_superviseurs;
+
+          const indLabel = GRAPH_INDICATEURS.find(i => i.key === graphIndicateur)?.label || 'Montant Transactions';
+
+          return (
+            <div className="card mb-16">
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs par {indLabel} — {MOIS_NOMS[mois]} {annee}</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>{indLabel}</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Moy./PDV</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {classement.map((s, i) => {
+                      const valeur = supIndicData ? (s.valeur_indic || 0) : (s.ca_total ?? s.ca ?? 0);
+                      const nb = s.nb_pdvs || 1;
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                          <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.superviseur}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{s.actifs ?? s.nb_pdvs ?? '—'}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{s.inactifs ?? '—'}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(valeur)}</td>
+                          <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(valeur / nb)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </AccordionSection>
 
     </div>
