@@ -85,6 +85,11 @@ export default function SuperviseurPage() {
     return null;
   };
 
+  // Navigation mois — pas de restriction (naviguer librement)
+  const canGoPrev = !(annee === 2025 && mois === 1);
+  const canGoNext = !(annee === CURRENT_YEAR && mois === CURRENT_MONTH);
+  const isMoisDispo = () => true;
+
   return (
     <div className="page">
       <div className="page-header">
