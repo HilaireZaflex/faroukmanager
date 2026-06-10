@@ -401,8 +401,8 @@ function TabTopPDVs({ annee, mois, criterion }) {
                 <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: selectedPDV === pdv.pdv_id ? 'rgba(255,105,0,0.05)' : 'transparent' }}>
                   <td style={{ textAlign: 'center', fontWeight: 700, color: idx < 3 ? '#FF6900' : '#aaa' }}>{idx + 1}</td>
                   <td>
-                    <div style={{ fontWeight: 700 }}>{pdv.nom}</div>
-                    <div style={{ fontSize: 11, color: '#8a8a9a' }}>#{pdv.numero_pdv} · {pdv.zone}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
                   </td>
                   <td style={{ fontWeight: 700, color: '#FF6900' }}>{formatCA(getMetricValue(pdv, criterion))}</td>
                   <td style={{ color: '#ccc' }}>{pdv.nom_gerant || '—'}</td>
@@ -534,7 +534,10 @@ function TabPareto({ annee, mois, criterion }) {
             {filteredPDVs.map((pdv, idx) => (
               <tr key={idx}>
                 <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                <td><strong>{pdv.nom}</strong></td>
+                <td>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                </td>
                 <td>{pdv.zone}</td>
                 <td>{pdv.superviseur}</td>
                 <td><strong style={{ color: 'var(--primary)' }}>{formatCA(getMetricValue(pdv, criterion))}</strong></td>
@@ -761,8 +764,10 @@ function TabInactivePDVs({ annee, mois, criterion }) {
               const alertLevel = getAlertLevel(pdv.nb_mois_consecutifs_inactif, 'inactif');
               return (
                 <tr key={idx}>
-                  <td><strong>{pdv.nom}</strong></td>
-                  <td>{pdv.numero_personnel}</td>
+                  <td>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_personnel || pdv.numero_pdv}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                  </td>
                   <td>{pdv.superviseur}</td>
                   <td>{pdv.zone}</td>
                   <td>{pdv.sous_zone}</td>
@@ -887,8 +892,10 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
               const alertLevel = getAlertLevel(Math.abs(pdv.taux_baisse), 'baisse');
               return (
                 <tr key={idx}>
-                  <td><strong>{pdv.nom}</strong></td>
-                  <td>{pdv.numero_personnel}</td>
+                  <td>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_personnel || pdv.numero_pdv}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                  </td>
                   <td>{pdv.superviseur}</td>
                   <td>{pdv.zone}</td>
                   <td>{formatCA(getMetricValue(pdv, criterion))}</td>
@@ -988,7 +995,10 @@ function TabProgression({ annee, criterion }) {
             {sortedPDVs.map((pdv, idx) => (
               <React.Fragment key={idx}>
                 <tr style={{ background: selectedPDV?.nom === pdv.nom ? 'rgba(255,105,0,0.06)' : 'transparent' }}>
-                  <td><strong>{pdv.nom}</strong></td>
+                  <td>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv || pdv.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                  </td>
                   <td>{pdv.zone}</td>
                   <td>{pdv.superviseur}</td>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>{pdv.nb_fois_top10 || 0}</td>
