@@ -184,11 +184,12 @@ function OngletVueEnsemble({ annee, semaine }) {
 
       <div className="grid-2">
         <div className="card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Présence par Superviseur</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>🏆 Classement Superviseurs par {GRAPH_INDICATEURS_W.find(i=>i.key===graphIndicateur)?.label} — S{semaine} {annee}</h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>#</th>
                   <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Superviseur</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f', fontWeight: 600 }}>Actifs</th>
                   <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757', fontWeight: 600 }}>Inactifs</th>
@@ -196,47 +197,25 @@ function OngletVueEnsemble({ annee, semaine }) {
                 </tr>
               </thead>
               <tbody>
-                {dash?.presence_par_superviseur && Object.entries(dash.presence_par_superviseur).map(([sup, d], i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{sup}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{d.actifs}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{d.inactifs}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>{formatCA(d.ca)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Top PDVs Semaine</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>#</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>CA</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Var.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dash?.top_pdvs || []).slice(0, 10).map((pdv, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>{i + 1}</td>
-                    <td style={{ padding: '10px 12px' }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv || pdv.numero_personnel}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
-                      <div style={{ fontSize: 10, color: '#8a8a9a' }}>{pdv.zone}</div>
-                    </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{formatCA(pdv.ca)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <span style={{ color: (pdv.taux_variation || 0) >= 0 ? '#00d68f' : '#ff4757', fontSize: 11 }}>
-                        {(pdv.taux_variation || 0) >= 0 ? '▲' : '▼'} {Math.abs(pdv.taux_variation || 0).toFixed(1)}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {dash?.presence_par_superviseur && Object.entries(dash.presence_par_superviseur)
+                  .map(([sup, d]) => ({
+                    sup, actifs: d.actifs, inactifs: d.inactifs,
+                    valeur: graphIndicateur === 'montant_ca'
+                      ? (caBySup.find(s => s.sup === sup)?.ca || 0)
+                      : graphIndicateur === 'commission_pdg'
+                      ? (dash?.commission_pdg_by_superviseur?.[sup] || 0)
+                      : d.ca
+                  }))
+                  .sort((a, b) => b.valeur - a.valeur)
+                  .map((row, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{row.sup}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{row.actifs}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{row.inactifs}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900', fontWeight: 700 }}>{formatCA(row.valeur)}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -246,57 +225,134 @@ function OngletVueEnsemble({ annee, semaine }) {
   );
 }
 
-// ─── ONGLET 2 : SUIVI DES TOP (Classement Superviseurs uniquement) ─────────────
+// ─── ONGLET 2 : SUIVI DES TOP ─────────────────────────────────────────────────
 function OngletSuiviTop({ annee, semaine, criterion }) {
+  const [topN, setTopN] = useState(20);
+  const [selectedPdv, setSelectedPdv] = useState(null);
+
   const { data: weeklyDash, isLoading } = useQuery(
     ['weekly-dash-top', annee, semaine],
     () => api.get('/dashboard/weekly', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 60000 }
   );
 
-  // Données superviseurs selon l'indicateur sélectionné
-  const getSupData = () => {
-    if (criterion === 'montant_ca') return weeklyDash?.montant_ca_by_superviseur || weeklyDash?.ca_by_superviseur || {};
-    if (criterion === 'commission_pdg') return weeklyDash?.commission_pdg_by_superviseur || {};
-    return weeklyDash?.ca_by_superviseur || {};
+  const { data: pdvHistory } = useQuery(
+    ['pdv-weekly-history', selectedPdv],
+    () => selectedPdv ? api.get(`/dashboard/pdv-weekly-history/${selectedPdv}`).then(r => r.data) : null,
+    { enabled: !!selectedPdv, staleTime: 120000 }
+  );
+
+  const topPdvs = [...(weeklyDash?.top_pdvs || [])].sort((a, b) => getMetricValue(b, criterion) - getMetricValue(a, criterion));
+  const displayPdvs = topPdvs.slice(0, topN);
+
+  const exportExcel = () => {
+    const rows = displayPdvs.map((p, i) => ({
+      'Rang': i + 1, 'PDV Numéro': p.numero_pdv, 'PDV Nom': p.nom, [getMetricLabel(criterion)]: getMetricValue(p, criterion),
+      'Quartier': p.quartier || '-', 'Superviseur': p.superviseur || '-', 'Gestionnaire': p.gestionnaire || '-',
+      'Variation (%)': p.taux_variation || 0, 'Médaille': p.medaille || '-',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Top${topN}_S${semaine}`);
+    XLSX.writeFile(wb, `top${topN}_semaine${semaine}_${annee}.xlsx`);
   };
 
-  const classementSup = Object.entries(getSupData())
-    .map(([sup, valeur]) => ({ sup, valeur }))
-    .sort((a, b) => b.valeur - a.valeur);
-
-  const indLabel = getMetricLabel(criterion);
+  const histoData = [...(pdvHistory?.historique || [])].slice(-16).map(h => ({
+    label: `S${h.semaine}`,
+    metric: getMetricValue({ ca: h.ca, montant_transaction: h.montant_transaction, montant_ca: h.montant_ca, commission_pdg: h.commission_pdg }, criterion),
+    semaine: h.semaine,
+  }));
 
   return (
     <div>
-      <div className="card mb-16">
-        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>
-          🏆 Classement Superviseurs par {indLabel} — S{semaine} {annee}
-        </h3>
-        {isLoading ? (
-          <div style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>{indLabel}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {classementSup.map((s, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.sup}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(s.valeur)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="card mb-16" style={{ padding: '16px 20px', display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+            Afficher le Top : <span style={{ color: 'var(--primary)', fontWeight: 800 }}>Top {topN}</span>
+          </label>
+          <input type="range" min="10" max="50" step="10" value={topN}
+            onChange={e => setTopN(parseInt(e.target.value))}
+            style={{ width: '100%', accentColor: 'var(--primary)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#555', marginTop: 4 }}>
+            <span>Top 10</span><span>Top 20</span><span>Top 30</span><span>Top 40</span><span>Top 50</span>
           </div>
-        )}
+        </div>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
+        </button>
+      </div>
+
+      {selectedPdv && pdvHistory && (
+        <div className="card mb-24" style={{ borderLeft: '3px solid var(--primary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontWeight: 700 }}>📈 Évolution — {pdvHistory.nom}</h3>
+            <button onClick={() => setSelectedPdv(null)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 20 }}>✕</button>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={histoData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="metric" stroke="#FF6900" fill="rgba(255,105,0,0.15)" strokeWidth={2} dot={{ r: 3, fill: '#FF6900' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom/Prénom</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Quartier</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaire</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Médaille</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Évolution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+              ) : displayPdvs.map((pdv, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv || pdv.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                    <div style={{ fontSize: 11, color: '#8a8a9a' }}>{pdv.zone}</div>
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(getMetricValue(pdv, criterion))}</td>
+                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.nom_gerant || '—'}</td>
+                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.quartier || '—'}</td>
+                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.superviseur || '—'}</td>
+                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.gestionnaire || '—'}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    {pdv.medaille && pdv.medaille !== 'AUCUNE' ? (
+                      <span style={{ color: MEDAL_COLORS[pdv.medaille] || '#aaa', fontWeight: 700 }}>
+                        {pdv.medaille === 'OR' ? '🥇' : pdv.medaille === 'ARGENT' ? '🥈' : '🥉'}
+                      </span>
+                    ) : <span style={{ color: '#555' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <button onClick={() => setSelectedPdv(selectedPdv === pdv.pdv_id ? null : pdv.pdv_id)}
+                      style={{ background: 'rgba(255,105,0,0.15)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 6,
+                        color: '#FF6900', padding: '4px 10px', cursor: 'pointer', fontSize: 11 }}>
+                      📊 Voir
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
