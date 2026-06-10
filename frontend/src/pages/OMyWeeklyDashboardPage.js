@@ -51,6 +51,32 @@ function getAlertInfo(value, type = 'inactif') {
 
 const MEDAL_COLORS = { OR: '#FFD700', ARGENT: '#C0C0C0', BRONZE: '#CD7F32' };
 
+const GRAPH_INDICATEURS_W = [
+  { key: 'montant_transaction', label: 'Montant Transactions' },
+  { key: 'montant_ca',          label: 'Montant CA' },
+  { key: 'commission_pdg',      label: 'Commission PDG' },
+];
+
+function AccordionSectionW({ title, defaultOpen = true, children, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px', background: open ? 'rgba(255,105,0,0.08)' : 'rgba(255,255,255,0.03)',
+        border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14, fontWeight: 700, transition: 'background 0.2s',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {title}
+          {badge && <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,105,0,0.2)', color: '#FF6900' }}>{badge}</span>}
+        </span>
+        <span style={{ fontSize: 18, transition: 'transform 0.2s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', color: '#FF6900' }}>▾</span>
+      </button>
+      {open && <div style={{ padding: '20px 20px 4px 20px', background: 'rgba(255,255,255,0.01)' }}>{children}</div>}
+    </div>
+  );
+}
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -65,56 +91,70 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 // ─── ONGLET 1 : VUE D'ENSEMBLE ───────────────────────────────────────────────
 function OngletVueEnsemble({ annee, semaine }) {
+  const [graphIndicateur, setGraphIndicateur] = useState('montant_transaction');
+
   const { data: dash, isLoading } = useQuery(
     ['weekly-overview', annee, semaine],
     () => api.get('/dashboard/weekly', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 60000 }
   );
 
-  const caByZone = dash?.ca_by_zone
-    ? Object.entries(dash.ca_by_zone).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca)
-    : [];
-  const caByType = dash?.ca_by_type
-    ? Object.entries(dash.ca_by_type).map(([type, ca]) => ({ type, ca }))
-    : [];
-  const caBySup = dash?.ca_by_superviseur
-    ? Object.entries(dash.ca_by_superviseur).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8)
-    : [];
+  const getZoneData = () => {
+    if (graphIndicateur === 'montant_ca') return dash?.montant_ca_by_zone || dash?.ca_by_zone || {};
+    if (graphIndicateur === 'commission_pdg') return dash?.commission_pdg_by_zone || {};
+    return dash?.ca_by_zone || {};
+  };
+  const getSupData = () => {
+    if (graphIndicateur === 'montant_ca') return dash?.montant_ca_by_superviseur || dash?.ca_by_superviseur || {};
+    if (graphIndicateur === 'commission_pdg') return dash?.commission_pdg_by_superviseur || {};
+    return dash?.ca_by_superviseur || {};
+  };
+
+  const caByZone = Object.entries(getZoneData()).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca);
+  const caByType = dash?.ca_by_type ? Object.entries(dash.ca_by_type).map(([type, ca]) => ({ type, ca })) : [];
+  const caBySup = Object.entries(getSupData()).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8);
+  const indLabel = GRAPH_INDICATEURS_W.find(i => i.key === graphIndicateur)?.label || 'Valeur';
 
   return (
     <div>
-      {/* ── Section 1 : Volumes Financiers ── */}
-      <div className="kpi-section">
-        <div className="kpi-section-title">💰 Volumes Financiers</div>
+      <AccordionSectionW title="💰 Volumes Financiers & 🏆 Commissions Orange" defaultOpen={true} badge={`S${semaine} — ${annee}`}>
+        <div className="kpi-section-title" style={{ fontSize:12, color:'#FF6900', marginBottom:8 }}>💰 Volumes Financiers</div>
         <div className="grid-3-kpi mb-24">
           <KPICard title="Montant Transaction" formatted={formatCA(dash?.total_montant_transaction || dash?.total_ca)} icon={Activity} color="#FF6900" loading={isLoading} subtitle="Dépôts + Retraits de la semaine" />
           <KPICard title="Montant CA" formatted={formatCA(dash?.total_montant_ca || 0)} icon={Activity} color="#00d68f" loading={isLoading} subtitle={`${(dash?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} />
           <KPICard title="Taux Activité" formatted={`${(dash?.taux_activite || 0).toFixed(1)}%`} icon={Zap} color={(dash?.taux_activite||0) >= 70 ? '#00d68f' : (dash?.taux_activite||0) >= 50 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Objectif: 75% du réseau" />
         </div>
-      </div>
-      {/* ── Section 2 : Commissions Orange ── */}
-      <div className="kpi-section">
-        <div className="kpi-section-title">🏆 Commissions Orange</div>
-        <div className="grid-3-kpi mb-24">
+        <div className="kpi-section-title" style={{ fontSize:12, color:'#a29bfe', marginBottom:8 }}>🏆 Commissions Orange</div>
+        <div className="grid-3-kpi mb-8">
           <KPICard title="Commission PDG" formatted={formatCA(dash?.total_commission_pdg || 0)} icon={Activity} color="#a29bfe" loading={isLoading} subtitle="Part réseau Orange (votre part)" />
           <KPICard title="Commission Revendeur" formatted={formatCA(dash?.total_commission_revendeur || 0)} icon={Activity} color="#fd79a8" loading={isLoading} subtitle="Part PDV Orange" />
           <KPICard title="Ratio CA / Transaction" formatted={`${(dash?.ratio_ca_transaction || 0).toFixed(1)}%`} icon={Zap} color={(dash?.ratio_ca_transaction||0) >= 10 ? '#00d68f' : '#ffa502'} loading={isLoading} subtitle="Qualité des operations" />
         </div>
-      </div>
-      {/* ── Section 3 : Activite Reseau ── */}
-      <div className="kpi-section">
-        <div className="kpi-section-title">📊 Activité du Réseau</div>
-        <div className="grid-4 mb-24">
+      </AccordionSectionW>
+      <AccordionSectionW title="📊 Activité du Réseau & 🔄 Dépôts et Retraits" defaultOpen={true}>
+        <div className="grid-4 mb-8">
           <KPICard title="PDVs Actifs" value={dash?.active_pdvs} icon={Users} color="#00d68f" loading={isLoading} subtitle={`${(dash?.taux_activite||0).toFixed(1)}% du réseau`} />
           <KPICard title="Total Opérations" value={dash?.total_operations} icon={Activity} color="#3742fa" loading={isLoading} subtitle={`${dash?.total_depots} dépôts · ${dash?.total_retraits} retraits`} />
           <KPICard title="Variation Moy." formatted={`${(dash?.avg_variation || 0).toFixed(1)}%`} icon={TrendingUp} color="#fd79a8" loading={isLoading} subtitle="vs semaine précédente" />
           <KPICard title="PDVs Faible CA" value={dash?.pdvs_faible_ca || 0} icon={AlertTriangle} color="#ffa502" loading={isLoading} subtitle="Peu de retraits vs dépôts" />
         </div>
-      </div>
+      </AccordionSectionW>
+      <AccordionSectionW title="📈 Graphiques & Classements" defaultOpen={true}>
+        <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap', alignItems:'center' }}>
+          <span style={{ fontSize:12, color:'var(--text-secondary)', fontWeight:600 }}>Indicateur :</span>
+          {GRAPH_INDICATEURS_W.map(ind => (
+            <button key={ind.key} onClick={() => setGraphIndicateur(ind.key)}
+              style={{ padding:'5px 14px', borderRadius:8, border:'1px solid var(--border)', fontSize:12, fontWeight:600, cursor:'pointer',
+                background: graphIndicateur === ind.key ? '#FF6900' : 'rgba(255,255,255,0.06)',
+                color: graphIndicateur === ind.key ? '#fff' : 'var(--text-secondary)', transition:'all 0.2s' }}>
+              {ind.label}
+            </button>
+          ))}
+        </div>
 
       <div className="grid-2 mb-24">
         <div className="card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>CA par Zone — S{semaine}</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>{indLabel} par Zone — S{semaine}</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={caByZone}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
@@ -128,7 +168,7 @@ function OngletVueEnsemble({ annee, semaine }) {
           </ResponsiveContainer>
         </div>
         <div className="card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>CA par Superviseur</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>{indLabel} par Superviseur</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={caBySup} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
@@ -140,6 +180,7 @@ function OngletVueEnsemble({ annee, semaine }) {
           </ResponsiveContainer>
         </div>
       </div>
+      </AccordionSectionW>
 
       <div className="grid-2">
         <div className="card">

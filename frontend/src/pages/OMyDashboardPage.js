@@ -98,8 +98,16 @@ function AccordionSection({ title, defaultOpen = true, children, badge }) {
   );
 }
 
+const GRAPH_INDICATEURS = [
+  { key: 'montant_transaction', label: 'Montant Transactions' },
+  { key: 'montant_ca',          label: 'Montant CA' },
+  { key: 'commission_pdg',      label: 'Commission PDG' },
+];
+
 // ============ TAB 1: Vue d'ensemble ============
 function TabOverview({ annee, mois }) {
+  const [graphIndicateur, setGraphIndicateur] = useState('montant_transaction');
+
   const { data: dashboard, isLoading } = useQuery(
     ['dashboard-monthly', annee, mois],
     () => api.get(`/dashboard/monthly?annee=${annee}&mois=${mois}`).then(r => r.data),
@@ -128,15 +136,26 @@ function TabOverview({ annee, mois }) {
   // compatibilité graphiques
   const totalCA = totalMontantTransaction;
 
-  const caByZone = dashboard?.ca_by_zone
-    ? Object.entries(dashboard.ca_by_zone).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca)
-    : [];
-  const caBySup = dashboard?.ca_by_superviseur
-    ? Object.entries(dashboard.ca_by_superviseur).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8)
-    : [];
-  const caByGest = dashboard?.ca_by_gestionnaire
-    ? Object.entries(dashboard.ca_by_gestionnaire).map(([gest, ca]) => ({ gest, ca })).sort((a, b) => b.ca - a.ca).slice(0, 6)
-    : [];
+  // Données selon l'indicateur sélectionné
+  const getZoneData = () => {
+    if (graphIndicateur === 'montant_ca') return dashboard?.montant_ca_by_zone || dashboard?.ca_by_zone || {};
+    if (graphIndicateur === 'commission_pdg') return dashboard?.commission_pdg_by_zone || {};
+    return dashboard?.ca_by_zone || {};
+  };
+  const getSupData = () => {
+    if (graphIndicateur === 'montant_ca') return dashboard?.montant_ca_by_superviseur || dashboard?.ca_by_superviseur || {};
+    if (graphIndicateur === 'commission_pdg') return dashboard?.commission_pdg_by_superviseur || {};
+    return dashboard?.ca_by_superviseur || {};
+  };
+  const getGestData = () => {
+    if (graphIndicateur === 'montant_ca') return dashboard?.montant_ca_by_gestionnaire || dashboard?.ca_by_gestionnaire || {};
+    if (graphIndicateur === 'commission_pdg') return dashboard?.commission_pdg_by_gestionnaire || {};
+    return dashboard?.ca_by_gestionnaire || {};
+  };
+
+  const caByZone = Object.entries(getZoneData()).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca);
+  const caBySup = Object.entries(getSupData()).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8);
+  const caByGest = Object.entries(getGestData()).map(([gest, ca]) => ({ gest, ca })).sort((a, b) => b.ca - a.ca).slice(0, 6);
   const caByType = dashboard?.ca_by_type
     ? Object.entries(dashboard.ca_by_type).map(([type, ca]) => ({ type, ca }))
     : [];
@@ -181,9 +200,23 @@ function TabOverview({ annee, mois }) {
 
       {/* ══ GROUPE 3 : Graphiques ══ */}
       <AccordionSection title="📈 Graphiques & Classements" defaultOpen={true}>
+        {/* Boutons sélecteur d'indicateur */}
+        <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap', alignItems:'center' }}>
+          <span style={{ fontSize:12, color:'var(--text-secondary)', fontWeight:600 }}>Indicateur :</span>
+          {GRAPH_INDICATEURS.map(ind => (
+            <button key={ind.key} onClick={() => setGraphIndicateur(ind.key)}
+              style={{ padding:'5px 14px', borderRadius:8, border:'1px solid var(--border)', fontSize:12, fontWeight:600, cursor:'pointer',
+                background: graphIndicateur === ind.key ? '#FF6900' : 'rgba(255,255,255,0.06)',
+                color: graphIndicateur === ind.key ? '#fff' : 'var(--text-secondary)',
+                transition:'all 0.2s' }}>
+              {ind.label}
+            </button>
+          ))}
+        </div>
+
         <div className="charts-row mb-24">
           <div className="chart-card chart-large">
-            <div className="chart-header"><h3>CA par Zone</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
+            <div className="chart-header"><h3>{GRAPH_INDICATEURS.find(i=>i.key===graphIndicateur)?.label} par Zone</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={caByZone} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
@@ -213,7 +246,7 @@ function TabOverview({ annee, mois }) {
 
         <div className="charts-row mb-24">
           <div className="chart-card chart-large">
-            <div className="chart-header"><h3>CA par Superviseur</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
+            <div className="chart-header"><h3>{GRAPH_INDICATEURS.find(i=>i.key===graphIndicateur)?.label} par Superviseur</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={caBySup} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />

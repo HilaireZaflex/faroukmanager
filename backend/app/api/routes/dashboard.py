@@ -378,17 +378,21 @@ def weekly_dashboard(
     avg_variation = sum(variations) / len(variations) if variations else 0.0
 
     ca_by_zone = {}
+    montant_ca_by_zone = {}
+    commission_pdg_by_zone = {}
+    ca_by_superviseur = {}
+    montant_ca_by_superviseur = {}
+    commission_pdg_by_superviseur = {}
+    ca_by_type = {}
     for p, pdv in pairs:
         z = pdv.zone or "Inconnue"
         ca_by_zone[z] = ca_by_zone.get(z, 0) + _wmt(p)
-
-    ca_by_superviseur = {}
-    for p, pdv in pairs:
+        montant_ca_by_zone[z] = montant_ca_by_zone.get(z, 0) + _wmca(p)
+        commission_pdg_by_zone[z] = commission_pdg_by_zone.get(z, 0) + _wcpdg(p)
         s = pdv.superviseur or "Non assigné"
         ca_by_superviseur[s] = ca_by_superviseur.get(s, 0) + _wmt(p)
-
-    ca_by_type = {}
-    for p, pdv in pairs:
+        montant_ca_by_superviseur[s] = montant_ca_by_superviseur.get(s, 0) + _wmca(p)
+        commission_pdg_by_superviseur[s] = commission_pdg_by_superviseur.get(s, 0) + _wcpdg(p)
         t = pdv.type_pdv.value
         ca_by_type[t] = ca_by_type.get(t, 0) + _wmt(p)
 
@@ -466,7 +470,11 @@ def weekly_dashboard(
         "avg_variation": round(avg_variation, 2),
         # Répartitions
         "ca_by_zone": ca_by_zone,
+        "montant_ca_by_zone": montant_ca_by_zone,
+        "commission_pdg_by_zone": commission_pdg_by_zone,
         "ca_by_superviseur": ca_by_superviseur,
+        "montant_ca_by_superviseur": montant_ca_by_superviseur,
+        "commission_pdg_by_superviseur": commission_pdg_by_superviseur,
         "ca_by_type": ca_by_type,
         # Listes de présence
         "actifs_list": actifs_list,
