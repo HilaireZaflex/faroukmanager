@@ -18,7 +18,7 @@ const ZONE_COLORS = ['#FF6900', '#00d68f', '#3742fa', '#ffa502', '#ff4757', '#a2
 
 function formatCA(value) {
   if (!value || isNaN(value)) return '0 FCFA';
-  return new Intl.NumberFormat('fr-FR').format(Math.round(value)) + ' FCFA';
+  return new Intl.NumberFormat('en-US').format(Math.round(value)).replace(/,/g, ' ') + ' FCFA';
 }
 
 function getAlertInfo(value, type = 'inactif') {

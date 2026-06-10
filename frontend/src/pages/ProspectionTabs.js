@@ -430,7 +430,7 @@ export function TabPostActivation() {
             }}>
               <b>{d.nom}</b> · {d.reference} · puce {d.puce_numero} · {d.quartier}
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                CA réel {d.ca_reel?.toLocaleString('fr-FR')} F vs prédit {d.ca_predit?.toLocaleString('fr-FR')} F (sur {d.period_days}j)
+                CA réel {d.ca_reel?.toLocaleString('en-US').replace(/,/g, ' ')} F vs prédit {d.ca_predit?.toLocaleString('en-US').replace(/,/g, ' ')} F (sur {d.period_days}j)
               </div>
             </div>
           ))}
@@ -447,8 +447,8 @@ export function TabPostActivation() {
                 <tr key={k.id}>
                   <td><b>{k.prospect_nom}</b><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{k.prospect_ref}</div></td>
                   <td>{k.period_days}j</td>
-                  <td>{k.ca_predit?.toLocaleString('fr-FR')} F</td>
-                  <td>{k.ca_reel?.toLocaleString('fr-FR')} F</td>
+                  <td>{k.ca_predit?.toLocaleString('en-US').replace(/,/g, ' ')} F</td>
+                  <td>{k.ca_reel?.toLocaleString('en-US').replace(/,/g, ' ')} F</td>
                   <td style={{ color: k.ca_gap_pct >= 0 ? 'var(--success)' : 'var(--danger)' }}>{k.ca_gap_pct}%</td>
                   <td>{k.nb_transactions}</td>
                   <td>{k.nb_jours_actifs}</td>
@@ -620,7 +620,7 @@ export function TabNotifications() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <b>{n.title}</b>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleString('fr-FR')}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{new Date(n.created_at).toLocaleString('en-US').replace(/,/g, ' ')}</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{n.message}</div>
           </div>
@@ -706,7 +706,7 @@ export function TabGamification() {
               <div style={{ width: `${Math.min(100, o.progress_pct)}%`, height: '100%', background: o.bonus_earned ? 'var(--success)' : 'var(--primary)' }}/>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              {o.progress_pct}% · Bonus : {o.bonus_amount.toLocaleString('fr-FR')} F {o.bonus_earned && '✅ Débloqué'}
+              {o.progress_pct}% · Bonus : {o.bonus_amount.toLocaleString('en-US').replace(/,/g, ' ')} F {o.bonus_earned && '✅ Débloqué'}
             </div>
           </div>
         ))}

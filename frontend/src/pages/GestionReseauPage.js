@@ -19,7 +19,7 @@ const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','N
 
 function formatCA(value) {
   if (!value) return '0 FCFA';
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(value);
+  return Math.round(value).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
 }
 
 // ─── ONGLET 1 : Gestion des Gestionnaires ────────────────────────────────────

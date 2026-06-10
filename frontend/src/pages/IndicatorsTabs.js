@@ -125,7 +125,7 @@ export function TabIndicatorView({ indicatorId, setIndicatorId }) {
                       {p.is_active ? '🟢 Actif' : '🔴 Inactif'}
                     </span>
                   </td>
-                  <td>{p.raw_value ? p.raw_value.toLocaleString('fr-FR') : '—'}</td>
+                  <td>{p.raw_value ? p.raw_value.toLocaleString('en-US').replace(/,/g, ' ') : '—'}</td>
                 </tr>
               ))}
             </tbody>

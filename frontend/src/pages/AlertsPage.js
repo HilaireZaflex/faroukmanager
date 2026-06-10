@@ -14,7 +14,7 @@ const CURRENT_WEEK = Math.ceil((((now - new Date(now.getFullYear(), 0, 1)) / 864
 
 function formatCA(value) {
   if (!value) return '0 FCFA';
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(value);
+  return Math.round(value).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
 }
 
 function formatDate(dateStr) {

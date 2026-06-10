@@ -22,7 +22,7 @@ export default function KPICard({ title, value, formatted, subtitle, icon: Icon,
     return () => clearInterval(timer);
   }, [numericValue, loading]);
 
-  const displayFormatted = formatted || (typeof value === 'string' ? value : displayValue.toLocaleString('fr-FR'));
+  const displayFormatted = formatted || (typeof value === 'string' ? value : displayValue.toLocaleString('en-US').replace(/,/g, ' '));
 
   return (
     <div className="kpi-card" style={{ '--kpi-color': color }}>

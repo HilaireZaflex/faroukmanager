@@ -1,7 +1,7 @@
 import api from './api';
 const base = '/commissions';
-const fmt = (n) => n?.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' F';
-const fmtM = (n) => n ? (n / 1_000_000).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MF' : '0 MF';
+const fmt = (n) => n?.toLocaleString('en-US').replace(/,/g, ' ') + ' F';
+const fmtM = (n) => n ? (n / 1_000_000).toFixed(2).replace('.', ',').replace(/B(?=(d{3})+(?!d))/g, ' ') + ' MF' : '0 MF';
 
 export const commissionService = {
   periods:    ()       => api.get(`${base}/periods`).then(r => r.data),

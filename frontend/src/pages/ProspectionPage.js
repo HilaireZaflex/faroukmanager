@@ -550,13 +550,13 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
                     <div key={f.month} style={{ flex:1, padding:8, background:'rgba(255,255,255,0.03)', borderRadius:6, textAlign:'center' }}>
                       <div style={{ fontSize:10, color:'var(--text-muted)' }}>Mois {f.month}</div>
                       <div style={{ fontSize:14, fontWeight:700, color:'var(--success)' }}>
-                        {(f.ca / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} kF
+                        {(f.ca / 1000).toLocaleString('en-US').replace(/,/g, ' ')} kF
                       </div>
                     </div>
                   ))}
                 </div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:6 }}>
-                  Total 3M projeté : <b style={{ color:'var(--success)' }}>{aiForecast.ca_total_3m.toLocaleString('fr-FR')} F</b> · Confiance : {aiForecast.confidence}
+                  Total 3M projeté : <b style={{ color:'var(--success)' }}>{aiForecast.ca_total_3m.toLocaleString('en-US').replace(/,/g, ' ')} F</b> · Confiance : {aiForecast.confidence}
                 </div>
               </div>
             )}
@@ -593,7 +593,7 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
           <h3>📜 Historique ({p.history?.length || 0})</h3>
           {(p.history || []).map(h => (
             <div key={h.id} className="history-item">
-              <div className="when">{new Date(h.created_at).toLocaleString('fr-FR')}</div>
+              <div className="when">{new Date(h.created_at).toLocaleString('en-US').replace(/,/g, ' ')}</div>
               <div className="what">{h.decision_type} · {h.from_status || '—'} → {h.to_status || '—'}</div>
               {h.comment && <div style={{ fontSize:13, color:'var(--text-secondary)', marginTop:4, fontStyle:'italic' }}>« {h.comment} »</div>}
               <div className="who">par {h.user ? `${h.user.nom} ${h.user.prenom||''}` : 'système'}</div>
@@ -979,7 +979,7 @@ function TabAIForecast({ onOpen }) {
   if (!list.length) return <div className="empty-state">Aucune prédiction disponible.</div>;
 
   const totalProj = list.reduce((s, x) => s + x.ca_total_3m, 0);
-  const fmt = (n) => `${(n / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} k F`;
+  const fmt = (n) => `${(n / 1000).toLocaleString('en-US').replace(/,/g, ' ')} k F`;
 
   return (
     <>

@@ -10,7 +10,7 @@ function formatCA(v) {
   if (!v || v === 0) return '0 FCFA';
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} M FCFA`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(0)} K FCFA`;
-  return new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' FCFA';
+  return Math.round(v).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
 }
 
 // ─── LÉGENDE EXPLICATIVE ─────────────────────────────────────────────────────

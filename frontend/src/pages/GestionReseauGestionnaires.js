@@ -13,7 +13,7 @@ const MONTHS = ['Jan','Fev','Mar','Avr','Mai','Jun','Jul','Aou','Sep','Oct','Nov
 
 function formatCA(v) {
   if (!v) return '0 FCFA';
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(v);
+  return Math.round(v).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
 }
 
 function TauxBadge({ taux }) {

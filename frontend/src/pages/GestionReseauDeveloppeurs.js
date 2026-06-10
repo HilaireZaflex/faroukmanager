@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
-const fmt = n => n == null ? '—' : Number(n).toLocaleString('fr-FR') + ' F';
+const fmt = n => n == null ? '—' : Number(n).toLocaleString('en-US').replace(/,/g, ' ') + ' F';
 const pct = n => n == null ? '—' : Number(n).toFixed(1) + '%';
 
 const TASK_TYPES = [

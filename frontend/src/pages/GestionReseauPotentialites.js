@@ -81,7 +81,7 @@ function CarteZonesChaudes({ annee, mois }) {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11 }}>
                 <div><span style={{ color: '#8a8a9a' }}>CA : </span><span style={{ fontWeight: 700, color: '#FF6900' }}>{formatCA(z.ca)}</span></div>
-                <div><span style={{ color: '#8a8a9a' }}>Ops : </span><span style={{ fontWeight: 700 }}>{z.nb_operations.toLocaleString()}</span></div>
+                <div><span style={{ color: '#8a8a9a' }}>Ops : </span><span style={{ fontWeight: 700 }}>{z.nb_operations.toLocaleString('en-US').replace(/,/g, ' ')}</span></div>
                 <div><span style={{ color: '#8a8a9a' }}>Actifs : </span><span style={{ fontWeight: 700, color: '#00d68f' }}>{z.nb_pdvs_actifs}/{z.nb_pdvs_total}</span></div>
                 <div><span style={{ color: '#8a8a9a' }}>Taux : </span><span style={{ fontWeight: 700, color: z.taux_actif >= 70 ? '#00d68f' : '#ffaa00' }}>{z.taux_actif}%</span></div>
               </div>
@@ -159,7 +159,7 @@ function AnalyseDepotsRetraits({ annee, mois }) {
                     {z.ratio_depot_retrait}%
                   </span>
                 </td>
-                <td>{z.nb_operations.toLocaleString()}</td>
+                <td>{z.nb_operations.toLocaleString('en-US').replace(/,/g, ' ')}</td>
                 <td style={{ color: '#00d68f', fontWeight: 600 }}>{z.nb_pdvs_actifs}/{z.nb_pdvs_total}</td>
                 <td style={{ color: '#FF6900', fontWeight: 600 }}>{formatCA(z.ca)} FCFA</td>
               </tr>
@@ -215,7 +215,7 @@ function ScorePotentiel({ annee, mois }) {
                 <td style={{ color: '#8a8a9a' }}>{s.zone}</td>
                 <td><ScoreBadge score={s.score_potentiel} /></td>
                 <td style={{ color: '#FF6900' }}>{formatCA(s.ca)}</td>
-                <td>{s.nb_operations.toLocaleString()}</td>
+                <td>{s.nb_operations.toLocaleString('en-US').replace(/,/g, ' ')}</td>
                 <td style={{ fontWeight: 600 }}>{s.ops_par_pdv}</td>
                 <td>
                   <span style={{ color: s.taux_actif >= 70 ? '#00d68f' : s.taux_actif >= 50 ? '#ffaa00' : '#ff3d71', fontWeight: 700 }}>
@@ -258,7 +258,7 @@ function OpportunitesExpansion({ annee, mois }) {
                 <div style={{ color: '#8a8a9a', fontSize: 11, marginBottom: 8 }}>{o.zone}</div>
                 <div style={{ fontSize: 12 }}>
                   <div><span style={{ color: '#8a8a9a' }}>PDVs : </span><span style={{ fontWeight: 700, color: '#ff3d71' }}>{o.nb_pdvs_total}</span></div>
-                  <div><span style={{ color: '#8a8a9a' }}>Ops : </span><span style={{ fontWeight: 700, color: '#00d68f' }}>{o.nb_operations.toLocaleString()}</span></div>
+                  <div><span style={{ color: '#8a8a9a' }}>Ops : </span><span style={{ fontWeight: 700, color: '#00d68f' }}>{o.nb_operations.toLocaleString('en-US').replace(/,/g, ' ')}</span></div>
                   <div><span style={{ color: '#8a8a9a' }}>Ops/PDV : </span><span style={{ fontWeight: 700, color: '#FF6900' }}>{o.ops_par_pdv}</span></div>
                 </div>
                 <div style={{ marginTop: 8 }}>
@@ -287,7 +287,7 @@ function OpportunitesExpansion({ annee, mois }) {
                     <td style={{ color: '#8a8a9a' }}>{o.zone}</td>
                     <td><ScoreBadge score={o.score_opportunite} /></td>
                     <td style={{ color: '#00d68f', fontWeight: 600 }}>{o.nb_pdvs_total}</td>
-                    <td>{o.nb_operations.toLocaleString()}</td>
+                    <td>{o.nb_operations.toLocaleString('en-US').replace(/,/g, ' ')}</td>
                     <td style={{ fontWeight: 600, color: '#FF6900' }}>{o.ops_par_pdv}</td>
                     <td style={{ color: '#FF6900' }}>{formatCA(o.ca)}</td>
                   </tr>
@@ -345,7 +345,7 @@ function ComparatifZones({ annee, mois }) {
             <YAxis yAxisId="left" stroke="#8a8a9a" tick={{ fontSize: 10 }} />
             <YAxis yAxisId="right" orientation="right" stroke="#8a8a9a" tick={{ fontSize: 10 }} />
             <Tooltip
-              formatter={(v, n) => n === 'CA' ? formatCA(v) + ' FCFA' : v.toLocaleString()}
+              formatter={(v, n) => n === 'CA' ? formatCA(v) + ' FCFA' : v.toLocaleString('en-US').replace(/,/g, ' ')}
               contentStyle={{ background: 'rgba(10,10,20,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }}
             />
             <Legend />
@@ -373,7 +373,7 @@ function ComparatifZones({ annee, mois }) {
                 <td style={{ color: '#FF6900', fontWeight: 600 }}>{formatCA(q.ca)}</td>
                 <td style={{ color: '#4a9eff' }}>{formatCA(q.montant_depots)}</td>
                 <td style={{ color: '#00d68f' }}>{formatCA(q.montant_retraits)}</td>
-                <td>{q.nb_operations.toLocaleString()}</td>
+                <td>{q.nb_operations.toLocaleString('en-US').replace(/,/g, ' ')}</td>
                 <td style={{ color: '#00d68f', fontWeight: 600 }}>{q.nb_pdvs_actifs}/{q.nb_pdvs_total}</td>
                 <td style={{ fontWeight: 600, color: '#FF6900' }}>{q.ops_par_pdv}</td>
               </tr>

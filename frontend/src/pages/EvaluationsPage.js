@@ -1426,7 +1426,7 @@ function TabResultats() {
                           <span>KPI : {s.score_kpi?.toFixed(1)||'—'}</span>
                           <span>Mystères : {s.score_mystery?.toFixed(1)||'—'}</span>
                           <span>Manuel : {s.score_manual?.toFixed(1)||'—'}</span>
-                          {s.bonus_amount > 0 && <span style={{ color: 'var(--success)' }}>💰 Bonus : {s.bonus_amount?.toLocaleString('fr-FR')} F</span>}
+                          {s.bonus_amount > 0 && <span style={{ color: 'var(--success)' }}>💰 Bonus : {s.bonus_amount?.toLocaleString('en-US').replace(/,/g, ' ')} F</span>}
                         </div>
                       </div>
                       <div style={{ textAlign: 'center', minWidth: 70 }}>
@@ -1632,7 +1632,7 @@ function CampagneDetailModal({ campaign, users, onClose }) {
     if (val == null) return '—';
     if (key.startsWith('taux_') || key.startsWith('taux')) return `${(val * (val <= 1 ? 100 : 1)).toFixed(1)} %`;
     if (key.startsWith('montant_') || key === 'commission_totale' || key === 'ca_total')
-      return Number(val).toLocaleString('fr-FR') + ' FCFA';
+      return Number(val).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
     if (typeof val === 'number') return val % 1 !== 0 ? val.toFixed(2) : val.toString();
     return String(val);
   };

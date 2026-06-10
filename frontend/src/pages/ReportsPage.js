@@ -12,7 +12,7 @@ function formatCA(v) {
   if (v >= 1_000_000_000) return `${(v/1_000_000_000).toFixed(2)} Md FCFA`;
   if (v >= 1_000_000) return `${(v/1_000_000).toFixed(1)} M FCFA`;
   if (v >= 1_000) return `${(v/1_000).toFixed(0)} K FCFA`;
-  return `${v.toLocaleString('fr-FR')} FCFA`;
+  return `${v.toLocaleString('en-US').replace(/,/g, ' ')} FCFA`;
 }
 
 export default function ReportsPage() {
@@ -71,7 +71,7 @@ export default function ReportsPage() {
                 { label: 'PDVs Inactifs', value: report.pdvs_inactifs || '—', color:'var(--danger)' },
                 { label: 'Taux Activité', value: `${(report.taux_activite||0).toFixed(1)}%`, color:report.taux_activite>=70?'var(--success)':'var(--warning)' },
                 { label: 'CA Moyen/PDV', value: formatCA(report.ca_moyen_pdv||report.average_ca), color:'var(--text-primary)' },
-                { label: 'Nb Opérations', value: (report.total_operations||0).toLocaleString('fr-FR'), color:'var(--text-primary)' },
+                { label: 'Nb Opérations', value: (report.total_operations||0).toLocaleString('en-US').replace(/,/g, ' '), color:'var(--text-primary)' },
               ].map((item,i) => (
                 <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
                   <span style={{ fontSize:13, color:'var(--text-secondary)' }}>{item.label}</span>
@@ -129,7 +129,7 @@ export default function ReportsPage() {
                   <tr><td>PDVs Inactifs</td><td><strong style="color:red">${report.pdvs_inactifs || 0}</strong></td></tr>
                   <tr><td>Taux Activité</td><td><strong>${(report.taux_activite||0).toFixed(1)}%</strong></td></tr>
                   <tr><td>CA Moyen / PDV</td><td><strong>${formatCA(report.ca_moyen_pdv || report.average_ca)}</strong></td></tr>
-                  <tr><td>Nb Opérations</td><td><strong>${(report.total_operations||0).toLocaleString('fr-FR')}</strong></td></tr>
+                  <tr><td>Nb Opérations</td><td><strong>${(report.total_operations||0).toLocaleString('en-US').replace(/,/g, ' ')}</strong></td></tr>
                 </table>
                 <div class="footer">FaroukManager — Rapport automatique Orange Mali</div>
                 </body></html>`);

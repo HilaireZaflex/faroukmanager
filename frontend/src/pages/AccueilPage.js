@@ -13,11 +13,15 @@ import useAuthStore from '../store/authStore';
 import api from '../services/api';
 import './AccueilPage.css';
 
-// Formatage avec espaces comme séparateurs de milliers (fr-FR)
-const fmt = (v) => new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' FCFA';
-const fmtM = (v) => {
-  if (!v || isNaN(v)) return '0 FCFA';
-  return new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' FCFA';
+// Formatage avec espaces comme séparateurs de milliers
+const fmt = (v) => {
+  if (!v && v !== 0) return '0 FCFA';
+  return Math.round(v).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
+};
+const fmtM = fmt;
+const fmtNum = (v) => {
+  if (!v && v !== 0) return '0';
+  return Math.round(v).toLocaleString('en-US').replace(/,/g, ' ');
 };
 const COLORS = { Champion:'#00d68f', Stable:'#3742fa', 'À surveiller':'#ffa502', Déclinant:'#ff4757', Inactif:'#747d8c', 'En croissance':'#ff9f43' };
 const SEG_COLORS = ['#00d68f','#3742fa','#ffa502','#ff4757','#747d8c','#ff9f43'];
@@ -232,7 +236,7 @@ export default function AccueilPage() {
           <StatCard icon={RefreshCw} value={stats?.en_recuperation || '--'} label="En Récupération" sub={`Taux: ${recovery?.taux_recuperation?.toFixed(0) || 0}%`} color="var(--warning)" onClick={() => navigate('/recovery')} />
           <StatCard icon={TrendingUp} value={fmtM(activeData?.total_montant_transaction || activeData?.total_ca || 0)} label="Montant Transaction" sub={periodeType === 'mensuel' ? `${MOIS_NOMS[(selectedMois||mois)-1]} ${annee}` : `Semaine ${selectedSemaine||lastSemaine}`} color="var(--primary)" onClick={() => navigate('/dashboard')} />
           <StatCard icon={TrendingUp} value={fmtM(activeData?.total_montant_ca || 0)} label="Montant CA" sub={`${(activeData?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} color="#00d68f" onClick={() => navigate('/dashboard')} />
-          <StatCard icon={Activity} value={(activeData?.total_operations || 0).toLocaleString('fr-FR')} label="Opérations" sub="Dépôts + Retraits" color="#3742fa" onClick={() => navigate('/dashboard')} />
+          <StatCard icon={Activity} value={(activeData?.total_operations || 0).toLocaleString('en-US').replace(/,/g, ' ')} label="Opérations" sub="Dépôts + Retraits" color="#3742fa" onClick={() => navigate('/dashboard')} />
           <StatCard icon={TrendingUp} value={fmtM(activeData?.total_commission_pdg || 0)} label="Commission PDG" sub="Part réseau Orange" color="#a29bfe" onClick={() => navigate('/commissions')} />
           <StatCard icon={Brain} value={healthData?.average_health?.toFixed(1) || '--'} label="Score Santé Moyen" sub="Health Score IA (/100)" color="#a29bfe" onClick={() => navigate('/ia')} badge="IA" />
           <StatCard icon={Award} value={predictions?.total_at_risk || '--'} label="PDVs à Risque IA" sub={`${predictions?.high_risk_count || 0} critiques`} color="var(--danger)" onClick={() => navigate('/ia')} badge="IA" />

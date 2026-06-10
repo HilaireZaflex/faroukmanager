@@ -20,11 +20,11 @@ function fmt(v) {
   if (!v || v === 0) return '0';
   if (v >= 1_000_000) return `${(v/1_000_000).toFixed(2)} M`;
   if (v >= 1_000)     return `${(v/1_000).toFixed(0)} K`;
-  return new Intl.NumberFormat('fr-FR').format(Math.round(v));
+  return Math.round(v).toLocaleString('en-US').replace(/,/g, ' ');
 }
 function fmtFull(v) {
   if (!v && v !== 0) return '—';
-  return new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' FCFA';
+  return Math.round(v).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
 }
 function fmtDate(d) {
   if (!d) return '—';
@@ -314,7 +314,7 @@ export default function RecoveryListePage() {
             <p>
               Comparaison <strong>{data?.mois_precedent_nom || '…'}</strong> +{' '}
               <strong>{data?.mois_courant_nom || '…'}</strong> · Seuil :{' '}
-              <strong>{new Intl.NumberFormat('fr-FR').format(seuil)} FCFA</strong>
+              <strong>{Math.round(seuil).toLocaleString('en-US').replace(/,/g, ' ')} FCFA</strong>
             </p>
           </div>
         </div>
@@ -648,7 +648,7 @@ export default function RecoveryListePage() {
             <p className="rl-modal-sub" style={{ marginBottom: 16 }}>
               Ces PDV ont été automatiquement exclus de la liste de récupération.
               Total montant transactions : <strong>
-                {new Intl.NumberFormat('fr-FR').format(
+                {Math.round(
                   exclusionModal.liste.reduce((s, p) => s + (p.ca_total || 0), 0)
                 )} FCFA
               </strong>
@@ -714,14 +714,14 @@ export default function RecoveryListePage() {
               autoFocus
             />
             <div className="rl-modal-equiv">
-              = {new Intl.NumberFormat('fr-FR').format(
+              = {Math.round(
                   parseFloat(seuilInput.replace(/[\s ]/g,'').replace(',','.')) || 0
                 )} FCFA
             </div>
             <div className="rl-presets">
               {[3_000_000, 5_000_000, 7_500_000, 10_000_000].map(v => (
                 <button key={v} className="rl-preset" onClick={() => setSeuilInput(String(v))}>
-                  {new Intl.NumberFormat('fr-FR').format(v)}
+                  {Math.round(v).toLocaleString('en-US').replace(/,/g, ' ')}
                 </button>
               ))}
             </div>
