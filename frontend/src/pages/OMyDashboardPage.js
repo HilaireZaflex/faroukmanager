@@ -72,6 +72,32 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+// ============ Composant Accordéon réutilisable ============
+function AccordionSection({ title, defaultOpen = true, children, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px', background: open ? 'rgba(255,105,0,0.08)' : 'rgba(255,255,255,0.03)',
+        border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14, fontWeight: 700,
+        transition: 'background 0.2s',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {title}
+          {badge && <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,105,0,0.2)', color: '#FF6900' }}>{badge}</span>}
+        </span>
+        <span style={{ fontSize: 18, transition: 'transform 0.2s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', color: '#FF6900' }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ padding: '20px 20px 4px 20px', background: 'rgba(255,255,255,0.01)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ TAB 1: Vue d'ensemble ============
 function TabOverview({ annee, mois }) {
   const { data: dashboard, isLoading } = useQuery(
@@ -117,137 +143,134 @@ function TabOverview({ annee, mois }) {
 
   return (
     <div>
-      {/* ── Section 1 : Volumes Financiers ── */}
-      <div className="kpi-section">
-        <div className="kpi-section-title">💰 Volumes Financiers</div>
+
+      {/* ══ GROUPE 1 : Volumes Financiers + Commissions ══ */}
+      <AccordionSection title="💰 Volumes Financiers & 🏆 Commissions Orange" defaultOpen={true} badge={`${MOIS_NOMS[mois]} ${annee}`}>
+        <div className="kpi-section-title" style={{ fontSize: 12, color: '#FF6900', marginBottom: 8 }}>💰 Volumes Financiers</div>
         <div className="grid-3-kpi mb-24">
           <KPICard title="Montant Transaction" formatted={formatCA(totalMontantTransaction)} icon={DollarSign} color="#FF6900" loading={isLoading} subtitle={`${MOIS_NOMS[mois]} ${annee} · Dépôts + Retraits`} />
           <KPICard title="Montant CA" formatted={formatCA(totalMontantCA)} icon={DollarSign} color="#00d68f" loading={isLoading} subtitle={`${ratioCaTransaction.toFixed(1)}% du volume transaction`} />
           <KPICard title="Moy. Transaction / PDV" formatted={formatCA(avgCA)} icon={DollarSign} color="#ffa502" loading={isLoading} subtitle={`Sur ${totalPDVs} PDVs`} />
         </div>
-      </div>
 
-      {/* ── Section 2 : Commissions Orange ── */}
-      <div className="kpi-section">
-        <div className="kpi-section-title">🏆 Commissions Orange</div>
-        <div className="grid-3-kpi mb-24">
+        <div className="kpi-section-title" style={{ fontSize: 12, color: '#a29bfe', marginBottom: 8 }}>🏆 Commissions Orange</div>
+        <div className="grid-3-kpi mb-8">
           <KPICard title="Commission PDG" formatted={formatCA(totalCommissionPDG)} icon={DollarSign} color="#a29bfe" loading={isLoading} subtitle="Part réseau Orange (votre part)" />
           <KPICard title="Commission Revendeur" formatted={formatCA(totalCommissionRevendeur)} icon={DollarSign} color="#fd79a8" loading={isLoading} subtitle="Part PDV Orange" />
           <KPICard title="Ratio CA / Transaction" formatted={`${ratioCaTransaction.toFixed(1)}%`} icon={Activity} color={ratioCaTransaction >= 10 ? '#00d68f' : ratioCaTransaction >= 5 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Qualité des operations (plus = mieux)" />
         </div>
-      </div>
+      </AccordionSection>
 
-      {/* ── Section 3 : Activite Reseau ── */}
-      <div className="kpi-section">
-        <div className="kpi-section-title">📊 Activité du Réseau</div>
+      {/* ══ GROUPE 2 : Activité Réseau + Dépôts & Retraits ══ */}
+      <AccordionSection title="📊 Activité du Réseau & 🔄 Dépôts et Retraits" defaultOpen={true}>
+        <div className="kpi-section-title" style={{ fontSize: 12, color: '#00d68f', marginBottom: 8 }}>📊 Activité du Réseau</div>
         <div className="grid-3-kpi mb-24">
           <KPICard title="PDVs Actifs" value={activePDVs} icon={Store} color="#00d68f" loading={isLoading} subtitle={`${taux.toFixed(1)}% du réseau · Objectif 75%`} />
           <KPICard title="PDVs Inactifs" value={inactivePDVs} icon={AlertTriangle} color="#ff4757" loading={isLoading} subtitle={`${(100 - taux).toFixed(1)}% du réseau`} />
           <KPICard title="Total Opérations" value={totalOps} icon={Activity} color="#3742fa" loading={isLoading} subtitle={`${totalDepots} dépôts · ${totalRetraits} retraits`} />
         </div>
-      </div>
 
-      {/* ── Section 4 : Depots et Retraits ── */}
-      <div className="kpi-section">
-        <div className="kpi-section-title">🔄 Dépôts et Retraits</div>
-        <div className="grid-4 mb-24">
+        <div className="kpi-section-title" style={{ fontSize: 12, color: '#00cec9', marginBottom: 8 }}>🔄 Dépôts et Retraits</div>
+        <div className="grid-4 mb-8">
           <KPICard title="Montant Dépôts" formatted={formatCA(montantDepots)} icon={TrendingUp} color="#00d68f" loading={isLoading} subtitle={`${totalDepots} opérations`} />
           <KPICard title="Montant Retraits" formatted={formatCA(montantRetraits)} icon={TrendingDown} color="#fd79a8" loading={isLoading} subtitle={`${totalRetraits} opérations`} />
           <KPICard title="Variation Moy." formatted={`${avgVariation >= 0 ? '+' : ''}${avgVariation.toFixed(1)}%`} icon={TrendingUp} color={avgVariation >= 0 ? '#00d68f' : '#ff4757'} loading={isLoading} subtitle="vs mois précédent" />
           <KPICard title="PDVs Faible CA" value={pdvsFaibleCA} icon={AlertTriangle} color="#ffa502" loading={isLoading} subtitle="Peu de retraits vs dépôts" />
         </div>
-      </div>
+      </AccordionSection>
 
-      <div className="charts-row mb-24">
-        <div className="chart-card chart-large">
-          <div className="chart-header"><h3>CA par Zone</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={caByZone} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-              <XAxis dataKey="zone" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} width={70} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="ca" radius={[6,6,0,0]} fill="url(#barGradient)">
-                {caByZone.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      {/* ══ GROUPE 3 : Graphiques ══ */}
+      <AccordionSection title="📈 Graphiques & Classements" defaultOpen={true}>
+        <div className="charts-row mb-24">
+          <div className="chart-card chart-large">
+            <div className="chart-header"><h3>CA par Zone</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={caByZone} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis dataKey="zone" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} width={70} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="ca" radius={[6,6,0,0]} fill="url(#barGradient)">
+                  {caByZone.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
 
-        <div className="chart-card chart-small">
-          <div className="chart-header"><h3>Types PDV</h3></div>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={caByType.length ? caByType : Object.entries(stats?.pdvs_par_type || {}).map(([k,v])=>({name:k,value:v}))} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey={caByType.length ? "ca" : "value"} nameKey={caByType.length ? "type" : "name"} paddingAngle={3}>
-                {(caByType.length ? caByType : Object.keys(stats?.pdvs_par_type || {})).map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 10 }} formatter={v => formatCA(v)} />
-              <Legend iconSize={10} iconType="circle" formatter={v => <span style={{ color: '#ccc', fontSize: 12 }}>{v}</span>} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Graphiques Superviseur + Gestionnaire */}
-      <div className="charts-row mb-24">
-        <div className="chart-card chart-large">
-          <div className="chart-header"><h3>CA par Superviseur</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={caBySup} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} />
-              <YAxis type="category" dataKey="sup" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="ca" fill="#FF6900" radius={[0,6,6,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="chart-card chart-small">
-          <div className="chart-header"><h3>CA par Gestionnaire</h3></div>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={caByGest} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} />
-              <YAxis type="category" dataKey="gest" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="ca" fill="#a29bfe" radius={[0,6,6,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Classements superviseurs et top/bottom PDVs */}
-      {dashboard?.classement_superviseurs && dashboard.classement_superviseurs.length > 0 && (
-        <div className="card mb-16">
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs — {MOIS_NOMS[mois]} {annee}</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>CA Total</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>CA Moy.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboard.classement_superviseurs.map((s, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.superviseur}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{s.actifs ?? s.nb_pdvs ?? '—'}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{s.inactifs ?? '—'}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(s.ca_total ?? s.ca)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(s.ca_moyen ?? (s.ca / (s.nb_pdvs || 1)))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="chart-card chart-small">
+            <div className="chart-header"><h3>Types PDV</h3></div>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie data={caByType.length ? caByType : Object.entries(stats?.pdvs_par_type || {}).map(([k,v])=>({name:k,value:v}))} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey={caByType.length ? "ca" : "value"} nameKey={caByType.length ? "type" : "name"} paddingAngle={3}>
+                  {(caByType.length ? caByType : Object.keys(stats?.pdvs_par_type || {})).map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
+                </Pie>
+                <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 10 }} formatter={v => formatCA(v)} />
+                <Legend iconSize={10} iconType="circle" formatter={v => <span style={{ color: '#ccc', fontSize: 12 }}>{v}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
-      )}
+
+        <div className="charts-row mb-24">
+          <div className="chart-card chart-large">
+            <div className="chart-header"><h3>CA par Superviseur</h3><span className="badge badge-orange">{MOIS_NOMS[mois]} {annee}</span></div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={caBySup} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} />
+                <YAxis type="category" dataKey="sup" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="ca" fill="#FF6900" radius={[0,6,6,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="chart-card chart-small">
+            <div className="chart-header"><h3>CA par Gestionnaire</h3></div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={caByGest} layout="vertical" margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} />
+                <YAxis type="category" dataKey="gest" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="ca" fill="#a29bfe" radius={[0,6,6,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {dashboard?.classement_superviseurs && dashboard.classement_superviseurs.length > 0 && (
+          <div className="card mb-16">
+            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs — {MOIS_NOMS[mois]} {annee}</h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>CA Total</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>CA Moy.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboard.classement_superviseurs.map((s, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.superviseur}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{s.actifs ?? s.nb_pdvs ?? '—'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{s.inactifs ?? '—'}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(s.ca_total ?? s.ca)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(s.ca_moyen ?? (s.ca / (s.nb_pdvs || 1)))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </AccordionSection>
+
     </div>
   );
 }
