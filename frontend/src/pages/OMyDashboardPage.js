@@ -343,6 +343,9 @@ function TabOverview({ annee, mois }) {
 function TabTopPDVs({ annee, mois, criterion }) {
   const [topN, setTopN] = useState(20);
   const [selectedPDV, setSelectedPDV] = useState(null);
+  const [search, setSearch] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [sortBy, setSortBy] = useState('metric_desc');
   const [selectedPDVNom, setSelectedPDVNom] = useState('');
   const [historyData, setHistoryData] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -401,6 +404,25 @@ function TabTopPDVs({ annee, mois, criterion }) {
     }
   };
 
+  // Liste triée/filtrée pour l'affichage
+  const rawList = getTopListByCriterion();
+  const zoneList = [...new Set(rawList.map(p => p.zone).filter(Boolean))].sort();
+  const filteredList = rawList
+    .filter(p => !zoneFilter || p.zone === zoneFilter)
+    .filter(p => !search ||
+      (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === 'metric_asc') return getMetricValue(a, criterion) - getMetricValue(b, criterion);
+      if (sortBy === 'nom_asc') return (a.nom || '').localeCompare(b.nom || '');
+      if (sortBy === 'zone_asc') return (a.zone || '').localeCompare(b.zone || '');
+      if (sortBy === 'variation_desc') return (b.taux_variation || 0) - (a.taux_variation || 0);
+      return getMetricValue(b, criterion) - getMetricValue(a, criterion); // metric_desc par défaut
+    })
+    .slice(0, topN);
+
   const exportExcel = () => {
     const selectedList = getTopListByCriterion();
     if (!selectedList.length) return;
@@ -447,6 +469,33 @@ function TabTopPDVs({ annee, mois, criterion }) {
         <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Download size={14} /> Excel
         </button>
+      </div>
+
+      {/* Barre de recherche + tri — style PDVsPage */}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+        <div className="filter-selects">
+          <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}>
+            <option value="">Toutes les zones</option>
+            {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+            <option value="metric_desc">↓ Valeur (plus haut)</option>
+            <option value="metric_asc">↑ Valeur (plus bas)</option>
+            <option value="nom_asc">↑ Nom A→Z</option>
+            <option value="zone_asc">↑ Zone A→Z</option>
+            <option value="variation_desc">↓ Variation (meilleure)</option>
+          </select>
+        </div>
       </div>
 
       {selectedPDV && historyData.length > 0 && (
