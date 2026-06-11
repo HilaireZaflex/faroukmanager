@@ -740,6 +740,8 @@ function OngletBaisse({ annee, semaine, criterion }) {
 // ─── ONGLET 7 : PROGRESSION ───────────────────────────────────────────────────
 function OngletProgression({ annee, semaine, criterion }) {
   const [selectedPdv, setSelectedPdv] = useState(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const { data, isLoading } = useQuery(
     ['weekly-dash-progression', annee],
@@ -753,7 +755,9 @@ function OngletProgression({ annee, semaine, criterion }) {
     { enabled: !!selectedPdv, staleTime: 120000 }
   );
 
-  const pdvs = data?.pdvs || [];
+  const allPdvs = data?.pdvs || [];
+  const totalPages = Math.ceil(allPdvs.length / PAGE_SIZE);
+  const pdvs = allPdvs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const exportExcel = () => {
     const rows = pdvs.map(p => ({
@@ -862,6 +866,21 @@ function OngletProgression({ annee, semaine, criterion }) {
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:8, marginTop:20, flexWrap:'wrap' }}>
+          <button onClick={() => setPage(1)} disabled={page === 1}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background: page===1?'var(--primary)':'rgba(255,255,255,0.06)', color: page===1?'#fff':'#ccc', cursor: page===1?'default':'pointer', fontSize:12 }}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)', color:'#ccc', cursor: page===1?'default':'pointer', fontSize:12 }}>‹ Préc.</button>
+          <span style={{ fontSize:13, color:'var(--text-secondary)', fontWeight:600 }}>Page {page} / {totalPages} ({allPdvs.length} PDVs)</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)', color:'#ccc', cursor: page===totalPages?'default':'pointer', fontSize:12 }}>Suiv. ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background: page===totalPages?'var(--primary)':'rgba(255,255,255,0.06)', color: page===totalPages?'#fff':'#ccc', cursor: page===totalPages?'default':'pointer', fontSize:12 }}>»</button>
+        </div>
+      )}
     </div>
   );
 }

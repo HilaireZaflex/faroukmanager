@@ -1007,6 +1007,8 @@ function TabProgression({ annee, criterion }) {
   );
 
   const [selectedPDV, setSelectedPDV] = useState(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const toggleChart = (pdv) => {
     setSelectedPDV(prev => prev?.nom === pdv.nom ? null : pdv);
@@ -1032,11 +1034,13 @@ function TabProgression({ annee, criterion }) {
     XLSX.writeFile(wb, `progression-${annee}.xlsx`);
   };
 
-  const sortedPDVs = [...(progression?.pdvs || [])].sort((a, b) => {
+  const allSortedPDVs = [...(progression?.pdvs || [])].sort((a, b) => {
     const maxA = getMetricValue({ ca: a.ca_max, montant_ca: a.montant_ca_max, commission_pdg: a.commission_pdg_max }, criterion);
     const maxB = getMetricValue({ ca: b.ca_max, montant_ca: b.montant_ca_max, commission_pdg: b.commission_pdg_max }, criterion);
     return maxB - maxA;
   });
+  const totalPages = Math.ceil(allSortedPDVs.length / PAGE_SIZE);
+  const sortedPDVs = allSortedPDVs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const getChartData = (pdv) => [...(pdv?.historique_mensuel || [])]
     .sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.mois - b.mois)
     .map(h => ({
@@ -1127,6 +1131,21 @@ function TabProgression({ annee, criterion }) {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:8, marginTop:20, flexWrap:'wrap' }}>
+          <button onClick={() => setPage(1)} disabled={page === 1}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background: page===1?'var(--primary)':'rgba(255,255,255,0.06)', color: page===1?'#fff':'#ccc', cursor: page===1?'default':'pointer', fontSize:12 }}>«</button>
+          <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)', color:'#ccc', cursor: page===1?'default':'pointer', fontSize:12 }}>‹ Préc.</button>
+          <span style={{ fontSize:13, color:'var(--text-secondary)', fontWeight:600 }}>Page {page} / {totalPages} ({allSortedPDVs.length} PDVs)</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)', color:'#ccc', cursor: page===totalPages?'default':'pointer', fontSize:12 }}>Suiv. ›</button>
+          <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+            style={{ padding:'6px 12px', borderRadius:8, border:'1px solid var(--border)', background: page===totalPages?'var(--primary)':'rgba(255,255,255,0.06)', color: page===totalPages?'#fff':'#ccc', cursor: page===totalPages?'default':'pointer', fontSize:12 }}>»</button>
+        </div>
+      )}
     </div>
   );
 }
