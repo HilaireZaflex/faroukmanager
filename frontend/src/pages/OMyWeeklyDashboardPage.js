@@ -308,7 +308,6 @@ function OngletSuiviTop({ annee, semaine, criterion }) {
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom/Prénom</th>
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Quartier</th>
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaire</th>
@@ -330,7 +329,6 @@ function OngletSuiviTop({ annee, semaine, criterion }) {
                     <div style={{ fontSize: 11, color: '#8a8a9a' }}>{pdv.zone}</div>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(getMetricValue(pdv, criterion))}</td>
-                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.nom_gerant || '—'}</td>
                   <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.quartier || '—'}</td>
                   <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.superviseur || '—'}</td>
                   <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.gestionnaire || '—'}</td>

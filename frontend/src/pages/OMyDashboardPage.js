@@ -475,7 +475,7 @@ function TabTopPDVs({ annee, mois, criterion }) {
         <table className="dashboard-table">
           <thead>
             <tr>
-              <th>Rang</th><th>PDV</th><th>CA</th><th>Gérant</th><th>Quartier</th><th>Superviseur</th><th>Gestionnaire</th><th>Médaille</th><th>Evolution</th>
+              <th>Rang</th><th>PDV</th><th>CA</th><th>Quartier</th><th>Superviseur</th><th>Gestionnaire</th><th>Médaille</th><th>Evolution</th>
             </tr>
           </thead>
           <tbody>
@@ -493,7 +493,6 @@ function TabTopPDVs({ annee, mois, criterion }) {
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
                   </td>
                   <td style={{ fontWeight: 700, color: '#FF6900' }}>{formatCA(getMetricValue(pdv, criterion))}</td>
-                  <td style={{ color: '#ccc' }}>{pdv.nom_gerant || '—'}</td>
                   <td style={{ color: '#ccc' }}>{pdv.quartier || '—'}</td>
                   <td style={{ color: '#ccc' }}>{pdv.superviseur || '—'}</td>
                   <td style={{ color: '#ccc' }}>{pdv.gestionnaire || '—'}</td>
