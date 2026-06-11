@@ -570,6 +570,7 @@ function TabTopPDVs({ annee, mois, criterion }) {
 // ============ TAB 3: Rapport Pareto ============
 function TabPareto({ annee, mois, criterion }) {
   const [sortBy, setSortBy] = useState('rang');
+  const [search, setSearch] = useState('');
 
   const { data: pareto, isLoading } = useQuery(
     ['pareto', annee, mois],
@@ -612,6 +613,8 @@ function TabPareto({ annee, mois, criterion }) {
     (!supFilter || p.superviseur === supFilter)
   );
 
+  const displayedPdvs = filteredPDVs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
+
   const fortImpact = filteredPDVs.filter(p => p.dans_pareto).reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
   const faibleImpact = filteredPDVs.filter(p => !p.dans_pareto).reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
 
@@ -643,6 +646,19 @@ function TabPareto({ annee, mois, criterion }) {
         </button>
       </div>
 
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
       <div style={{ overflowX: 'auto' }}>
         <table className="dashboard-table">
           <thead>
@@ -651,7 +667,7 @@ function TabPareto({ annee, mois, criterion }) {
             </tr>
           </thead>
           <tbody>
-            {filteredPDVs.map((pdv, idx) => (
+            {displayedPdvs.map((pdv, idx) => (
               <tr key={idx}>
                 <td style={{ textAlign: 'center' }}>{idx + 1}</td>
                 <td>
@@ -689,6 +705,7 @@ function TabEvolution({ annee, mois, criterion }) {
   const [compareAnnee, setCompareAnnee] = useState(annee);
   const [compareMois, setCompareMois] = useState(mois);
   const [activeSub, setActiveSub] = useState('pdvs');
+  const [search, setSearch] = useState('');
 
   const prevMonth = () => {
     if (compareMois === 1) { setCompareMois(12); setCompareAnnee(a => a - 1); }
@@ -750,6 +767,7 @@ function TabEvolution({ annee, mois, criterion }) {
   const getGestionnaireData = () => (evolution?.par_gestionnaire || []).map(g => toMetricEvolution(g, 'gestionnaire'));
 
   const dataToShow = activeSub === 'pdvs' ? getPDVData() : activeSub === 'superviseurs' ? getSuperviseurData() : getGestionnaireData();
+  const displayedData = dataToShow.filter(row => !search || (row.nom||'').toLowerCase().includes(search.toLowerCase()));
 
   const exportExcel = () => {
     const data = dataToShow.map((row, idx) => ({
@@ -792,6 +810,19 @@ function TabEvolution({ annee, mois, criterion }) {
         </div>
       </div>
 
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, nom..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
       <div style={{ overflowX: 'auto' }}>
         <table className="dashboard-table">
           <thead>
@@ -803,7 +834,7 @@ function TabEvolution({ annee, mois, criterion }) {
             </tr>
           </thead>
           <tbody>
-            {dataToShow.map((row, idx) => (
+            {displayedData.map((row, idx) => (
               <tr key={idx}>
                 <td style={{ textAlign: 'center' }}>{idx + 1}</td>
                 <td>
@@ -837,6 +868,7 @@ function TabEvolution({ annee, mois, criterion }) {
 
 // ============ TAB 5: PDV Inactifs ============
 function TabInactivePDVs({ annee, mois, criterion }) {
+  const [search, setSearch] = useState('');
   const { data: inactifs, isLoading } = useQuery(
     ['inactifs', annee, mois],
     () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
@@ -844,6 +876,7 @@ function TabInactivePDVs({ annee, mois, criterion }) {
   );
 
   const pdvs = inactifs?.pdvs || [];
+  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
   const critique = pdvs.filter(p => p.nb_mois_consecutifs_inactif >= 3);
   const haute = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 2);
   const normale = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 1);
@@ -897,6 +930,19 @@ function TabInactivePDVs({ annee, mois, criterion }) {
         </button>
       </div>
 
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
       {/* Tableau — style hebdo */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -917,9 +963,9 @@ function TabInactivePDVs({ annee, mois, criterion }) {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : pdvs.length === 0 ? (
+              ) : displayedPdvs.length === 0 ? (
                 <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif ce mois</td></tr>
-              ) : pdvs.map((p, i) => {
+              ) : displayedPdvs.map((p, i) => {
                 const alert = getAlertInfo(p.nb_mois_consecutifs_inactif || 1, 'inactif');
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -955,6 +1001,7 @@ function TabInactivePDVs({ annee, mois, criterion }) {
 // ============ TAB 6: PDV en Baisse ============
 function TabDecliningPDVs({ annee, mois, criterion }) {
   const [seuil, setSeuil] = useState(-10);
+  const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
@@ -962,6 +1009,7 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
     { staleTime: 300000 }
   );
   const pdvs = data?.pdvs || [];
+  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
 
   const getPrevMetric = (pdv) => getMetricValue({
     ca: pdv.ca_precedent,
@@ -1054,6 +1102,19 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
         </button>
       </div>
 
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
       {/* Tableau — style hebdo */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -1075,9 +1136,9 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : pdvs.length === 0 ? (
+              ) : displayedPdvs.length === 0 ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse ce mois</td></tr>
-              ) : pdvs.map((p, i) => {
+              ) : displayedPdvs.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
                 return (

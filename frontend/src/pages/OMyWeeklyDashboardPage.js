@@ -406,6 +406,7 @@ function OngletSuiviTop({ annee, semaine, criterion }) {
 // ─── ONGLET 4 : EVOLUTION ────────────────────────────────────────────────────
 function OngletEvolution({ annee, semaine, criterion }) {
   const [subTab, setSubTab] = useState('pdvs');
+  const [search, setSearch] = useState('');
 
   const prevSemaine = semaine === 1 ? 52 : semaine - 1;
   const prevAnnee = semaine === 1 ? annee - 1 : annee;
@@ -517,10 +518,23 @@ function OngletEvolution({ annee, semaine, criterion }) {
         </div>
       </div>
 
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un nom..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
       {isLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement...</div> : (
-        subTab === 'pdvs' ? renderTable(evo?.par_pdv, 'nom') :
-        subTab === 'superviseurs' ? renderTable(evo?.par_superviseur, 'superviseur') :
-        renderTable(evo?.par_gestionnaire, 'gestionnaire')
+        subTab === 'pdvs' ? renderTable((evo?.par_pdv || []).filter(r => !search || (r.nom||'').toLowerCase().includes(search.toLowerCase())), 'nom') :
+        subTab === 'superviseurs' ? renderTable((evo?.par_superviseur || []).filter(r => !search || (r.superviseur||'').toLowerCase().includes(search.toLowerCase())), 'superviseur') :
+        renderTable((evo?.par_gestionnaire || []).filter(r => !search || (r.gestionnaire||'').toLowerCase().includes(search.toLowerCase())), 'gestionnaire')
       )}
     </div>
   );
@@ -528,12 +542,14 @@ function OngletEvolution({ annee, semaine, criterion }) {
 
 // ─── ONGLET 5 : PDV INACTIFS ─────────────────────────────────────────────────
 function OngletInactifs({ annee, semaine, criterion }) {
+  const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery(
     ['weekly-inactive', annee, semaine],
     () => api.get('/dashboard/weekly-inactive', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 60000 }
   );
   const pdvs = data?.pdvs || [];
+  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
   const critique = pdvs.filter(p => p.alerte === 'CRITIQUE');
   const haute = pdvs.filter(p => p.alerte === 'HAUTE');
   const normale = pdvs.filter(p => p.alerte === 'NORMALE');
@@ -577,6 +593,18 @@ function OngletInactifs({ annee, semaine, criterion }) {
           <Download size={14} /> Export Excel
         </button>
       </div>
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -596,9 +624,9 @@ function OngletInactifs({ annee, semaine, criterion }) {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : pdvs.length === 0 ? (
+              ) : displayedPdvs.length === 0 ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif cette semaine</td></tr>
-              ) : pdvs.map((p, i) => {
+              ) : displayedPdvs.map((p, i) => {
                 const alert = getAlertInfo(p.nb_semaines_consecutives_inactif || 1, 'inactif');
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -634,6 +662,7 @@ function OngletInactifs({ annee, semaine, criterion }) {
 // ─── ONGLET 6 : PDV EN BAISSE ─────────────────────────────────────────────────
 function OngletBaisse({ annee, semaine, criterion }) {
   const [seuil, setSeuil] = useState(-10);
+  const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery(
     ['weekly-declining', annee, semaine, seuil],
@@ -641,6 +670,7 @@ function OngletBaisse({ annee, semaine, criterion }) {
     { staleTime: 60000 }
   );
   const pdvs = data?.pdvs || [];
+  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
 
   const getPrevMetricW = (pdv) => getMetricValue({
     ca: pdv.ca_precedent,
@@ -725,6 +755,18 @@ function OngletBaisse({ annee, semaine, criterion }) {
           <Download size={14} /> Export Excel
         </button>
       </div>
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -745,9 +787,9 @@ function OngletBaisse({ annee, semaine, criterion }) {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : pdvs.length === 0 ? (
+              ) : displayedPdvs.length === 0 ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse cette semaine</td></tr>
-              ) : pdvs.map((p, i) => {
+              ) : displayedPdvs.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
                 return (
@@ -1037,6 +1079,7 @@ export default function OMyWeeklyDashboardPage() {
 // ─── ONGLET 3 : RAPPORT PARETO ────────────────────────────────────────────────
 function OngletPareto({ annee, semaine, criterion }) {
   const [zoneFilter, setZoneFilter] = useState('');
+  const [search, setSearch] = useState('');
 
   const { data: weeklyDash } = useQuery(
     ['weekly-pareto-dash', annee, semaine],
@@ -1052,6 +1095,7 @@ function OngletPareto({ annee, semaine, criterion }) {
 
   const filtered = zoneFilter ? allPdvs.filter(p => p.zone === zoneFilter) : allPdvs;
   const sorted = [...filtered].sort((a, b) => getMetricValue(b, criterion) - getMetricValue(a, criterion));
+  const displayedPdvs = sorted.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
   const totalMetric = filtered.reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
 
   let cumul = 0;
@@ -1115,6 +1159,19 @@ function OngletPareto({ annee, semaine, criterion }) {
         </div>
       </div>
 
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -1131,7 +1188,7 @@ function OngletPareto({ annee, semaine, criterion }) {
               </tr>
             </thead>
             <tbody>
-              {paretoList.map((p, i) => (
+              {displayedPdvs.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: p.dans_pareto ? 'rgba(0,214,143,0.03)' : 'transparent' }}>
                   <td style={{ padding: '10px 14px', textAlign: 'center', color: '#FF6900', fontWeight: 700 }}>{p.rang}</td>
                   <td style={{ padding: '10px 14px' }}>
