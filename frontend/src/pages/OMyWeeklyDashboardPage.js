@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, AreaChart, Area, Legend
@@ -828,33 +829,6 @@ function OngletProgression({ annee, semaine, criterion }) {
         <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Download size={14} /> Export Excel
         </button>
-      </div>
-
-      {/* Barre de recherche + tri */}
-      <div className="pdv-filters card mb-16">
-        <div className="filter-search">
-          <Search size={15} className="search-icon"/>
-          <input
-            type="text"
-            placeholder="Rechercher un PDV, numéro, superviseur..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ paddingLeft: 36 }}
-          />
-        </div>
-        <div className="filter-selects">
-          <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}>
-            <option value="">Toutes les zones</option>
-            {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
-          </select>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="metric_desc">↓ Valeur (plus haut)</option>
-            <option value="metric_asc">↑ Valeur (plus bas)</option>
-            <option value="nom_asc">↑ Nom A→Z</option>
-            <option value="zone_asc">↑ Zone A→Z</option>
-            <option value="variation_desc">↓ Variation (meilleure)</option>
-          </select>
-        </div>
       </div>
 
       {selectedPdv && pdvHistory && (
