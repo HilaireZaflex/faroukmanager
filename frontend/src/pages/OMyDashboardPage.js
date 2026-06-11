@@ -56,6 +56,12 @@ function getAlertLevel(value, type = 'inactif') {
   return { level: 'NORMAL', color: '#999', bg: 'rgba(153,153,153,0.1)' };
 }
 
+function getAlertInfo(semaines, type = 'inactif') {
+  if (semaines >= 3) return { level: 'CRITIQUE', color: '#ff4757', bg: 'rgba(255,71,87,0.15)' };
+  if (semaines === 2) return { level: 'HAUTE', color: '#ffa502', bg: 'rgba(255,165,2,0.15)' };
+  return { level: 'NORMALE', color: '#8a8a9a', bg: 'rgba(138,138,154,0.15)' };
+}
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -788,84 +794,110 @@ function TabInactivePDVs({ annee, mois, criterion }) {
     { staleTime: 300000 }
   );
 
-  const exportExcel = () => {
-    if (!inactifs?.pdvs) return;
-    const data = inactifs.pdvs.map((pdv, idx) => ({
-      'Rang': idx + 1,
-      'PDV': pdv.nom,
-      'Numéro Personnel': pdv.numero_personnel,
-      'Superviseur': pdv.superviseur,
-      'Zone': pdv.zone,
-      'Sous-zone': pdv.sous_zone,
-      'Téléconseillère': pdv.teleconseillere,
-      [getMetricLabel(criterion)]: getMetricValue(pdv, criterion),
-      'Nb Mois Inactif': pdv.nb_mois_consecutifs_inactif,
-      'Alerte': pdv.alerte
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Inactifs');
-    XLSX.writeFile(wb, `inactifs-${annee}-${mois}.xlsx`);
-  };
+  const pdvs = inactifs?.pdvs || [];
+  const critique = pdvs.filter(p => p.nb_mois_consecutifs_inactif >= 3);
+  const haute = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 2);
+  const normale = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 1);
 
-  const critique = (inactifs?.pdvs || []).filter(p => p.nb_mois_consecutifs_inactif >= 3).length;
-  const haute = (inactifs?.pdvs || []).filter(p => p.nb_mois_consecutifs_inactif === 2).length;
-  const normale = (inactifs?.pdvs || []).filter(p => p.nb_mois_consecutifs_inactif === 1).length;
+  const exportExcel = () => {
+    const rows = pdvs.map(p => ({
+      'PDV Numéro': p.numero_pdv,
+      'PDV Nom': p.nom,
+      'N° Personnel': p.numero_personnel || '-',
+      'Superviseur': p.superviseur || '-',
+      'Zone': p.zone || '-',
+      'Sous-zone': p.sous_zone || '-',
+      'Téléconseillère': p.teleconseillere || '-',
+      [getMetricLabel(criterion)]: getMetricValue(p, criterion),
+      'Alerte': p.alerte,
+      'Mois Inactif': p.nb_mois_consecutifs_inactif,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Inactifs_${mois}_${annee}`);
+    XLSX.writeFile(wb, `inactifs_${mois}_${annee}.xlsx`);
+  };
 
   return (
     <div>
+      {/* KPI Cards — style hebdo */}
       <div className="grid-4 mb-24">
-        <KPICard title="Total Inactifs" value={inactifs?.count || 0} icon={AlertTriangle} color="#ff4757" />
-        <KPICard title="Critique (≥3m)" value={critique} icon={AlertTriangle} color="#ff4757" />
-        <KPICard title="Haute (2m)" value={haute} icon={AlertTriangle} color="#ffa502" />
-        <KPICard title="Normale (1m)" value={normale} icon={AlertTriangle} color="#999" />
+        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total Inactifs</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvs.length}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>{MOIS_NOMS[mois - 1]} {annee}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (≥3 mois)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (2 mois)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale (1 mois)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
+        </div>
       </div>
 
-      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-ghost" onClick={exportExcel}>
-          <Download size={14} /> Excel
+      {/* Export Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
         </button>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table className="dashboard-table">
-          <thead>
-            <tr>
-              <th>PDV</th><th>Numéro</th><th>Superviseur</th><th>Zone</th><th>Sous-zone</th><th>Téléconseillère</th><th>{getMetricLabel(criterion)}</th><th>Alerte</th><th>Mois</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inactifs?.pdvs?.map((pdv, idx) => {
-              const alertLevel = getAlertLevel(pdv.nb_mois_consecutifs_inactif, 'inactif');
-              return (
-                <tr key={idx}>
-                  <td>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_personnel || pdv.numero_pdv}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
-                  </td>
-                  <td>{pdv.superviseur}</td>
-                  <td>{pdv.zone}</td>
-                  <td>{pdv.sous_zone}</td>
-                  <td>{pdv.teleconseillere}</td>
-                  <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{formatCA(getMetricValue(pdv, criterion))}</td>
-                  <td>
-                    <span style={{
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: alertLevel.bg,
-                      color: alertLevel.color
-                    }}>
-                      {alertLevel.level}
-                    </span>
-                  </td>
-                  <td style={{ fontWeight: 600 }}>{pdv.nb_mois_consecutifs_inactif} mois</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Tableau — style hebdo */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Sous-Zone</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Mois Inactif</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+              ) : pdvs.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif ce mois</td></tr>
+              ) : pdvs.map((p, i) => {
+                const alert = getAlertInfo(p.nb_mois_consecutifs_inactif || 1, 'inactif');
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                    </td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.numero_personnel || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.zone || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.sous_zone || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.teleconseillere || '—'}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 600, color: 'var(--primary)' }}>{formatCA(getMetricValue(p, criterion))}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: alert.bg, color: alert.color }}>
+                        {p.alerte || alert.level}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: alert.color }}>
+                      {p.nb_mois_consecutifs_inactif || 1}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
