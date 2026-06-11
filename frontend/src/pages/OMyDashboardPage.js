@@ -531,7 +531,7 @@ function TabTopPDVs({ annee, mois, criterion }) {
           <tbody>
             {isLoading ? (
               <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-            ) : pdvList.slice(0, topN).map((pdv, idx) => {
+            ) : filteredList.map((pdv, idx) => {
               const medal = pdv.medaille || '';
               const medalColor = medal === 'OR' ? '#FFD700' : medal === 'ARGENT' ? '#C0C0C0' : medal === 'BRONZE' ? '#CD7F32' : '#999';
               const medalIcon = medal === 'OR' ? '🥇' : medal === 'ARGENT' ? '🥈' : medal === 'BRONZE' ? '🥉' : '';
