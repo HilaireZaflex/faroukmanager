@@ -182,43 +182,43 @@ function OngletVueEnsemble({ annee, semaine }) {
       </div>
       </AccordionSectionW>
 
-      <div className="grid-2">
-        <div className="card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>🏆 Classement Superviseurs par {GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label} — S{semaine} {annee}</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>#</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Superviseur</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f', fontWeight: 600 }}>Actifs</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757', fontWeight: 600 }}>Inactifs</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900', fontWeight: 600 }}>CA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dash?.presence_par_superviseur && Object.entries(dash.presence_par_superviseur)
-                  .map(([sup, d]) => ({
-                    sup, actifs: d.actifs, inactifs: d.inactifs,
-                    valeur: graphIndicateur === 'montant_ca'
-                      ? (caBySup.find(s => s.sup === sup)?.ca || 0)
-                      : graphIndicateur === 'commission_pdg'
-                      ? (dash?.commission_pdg_by_superviseur?.[sup] || 0)
-                      : d.ca
-                  }))
-                  .sort((a, b) => b.valeur - a.valeur)
-                  .map((row, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
-                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{row.sup}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{row.actifs}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{row.inactifs}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900', fontWeight: 700 }}>{formatCA(row.valeur)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="card mb-16">
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs par {GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label} — S{semaine} {annee}</h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>{GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Moy./PDV</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dash?.presence_par_superviseur && Object.entries(dash.presence_par_superviseur)
+                .map(([sup, d]) => ({
+                  sup, actifs: d.actifs, inactifs: d.inactifs,
+                  valeur: graphIndicateur === 'montant_ca'
+                    ? (caBySup.find(s => s.sup === sup)?.ca || 0)
+                    : graphIndicateur === 'commission_pdg'
+                    ? (dash?.commission_pdg_by_superviseur?.[sup] || 0)
+                    : d.ca
+                }))
+                .sort((a, b) => b.valeur - a.valeur)
+                .map((row, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{row.sup}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{row.actifs}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{row.inactifs}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(row.valeur)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(row.actifs > 0 ? row.valeur / row.actifs : 0)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
