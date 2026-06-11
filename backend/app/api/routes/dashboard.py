@@ -1170,7 +1170,7 @@ def monthly_evolution(
 def monthly_progression(
     db: Session = Depends(get_db),
     annee: Optional[int] = None,
-    top_n: int = Query(20, ge=1, le=100),
+    top_n: int = Query(1200, ge=1, le=1200),
 ):
     """Statistiques de progression historique des PDVs — version optimisée (1 seule requête SQL)."""
     from datetime import datetime
@@ -1576,7 +1576,7 @@ def weekly_evolution(
 def weekly_progression(
     db: Session = Depends(get_db),
     annee: int = Query(...),
-    top_n: int = Query(20, ge=1, le=100),
+    top_n: int = Query(1200, ge=1, le=1200),
 ):
     """Statistiques de progression historique des PDVs — version optimisée (1 seule requête SQL)."""
     # Charger TOUTES les perfs de l'année en une seule requête
