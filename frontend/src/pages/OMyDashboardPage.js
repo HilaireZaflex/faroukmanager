@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { useHierarchicalFilters, HierarchicalFilters } from '../hooks/useHierarchicalFilters';
+import { Search } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area
