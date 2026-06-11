@@ -907,32 +907,13 @@ function TabInactivePDVs({ annee, mois, criterion }) {
 function TabDecliningPDVs({ annee, mois, criterion }) {
   const [seuil, setSeuil] = useState(-10);
 
-  const { data: declining, isLoading } = useQuery(
+  const { data, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
     () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  const pdvs = data?.pdvs || [];
 
-  const exportExcel = () => {
-    if (!declining?.pdvs) return;
-    const data = declining.pdvs.map((pdv, idx) => ({
-      'Rang': idx + 1,
-      'PDV': pdv.nom,
-      'Numéro': pdv.numero_personnel,
-      'Superviseur': pdv.superviseur,
-      'Zone': pdv.zone,
-      [`${getMetricLabel(criterion)} Actuel`]: getMetricValue(pdv, criterion),
-      [`${getMetricLabel(criterion)} Précédent`]: getMetricValue({ ca: pdv.ca_precedent, montant_ca: pdv.montant_ca_precedent, commission_pdg: pdv.commission_pdg_precedent }, criterion),
-      'Baisse %': pdv.taux_baisse?.toFixed(2) + '%',
-      'Opérations': pdv.nb_operations
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'En Baisse');
-    XLSX.writeFile(wb, `baisse-${annee}-${mois}.xlsx`);
-  };
-
-  // KPIs basés sur le critère choisi
   const getPrevMetric = (pdv) => getMetricValue({
     ca: pdv.ca_precedent,
     montant_transaction: pdv.montant_transaction_precedent,
@@ -940,91 +921,143 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
     commission_pdg: pdv.commission_pdg_precedent,
   }, criterion);
 
-  const pdvsAvecBaisseCritere = (declining?.pdvs || []).filter(p => {
-    const actuel = getMetricValue(p, criterion);
-    const prec = getPrevMetric(p);
-    return prec > 0 && actuel < prec;
-  });
-
   const getTauxCritere = (pdv) => {
     const actuel = getMetricValue(pdv, criterion);
     const prec = getPrevMetric(pdv);
     return prec > 0 ? ((actuel - prec) / prec) * 100 : 0;
   };
 
-  const critique = pdvsAvecBaisseCritere.filter(p => getTauxCritere(p) < -30).length;
-  const haute = pdvsAvecBaisseCritere.filter(p => getTauxCritere(p) < -15 && getTauxCritere(p) >= -30).length;
-  const totalBaisse = pdvsAvecBaisseCritere.length;
+  const pdvsAvecBaisse = pdvs.filter(p => {
+    const actuel = getMetricValue(p, criterion);
+    const prec = getPrevMetric(p);
+    return prec > 0 && actuel < prec;
+  });
+
+  const critique = pdvsAvecBaisse.filter(p => getTauxCritere(p) < -30);
+  const haute = pdvsAvecBaisse.filter(p => getTauxCritere(p) < -15 && getTauxCritere(p) >= -30);
+  const normale = pdvsAvecBaisse.filter(p => getTauxCritere(p) >= -15);
+
+  const exportExcel = () => {
+    const rows = pdvs.map(p => ({
+      'PDV Numéro': p.numero_pdv,
+      'PDV Nom': p.nom,
+      'N° Personnel': p.numero_personnel || '-',
+      'Superviseur': p.superviseur || '-',
+      'Zone': p.zone || '-',
+      'Sous-zone': p.sous_zone || '-',
+      'Téléconseillère': p.teleconseillere || '-',
+      [getMetricLabel(criterion) + ' Actuel']: getMetricValue(p, criterion),
+      [getMetricLabel(criterion) + ' Précédent']: getPrevMetric(p),
+      'Baisse (%)': p.taux_baisse,
+      'Alerte': p.alerte,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Baisse_${mois}_${annee}`);
+    XLSX.writeFile(wb, `baisse_${mois}_${annee}.xlsx`);
+  };
+
+  const getAction = (taux) => {
+    const abs = Math.abs(taux || 0);
+    if (abs > 30) return 'Visite urgente + appel superviseur';
+    if (abs > 15) return 'Appel téléphonique + relance';
+    return 'Surveillance & suivi régulier';
+  };
 
   return (
     <div>
+      {/* KPI Cards — style hebdo */}
       <div className="grid-4 mb-24">
-        <KPICard title={`Total en Baisse (${getMetricLabel(criterion)})`} value={totalBaisse} icon={TrendingDown} color="#ff4757" />
-        <KPICard title="Critique (>30%)" value={critique} icon={TrendingDown} color="#ff4757" />
-        <KPICard title="Haute (>15%)" value={haute} icon={TrendingDown} color="#ffa502" />
-        <KPICard title="Seuil" formatted={`${seuil}%`} icon={Filter} color="#999" />
+        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total en Baisse ({getMetricLabel(criterion)})</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvsAvecBaisse.length}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Seuil: {seuil}%</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (&gt;30%)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (&gt;15%)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
+        </div>
       </div>
 
+      {/* Slider seuil + Export */}
       <div className="card mb-16" style={{ padding: '16px 20px', display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
-          <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+          <label style={{ fontSize: 12, color: '#8a8a9a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
             Seuil de baisse : <span style={{ color: '#ff4757', fontWeight: 800 }}>{Math.abs(seuil)}%</span>
           </label>
-          <input
-            type="range"
-            min="5"
-            max="50"
-            value={Math.abs(seuil)}
+          <input type="range" min="5" max="50" value={Math.abs(seuil)}
             onChange={e => setSeuil(-parseInt(e.target.value))}
-            style={{ width: '100%', accentColor: '#ff4757' }}
-          />
+            style={{ width: '100%', accentColor: '#ff4757' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#555', marginTop: 2 }}>
             <span>5%</span><span>15%</span><span>25%</span><span>35%</span><span>50%</span>
           </div>
         </div>
         <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Download size={14} /> Excel
+          <Download size={14} /> Export Excel
         </button>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table className="dashboard-table">
-          <thead>
-            <tr>
-              <th>PDV</th><th>Numéro</th><th>Superviseur</th><th>Zone</th><th>{getMetricLabel(criterion)} Actuel</th><th>{getMetricLabel(criterion)} Précédent</th><th>Baisse %</th><th>Alerte</th>
-            </tr>
-          </thead>
-          <tbody>
-            {declining?.pdvs?.map((pdv, idx) => {
-              const alertLevel = getAlertLevel(Math.abs(pdv.taux_baisse), 'baisse');
-              return (
-                <tr key={idx}>
-                  <td>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_personnel || pdv.numero_pdv}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
-                  </td>
-                  <td>{pdv.superviseur}</td>
-                  <td>{pdv.zone}</td>
-                  <td>{formatCA(getMetricValue(pdv, criterion))}</td>
-                  <td>{formatCA(getMetricValue({ ca: pdv.ca_precedent, montant_ca: pdv.montant_ca_precedent, commission_pdg: pdv.commission_pdg_precedent }, criterion))}</td>
-                  <td style={{ color: '#ff4757', fontWeight: 600 }}>-{Math.abs(pdv.taux_baisse).toFixed(2)}%</td>
-                  <td>
-                    <span style={{
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: alertLevel.bg,
-                      color: alertLevel.color
-                    }}>
-                      {alertLevel.level}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* Tableau — style hebdo */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} Actuel</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ffa502' }}>{getMetricLabel(criterion)} Précédent</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#ff4757' }}>Baisse</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+              ) : pdvs.length === 0 ? (
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse ce mois</td></tr>
+              ) : pdvs.map((p, i) => {
+                const abs = Math.abs(p.taux_baisse || 0);
+                const alert = getAlertInfo(abs, 'baisse');
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 14px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                    </td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.numero_personnel || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.zone || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.teleconseillere || '—'}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700 }}>{formatCA(getMetricValue(p, criterion))}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', color: '#aaa' }}>{formatCA(getPrevMetric(p))}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: '#ff4757' }}>
+                      ▼ {abs.toFixed(1)}%
+                    </td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: alert.bg, color: alert.color }}>
+                        {p.alerte || alert.level}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 11, color: '#aaa' }}>{getAction(p.taux_baisse)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
