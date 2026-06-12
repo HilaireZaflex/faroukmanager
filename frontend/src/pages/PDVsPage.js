@@ -184,23 +184,25 @@ export default function PDVsPage() {
   
   const activeDash = periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly;
 
-  // Stats dynamiques selon filtres actifs (zone, type, superviseur)
+  // Stats dynamiques selon TOUS les filtres actifs (zone, type, statut)
   const { data: dynamicStatsRaw } = useQuery(
-    ['pdvs-stats-filtres', zone, typePdv],
+    ['pdvs-stats-filtres', zone, typePdv, statut],
     () => api.get('/pdvs/stats', { params: { 
       ...(zone ? { zone } : {}), 
-      ...(typePdv ? { type_pdv: typePdv } : {}) 
+      ...(typePdv ? { type_pdv: typePdv } : {}),
+      ...(statut ? { statut } : {}),
     }}).then(r => r.data),
     { staleTime: 0, cacheTime: 0 }
   );
 
-  // Utiliser activeDash (période) pour actifs/inactifs, dynamicStatsRaw pour le reste
+  // Utiliser activeDash (période) pour actifs/inactifs filtrés par zone/type + dashboard
+  // Les KPIs réagissent à zone, type ET statut
   const dynamicStats = {
-    total_pdvs: activeDash?.total_pdvs || dynamicStatsRaw?.total_pdvs || 0,
-    actifs: activeDash?.active_pdvs || dynamicStatsRaw?.actifs || 0,
-    inactifs: activeDash?.inactive_pdvs || dynamicStatsRaw?.inactifs || 0,
-    en_recuperation: dynamicStatsRaw?.en_recuperation || 0,
-    nouvelles_creations: dynamicStatsRaw?.nouvelles_creations || 0,
+    total_pdvs: activeDash?.total_pdvs ?? dynamicStatsRaw?.total_pdvs ?? 0,
+    actifs: activeDash?.pdvs_avec_donnees ?? activeDash?.active_pdvs ?? dynamicStatsRaw?.actifs ?? 0,
+    inactifs: activeDash?.pdvs_sans_donnees ?? activeDash?.inactive_pdvs ?? dynamicStatsRaw?.inactifs ?? 0,
+    en_recuperation: dynamicStatsRaw?.en_recuperation ?? 0,
+    nouvelles_creations: dynamicStatsRaw?.nouvelles_creations ?? 0,
   };
 
   const zones = statsBase?.pdvs_par_zone ? Object.keys(statsBase.pdvs_par_zone) : [];
