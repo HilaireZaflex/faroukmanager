@@ -543,6 +543,7 @@ function OngletEvolution({ annee, semaine, criterion }) {
 // ─── ONGLET 5 : PDV INACTIFS ─────────────────────────────────────────────────
 function OngletInactifs({ annee, semaine, criterion }) {
   const [activeFilter, setActiveFilter] = useState(null);
+  const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery(
     ['weekly-inactive', annee, semaine],
     () => api.get('/dashboard/weekly-inactive', { params: { annee, semaine } }).then(r => r.data),
@@ -1142,15 +1143,9 @@ function OngletPareto({ annee, semaine, criterion }) {
 
   const filtered = zoneFilter ? allPdvs.filter(p => p.zone === zoneFilter) : allPdvs;
   const sorted = [...filtered].sort((a, b) => getMetricValue(b, criterion) - getMetricValue(a, criterion));
-  const displayedPdvs = sorted
-    .filter(p => {
-      if (activeFilter === 'fort') return p.dans_pareto;
-      if (activeFilter === 'faible') return !p.dans_pareto;
-      return true;
-    })
-    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
   const totalMetric = filtered.reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
 
+  // Calculer paretoList AVANT displayedPdvs pour avoir dans_pareto correct
   let cumul = 0;
   const paretoList = sorted.map((p, i) => {
     const metricValue = getMetricValue(p, criterion);
@@ -1158,6 +1153,15 @@ function OngletPareto({ annee, semaine, criterion }) {
     const cumul_pct = totalMetric > 0 ? (cumul / totalMetric) * 100 : 0;
     return { ...p, rang: i + 1, pct_ca: totalMetric > 0 ? (metricValue / totalMetric) * 100 : 0, cumul_pct, dans_pareto: cumul_pct <= 80 };
   });
+
+  // Filtrer sur paretoList (qui a dans_pareto calculé)
+  const displayedPdvs = paretoList
+    .filter(p => {
+      if (activeFilter === 'fort') return p.dans_pareto;
+      if (activeFilter === 'faible') return !p.dans_pareto;
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
 
   const fortImpact = paretoList.filter(p => p.dans_pareto);
   const faibleImpact = paretoList.filter(p => !p.dans_pareto);
