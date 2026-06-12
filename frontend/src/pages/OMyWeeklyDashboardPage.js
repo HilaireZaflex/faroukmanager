@@ -892,55 +892,60 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   const rawPdvs = data?.pdvs || [];
 
-  // KPIs recalculés selon l'indicateur sélectionné (criterion)
+  // KPIs recalculés selon l'indicateur sélectionné (criterion) - hebdo utilise historique_hebdo
   const getHistMetric = (h) => {
     if (criterion === 'montant_ca') return h.montant_ca || 0;
     if (criterion === 'commission_pdg') return h.commission_pdg || 0;
-    return h.ca || 0;
+    return h.ca || h.montant_transaction || 0;
   };
 
+  // Nombre de semaines disponibles
+  const toutes_semaines = new Set();
+  rawPdvs.forEach(p => (p.historique_hebdo || []).forEach(h => toutes_semaines.add(`${h.annee}-${h.semaine}`)));
+  const nbSemainesTotal = toutes_semaines.size;
+
+  // Réguliers : actifs (metric > 0) dans TOUTES les semaines disponibles
   const pdvsReguliers = rawPdvs.filter(p => {
-    const hist = p.historique_mensuel || [];
-    return hist.filter(h => getHistMetric(h) > 0).length >= 5;
+    const hist = p.historique_hebdo || [];
+    return hist.filter(h => getHistMetric(h) > 0).length >= nbSemainesTotal && nbSemainesTotal > 0;
   });
 
+  // Toujours Top 10 : dans toutes les semaines selon criterion
   const pdvsToujours10 = (() => {
-    const parMois = {};
+    const parSemaine = {};
     rawPdvs.forEach(p => {
-      (p.historique_mensuel || []).forEach(h => {
-        const key = `${h.annee}-${h.mois}`;
-        if (!parMois[key]) parMois[key] = [];
-        parMois[key].push({ pdv_id: p.pdv_id, valeur: getHistMetric(h) });
+      (p.historique_hebdo || []).forEach(h => {
+        const key = `${h.annee}-${h.semaine}`;
+        if (!parSemaine[key]) parSemaine[key] = [];
+        parSemaine[key].push({ pdv_id: p.pdv_id, valeur: getHistMetric(h) });
       });
     });
     const nbFoisTop10 = {};
-    Object.values(parMois).forEach(moisPdvs => {
-      const sorted = [...moisPdvs].sort((a, b) => b.valeur - a.valeur);
+    Object.values(parSemaine).forEach(semPdvs => {
+      const sorted = [...semPdvs].sort((a, b) => b.valeur - a.valeur);
       sorted.slice(0, 10).forEach(({ pdv_id }) => {
         nbFoisTop10[pdv_id] = (nbFoisTop10[pdv_id] || 0) + 1;
       });
     });
-    const nbMois = Object.keys(parMois).length;
-    return rawPdvs.filter(p => (nbFoisTop10[p.pdv_id] || 0) >= nbMois && nbMois > 0);
+    const nbSem = Object.keys(parSemaine).length;
+    return rawPdvs.filter(p => (nbFoisTop10[p.pdv_id] || 0) >= nbSem && nbSem > 0);
   })();
 
+  // Meilleur/Pire SEMAINE du réseau selon criterion
   const { meilleurMoisReseau, pireMoisReseau } = (() => {
-    const caParMois = {};
+    const caParSem = {};
     rawPdvs.forEach(p => {
-      (p.historique_mensuel || []).forEach(h => {
-        const key = `${h.annee}-${h.mois}`;
-        caParMois[key] = (caParMois[key] || 0) + getHistMetric(h);
+      (p.historique_hebdo || []).forEach(h => {
+        const key = `S${h.semaine} ${h.annee}`;
+        caParSem[key] = (caParSem[key] || 0) + getHistMetric(h);
       });
     });
-    if (!Object.keys(caParMois).length) return { meilleurMoisReseau: null, pireMoisReseau: null };
-    const moisNomsFr = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-    const meilleurKey = Object.keys(caParMois).reduce((a, b) => caParMois[a] > caParMois[b] ? a : b);
-    const pireKey = Object.keys(caParMois).reduce((a, b) => caParMois[a] < caParMois[b] ? a : b);
-    const mIdx = parseInt(meilleurKey.split('-')[1]) - 1;
-    const pIdx = parseInt(pireKey.split('-')[1]) - 1;
+    if (!Object.keys(caParSem).length) return { meilleurMoisReseau: null, pireMoisReseau: null };
+    const meilleurKey = Object.keys(caParSem).reduce((a, b) => caParSem[a] > caParSem[b] ? a : b);
+    const pireKey = Object.keys(caParSem).reduce((a, b) => caParSem[a] < caParSem[b] ? a : b);
     return {
-      meilleurMoisReseau: { nom: moisNomsFr[mIdx] || meilleurKey, ca_total: caParMois[meilleurKey] },
-      pireMoisReseau: { nom: moisNomsFr[pIdx] || pireKey, ca_total: caParMois[pireKey] }
+      meilleurMoisReseau: { nom: meilleurKey, ca_total: caParSem[meilleurKey] },
+      pireMoisReseau: { nom: pireKey, ca_total: caParSem[pireKey] }
     };
   })();
 
@@ -1004,7 +1009,7 @@ function OngletProgression({ annee, semaine, criterion }) {
           <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>PDVs classés Top 10 dans TOUS les mois</div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
-          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 Meilleur Mois</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 Meilleure Semaine</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#00d68f' }}>
             {meilleurMoisReseau?.nom || '—'}
           </div>
@@ -1013,7 +1018,7 @@ function OngletProgression({ annee, semaine, criterion }) {
           </div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
-          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚠️ Pire Mois</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚠️ Pire Semaine</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#ff4757' }}>
             {pireMoisReseau?.nom || '—'}
           </div>
