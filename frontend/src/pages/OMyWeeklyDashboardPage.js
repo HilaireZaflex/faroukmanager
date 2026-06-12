@@ -832,9 +832,9 @@ function OngletBaisse({ annee, semaine, criterion }) {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : displayedPdvs.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse cette semaine</td></tr>
+                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse cette semaine</td></tr>
               ) : displayedPdvs.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
@@ -892,24 +892,18 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   const rawPdvs = data?.pdvs || [];
 
-  // KPIs interactifs (Option C) - comparer dernier mois vs premier mois
-  const getTauxProgression = (p) => {
-    const hist = p.historique_mensuel || [];
-    if (hist.length < 2) return 0;
-    const sorted = [...hist].sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.mois - b.mois);
-    const premier = sorted[0]?.ca || 0;
-    const dernier = sorted[sorted.length-1]?.ca || 0;
-    return premier > 0 ? ((dernier - premier) / premier * 100) : 0;
-  };
-  const pdvsHausse = rawPdvs.filter(p => getTauxProgression(p) > 0);
-  const pdvsBaisse = rawPdvs.filter(p => getTauxProgression(p) < 0);
-  const topPerformer = rawPdvs.reduce((best, p) => (!best || getTauxProgression(p) > getTauxProgression(best)) ? p : best, null);
-  const variationMoyenne = rawPdvs.length > 0 ? rawPdvs.reduce((sum, p) => sum + getTauxProgression(p), 0) / rawPdvs.length : 0;
+  // KPIs Option A - utilise les vrais champs du backend
+  const pdvsHausse = rawPdvs.filter(p => p.tendance === 'HAUSSE');
+  const pdvsBaisse = rawPdvs.filter(p => p.tendance === 'BAISSE');
+  const pdvsStables = rawPdvs.filter(p => p.tendance === 'STABLE');
+  const topPerformer = rawPdvs.reduce((best, p) => (!best || (p.variation_globale||0) > (best.variation_globale||0)) ? p : best, null);
+  const variationMoyenne = rawPdvs.length > 0 ? rawPdvs.reduce((sum, p) => sum + (p.variation_globale||0), 0) / rawPdvs.length : 0;
+  const pdvsTop10Consecutifs = rawPdvs.filter(p => (p.nb_mois_consecutifs_top10||0) >= 2);
 
   const allPdvs = rawPdvs
     .filter(p => {
-      if (activeFilter === 'hausse') return getTauxProgression(p) > 0;
-      if (activeFilter === 'baisse') return getTauxProgression(p) < 0;
+      if (activeFilter === 'hausse') return p.tendance === 'HAUSSE';
+      if (activeFilter === 'baisse') return p.tendance === 'BAISSE';
       return true;
     })
     .filter(p => !search ||
@@ -1055,7 +1049,7 @@ function OngletProgression({ annee, semaine, criterion }) {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : pdvs.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: selectedPdv?.pdv_id === p.pdv_id ? 'rgba(255,105,0,0.05)' : 'transparent' }}>
                   <td style={{ padding: '10px 14px' }}>

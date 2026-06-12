@@ -1211,9 +1211,9 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : displayedPdvs.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse ce mois</td></tr>
+                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse ce mois</td></tr>
               ) : displayedPdvs.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
@@ -1292,24 +1292,18 @@ function TabProgression({ annee, criterion }) {
   const getMetricMax = (p) => getMetricValue({ ca: p.ca_max, montant_ca: p.montant_ca_max, commission_pdg: p.commission_pdg_max }, criterion);
   const getMetricMin = (p) => getMetricValue({ ca: p.ca_min, montant_ca: p.montant_ca_min, commission_pdg: p.commission_pdg_min }, criterion);
 
-  // KPIs interactifs (Option C) - comparer dernier mois vs premier mois
-  const getTauxProgression = (p) => {
-    const hist = p.historique_mensuel || [];
-    if (hist.length < 2) return 0;
-    const sorted = [...hist].sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.mois - b.mois);
-    const premier = sorted[0]?.ca || 0;
-    const dernier = sorted[sorted.length-1]?.ca || 0;
-    return premier > 0 ? ((dernier - premier) / premier * 100) : 0;
-  };
-  const pdvsHausse = allPDVs.filter(p => getTauxProgression(p) > 0);
-  const pdvsBaisse = allPDVs.filter(p => getTauxProgression(p) < 0);
-  const topPerformer = allPDVs.reduce((best, p) => (!best || getTauxProgression(p) > getTauxProgression(best)) ? p : best, null);
-  const variationMoyenne = allPDVs.length > 0 ? allPDVs.reduce((sum, p) => sum + getTauxProgression(p), 0) / allPDVs.length : 0;
+  // KPIs Option A - utilise les vrais champs du backend
+  const pdvsHausse = allPDVs.filter(p => p.tendance === 'HAUSSE');
+  const pdvsBaisse = allPDVs.filter(p => p.tendance === 'BAISSE');
+  const pdvsStables = allPDVs.filter(p => p.tendance === 'STABLE');
+  const topPerformer = allPDVs.reduce((best, p) => (!best || (p.variation_globale||0) > (best.variation_globale||0)) ? p : best, null);
+  const variationMoyenne = allPDVs.length > 0 ? allPDVs.reduce((sum, p) => sum + (p.variation_globale||0), 0) / allPDVs.length : 0;
+  const pdvsTop10Consecutifs = allPDVs.filter(p => (p.nb_mois_consecutifs_top10||0) >= 2);
 
   const allSortedPDVs = allPDVs
     .filter(p => {
-      if (activeFilter === 'hausse') return getTauxProgression(p) > 0;
-      if (activeFilter === 'baisse') return getTauxProgression(p) < 0;
+      if (activeFilter === 'hausse') return p.tendance === 'HAUSSE';
+      if (activeFilter === 'baisse') return p.tendance === 'BAISSE';
       return true;
     })
     .filter(p => !search ||
@@ -1430,11 +1424,13 @@ function TabProgression({ annee, criterion }) {
                   <td>{pdv.zone}</td>
                   <td>{pdv.superviseur}</td>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>{pdv.nb_fois_top10 || 0}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{pdv.nb_fois_top50 || 0}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 600, color: '#ffa502' }}>{pdv.rang_moyen || '—'}</td>
                   <td style={{ color: '#00d68f', fontWeight: 600 }}>{formatCA(getMetricValue({ ca: pdv.ca_max, montant_ca: pdv.montant_ca_max, commission_pdg: pdv.commission_pdg_max }, criterion))}</td>
                   <td style={{ color: '#ff4757', fontWeight: 600 }}>{formatCA(getMetricValue({ ca: pdv.ca_min, montant_ca: pdv.montant_ca_min, commission_pdg: pdv.commission_pdg_min }, criterion))}</td>
-                  <td style={{ color: '#00d68f' }}>{pdv.mois_meilleur_ca ? MOIS_NOMS[parseInt(pdv.mois_meilleur_ca.split('-')[1])] || pdv.mois_meilleur_ca : '-'}</td>
-                  <td style={{ color: '#ff4757' }}>{pdv.mois_pire_ca ? MOIS_NOMS[parseInt(pdv.mois_pire_ca.split('-')[1])] || pdv.mois_pire_ca : '-'}</td>
+                  <td style={{ fontWeight:700, color: (pdv.variation_globale||0)>=0?'#00d68f':'#ff4757' }}>{(pdv.variation_globale||0)>=0?'+':''}{(pdv.variation_globale||0).toFixed(1)}%</td>
+                  <td><span style={{padding:'2px 8px',borderRadius:10,fontSize:11,fontWeight:700,background:(pdv.tendance==='HAUSSE'?'rgba(0,214,143,0.15)':pdv.tendance==='BAISSE'?'rgba(255,71,87,0.15)':'rgba(138,138,154,0.15)'),color:(pdv.tendance==='HAUSSE'?'#00d68f':pdv.tendance==='BAISSE'?'#ff4757':'#8a8a9a')}}>{pdv.tendance==='HAUSSE'?'▲ Hausse':pdv.tendance==='BAISSE'?'▼ Baisse':'➜ Stable'}</span></td>
+                  <td style={{ color: '#00d68f', fontSize:12 }}>{pdv.mois_meilleur_ca ? MOIS_NOMS[parseInt(pdv.mois_meilleur_ca.split('-')[1])-1] || pdv.mois_meilleur_ca : '-'}</td>
+                  <td style={{ color: '#ff4757', fontSize:12 }}>{pdv.mois_pire_ca ? MOIS_NOMS[parseInt(pdv.mois_pire_ca.split('-')[1])-1] || pdv.mois_pire_ca : '-'}</td>
                   <td>
                     <span style={{ cursor: 'pointer', color: 'var(--primary)', textDecoration: 'underline' }}
                           onClick={() => toggleChart(pdv)}>
@@ -1444,7 +1440,7 @@ function TabProgression({ annee, criterion }) {
                 </tr>
                 {selectedPDV?.nom === pdv.nom && getChartData(pdv).length > 0 && (
                   <tr>
-                    <td colSpan={10} style={{ padding: '16px 12px', background: 'rgba(255,105,0,0.04)', borderTop: '1px solid rgba(255,105,0,0.2)' }}>
+                    <td colSpan={11} style={{ padding: '16px 12px', background: 'rgba(255,105,0,0.04)', borderTop: '1px solid rgba(255,105,0,0.2)' }}>
                       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
                         {/* Infos PDV */}
                         <div style={{ minWidth: 200, flexShrink: 0 }}>

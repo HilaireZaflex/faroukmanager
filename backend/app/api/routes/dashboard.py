@@ -1246,6 +1246,49 @@ def monthly_progression(
 
         if ca_min == float('inf'): ca_min = 0; mt_min = 0; mca_min = 0; cpdg_min = 0
 
+        # ── Nouvelles métriques Option A ──────────────────────────────────
+        hist_sorted = sorted(historique, key=lambda x: (x['annee'], x['mois']))
+        nb_mois = len(hist_sorted)
+
+        # Variation globale : dernier mois vs premier mois
+        ca_premier = hist_sorted[0]['ca'] if hist_sorted else 0
+        ca_dernier = hist_sorted[-1]['ca'] if hist_sorted else 0
+        variation_globale = round((ca_dernier - ca_premier) / ca_premier * 100, 2) if ca_premier > 0 else 0
+
+        # Rang moyen sur l'année
+        rangs = [h['rang'] for h in historique if h['rang'] is not None]
+        rang_moyen = round(sum(rangs) / len(rangs), 1) if rangs else None
+
+        # Tendance : hausse/baisse/stable
+        if variation_globale > 5:
+            tendance = "HAUSSE"
+        elif variation_globale < -5:
+            tendance = "BAISSE"
+        else:
+            tendance = "STABLE"
+
+        # Nb fois consécutifs Top 10 (streak actuel)
+        nb_mois_consecutifs_top10 = 0
+        for h in reversed(hist_sorted):
+            if h['rang'] is not None and h['rang'] <= 10:
+                nb_mois_consecutifs_top10 += 1
+            else:
+                break
+
+        # PDV régulier : présent dans tous les mois disponibles
+        mois_disponibles = len(set((h['annee'], h['mois']) for h in historique))
+        est_regulier = (mois_disponibles == nb_mois and nb_mois > 0)
+
+        # Variation mensuelle max (plus grande hausse entre 2 mois consécutifs)
+        var_consec = []
+        for i in range(1, len(hist_sorted)):
+            ca_prec = hist_sorted[i-1]['ca']
+            ca_curr = hist_sorted[i]['ca']
+            if ca_prec > 0:
+                var_consec.append(round((ca_curr - ca_prec) / ca_prec * 100, 2))
+        meilleure_variation_mensuelle = max(var_consec) if var_consec else 0
+        pire_variation_mensuelle = min(var_consec) if var_consec else 0
+
         result_pdvs.append({
             "pdv_id": pdv_id,
             "numero_pdv": pdv.numero_pdv,
@@ -1259,6 +1302,16 @@ def monthly_progression(
             "ca_max": ca_max, "montant_transaction_max": mt_max, "montant_ca_max": mca_max, "commission_pdg_max": cpdg_max,
             "ca_min": ca_min, "montant_transaction_min": mt_min, "montant_ca_min": mca_min, "commission_pdg_min": cpdg_min,
             "historique_mensuel": historique,
+            # Nouvelles métriques Option A
+            "variation_globale": variation_globale,
+            "rang_moyen": rang_moyen,
+            "tendance": tendance,
+            "nb_mois_consecutifs_top10": nb_mois_consecutifs_top10,
+            "est_regulier": est_regulier,
+            "meilleure_variation_mensuelle": meilleure_variation_mensuelle,
+            "pire_variation_mensuelle": pire_variation_mensuelle,
+            "ca_premier_mois": ca_premier,
+            "ca_dernier_mois": ca_dernier,
         })
 
     result_pdvs = sorted(result_pdvs, key=lambda x: x["nb_fois_top10"], reverse=True)[:top_n]
