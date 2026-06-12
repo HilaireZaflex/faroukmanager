@@ -1357,8 +1357,8 @@ function TabProgression({ annee, criterion }) {
         {/* 🏆 Meilleure Progression */}
         <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🏆 Meilleure Progression</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            +{Math.abs(topPerformer ? getTauxProgression(topPerformer) : 0).toFixed(1)}%
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502' }}>
+            {(topPerformer?.variation_globale||0) >= 0 ? '+' : ''}{(topPerformer?.variation_globale||0).toFixed(1)}%
           </div>
           <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {topPerformer?.numero_pdv} — {topPerformer?.nom?.substring(0, 18) || '—'}
