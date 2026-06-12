@@ -39,10 +39,57 @@ function HealthBar({ score }) {
 }
 
 const INITIAL_FORM = {
-  numero_pdv: '', nom: '', type_pdv: 'RS', zone: '', sous_zone: '',
-  quartier: '', superviseur: '', teleconseillere: '', telephone: '',
-  nom_gerant: '', numero_personnel: '', statut: 'ACTIF',
+  // Infos gérant
+  prenom: '', nom: '', numero_pdv: '', numero_personnel: '',
+  date_naissance: '', nationalite: '', type_piece: '', date_delivrance: '', numero_piece: '',
+  domicile: '', telephone: '',
+  // Infos PDV
+  type_activite: '', adresse_pdv: '', type_pdv: 'RS', date_activation: '',
+  montant_activation: '',
+  // Réseau
+  zone: '', sous_zone: '', quartier: '',
+  developpeur: '', tel_developpeur: '',
+  gestionnaire: '', tel_gestionnaire: '',
+  superviseur: '', tel_superviseur: '',
+  teleconseillere: '', tel_teleconseillere: '',
+  // Services activés
+  kaabu: false, nafama: false, omy: true,
+  statut: 'ACTIF',
 };
+
+// Composants UI réutilisables
+const FL = ({ label, required, children }) => (
+  <div style={{ marginBottom: 4 }}>
+    <label style={{ fontSize: 10, color: '#FF6900', display:'block', marginBottom: 3, fontWeight: 700, textTransform:'uppercase', letterSpacing:'0.5px' }}>
+      {label}{required && <span style={{ color:'#ff4757' }}> *</span>}
+    </label>
+    {children}
+  </div>
+);
+const FI = ({ placeholder, value, onChange, type='text', required }) => (
+  <input type={type} placeholder={placeholder} value={value} onChange={onChange} required={required}
+    style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)',
+      background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none',
+      boxSizing:'border-box' }} />
+);
+const FS = ({ value, onChange, children }) => (
+  <select value={value} onChange={onChange}
+    style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)',
+      background:'rgba(20,20,35,0.9)', color:'#fff', fontSize:13 }}>
+    {children}
+  </select>
+);
+const Section = ({ title, icon, children, cols=2 }) => (
+  <div style={{ marginBottom: 20 }}>
+    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'1px solid rgba(255,105,0,0.2)' }}>
+      <span style={{ fontSize:16 }}>{icon}</span>
+      <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>{title}</span>
+    </div>
+    <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:10 }}>
+      {children}
+    </div>
+  </div>
+);
 
 function NouveauPDVModal({ onClose, onSuccess, zones }) {
   const [form, setForm] = useState(INITIAL_FORM);
@@ -51,18 +98,37 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.numero_pdv || !form.nom || !form.zone) {
-      toast.error('Numéro PDV, Nom et Zone sont obligatoires');
+    if (!form.numero_pdv || !form.zone) {
+      toast.error('Numéro PDV et Zone sont obligatoires');
       return;
     }
     setLoading(true);
     try {
-      await api.post('/pdvs', form);
-      toast.success(`PDV "${form.nom}" créé avec succès !`);
+      const payload = {
+        numero_pdv: form.numero_pdv,
+        nom: `${form.prenom} ${form.nom}`.trim() || form.numero_pdv,
+        numero_personnel: form.numero_personnel,
+        type_pdv: form.type_pdv || 'RS',
+        zone: form.zone,
+        sous_zone: form.sous_zone,
+        quartier: form.quartier,
+        adresse: form.adresse_pdv,
+        telephone: form.telephone,
+        nom_gerant: `${form.prenom} ${form.nom}`.trim(),
+        superviseur: form.superviseur,
+        gestionnaire: form.gestionnaire,
+        developpeur: form.developpeur,
+        teleconseillere: form.teleconseillere,
+        statut: 'ACTIF',
+        nouvelle_creation: true,
+        date_activation: form.date_activation || null,
+      };
+      await api.post('/pdvs', payload);
+      toast.success(`PDV "${payload.nom}" créé avec succès !`);
       onSuccess();
       onClose();
     } catch (err) {
-      toast.error(err?.detail || 'Erreur lors de la création du PDV');
+      toast.error(err?.response?.data?.detail || 'Erreur lors de la création');
     } finally {
       setLoading(false);
     }
@@ -70,66 +136,126 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: 620, width: '95%' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700 }}>➕ Nouveau Point de Vente</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={16}/></button>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%)',
+        border: '1px solid rgba(255,105,0,0.3)',
+        borderRadius: 16, width: '95%', maxWidth: 780,
+        maxHeight: '92vh', overflowY: 'auto',
+        padding: '28px 32px', position: 'relative',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+      }}>
+        {/* Header */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:42, height:42, borderRadius:12, background:'linear-gradient(135deg,#FF6900,#ff9500)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>📋</div>
+            <div>
+              <div style={{ fontSize:17, fontWeight:800, color:'#fff' }}>FICHE DE RENSEIGNEMENTS</div>
+              <div style={{ fontSize:11, color:'#FF6900', fontWeight:600, letterSpacing:'1px' }}>FAROUK DISTRIBUTION — NOUVELLE ACTIVATION</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, color:'#aaa', padding:'6px 10px', cursor:'pointer', fontSize:16 }}>✕</button>
         </div>
+
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Numéro PDV *</label>
-              <input placeholder="ex: PDV2001" value={form.numero_pdv} onChange={e => set('numero_pdv', e.target.value)} required />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Nom PDV *</label>
-              <input placeholder="Nom du point de vente" value={form.nom} onChange={e => set('nom', e.target.value)} required />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Type PDV</label>
-              <select value={form.type_pdv} onChange={e => set('type_pdv', e.target.value)}>
-                <option value="RS">RS</option>
+
+          {/* SECTION 1 — Informations Gérant */}
+          <Section title="Informations du Gérant" icon="👤" cols={3}>
+            <FL label="Prénom"><FI placeholder="Prénom" value={form.prenom} onChange={e=>set('prenom',e.target.value)} /></FL>
+            <FL label="Nom"><FI placeholder="Nom" value={form.nom} onChange={e=>set('nom',e.target.value)} /></FL>
+            <FL label="Nationalité"><FI placeholder="Nationalité" value={form.nationalite} onChange={e=>set('nationalite',e.target.value)} /></FL>
+            <FL label="Date de naissance"><FI type="date" value={form.date_naissance} onChange={e=>set('date_naissance',e.target.value)} /></FL>
+            <FL label="Type de pièce">
+              <FS value={form.type_piece} onChange={e=>set('type_piece',e.target.value)}>
+                <option value="">Sélectionner</option>
+                <option value="CNI">CNI</option>
+                <option value="Passeport">Passeport</option>
+                <option value="Permis">Permis de conduire</option>
+                <option value="Autre">Autre</option>
+              </FS>
+            </FL>
+            <FL label="Numéro de pièce"><FI placeholder="N° pièce d'identité" value={form.numero_piece} onChange={e=>set('numero_piece',e.target.value)} /></FL>
+            <FL label="Date de délivrance"><FI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></FL>
+            <FL label="Domicile"><FI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></FL>
+            <FL label="Téléphone"><FI placeholder="+223 XX XX XX XX" value={form.telephone} onChange={e=>set('telephone',e.target.value)} /></FL>
+          </Section>
+
+          {/* SECTION 2 — Informations PDV */}
+          <Section title="Informations du PDV" icon="🏪" cols={3}>
+            <FL label="Numéro PDV *" required><FI placeholder="N° PDV Orange" value={form.numero_pdv} onChange={e=>set('numero_pdv',e.target.value)} required /></FL>
+            <FL label="N° Personnel"><FI placeholder="N° Personnel" value={form.numero_personnel} onChange={e=>set('numero_personnel',e.target.value)} /></FL>
+            <FL label="Type de réseau">
+              <FS value={form.type_pdv} onChange={e=>set('type_pdv',e.target.value)}>
+                <option value="RS">RS (Revendeur Spécial)</option>
                 <option value="RSF">RSF</option>
                 <option value="RNS">RNS</option>
                 <option value="KIOSQUE">Kiosque</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Zone *</label>
-              <select value={form.zone} onChange={e => set('zone', e.target.value)} required>
+                <option value="DEALER">Dealer</option>
+              </FS>
+            </FL>
+            <FL label="Type d'activité"><FI placeholder="Ex: Commerce, Boutique..." value={form.type_activite} onChange={e=>set('type_activite',e.target.value)} /></FL>
+            <FL label="Zone *" required>
+              <FS value={form.zone} onChange={e=>set('zone',e.target.value)} required>
                 <option value="">Sélectionner une zone</option>
                 {zones.map(z => <option key={z} value={z}>{z}</option>)}
-              </select>
+              </FS>
+            </FL>
+            <FL label="Quartier"><FI placeholder="Quartier / Commune" value={form.quartier} onChange={e=>set('quartier',e.target.value)} /></FL>
+            <FL label="Adresse PDV" required><FI placeholder="Adresse complète du PDV" value={form.adresse_pdv} onChange={e=>set('adresse_pdv',e.target.value)} /></FL>
+            <FL label="Date d'activation"><FI type="date" value={form.date_activation} onChange={e=>set('date_activation',e.target.value)} /></FL>
+            <FL label="Montant d'activation (FCFA)"><FI type="number" placeholder="0" value={form.montant_activation} onChange={e=>set('montant_activation',e.target.value)} /></FL>
+          </Section>
+
+          {/* SECTION 3 — Équipe Réseau */}
+          <Section title="Équipe Réseau" icon="👥" cols={2}>
+            <FL label="Développeur"><FI placeholder="Nom du développeur" value={form.developpeur} onChange={e=>set('developpeur',e.target.value)} /></FL>
+            <FL label="Tél. Développeur"><FI placeholder="+223 XX XX XX XX" value={form.tel_developpeur} onChange={e=>set('tel_developpeur',e.target.value)} /></FL>
+            <FL label="Gestionnaire"><FI placeholder="Nom du gestionnaire" value={form.gestionnaire} onChange={e=>set('gestionnaire',e.target.value)} /></FL>
+            <FL label="Tél. Gestionnaire"><FI placeholder="+223 XX XX XX XX" value={form.tel_gestionnaire} onChange={e=>set('tel_gestionnaire',e.target.value)} /></FL>
+            <FL label="Superviseur"><FI placeholder="Nom du superviseur" value={form.superviseur} onChange={e=>set('superviseur',e.target.value)} /></FL>
+            <FL label="Tél. Superviseur"><FI placeholder="+223 XX XX XX XX" value={form.tel_superviseur} onChange={e=>set('tel_superviseur',e.target.value)} /></FL>
+            <FL label="Téléconseillère"><FI placeholder="Nom de la téléconseillère" value={form.teleconseillere} onChange={e=>set('teleconseillere',e.target.value)} /></FL>
+            <FL label="Tél. Téléconseillère"><FI placeholder="+223 XX XX XX XX" value={form.tel_teleconseillere} onChange={e=>set('tel_teleconseillere',e.target.value)} /></FL>
+          </Section>
+
+          {/* SECTION 4 — Services activés */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'1px solid rgba(255,105,0,0.2)' }}>
+              <span style={{ fontSize:16 }}>⚡</span>
+              <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>Services Activés</span>
             </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Sous-zone</label>
-              <input placeholder="ex: Zone 1" value={form.sous_zone} onChange={e => set('sous_zone', e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Quartier</label>
-              <input placeholder="Quartier" value={form.quartier} onChange={e => set('quartier', e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Superviseur</label>
-              <input placeholder="Nom superviseur" value={form.superviseur} onChange={e => set('superviseur', e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Téléconseillère</label>
-              <input placeholder="Nom téléconseillère" value={form.teleconseillere} onChange={e => set('teleconseillere', e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Téléphone</label>
-              <input placeholder="+223 XX XX XX XX" value={form.telephone} onChange={e => set('telephone', e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display:'block', marginBottom:5, fontWeight:600, textTransform:'uppercase' }}>Nom Gérant</label>
-              <input placeholder="Nom du gérant" value={form.nom_gerant} onChange={e => set('nom_gerant', e.target.value)} />
+            <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+              {[
+                { key:'omy', label:'OMY', color:'#FF6900', desc:'Orange Money' },
+                { key:'kaabu', label:'KAABU', color:'#00d68f', desc:'Service Kaabu' },
+                { key:'nafama', label:'NAFAMA', color:'#a29bfe', desc:'Service Nafama' },
+              ].map(s => (
+                <div key={s.key} onClick={() => set(s.key, !form[s.key])}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 20px', borderRadius:10, cursor:'pointer',
+                    border: `2px solid ${form[s.key] ? s.color : 'rgba(255,255,255,0.08)'}`,
+                    background: form[s.key] ? `${s.color}20` : 'rgba(255,255,255,0.03)',
+                    transition:'all 0.2s', userSelect:'none' }}>
+                  <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${s.color}`,
+                    background: form[s.key] ? s.color : 'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {form[s.key] && <span style={{ color:'#fff', fontSize:12, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:800, color: form[s.key] ? s.color : '#aaa' }}>{s.label}</div>
+                    <div style={{ fontSize:10, color:'#666' }}>{s.desc}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Création...' : '✅ Créer le PDV'}
+
+          {/* Boutons */}
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', paddingTop:16, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+            <button type="button" onClick={onClose}
+              style={{ padding:'10px 24px', borderRadius:10, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', color:'#aaa', fontSize:13, cursor:'pointer', fontWeight:600 }}>
+              Annuler
+            </button>
+            <button type="submit" disabled={loading}
+              style={{ padding:'10px 28px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff', fontSize:13, cursor:'pointer', fontWeight:700, opacity: loading ? 0.7 : 1 }}>
+              {loading ? '⏳ Création...' : '✅ Créer le PDV'}
             </button>
           </div>
         </form>
