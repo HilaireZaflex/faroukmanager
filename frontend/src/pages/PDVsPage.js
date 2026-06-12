@@ -52,8 +52,8 @@ const INITIAL_FORM = {
   gestionnaire: '', tel_gestionnaire: '',
   superviseur: '', tel_superviseur: '',
   teleconseillere: '', tel_teleconseillere: '',
-  // Services activés
-  kaabu: false, nafama: false, omy: true,
+  // Formations suivies
+  kaabu: false, nafama: false, omy: false, lbft: false,
   statut: 'ACTIF',
 };
 
@@ -217,17 +217,18 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
             <FL label="Tél. Téléconseillère"><FI placeholder="+223 XX XX XX XX" value={form.tel_teleconseillere} onChange={e=>set('tel_teleconseillere',e.target.value)} /></FL>
           </Section>
 
-          {/* SECTION 4 — Services activés */}
+          {/* SECTION 4 — Formations suivies */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'1px solid rgba(255,105,0,0.2)' }}>
-              <span style={{ fontSize:16 }}>⚡</span>
-              <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>Services Activés</span>
+              <span style={{ fontSize:16 }}>🎓</span>
+              <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>Formations Suivies</span>
             </div>
             <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
               {[
-                { key:'omy', label:'OMY', color:'#FF6900', desc:'Orange Money' },
-                { key:'kaabu', label:'KAABU', color:'#00d68f', desc:'Service Kaabu' },
-                { key:'nafama', label:'NAFAMA', color:'#a29bfe', desc:'Service Nafama' },
+                { key:'kaabu',     label:'KAABU',       color:'#00d68f', desc:'Formation Kaabu' },
+                { key:'nafama',    label:'NAFAMA',       color:'#a29bfe', desc:'Formation Nafama' },
+                { key:'omy',       label:'OMY/ARNAQUE',  color:'#FF6900', desc:'Formation OMY & Arnaque' },
+                { key:'lbft',      label:'LBFT',         color:'#fd79a8', desc:'Formation LBFT' },
               ].map(s => (
                 <div key={s.key} onClick={() => set(s.key, !form[s.key])}
                   style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 20px', borderRadius:10, cursor:'pointer',
