@@ -875,6 +875,7 @@ function OngletProgression({ annee, semaine, criterion }) {
   const [selectedPdv, setSelectedPdv] = useState(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
   const PAGE_SIZE = 20;
 
   const { data, isLoading } = useQuery(
@@ -889,11 +890,25 @@ function OngletProgression({ annee, semaine, criterion }) {
     { enabled: !!selectedPdv, staleTime: 120000 }
   );
 
-  const allPdvs = (data?.pdvs || []).filter(p => !search ||
-    (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
-    (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
-    (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const rawPdvs = data?.pdvs || [];
+
+  // KPIs interactifs (Option C)
+  const pdvsHausse = rawPdvs.filter(p => (p.taux_progression || 0) > 0);
+  const pdvsBaisse = rawPdvs.filter(p => (p.taux_progression || 0) < 0);
+  const topPerformer = rawPdvs.reduce((best, p) => (!best || (p.taux_progression||0) > (best.taux_progression||0)) ? p : best, null);
+  const variationMoyenne = rawPdvs.length > 0 ? rawPdvs.reduce((sum, p) => sum + (p.taux_progression||0), 0) / rawPdvs.length : 0;
+
+  const allPdvs = rawPdvs
+    .filter(p => {
+      if (activeFilter === 'hausse') return (p.taux_progression || 0) > 0;
+      if (activeFilter === 'baisse') return (p.taux_progression || 0) < 0;
+      return true;
+    })
+    .filter(p => !search ||
+      (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
+    );
   const totalPages = Math.ceil(allPdvs.length / PAGE_SIZE);
   const pdvs = allPdvs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -918,6 +933,56 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   return (
     <div>
+      {/* ── 4 KPI Cards interactives (Option C) ── */}
+      <div className="grid-4 mb-24">
+        <div className="card" onClick={() => setActiveFilter(prev => prev === 'hausse' ? null : 'hausse')}
+          style={{ borderLeft: '3px solid #00d68f', cursor: 'pointer',
+            outline: activeFilter === 'hausse' ? '2px solid #00d68f' : 'none',
+            transform: activeFilter === 'hausse' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 PDVs en Hausse</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#00d68f' }}>{pdvsHausse.length}</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
+            {rawPdvs.length > 0 ? ((pdvsHausse.length / rawPdvs.length) * 100).toFixed(1) : 0}% du réseau
+          </div>
+        </div>
+        <div className="card" onClick={() => setActiveFilter(prev => prev === 'baisse' ? null : 'baisse')}
+          style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer',
+            outline: activeFilter === 'baisse' ? '2px solid #ff4757' : 'none',
+            transform: activeFilter === 'baisse' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📉 PDVs en Baisse</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvsBaisse.length}</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
+            {rawPdvs.length > 0 ? ((pdvsBaisse.length / rawPdvs.length) * 100).toFixed(1) : 0}% du réseau
+          </div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🏆 Meilleure Progression</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            +{Math.abs(topPerformer?.taux_progression || 0).toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {topPerformer?.numero_pdv} — {topPerformer?.nom?.substring(0, 18) || '—'}
+          </div>
+        </div>
+        <div className="card" onClick={() => setActiveFilter(null)}
+          style={{ borderLeft: '3px solid ' + (variationMoyenne >= 0 ? '#00d68f' : '#ff4757'), cursor: 'pointer', transition: 'all 0.2s' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📊 Variation Moy. Réseau</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: variationMoyenne >= 0 ? '#00d68f' : '#ff4757' }}>
+            {variationMoyenne >= 0 ? '▲' : '▼'} {Math.abs(variationMoyenne).toFixed(1)}%
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Tendance générale</div>
+        </div>
+      </div>
+
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>
+            Filtre: {activeFilter === 'hausse' ? '📈 En Hausse' : '📉 En Baisse'} ({allPdvs.length} PDVs)
+          </span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Download size={14} /> Export Excel
