@@ -1017,113 +1017,6 @@ function OngletProgression({ annee, semaine, criterion }) {
 }
 
 // ─── COMPOSANT PRINCIPAL ─────────────────────────────────────────────────────
-export default function OMyWeeklyDashboardPage() {
-  const now = new Date();
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
-  const defaultSemaine = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
-
-  const [annee, setAnnee] = useState(now.getFullYear());
-  const [semaine, setSemaine] = useState(defaultSemaine);
-
-  // Charger la dernière semaine disponible automatiquement
-  const { data: lastAvail } = useQuery('last-available', () =>
-    api.get('/dashboard/last-available').then(r => r.data), { staleTime: 3600000 }
-  );
-  React.useEffect(() => {
-    if (lastAvail?.last_week) {
-      setAnnee(lastAvail.last_week.annee);
-      setSemaine(lastAvail.last_week.semaine);
-    }
-  }, [lastAvail]);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [criterion, setCriterion] = useState('montant_transaction');
-
-  // Charger la dernière semaine disponible et l'utiliser par défaut
-  const { data: lastAvailable } = useQuery(
-    'last-available',
-    () => api.get('/dashboard/last-available').then(r => r.data),
-    { staleTime: 300000 }
-  );
-
-  useEffect(() => {
-    if (lastAvailable?.last_week) {
-      setAnnee(lastAvailable.last_week.annee);
-      setSemaine(lastAvailable.last_week.semaine);
-    }
-  }, [lastAvailable]);
-
-  const semDisponibles = lastAvailable?.semaines_disponibles || [];
-  const isSemDispo = (a, s) => semDisponibles.some(d => d.annee === a && d.semaine === s);
-  const canGoPrevSem = isSemDispo(semaine <= 1 ? annee - 1 : annee, semaine <= 1 ? 52 : semaine - 1);
-  const canGoNextSem = isSemDispo(semaine >= 52 ? annee + 1 : annee, semaine >= 52 ? 1 : semaine + 1);
-  const prevWeek = () => { const ns=semaine<=1?52:semaine-1; const na=semaine<=1?annee-1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
-  const nextWeek = () => { const ns=semaine>=52?1:semaine+1; const na=semaine>=52?annee+1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
-
-  const tabs = [
-    { key: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
-    { key: 'top', label: '🏆 Suivi des Top', icon: Trophy },
-    { key: 'pareto', label: '📊 Rapport Pareto', icon: BarChart3 },
-    { key: 'evolution', label: '📈 Évolution', icon: TrendingUp },
-    { key: 'inactifs', label: '😴 PDV Inactifs', icon: AlertTriangle },
-    { key: 'baisse', label: '📉 PDV en Baisse', icon: TrendingDown },
-    { key: 'progression', label: '🎯 Progression', icon: Target },
-  ];
-
-  return (
-    <div className="page">
-      <div className="page-header" style={{ marginBottom: 20 }}>
-        <div>
-          <h1 className="page-title">OMY — Dashboard Hebdomadaire</h1>
-          <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>Suivi semaine par semaine du réseau OMY</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {activeTab !== 'overview' && (
-            <select
-              value={criterion}
-              onChange={(e) => setCriterion(e.target.value)}
-              className="btn btn-ghost btn-sm"
-              style={{ minWidth: 220 }}
-            >
-              {Object.entries(OMY_CRITERIA).map(([value, meta]) => (
-                <option key={value} value={value}>{meta.label}</option>
-              ))}
-            </select>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '8px 16px' }}>
-            <button onClick={prevWeek} disabled={!canGoPrevSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoPrevSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoPrevSem?1:0.3 }}>‹</button>
-            <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', minWidth: 130, textAlign: 'center' }}>
-              Semaine {semaine} · {annee}
-            </span>
-            <button onClick={nextWeek} disabled={!canGoNextSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoNextSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoNextSem?1:0.3 }}>›</button>
-          </div>
-        </div>
-      </div>
-
-      {/* TABS */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 28, background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '6px' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)}
-            style={{ padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-              background: activeTab === t.key ? 'var(--primary)' : 'transparent',
-              color: activeTab === t.key ? '#fff' : '#8a8a9a',
-              transition: 'all 0.2s' }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* CONTENU */}
-      {activeTab === 'overview' && <OngletVueEnsemble annee={annee} semaine={semaine} />}
-      {activeTab === 'top' && <OngletSuiviTop annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'pareto' && <OngletPareto annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'progression' && <OngletProgression annee={annee} semaine={semaine} criterion={criterion} />}
-    </div>
-  );
-}
-
 // ─── ONGLET 3 : RAPPORT PARETO ────────────────────────────────────────────────
 function OngletPareto({ annee, semaine, criterion }) {
   const [activeFilter, setActiveFilter] = useState(null);
@@ -1279,3 +1172,1130 @@ function OngletPareto({ annee, semaine, criterion }) {
     </div>
   );
 }
+
+import React, { useState, useEffect } from 'react';
+import { useQuery } from 'react-query';
+import { useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell, AreaChart, Area, Legend
+} from 'recharts';
+import {
+  ChevronLeft, ChevronRight, Download, Home, Trophy, BarChart3,
+  TrendingDown, TrendingUp, AlertTriangle, Target, Activity, Users, Zap
+} from 'lucide-react';
+import KPICard from '../components/common/KPICard';
+import { useHierarchicalFilters, HierarchicalFilters } from '../hooks/useHierarchicalFilters';
+import api from '../services/api';
+import * as XLSX from 'xlsx';
+import './WeeklyDashboardPage.css';
+
+const ZONE_COLORS = ['#FF6900', '#00d68f', '#3742fa', '#ffa502', '#ff4757', '#a29bfe', '#fd79a8', '#00cec9'];
+const OMY_CRITERIA = {
+  montant_transaction: { label: 'Montant des opérations', shortLabel: 'Montant Opérations', key: 'ca' },
+  montant_ca: { label: 'Montant CA', shortLabel: 'Montant CA', key: 'montant_ca' },
+  commission_pdg: { label: 'Commission PDG', shortLabel: 'Commission PDG', key: 'commission_pdg' },
+};
+
+const getMetricValue = (item, criterion = 'montant_transaction') => {
+  if (!item) return 0;
+  if (criterion === 'montant_ca') return item.montant_ca ?? item.ca ?? 0;
+  if (criterion === 'commission_pdg') return item.commission_pdg ?? 0;
+  return item.ca ?? item.montant_transaction ?? 0;
+};
+
+const getMetricLabel = (criterion = 'montant_transaction') => OMY_CRITERIA[criterion]?.shortLabel || 'Valeur';
+
+function formatCA(value) {
+  if (!value || isNaN(value)) return '0 FCFA';
+  return new Intl.NumberFormat('en-US').format(Math.round(value)).replace(/,/g, ' ') + ' FCFA';
+}
+
+function getAlertInfo(value, type = 'inactif') {
+  if (type === 'inactif') {
+    if (value >= 3) return { level: 'CRITIQUE', color: '#ff4757', bg: 'rgba(255,71,87,0.1)' };
+    if (value === 2) return { level: 'HAUTE', color: '#ffa502', bg: 'rgba(255,165,2,0.1)' };
+    return { level: 'NORMALE', color: '#8a8a9a', bg: 'rgba(138,138,154,0.1)' };
+  }
+  if (type === 'baisse') {
+    if (value > 30) return { level: 'CRITIQUE', color: '#ff4757', bg: 'rgba(255,71,87,0.1)' };
+    if (value > 15) return { level: 'HAUTE', color: '#ffa502', bg: 'rgba(255,165,2,0.1)' };
+    return { level: 'NORMALE', color: '#8a8a9a', bg: 'rgba(138,138,154,0.1)' };
+  }
+  return { level: 'NORMALE', color: '#8a8a9a', bg: 'rgba(138,138,154,0.1)' };
+}
+
+const MEDAL_COLORS = { OR: '#FFD700', ARGENT: '#C0C0C0', BRONZE: '#CD7F32' };
+
+const GRAPH_INDICATEURS_W = [
+  { key: 'montant_transaction', label: 'Montant Transactions' },
+  { key: 'montant_ca',          label: 'Montant CA' },
+  { key: 'commission_pdg',      label: 'Commission PDG' },
+];
+
+function AccordionSectionW({ title, defaultOpen = true, children, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px', background: open ? 'rgba(255,105,0,0.08)' : 'rgba(255,255,255,0.03)',
+        border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14, fontWeight: 700, transition: 'background 0.2s',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {title}
+          {badge && <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,105,0,0.2)', color: '#FF6900' }}>{badge}</span>}
+        </span>
+        <span style={{ fontSize: 18, transition: 'transform 0.2s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', color: '#FF6900' }}>▾</span>
+      </button>
+      {open && <div style={{ padding: '20px 20px 4px 20px', background: 'rgba(255,255,255,0.01)' }}>{children}</div>}
+    </div>
+  );
+}
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 10, padding: '10px 14px' }}>
+        <p style={{ color: '#aaa', fontSize: 12, marginBottom: 4 }}>{label}</p>
+        <p style={{ color: '#FF6900', fontWeight: 700, fontSize: 13 }}>{formatCA(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+// ─── ONGLET 1 : VUE D'ENSEMBLE ───────────────────────────────────────────────
+function OngletVueEnsemble({ annee, semaine }) {
+  const [graphIndicateur, setGraphIndicateur] = useState('montant_transaction');
+
+  const { data: dash, isLoading } = useQuery(
+    ['weekly-overview', annee, semaine],
+    () => api.get('/dashboard/weekly', { params: { annee, semaine } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const getZoneData = () => {
+    if (graphIndicateur === 'montant_ca') return dash?.montant_ca_by_zone || dash?.ca_by_zone || {};
+    if (graphIndicateur === 'commission_pdg') return dash?.commission_pdg_by_zone || {};
+    return dash?.ca_by_zone || {};
+  };
+  const getSupData = () => {
+    if (graphIndicateur === 'montant_ca') return dash?.montant_ca_by_superviseur || dash?.ca_by_superviseur || {};
+    if (graphIndicateur === 'commission_pdg') return dash?.commission_pdg_by_superviseur || {};
+    return dash?.ca_by_superviseur || {};
+  };
+
+  const caByZone = Object.entries(getZoneData()).map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca })).sort((a, b) => b.ca - a.ca);
+  const caByType = dash?.ca_by_type ? Object.entries(dash.ca_by_type).map(([type, ca]) => ({ type, ca })) : [];
+  const caBySup = Object.entries(getSupData()).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8);
+  const indLabel = GRAPH_INDICATEURS_W.find(i => i.key === graphIndicateur)?.label || 'Valeur';
+
+  return (
+    <div>
+      <AccordionSectionW title="💰 Volumes Financiers & 🏆 Commissions Orange" defaultOpen={true} badge={`S${semaine} — ${annee}`}>
+        <div className="kpi-section-title" style={{ fontSize:12, color:'#FF6900', marginBottom:8 }}>💰 Volumes Financiers</div>
+        <div className="grid-3-kpi mb-24">
+          <KPICard title="Montant Transaction" formatted={formatCA(dash?.total_montant_transaction || dash?.total_ca)} icon={Activity} color="#FF6900" loading={isLoading} subtitle="Dépôts + Retraits de la semaine" />
+          <KPICard title="Montant CA" formatted={formatCA(dash?.total_montant_ca || 0)} icon={Activity} color="#00d68f" loading={isLoading} subtitle={`${(dash?.ratio_ca_transaction || 0).toFixed(1)}% du volume transaction`} />
+          <KPICard title="Taux Activité" formatted={`${(dash?.taux_activite || 0).toFixed(1)}%`} icon={Zap} color={(dash?.taux_activite||0) >= 70 ? '#00d68f' : (dash?.taux_activite||0) >= 50 ? '#ffa502' : '#ff4757'} loading={isLoading} subtitle="Objectif: 75% du réseau" />
+        </div>
+        <div className="kpi-section-title" style={{ fontSize:12, color:'#a29bfe', marginBottom:8 }}>🏆 Commissions Orange</div>
+        <div className="grid-3-kpi mb-8">
+          <KPICard title="Commission PDG" formatted={formatCA(dash?.total_commission_pdg || 0)} icon={Activity} color="#a29bfe" loading={isLoading} subtitle="Part réseau Orange (votre part)" />
+          <KPICard title="Commission Revendeur" formatted={formatCA(dash?.total_commission_revendeur || 0)} icon={Activity} color="#fd79a8" loading={isLoading} subtitle="Part PDV Orange" />
+          <KPICard title="Ratio CA / Transaction" formatted={`${(dash?.ratio_ca_transaction || 0).toFixed(1)}%`} icon={Zap} color={(dash?.ratio_ca_transaction||0) >= 10 ? '#00d68f' : '#ffa502'} loading={isLoading} subtitle="Qualité des operations" />
+        </div>
+      </AccordionSectionW>
+      <AccordionSectionW title="📊 Activité du Réseau & 🔄 Dépôts et Retraits" defaultOpen={true}>
+        <div className="grid-4 mb-8">
+          <KPICard title="PDVs Actifs" value={dash?.active_pdvs} icon={Users} color="#00d68f" loading={isLoading} subtitle={`${(dash?.taux_activite||0).toFixed(1)}% du réseau`} />
+          <KPICard title="Total Opérations" value={dash?.total_operations} icon={Activity} color="#3742fa" loading={isLoading} subtitle={`${dash?.total_depots} dépôts · ${dash?.total_retraits} retraits`} />
+          <KPICard title="Variation Moy." formatted={`${(dash?.avg_variation || 0).toFixed(1)}%`} icon={TrendingUp} color="#fd79a8" loading={isLoading} subtitle="vs semaine précédente" />
+          <KPICard title="PDVs Faible CA" value={dash?.pdvs_faible_ca || 0} icon={AlertTriangle} color="#ffa502" loading={isLoading} subtitle="Peu de retraits vs dépôts" />
+        </div>
+      </AccordionSectionW>
+      <AccordionSectionW title="📈 Graphiques & Classements" defaultOpen={true}>
+        <div style={{ display:'flex', gap:8, marginBottom:20, flexWrap:'wrap', alignItems:'center' }}>
+          <span style={{ fontSize:12, color:'var(--text-secondary)', fontWeight:600 }}>Indicateur :</span>
+          {GRAPH_INDICATEURS_W.map(ind => (
+            <button key={ind.key} onClick={() => setGraphIndicateur(ind.key)}
+              style={{ padding:'5px 14px', borderRadius:8, border:'1px solid var(--border)', fontSize:12, fontWeight:600, cursor:'pointer',
+                background: graphIndicateur === ind.key ? '#FF6900' : 'rgba(255,255,255,0.06)',
+                color: graphIndicateur === ind.key ? '#fff' : 'var(--text-secondary)', transition:'all 0.2s' }}>
+              {ind.label}
+            </button>
+          ))}
+        </div>
+
+      <div className="grid-2 mb-24">
+        <div className="card">
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>{indLabel} par Zone — S{semaine}</h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={caByZone}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="zone" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="ca" radius={[6, 6, 0, 0]}>
+                {caByZone.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="card">
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>{indLabel} par Superviseur</h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={caBySup} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} />
+              <YAxis type="category" dataKey="sup" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} width={60} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="ca" fill="#FF6900" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      </AccordionSectionW>
+
+      <div className="card mb-16">
+        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs par {GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label} — S{semaine} {annee}</h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>{GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label}</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Moy./PDV</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dash?.presence_par_superviseur && Object.entries(dash.presence_par_superviseur)
+                .map(([sup, d]) => ({
+                  sup, actifs: d.actifs, inactifs: d.inactifs,
+                  valeur: graphIndicateur === 'montant_ca'
+                    ? (caBySup.find(s => s.sup === sup)?.ca || 0)
+                    : graphIndicateur === 'commission_pdg'
+                    ? (dash?.commission_pdg_by_superviseur?.[sup] || 0)
+                    : d.ca
+                }))
+                .sort((a, b) => b.valeur - a.valeur)
+                .map((row, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{row.sup}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{row.actifs}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{row.inactifs}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(row.valeur)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(row.actifs > 0 ? row.valeur / row.actifs : 0)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ONGLET 2 : SUIVI DES TOP ─────────────────────────────────────────────────
+function OngletSuiviTop({ annee, semaine, criterion }) {
+  const [topN, setTopN] = useState(20);
+  const [selectedPdv, setSelectedPdv] = useState(null);
+  const [search, setSearch] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [sortBy, setSortBy] = useState('metric_desc');
+
+  const { data: weeklyDash, isLoading } = useQuery(
+    ['weekly-dash-top', annee, semaine],
+    () => api.get('/dashboard/weekly', { params: { annee, semaine } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const { data: pdvHistory } = useQuery(
+    ['pdv-weekly-history', selectedPdv],
+    () => selectedPdv ? api.get(`/dashboard/pdv-weekly-history/${selectedPdv}`).then(r => r.data) : null,
+    { enabled: !!selectedPdv, staleTime: 120000 }
+  );
+
+  const topPdvs = [...(weeklyDash?.top_pdvs || [])].sort((a, b) => getMetricValue(b, criterion) - getMetricValue(a, criterion));
+  const zoneList = [...new Set(topPdvs.map(p => p.zone).filter(Boolean))].sort();
+  const filteredPdvs = topPdvs
+    .filter(p => !zoneFilter || p.zone === zoneFilter)
+    .filter(p => !search ||
+      (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === 'metric_asc') return getMetricValue(a, criterion) - getMetricValue(b, criterion);
+      if (sortBy === 'nom_asc') return (a.nom || '').localeCompare(b.nom || '');
+      if (sortBy === 'zone_asc') return (a.zone || '').localeCompare(b.zone || '');
+      if (sortBy === 'variation_desc') return (b.taux_variation || 0) - (a.taux_variation || 0);
+      return getMetricValue(b, criterion) - getMetricValue(a, criterion);
+    })
+    .slice(0, topN);
+  const displayPdvs = filteredPdvs;
+
+  const exportExcel = () => {
+    const rows = displayPdvs.map((p, i) => ({
+      'Rang': i + 1, 'PDV Numéro': p.numero_pdv, 'PDV Nom': p.nom, [getMetricLabel(criterion)]: getMetricValue(p, criterion),
+      'Quartier': p.quartier || '-', 'Superviseur': p.superviseur || '-', 'Gestionnaire': p.gestionnaire || '-',
+      'Variation (%)': p.taux_variation || 0, 'Médaille': p.medaille || '-',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Top${topN}_S${semaine}`);
+    XLSX.writeFile(wb, `top${topN}_semaine${semaine}_${annee}.xlsx`);
+  };
+
+  const histoData = [...(pdvHistory?.historique || [])].slice(-16).map(h => ({
+    label: `S${h.semaine}`,
+    metric: getMetricValue({ ca: h.ca, montant_transaction: h.montant_transaction, montant_ca: h.montant_ca, commission_pdg: h.commission_pdg }, criterion),
+    semaine: h.semaine,
+  }));
+
+  return (
+    <div>
+      <div className="card mb-16" style={{ padding: '16px 20px', display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+            Afficher le Top : <span style={{ color: 'var(--primary)', fontWeight: 800 }}>Top {topN}</span>
+          </label>
+          <input type="range" min="10" max="50" step="10" value={topN}
+            onChange={e => setTopN(parseInt(e.target.value))}
+            style={{ width: '100%', accentColor: 'var(--primary)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#555', marginTop: 4 }}>
+            <span>Top 10</span><span>Top 20</span><span>Top 30</span><span>Top 40</span><span>Top 50</span>
+          </div>
+        </div>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
+        </button>
+      </div>
+
+      {/* Barre de recherche + tri */}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+        <div className="filter-selects">
+          <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}>
+            <option value="">Toutes les zones</option>
+            {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+            <option value="metric_desc">↓ Valeur (plus haut)</option>
+            <option value="metric_asc">↑ Valeur (plus bas)</option>
+            <option value="nom_asc">↑ Nom A→Z</option>
+            <option value="zone_asc">↑ Zone A→Z</option>
+            <option value="variation_desc">↓ Variation (meilleure)</option>
+          </select>
+        </div>
+      </div>
+
+      {selectedPdv && pdvHistory && (
+        <div className="card mb-24" style={{ borderLeft: '3px solid var(--primary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontWeight: 700 }}>📈 Évolution — {pdvHistory.nom}</h3>
+            <button onClick={() => setSelectedPdv(null)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 20 }}>✕</button>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={histoData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="metric" stroke="#FF6900" fill="rgba(255,105,0,0.15)" strokeWidth={2} dot={{ r: 3, fill: '#FF6900' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Quartier</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaire</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Médaille</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Évolution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+              ) : displayPdvs.map((pdv, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{pdv.numero_pdv || pdv.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nom}</div>
+                    <div style={{ fontSize: 11, color: '#8a8a9a' }}>{pdv.zone}</div>
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(getMetricValue(pdv, criterion))}</td>
+                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.quartier || '—'}</td>
+                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.superviseur || '—'}</td>
+                  <td style={{ padding: '12px 14px', color: '#ccc' }}>{pdv.gestionnaire || '—'}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    {pdv.medaille && pdv.medaille !== 'AUCUNE' ? (
+                      <span style={{ color: MEDAL_COLORS[pdv.medaille] || '#aaa', fontWeight: 700 }}>
+                        {pdv.medaille === 'OR' ? '🥇' : pdv.medaille === 'ARGENT' ? '🥈' : '🥉'}
+                      </span>
+                    ) : <span style={{ color: '#555' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <button onClick={() => setSelectedPdv(selectedPdv === pdv.pdv_id ? null : pdv.pdv_id)}
+                      style={{ background: 'rgba(255,105,0,0.15)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 6,
+                        color: '#FF6900', padding: '4px 10px', cursor: 'pointer', fontSize: 11 }}>
+                      📊 Voir
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ONGLET 4 : EVOLUTION ────────────────────────────────────────────────────
+function OngletEvolution({ annee, semaine, criterion }) {
+  const [subTab, setSubTab] = useState('pdvs');
+  const [search, setSearch] = useState('');
+
+  const prevSemaine = semaine === 1 ? 52 : semaine - 1;
+  const prevAnnee = semaine === 1 ? annee - 1 : annee;
+
+  const { data: evo, isLoading } = useQuery(
+    ['weekly-evolution', annee, semaine],
+    () => api.get('/dashboard/weekly-evolution', { params: { annee, semaine } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const exportExcel = (data, name) => {
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, name);
+    XLSX.writeFile(wb, `${name}_S${semaine}_${annee}.xlsx`);
+  };
+
+  const taux = evo?.taux_variation_total || 0;
+
+  const actuelTotal = getMetricValue({ ca: evo?.total_ca_actuel, montant_transaction: evo?.total_montant_transaction_actuel, montant_ca: evo?.total_montant_ca_actuel, commission_pdg: evo?.total_commission_pdg_actuel }, criterion);
+  const precedentTotal = getMetricValue({ ca: evo?.total_ca_precedent, montant_transaction: evo?.total_montant_transaction_precedent, montant_ca: evo?.total_montant_ca_precedent, commission_pdg: evo?.total_commission_pdg_precedent }, criterion);
+  const variationCritere = actuelTotal - precedentTotal;
+  const tauxCritereGlobal = precedentTotal > 0 ? (variationCritere / precedentTotal) * 100 : 0;
+
+  const renderTable = (rows, keyField) => (
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} S{semaine}</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ffa502' }}>{getMetricLabel(criterion)} S{prevSemaine}</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#8a8a9a' }}>Variation</th>
+              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#8a8a9a' }}>Taux</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(rows || []).map((r, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '10px 14px', fontWeight: 600 }}>{r[keyField] || r.nom || '—'}</td>
+                <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700 }}>{formatCA(getMetricValue({ ca: r.ca_actuel, montant_transaction: r.montant_transaction_actuel, montant_ca: r.montant_ca_actuel, commission_pdg: r.commission_pdg_actuel }, criterion))}</td>
+                <td style={{ padding: '10px 14px', textAlign: 'right', color: '#aaa' }}>{formatCA(getMetricValue({ ca: r.ca_precedent, montant_transaction: r.montant_transaction_precedent, montant_ca: r.montant_ca_precedent, commission_pdg: r.commission_pdg_precedent }, criterion))}</td>
+                <td style={{ padding: '10px 14px', textAlign: 'right', color: (r.variation || 0) >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
+                  {(r.variation || 0) >= 0 ? '+' : ''}{formatCA(getMetricValue({ ca: r.ca_actuel, montant_transaction: r.montant_transaction_actuel, montant_ca: r.montant_ca_actuel, commission_pdg: r.commission_pdg_actuel }, criterion) - getMetricValue({ ca: r.ca_precedent, montant_transaction: r.montant_transaction_precedent, montant_ca: r.montant_ca_precedent, commission_pdg: r.commission_pdg_precedent }, criterion))}
+                </td>
+                {(() => {
+                  const actuel = getMetricValue({ ca: r.ca_actuel, montant_transaction: r.montant_transaction_actuel, montant_ca: r.montant_ca_actuel, commission_pdg: r.commission_pdg_actuel }, criterion);
+                  const precedent = getMetricValue({ ca: r.ca_precedent, montant_transaction: r.montant_transaction_precedent, montant_ca: r.montant_ca_precedent, commission_pdg: r.commission_pdg_precedent }, criterion);
+                  const tauxCritere = precedent > 0 ? ((actuel - precedent) / precedent) * 100 : 0;
+                  return (
+                    <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                      <span style={{ padding: '3px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                        background: tauxCritere >= 0 ? 'rgba(0,214,143,0.15)' : 'rgba(255,71,87,0.15)',
+                        color: tauxCritere >= 0 ? '#00d68f' : '#ff4757' }}>
+                        {tauxCritere >= 0 ? '▲' : '▼'} {Math.abs(Math.round(tauxCritere))}%
+                      </span>
+                    </td>
+                  );
+                })()}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="grid-4 mb-24">
+        <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>{getMetricLabel(criterion)} S{semaine}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#00d68f' }}>{formatCA(getMetricValue({ ca: evo?.total_ca_actuel, montant_transaction: evo?.total_montant_transaction_actuel, montant_ca: evo?.total_montant_ca_actuel, commission_pdg: evo?.total_commission_pdg_actuel }, criterion))}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>{getMetricLabel(criterion)} S{prevSemaine}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502' }}>{formatCA(getMetricValue({ ca: evo?.total_ca_precedent, montant_transaction: evo?.total_montant_transaction_precedent, montant_ca: evo?.total_montant_ca_precedent, commission_pdg: evo?.total_commission_pdg_precedent }, criterion))}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid ' + (variationCritere >= 0 ? '#00d68f' : '#ff4757') }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Variation ({getMetricLabel(criterion)})</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: variationCritere >= 0 ? '#00d68f' : '#ff4757' }}>
+            {variationCritere >= 0 ? '+' : ''}{formatCA(variationCritere)}
+          </div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid ' + (tauxCritereGlobal >= 0 ? '#00d68f' : '#ff4757') }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Taux Global</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: tauxCritereGlobal >= 0 ? '#00d68f' : '#ff4757' }}>
+            {tauxCritereGlobal >= 0 ? '▲' : '▼'} {Math.abs(tauxCritereGlobal).toFixed(1)}%
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {[['pdvs', 'PDVs'], ['superviseurs', 'Superviseurs'], ['gestionnaires', 'Gestionnaires']].map(([k, l]) => (
+          <button key={k} onClick={() => setSubTab(k)}
+            style={{ padding: '7px 18px', borderRadius: 20, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
+              background: subTab === k ? 'var(--primary)' : 'rgba(255,255,255,0.08)', color: subTab === k ? '#fff' : '#aaa' }}>
+            {l}
+          </button>
+        ))}
+        <div style={{ marginLeft: 'auto' }}>
+          <button className="btn btn-ghost" onClick={() => exportExcel(
+            (subTab === 'pdvs' ? evo?.par_pdv : subTab === 'superviseurs' ? evo?.par_superviseur : evo?.par_gestionnaire) || [],
+            `evolution_${subTab}`
+          )} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Download size={14} /> Export Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un nom..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
+      {isLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement...</div> : (
+        subTab === 'pdvs' ? renderTable((evo?.par_pdv || []).filter(r => !search || (r.nom||'').toLowerCase().includes(search.toLowerCase())), 'nom') :
+        subTab === 'superviseurs' ? renderTable((evo?.par_superviseur || []).filter(r => !search || (r.superviseur||'').toLowerCase().includes(search.toLowerCase())), 'superviseur') :
+        renderTable((evo?.par_gestionnaire || []).filter(r => !search || (r.gestionnaire||'').toLowerCase().includes(search.toLowerCase())), 'gestionnaire')
+      )}
+    </div>
+  );
+}
+
+// ─── ONGLET 5 : PDV INACTIFS ─────────────────────────────────────────────────
+function OngletInactifs({ annee, semaine, criterion }) {
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [search, setSearch] = useState('');
+  const { data, isLoading } = useQuery(
+    ['weekly-inactive', annee, semaine],
+    () => api.get('/dashboard/weekly-inactive', { params: { annee, semaine } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+  const pdvs = data?.pdvs || [];
+  const displayedPdvs = pdvs
+    .filter(p => {
+      if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
+      if (activeFilter === 'haute') return p.alerte === 'HAUTE';
+      if (activeFilter === 'normale') return p.alerte === 'NORMALE';
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+  const critique = pdvs.filter(p => p.alerte === 'CRITIQUE');
+  const haute = pdvs.filter(p => p.alerte === 'HAUTE');
+  const normale = pdvs.filter(p => p.alerte === 'NORMALE');
+
+  const exportExcel = () => {
+    const rows = pdvs.map(p => ({
+      'PDV': p.nom, 'Numéro Personnel': p.numero_personnel || '-', 'Superviseur': p.superviseur || '-',
+      'Zone': p.zone || '-', 'Sous-zone': p.sous_zone || '-', 'Téléconseillère': p.teleconseillere || '-',
+      [getMetricLabel(criterion)]: getMetricValue(p, criterion),
+      'Alerte': p.alerte, 'Semaines Inactif': p.nb_semaines_consecutives_inactif,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Inactifs_S${semaine}`);
+    XLSX.writeFile(wb, `inactifs_semaine${semaine}_${annee}.xlsx`);
+  };
+
+  return (
+    <div>
+      <div className="grid-4 mb-24">
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'total' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'total' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(null)}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total Inactifs</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvs.length}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Semaine {semaine}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'critique' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'critique' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'critique' ? null : 'critique')}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (≥3 sem.)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502', cursor: 'pointer', outline: activeFilter === 'haute' ? '2px solid #ffa502' : 'none', transform: activeFilter === 'haute' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'haute' ? null : 'haute')}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (2 sem.)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a', cursor: 'pointer', outline: activeFilter === 'normale' ? '2px solid #8a8a9a' : 'none', transform: activeFilter === 'normale' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'normale' ? null : 'normale')}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale (1 sem.)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
+        </button>
+      </div>
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Sous-Zone</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Sem. Inactif</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+              ) : displayedPdvs.length === 0 ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif cette semaine</td></tr>
+              ) : displayedPdvs.map((p, i) => {
+                const alert = getAlertInfo(p.nb_semaines_consecutives_inactif || 1, 'inactif');
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                  </td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.numero_personnel || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.zone || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.sous_zone || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.teleconseillere || '—'}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 600, color: 'var(--primary)' }}>{formatCA(getMetricValue(p, criterion))}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: alert.bg, color: alert.color }}>
+                        {p.alerte || alert.level}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: alert.color }}>
+                      {p.nb_semaines_consecutives_inactif || 1}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ONGLET 6 : PDV EN BAISSE ─────────────────────────────────────────────────
+function OngletBaisse({ annee, semaine, criterion }) {
+  const [seuil, setSeuil] = useState(-10);
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [search, setSearch] = useState('');
+
+  const { data, isLoading } = useQuery(
+    ['weekly-declining', annee, semaine, seuil],
+    () => api.get('/dashboard/weekly-declining', { params: { annee, semaine, seuil } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+  const pdvs = data?.pdvs || [];
+  const displayedPdvs = pdvs
+    .filter(p => {
+      if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
+      if (activeFilter === 'haute') return p.alerte === 'HAUTE';
+      if (activeFilter === 'normale') return p.alerte === 'NORMALE';
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+
+  const getPrevMetricW = (pdv) => getMetricValue({
+    ca: pdv.ca_precedent,
+    montant_transaction: pdv.montant_transaction_precedent,
+    montant_ca: pdv.montant_ca_precedent,
+    commission_pdg: pdv.commission_pdg_precedent,
+  }, criterion);
+  const getTauxCritereW = (pdv) => {
+    const actuel = getMetricValue(pdv, criterion);
+    const prec = getPrevMetricW(pdv);
+    return prec > 0 ? ((actuel - prec) / prec) * 100 : 0;
+  };
+  const pdvsAvecBaisseW = pdvs.filter(p => {
+    const actuel = getMetricValue(p, criterion);
+    const prec = getPrevMetricW(p);
+    return prec > 0 && actuel < prec;
+  });
+  const critique = pdvsAvecBaisseW.filter(p => getTauxCritereW(p) < -30);
+  const haute = pdvsAvecBaisseW.filter(p => getTauxCritereW(p) < -15 && getTauxCritereW(p) >= -30);
+  const normale = pdvsAvecBaisseW.filter(p => getTauxCritereW(p) >= -15);
+
+  const exportExcel = () => {
+    const rows = pdvs.map(p => ({
+      'PDV': p.nom, 'N° Personnel': p.numero_personnel || '-', 'Superviseur': p.superviseur || '-',
+      'Zone': p.zone || '-', 'Sous-zone': p.sous_zone || '-', 'Téléconseillère': p.teleconseillere || '-',
+      [getMetricLabel(criterion) + ' Actuel']: getMetricValue(p, criterion),
+      [getMetricLabel(criterion) + ' Précédent']: getPrevMetricW(p),
+      'Baisse (%)': p.taux_baisse, 'Alerte': p.alerte,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Baisse_S${semaine}`);
+    XLSX.writeFile(wb, `baisse_semaine${semaine}_${annee}.xlsx`);
+  };
+
+  const getAction = (taux) => {
+    const abs = Math.abs(taux || 0);
+    if (abs > 30) return 'Visite urgente + appel superviseur';
+    if (abs > 15) return 'Appel téléphonique + relance';
+    return 'Surveillance & suivi régulier';
+  };
+
+  return (
+    <div>
+      <div className="grid-4 mb-24">
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'total' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'total' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(null)}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total en Baisse ({getMetricLabel(criterion)})</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvsAvecBaisseW.length}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Seuil: {seuil}%</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'critique' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'critique' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'critique' ? null : 'critique')}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (&gt;30%)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502', cursor: 'pointer', outline: activeFilter === 'haute' ? '2px solid #ffa502' : 'none', transform: activeFilter === 'haute' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'haute' ? null : 'haute')}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (&gt;15%)</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a', cursor: 'pointer', outline: activeFilter === 'normale' ? '2px solid #8a8a9a' : 'none', transform: activeFilter === 'normale' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'normale' ? null : 'normale')}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
+        </div>
+      </div>
+      <div className="card mb-16" style={{ padding: '16px 20px', display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <label style={{ fontSize: 12, color: '#8a8a9a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+            Seuil de baisse : <span style={{ color: '#ff4757', fontWeight: 800 }}>{Math.abs(seuil)}%</span>
+          </label>
+          <input
+            type="range"
+            min="5"
+            max="50"
+            value={Math.abs(seuil)}
+            onChange={e => setSeuil(-parseInt(e.target.value))}
+            style={{ width: '100%', accentColor: '#ff4757' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#555', marginTop: 2 }}>
+            <span>5%</span><span>15%</span><span>25%</span><span>35%</span><span>50%</span>
+          </div>
+        </div>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
+        </button>
+      </div>
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} Actuel</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ffa502' }}>{getMetricLabel(criterion)} Précédent</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#ff4757' }}>Baisse</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+              ) : displayedPdvs.length === 0 ? (
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse cette semaine</td></tr>
+              ) : displayedPdvs.map((p, i) => {
+                const abs = Math.abs(p.taux_baisse || 0);
+                const alert = getAlertInfo(abs, 'baisse');
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                  </td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.numero_personnel || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.zone || '—'}</td>
+                    <td style={{ padding: '10px 14px', color: '#aaa' }}>{p.teleconseillere || '—'}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700 }}>{formatCA(getMetricValue(p, criterion))}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'right', color: '#aaa' }}>{formatCA(getPrevMetricW(p))}</td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: '#ff4757' }}>
+                      ▼ {abs.toFixed(1)}%
+                    </td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: alert.bg, color: alert.color }}>
+                        {p.alerte || alert.level}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 11, color: '#aaa' }}>{getAction(p.taux_baisse)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ONGLET 7 : PROGRESSION ───────────────────────────────────────────────────
+function OngletProgression({ annee, semaine, criterion }) {
+  const [selectedPdv, setSelectedPdv] = useState(null);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const PAGE_SIZE = 20;
+
+  const { data, isLoading } = useQuery(
+    ['weekly-dash-progression', annee],
+    () => api.get('/dashboard/weekly-progression', { params: { annee } }).then(r => r.data),
+    { staleTime: 120000 }
+  );
+
+  const { data: pdvHistory } = useQuery(
+    ['pdv-weekly-hist-prog', selectedPdv],
+    () => selectedPdv ? api.get(`/dashboard/pdv-weekly-history/${selectedPdv.pdv_id}`).then(r => r.data) : null,
+    { enabled: !!selectedPdv, staleTime: 120000 }
+  );
+
+  const allPdvs = (data?.pdvs || []).filter(p => !search ||
+    (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
+  );
+  const totalPages = Math.ceil(allPdvs.length / PAGE_SIZE);
+  const pdvs = allPdvs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const exportExcel = () => {
+    const rows = pdvs.map(p => ({
+      'PDV': p.nom, 'Zone': p.zone || '-', 'Superviseur': p.superviseur || '-',
+      'Nb fois Top 10': p.nb_fois_top10, 'Nb fois Top 50': p.nb_fois_top50,
+      'Sem. Meilleur CA': p.semaine_meilleur_ca || '-', 'Sem. Pire CA': p.semaine_pire_ca || '-',
+      [`${getMetricLabel(criterion)} Max`]: getMetricValue({ ca: p.ca_max, montant_transaction: p.montant_transaction_max, montant_ca: p.montant_ca_max, commission_pdg: p.commission_pdg_max }, criterion),
+      [`${getMetricLabel(criterion)} Min`]: getMetricValue({ ca: p.ca_min, montant_transaction: p.montant_transaction_min, montant_ca: p.montant_ca_min, commission_pdg: p.commission_pdg_min }, criterion),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Progression_${annee}`);
+    XLSX.writeFile(wb, `progression_${annee}.xlsx`);
+  };
+
+  const histoData = [...(pdvHistory?.historique || [])].slice(-16).map(h => ({
+    label: `S${h.semaine}`,
+    metric: getMetricValue({ ca: h.ca, montant_transaction: h.montant_transaction, montant_ca: h.montant_ca, commission_pdg: h.commission_pdg }, criterion),
+  }));
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
+        </button>
+      </div>
+
+      {/* Barre de recherche */}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      </div>
+
+      {selectedPdv && pdvHistory && (
+        <div className="card mb-24" style={{ borderLeft: '3px solid var(--primary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <h3 style={{ fontWeight: 700, marginBottom: 4 }}>📈 Évolution — {selectedPdv.nom}</h3>
+              <div style={{ fontSize: 12, color: '#8a8a9a' }}>
+                🏆 Top10: {selectedPdv.nb_fois_top10}x · Top50: {selectedPdv.nb_fois_top50}x ·
+                {getMetricLabel(criterion)} Max: {formatCA(getMetricValue({ ca: selectedPdv.ca_max, montant_transaction: selectedPdv.montant_transaction_max, montant_ca: selectedPdv.montant_ca_max, commission_pdg: selectedPdv.commission_pdg_max }, criterion))} ({selectedPdv.semaine_meilleur_ca ? 'S' + (selectedPdv.semaine_meilleur_ca.includes('-W') ? parseInt(selectedPdv.semaine_meilleur_ca.split('-W')[1]) : selectedPdv.semaine_meilleur_ca) : '—'}) ·
+                {getMetricLabel(criterion)} Min: {formatCA(getMetricValue({ ca: selectedPdv.ca_min, montant_transaction: selectedPdv.montant_transaction_min, montant_ca: selectedPdv.montant_ca_min, commission_pdg: selectedPdv.commission_pdg_min }, criterion))} ({selectedPdv.semaine_pire_ca ? 'S' + (selectedPdv.semaine_pire_ca.includes('-W') ? parseInt(selectedPdv.semaine_pire_ca.split('-W')[1]) : selectedPdv.semaine_pire_ca) : '—'})
+              </div>
+            </div>
+            <button onClick={() => setSelectedPdv(null)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 20 }}>✕</button>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={histoData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => formatCA(v)} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="metric" stroke="#FF6900" fill="rgba(255,105,0,0.15)" strokeWidth={2} dot={{ r: 3, fill: '#FF6900' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#FFD700' }}>Nb Top 10</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#a29bfe' }}>Nb Top 50</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#00d68f' }}>Sem. Meilleur</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#ff4757' }}>Sem. Pire</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} Max</th>
+                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ff4757' }}>{getMetricLabel(criterion)} Min</th>
+                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Évol.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+              ) : pdvs.map((p, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: selectedPdv?.pdv_id === p.pdv_id ? 'rgba(255,105,0,0.05)' : 'transparent' }}>
+                  <td style={{ padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{p.numero_pdv || p.numero_personnel}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.nom}</div>
+                  </td>
+                  <td style={{ padding: '10px 14px', color: '#8a8a9a' }}>{p.zone || '—'}</td>
+                  <td style={{ padding: '10px 14px', color: '#ccc' }}>{p.superviseur || '—'}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                    <span style={{ background: 'rgba(255,215,0,0.15)', color: '#FFD700', padding: '2px 10px', borderRadius: 10, fontWeight: 700 }}>
+                      {p.nb_fois_top10}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                    <span style={{ background: 'rgba(162,155,254,0.15)', color: '#a29bfe', padding: '2px 10px', borderRadius: 10, fontWeight: 700 }}>
+                      {p.nb_fois_top50}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center', color: '#00d68f', fontWeight: 600 }}>{p.semaine_meilleur_ca ? 'S' + (p.semaine_meilleur_ca.includes('-W') ? parseInt(p.semaine_meilleur_ca.split('-W')[1]) : p.semaine_meilleur_ca) : '—'}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center', color: '#ff4757', fontWeight: 600 }}>{p.semaine_pire_ca ? 'S' + (p.semaine_pire_ca.includes('-W') ? parseInt(p.semaine_pire_ca.split('-W')[1]) : p.semaine_pire_ca) : '—'}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: '#00d68f' }}>{formatCA(getMetricValue({ ca: p.ca_max, montant_transaction: p.montant_transaction_max, montant_ca: p.montant_ca_max, commission_pdg: p.commission_pdg_max }, criterion))}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#ff4757' }}>{formatCA(getMetricValue({ ca: p.ca_min, montant_transaction: p.montant_transaction_min, montant_ca: p.montant_ca_min, commission_pdg: p.commission_pdg_min }, criterion))}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                    <button onClick={() => setSelectedPdv(selectedPdv?.pdv_id === p.pdv_id ? null : p)}
+                      style={{ background: 'rgba(255,105,0,0.15)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 6,
+                        color: '#FF6900', padding: '4px 10px', cursor: 'pointer', fontSize: 11 }}>
+                      📊 Voir
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination — style PDVsPage */}
+      <div className="pdv-pagination">
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          Page {page} / {totalPages} · {allPdvs.length} PDVs
+        </span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}>← Préc.</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}>Suiv. →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── COMPOSANT PRINCIPAL ─────────────────────────────────────────────────────
+export default function OMyWeeklyDashboardPage() {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const defaultSemaine = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+
+  const [annee, setAnnee] = useState(now.getFullYear());
+  const [semaine, setSemaine] = useState(defaultSemaine);
+
+  // Charger la dernière semaine disponible automatiquement
+  const { data: lastAvail } = useQuery('last-available', () =>
+    api.get('/dashboard/last-available').then(r => r.data), { staleTime: 3600000 }
+  );
+  React.useEffect(() => {
+    if (lastAvail?.last_week) {
+      setAnnee(lastAvail.last_week.annee);
+      setSemaine(lastAvail.last_week.semaine);
+    }
+  }, [lastAvail]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [criterion, setCriterion] = useState('montant_transaction');
+
+  // Charger la dernière semaine disponible et l'utiliser par défaut
+  const { data: lastAvailable } = useQuery(
+    'last-available',
+    () => api.get('/dashboard/last-available').then(r => r.data),
+    { staleTime: 300000 }
+  );
+
+  useEffect(() => {
+    if (lastAvailable?.last_week) {
+      setAnnee(lastAvailable.last_week.annee);
+      setSemaine(lastAvailable.last_week.semaine);
+    }
+  }, [lastAvailable]);
+
+  const semDisponibles = lastAvailable?.semaines_disponibles || [];
+  const isSemDispo = (a, s) => semDisponibles.some(d => d.annee === a && d.semaine === s);
+  const canGoPrevSem = isSemDispo(semaine <= 1 ? annee - 1 : annee, semaine <= 1 ? 52 : semaine - 1);
+  const canGoNextSem = isSemDispo(semaine >= 52 ? annee + 1 : annee, semaine >= 52 ? 1 : semaine + 1);
+  const prevWeek = () => { const ns=semaine<=1?52:semaine-1; const na=semaine<=1?annee-1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
+  const nextWeek = () => { const ns=semaine>=52?1:semaine+1; const na=semaine>=52?annee+1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
+
+  const tabs = [
+    { key: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
+    { key: 'top', label: '🏆 Suivi des Top', icon: Trophy },
+    { key: 'pareto', label: '📊 Rapport Pareto', icon: BarChart3 },
+    { key: 'evolution', label: '📈 Évolution', icon: TrendingUp },
+    { key: 'inactifs', label: '😴 PDV Inactifs', icon: AlertTriangle },
+    { key: 'baisse', label: '📉 PDV en Baisse', icon: TrendingDown },
+    { key: 'progression', label: '🎯 Progression', icon: Target },
+  ];
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{ marginBottom: 20 }}>
+        <div>
+          <h1 className="page-title">OMY — Dashboard Hebdomadaire</h1>
+          <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>Suivi semaine par semaine du réseau OMY</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {activeTab !== 'overview' && (
+            <select
+              value={criterion}
+              onChange={(e) => setCriterion(e.target.value)}
+              className="btn btn-ghost btn-sm"
+              style={{ minWidth: 220 }}
+            >
+              {Object.entries(OMY_CRITERIA).map(([value, meta]) => (
+                <option key={value} value={value}>{meta.label}</option>
+              ))}
+            </select>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '8px 16px' }}>
+            <button onClick={prevWeek} disabled={!canGoPrevSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoPrevSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoPrevSem?1:0.3 }}>‹</button>
+            <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', minWidth: 130, textAlign: 'center' }}>
+              Semaine {semaine} · {annee}
+            </span>
+            <button onClick={nextWeek} disabled={!canGoNextSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoNextSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoNextSem?1:0.3 }}>›</button>
+          </div>
+        </div>
+      </div>
+
+      {/* TABS */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 28, background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '6px' }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            style={{ padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+              background: activeTab === t.key ? 'var(--primary)' : 'transparent',
+              color: activeTab === t.key ? '#fff' : '#8a8a9a',
+              transition: 'all 0.2s' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENU */}
+      {activeTab === 'overview' && <OngletVueEnsemble annee={annee} semaine={semaine} />}
+      {activeTab === 'top' && <OngletSuiviTop annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'pareto' && <OngletPareto annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'progression' && <OngletProgression annee={annee} semaine={semaine} criterion={criterion} />}
+    </div>
+  );
+}
+
