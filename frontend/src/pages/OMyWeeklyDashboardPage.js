@@ -408,6 +408,8 @@ function OngletSuiviTop({ annee, semaine, criterion }) {
 function OngletEvolution({ annee, semaine, criterion }) {
   const [subTab, setSubTab] = useState('pdvs');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const prevSemaine = semaine === 1 ? 52 : semaine - 1;
   const prevAnnee = semaine === 1 ? annee - 1 : annee;
@@ -540,7 +542,15 @@ function OngletEvolution({ annee, semaine, criterion }) {
       </div>
 
       {isLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement...</div> : (
-        subTab === 'pdvs' ? renderTable((evo?.par_pdv || []).filter(r => !search || (r.nom||'').toLowerCase().includes(search.toLowerCase())), 'nom') :
+        subTab === 'pdvs' ? (() => {
+          const filtered = (evo?.par_pdv || []).filter(r => !search || (r.nom||'').toLowerCase().includes(search.toLowerCase()));
+          const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+          const paged = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+          return <>
+            {renderTable(paged, 'nom')}
+            {totalPages > 1 && <div className="pdv-pagination"><span style={{fontSize:12,color:'var(--text-secondary)'}}>Page {page} / {totalPages} · {filtered.length} PDVs</span><div style={{display:'flex',gap:8}}><button className="btn btn-ghost btn-sm" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>← Préc.</button><button className="btn btn-ghost btn-sm" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}>Suiv. →</button></div></div>}
+          </>;
+        })() :
         subTab === 'superviseurs' ? renderTable((evo?.par_superviseur || []).filter(r => !search || (r.superviseur||'').toLowerCase().includes(search.toLowerCase())), 'superviseur') :
         renderTable((evo?.par_gestionnaire || []).filter(r => !search || (r.gestionnaire||'').toLowerCase().includes(search.toLowerCase())), 'gestionnaire')
       )}

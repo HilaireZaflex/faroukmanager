@@ -722,6 +722,8 @@ function TabEvolution({ annee, mois, criterion }) {
   const [activeSub, setActiveSub] = useState('pdvs');
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const prevMonth = () => {
     if (compareMois === 1) { setCompareMois(12); setCompareAnnee(a => a - 1); }
@@ -783,7 +785,9 @@ function TabEvolution({ annee, mois, criterion }) {
   const getGestionnaireData = () => (evolution?.par_gestionnaire || []).map(g => toMetricEvolution(g, 'gestionnaire'));
 
   const dataToShow = activeSub === 'pdvs' ? getPDVData() : activeSub === 'superviseurs' ? getSuperviseurData() : getGestionnaireData();
-  const displayedData = dataToShow.filter(row => !search || (row.nom||'').toLowerCase().includes(search.toLowerCase()));
+  const filteredData = dataToShow.filter(row => !search || (row.nom||'').toLowerCase().includes(search.toLowerCase()));
+  const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
+  const displayedData = filteredData.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
   const exportExcel = () => {
     const data = dataToShow.map((row, idx) => ({
@@ -876,7 +880,7 @@ function TabEvolution({ annee, mois, criterion }) {
           <tbody>
             {displayedData.map((row, idx) => (
               <tr key={idx}>
-                <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                <td style={{ textAlign: 'center' }}>{(page-1)*PAGE_SIZE + idx + 1}</td>
                 <td>
                   {activeSub === 'pdvs' && row.numero_pdv ? (
                     <>
@@ -902,6 +906,7 @@ function TabEvolution({ annee, mois, criterion }) {
           </tbody>
         </table>
       </div>
+      {totalPages > 1 && <div className="pdv-pagination" style={{marginTop:16}}><span style={{fontSize:12,color:'var(--text-secondary)'}}>Page {page} / {totalPages} · {filteredData.length} résultats</span><div style={{display:'flex',gap:8}}><button className="btn btn-ghost btn-sm" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}>← Préc.</button><button className="btn btn-ghost btn-sm" onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}>Suiv. →</button></div></div>}
     </div>
   );
 }

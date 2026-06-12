@@ -1149,7 +1149,7 @@ def monthly_evolution(
             "taux": taux, "est_hausse": variation >= 0,
         })
 
-    par_pdv_list = sorted(par_pdv_list, key=lambda x: abs(x["variation"]), reverse=True)[:100]
+    par_pdv_list = sorted(par_pdv_list, key=lambda x: abs(x["variation"]), reverse=True)
 
     return {
         "annee": annee, "mois": mois,
@@ -1556,7 +1556,7 @@ def weekly_evolution(
             "variation_mca": mca_actuel-mca_precedent, "variation_cpdg": cpdg_actuel-cpdg_precedent,
             "taux": taux, "est_hausse": variation >= 0})
 
-    par_pdv_list = sorted(par_pdv_list, key=lambda x: abs(x["variation"]), reverse=True)[:100]
+    par_pdv_list = sorted(par_pdv_list, key=lambda x: abs(x["variation"]), reverse=True)
 
     return {
         "annee": annee, "semaine": semaine,
