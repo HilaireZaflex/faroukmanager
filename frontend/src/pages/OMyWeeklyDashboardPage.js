@@ -892,16 +892,17 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   const rawPdvs = data?.pdvs || [];
 
-  // KPIs interactifs (Option C)
-  const pdvsHausse = rawPdvs.filter(p => (p.taux_progression || 0) > 0);
-  const pdvsBaisse = rawPdvs.filter(p => (p.taux_progression || 0) < 0);
-  const topPerformer = rawPdvs.reduce((best, p) => (!best || (p.taux_progression||0) > (best.taux_progression||0)) ? p : best, null);
-  const variationMoyenne = rawPdvs.length > 0 ? rawPdvs.reduce((sum, p) => sum + (p.taux_progression||0), 0) / rawPdvs.length : 0;
+  // KPIs interactifs (Option C) - progression = (max - min) / min * 100
+  const getTauxProgression = (p) => (p.ca_min > 0 ? ((p.ca_max - p.ca_min) / p.ca_min * 100) : 0);
+  const pdvsHausse = rawPdvs.filter(p => getTauxProgression(p) > 5);
+  const pdvsBaisse = rawPdvs.filter(p => getTauxProgression(p) < -5);
+  const topPerformer = rawPdvs.reduce((best, p) => (!best || getTauxProgression(p) > getTauxProgression(best)) ? p : best, null);
+  const variationMoyenne = rawPdvs.length > 0 ? rawPdvs.reduce((sum, p) => sum + getTauxProgression(p), 0) / rawPdvs.length : 0;
 
   const allPdvs = rawPdvs
     .filter(p => {
-      if (activeFilter === 'hausse') return (p.taux_progression || 0) > 0;
-      if (activeFilter === 'baisse') return (p.taux_progression || 0) < 0;
+      if (activeFilter === 'hausse') return getTauxProgression(p) > 5;
+      if (activeFilter === 'baisse') return getTauxProgression(p) < -5;
       return true;
     })
     .filter(p => !search ||
@@ -958,7 +959,7 @@ function OngletProgression({ annee, semaine, criterion }) {
         <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🏆 Meilleure Progression</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            +{Math.abs(topPerformer?.taux_progression || 0).toFixed(1)}%
+            +{Math.abs(topPerformer ? getTauxProgression(topPerformer) : 0).toFixed(1)}%
           </div>
           <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {topPerformer?.numero_pdv} — {topPerformer?.nom?.substring(0, 18) || '—'}
