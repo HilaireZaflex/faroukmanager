@@ -345,6 +345,7 @@ function TabTopPDVs({ annee, mois, criterion }) {
   const [topN, setTopN] = useState(20);
   const [selectedPDV, setSelectedPDV] = useState(null);
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
   const [zoneFilter, setZoneFilter] = useState('');
   const [sortBy, setSortBy] = useState('metric_desc');
   const [selectedPDVNom, setSelectedPDVNom] = useState('');
@@ -571,6 +572,7 @@ function TabTopPDVs({ annee, mois, criterion }) {
 function TabPareto({ annee, mois, criterion }) {
   const [sortBy, setSortBy] = useState('rang');
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
 
   const { data: pareto, isLoading } = useQuery(
     ['pareto', annee, mois],
@@ -613,7 +615,13 @@ function TabPareto({ annee, mois, criterion }) {
     (!supFilter || p.superviseur === supFilter)
   );
 
-  const displayedPdvs = filteredPDVs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
+  const displayedPdvs = filteredPDVs
+    .filter(p => {
+      if (activeFilter === 'fort') return p.dans_pareto;
+      if (activeFilter === 'faible') return !p.dans_pareto;
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
 
   const fortImpact = filteredPDVs.filter(p => p.dans_pareto).reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
   const faibleImpact = filteredPDVs.filter(p => !p.dans_pareto).reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
@@ -621,12 +629,12 @@ function TabPareto({ annee, mois, criterion }) {
   return (
     <div>
       <div className="grid-2 mb-24">
-        <div className="kpi-card" style={{ background: 'linear-gradient(135deg, rgba(255,105,0,0.1), rgba(255,105,0,0.05))', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 'var(--radius)', padding: 20 }}>
+        <div className="kpi-card" style={{ background: 'linear-gradient(135deg, rgba(255,105,0,0.1), rgba(255,105,0,0.05))', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 'var(--radius)', padding: 20, cursor: 'pointer', outline: activeFilter === 'fort' ? '2px solid #FF6900' : 'none', transform: activeFilter === 'fort' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'fort' ? null : 'fort')}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Fort Impact (Pareto)</div>
           <div style={{ fontSize: 28, fontWeight: 900, color: '#FF6900' }}>{formatCA(fortImpact)}</div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>PDVs avec forte contribution</div>
         </div>
-        <div className="kpi-card" style={{ background: 'linear-gradient(135deg, rgba(100,200,200,0.1), rgba(100,200,200,0.05))', border: '1px solid rgba(100,200,200,0.2)', borderRadius: 'var(--radius)', padding: 20 }}>
+        <div className="kpi-card" style={{ background: 'linear-gradient(135deg, rgba(100,200,200,0.1), rgba(100,200,200,0.05))', border: '1px solid rgba(100,200,200,0.2)', borderRadius: 'var(--radius)', padding: 20, cursor: 'pointer', outline: activeFilter === 'faible' ? '2px solid #00cec9' : 'none', transform: activeFilter === 'faible' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'faible' ? null : 'faible')}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Faible Impact</div>
           <div style={{ fontSize: 28, fontWeight: 900, color: '#00cec9' }}>{formatCA(faibleImpact)}</div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>Gini: {pareto?.gini_coefficient?.toFixed(3)}</div>
@@ -645,6 +653,13 @@ function TabPareto({ annee, mois, criterion }) {
           <Download size={14} /> Excel
         </button>
       </div>
+
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
 
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
@@ -706,6 +721,7 @@ function TabEvolution({ annee, mois, criterion }) {
   const [compareMois, setCompareMois] = useState(mois);
   const [activeSub, setActiveSub] = useState('pdvs');
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
 
   const prevMonth = () => {
     if (compareMois === 1) { setCompareMois(12); setCompareAnnee(a => a - 1); }
@@ -869,6 +885,7 @@ function TabEvolution({ annee, mois, criterion }) {
 // ============ TAB 5: PDV Inactifs ============
 function TabInactivePDVs({ annee, mois, criterion }) {
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
   const { data: inactifs, isLoading } = useQuery(
     ['inactifs', annee, mois],
     () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
@@ -876,7 +893,14 @@ function TabInactivePDVs({ annee, mois, criterion }) {
   );
 
   const pdvs = inactifs?.pdvs || [];
-  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+  const displayedPdvs = pdvs
+    .filter(p => {
+      if (activeFilter === 'critique') return p.nb_mois_consecutifs_inactif >= 3;
+      if (activeFilter === 'haute') return p.nb_mois_consecutifs_inactif === 2;
+      if (activeFilter === 'normale') return p.nb_mois_consecutifs_inactif === 1;
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
   const critique = pdvs.filter(p => p.nb_mois_consecutifs_inactif >= 3);
   const haute = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 2);
   const normale = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 1);
@@ -904,20 +928,20 @@ function TabInactivePDVs({ annee, mois, criterion }) {
     <div>
       {/* KPI Cards — style hebdo */}
       <div className="grid-4 mb-24">
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'total' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'total' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(null)}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total Inactifs</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvs.length}</div>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>{MOIS_NOMS[mois - 1]} {annee}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'critique' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'critique' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'critique' ? null : 'critique')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (≥3 mois)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502', cursor: 'pointer', outline: activeFilter === 'haute' ? '2px solid #ffa502' : 'none', transform: activeFilter === 'haute' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'haute' ? null : 'haute')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (2 mois)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #8a8a9a' }}>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a', cursor: 'pointer', outline: activeFilter === 'normale' ? '2px solid #8a8a9a' : 'none', transform: activeFilter === 'normale' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'normale' ? null : 'normale')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale (1 mois)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
         </div>
@@ -929,6 +953,13 @@ function TabInactivePDVs({ annee, mois, criterion }) {
           <Download size={14} /> Export Excel
         </button>
       </div>
+
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
 
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
@@ -1002,6 +1033,7 @@ function TabInactivePDVs({ annee, mois, criterion }) {
 function TabDecliningPDVs({ annee, mois, criterion }) {
   const [seuil, setSeuil] = useState(-10);
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
 
   const { data, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
@@ -1009,7 +1041,15 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
     { staleTime: 300000 }
   );
   const pdvs = data?.pdvs || [];
-  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+  const displayedPdvs = pdvs
+    .filter(p => {
+      const abs = Math.abs(p.taux_baisse || 0);
+      if (activeFilter === 'critique') return abs > 30;
+      if (activeFilter === 'haute') return abs > 15 && abs <= 30;
+      if (activeFilter === 'normale') return abs <= 15;
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
 
   const getPrevMetric = (pdv) => getMetricValue({
     ca: pdv.ca_precedent,
@@ -1065,20 +1105,20 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
     <div>
       {/* KPI Cards — style hebdo */}
       <div className="grid-4 mb-24">
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'total' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'total' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(null)}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total en Baisse ({getMetricLabel(criterion)})</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvsAvecBaisse.length}</div>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Seuil: {seuil}%</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'critique' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'critique' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'critique' ? null : 'critique')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (&gt;30%)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502', cursor: 'pointer', outline: activeFilter === 'haute' ? '2px solid #ffa502' : 'none', transform: activeFilter === 'haute' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'haute' ? null : 'haute')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (&gt;15%)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #8a8a9a' }}>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a', cursor: 'pointer', outline: activeFilter === 'normale' ? '2px solid #8a8a9a' : 'none', transform: activeFilter === 'normale' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'normale' ? null : 'normale')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
         </div>
@@ -1101,6 +1141,13 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
           <Download size={14} /> Export Excel
         </button>
       </div>
+
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
 
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
@@ -1184,6 +1231,7 @@ function TabProgression({ annee, criterion }) {
   const [selectedPDV, setSelectedPDV] = useState(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
   const PAGE_SIZE = 20;
 
   const toggleChart = (pdv) => {

@@ -542,14 +542,21 @@ function OngletEvolution({ annee, semaine, criterion }) {
 
 // ─── ONGLET 5 : PDV INACTIFS ─────────────────────────────────────────────────
 function OngletInactifs({ annee, semaine, criterion }) {
-  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
   const { data, isLoading } = useQuery(
     ['weekly-inactive', annee, semaine],
     () => api.get('/dashboard/weekly-inactive', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 60000 }
   );
   const pdvs = data?.pdvs || [];
-  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+  const displayedPdvs = pdvs
+    .filter(p => {
+      if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
+      if (activeFilter === 'haute') return p.alerte === 'HAUTE';
+      if (activeFilter === 'normale') return p.alerte === 'NORMALE';
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
   const critique = pdvs.filter(p => p.alerte === 'CRITIQUE');
   const haute = pdvs.filter(p => p.alerte === 'HAUTE');
   const normale = pdvs.filter(p => p.alerte === 'NORMALE');
@@ -570,20 +577,20 @@ function OngletInactifs({ annee, semaine, criterion }) {
   return (
     <div>
       <div className="grid-4 mb-24">
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'total' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'total' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(null)}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total Inactifs</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvs.length}</div>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Semaine {semaine}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'critique' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'critique' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'critique' ? null : 'critique')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (≥3 sem.)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502', cursor: 'pointer', outline: activeFilter === 'haute' ? '2px solid #ffa502' : 'none', transform: activeFilter === 'haute' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'haute' ? null : 'haute')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (2 sem.)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #8a8a9a' }}>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a', cursor: 'pointer', outline: activeFilter === 'normale' ? '2px solid #8a8a9a' : 'none', transform: activeFilter === 'normale' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'normale' ? null : 'normale')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale (1 sem.)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
         </div>
@@ -593,6 +600,12 @@ function OngletInactifs({ annee, semaine, criterion }) {
           <Download size={14} /> Export Excel
         </button>
       </div>
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
           <Search size={15} className="search-icon"/>
@@ -662,6 +675,7 @@ function OngletInactifs({ annee, semaine, criterion }) {
 // ─── ONGLET 6 : PDV EN BAISSE ─────────────────────────────────────────────────
 function OngletBaisse({ annee, semaine, criterion }) {
   const [seuil, setSeuil] = useState(-10);
+  const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery(
@@ -670,7 +684,14 @@ function OngletBaisse({ annee, semaine, criterion }) {
     { staleTime: 60000 }
   );
   const pdvs = data?.pdvs || [];
-  const displayedPdvs = pdvs.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+  const displayedPdvs = pdvs
+    .filter(p => {
+      if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
+      if (activeFilter === 'haute') return p.alerte === 'HAUTE';
+      if (activeFilter === 'normale') return p.alerte === 'NORMALE';
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
 
   const getPrevMetricW = (pdv) => getMetricValue({
     ca: pdv.ca_precedent,
@@ -716,20 +737,20 @@ function OngletBaisse({ annee, semaine, criterion }) {
   return (
     <div>
       <div className="grid-4 mb-24">
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'total' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'total' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(null)}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Total en Baisse ({getMetricLabel(criterion)})</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvsAvecBaisseW.length}</div>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>Seuil: {seuil}%</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'critique' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'critique' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'critique' ? null : 'critique')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🔴 Critique (&gt;30%)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{critique.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502', cursor: 'pointer', outline: activeFilter === 'haute' ? '2px solid #ffa502' : 'none', transform: activeFilter === 'haute' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'haute' ? null : 'haute')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🟠 Haute (&gt;15%)</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#ffa502' }}>{haute.length}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #8a8a9a' }}>
+        <div className="card" style={{ borderLeft: '3px solid #8a8a9a', cursor: 'pointer', outline: activeFilter === 'normale' ? '2px solid #8a8a9a' : 'none', transform: activeFilter === 'normale' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'normale' ? null : 'normale')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚪ Normale</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#8a8a9a' }}>{normale.length}</div>
         </div>
@@ -755,6 +776,12 @@ function OngletBaisse({ annee, semaine, criterion }) {
           <Download size={14} /> Export Excel
         </button>
       </div>
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
           <Search size={15} className="search-icon"/>
@@ -1096,8 +1123,117 @@ export default function OMyWeeklyDashboardPage() {
 }
 
 // ─── ONGLET 3 : RAPPORT PARETO ────────────────────────────────────────────────
+export default function OMyWeeklyDashboardPage() {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const defaultSemaine = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+
+  const [annee, setAnnee] = useState(now.getFullYear());
+  const [semaine, setSemaine] = useState(defaultSemaine);
+
+  // Charger la dernière semaine disponible automatiquement
+  const { data: lastAvail } = useQuery('last-available', () =>
+    api.get('/dashboard/last-available').then(r => r.data), { staleTime: 3600000 }
+  );
+  React.useEffect(() => {
+    if (lastAvail?.last_week) {
+      setAnnee(lastAvail.last_week.annee);
+      setSemaine(lastAvail.last_week.semaine);
+    }
+  }, [lastAvail]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [criterion, setCriterion] = useState('montant_transaction');
+
+  // Charger la dernière semaine disponible et l'utiliser par défaut
+  const { data: lastAvailable } = useQuery(
+    'last-available',
+    () => api.get('/dashboard/last-available').then(r => r.data),
+    { staleTime: 300000 }
+  );
+
+  useEffect(() => {
+    if (lastAvailable?.last_week) {
+      setAnnee(lastAvailable.last_week.annee);
+      setSemaine(lastAvailable.last_week.semaine);
+    }
+  }, [lastAvailable]);
+
+  const semDisponibles = lastAvailable?.semaines_disponibles || [];
+  const isSemDispo = (a, s) => semDisponibles.some(d => d.annee === a && d.semaine === s);
+  const canGoPrevSem = isSemDispo(semaine <= 1 ? annee - 1 : annee, semaine <= 1 ? 52 : semaine - 1);
+  const canGoNextSem = isSemDispo(semaine >= 52 ? annee + 1 : annee, semaine >= 52 ? 1 : semaine + 1);
+  const prevWeek = () => { const ns=semaine<=1?52:semaine-1; const na=semaine<=1?annee-1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
+  const nextWeek = () => { const ns=semaine>=52?1:semaine+1; const na=semaine>=52?annee+1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
+
+  const tabs = [
+    { key: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
+    { key: 'top', label: '🏆 Suivi des Top', icon: Trophy },
+    { key: 'pareto', label: '📊 Rapport Pareto', icon: BarChart3 },
+    { key: 'evolution', label: '📈 Évolution', icon: TrendingUp },
+    { key: 'inactifs', label: '😴 PDV Inactifs', icon: AlertTriangle },
+    { key: 'baisse', label: '📉 PDV en Baisse', icon: TrendingDown },
+    { key: 'progression', label: '🎯 Progression', icon: Target },
+  ];
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{ marginBottom: 20 }}>
+        <div>
+          <h1 className="page-title">OMY — Dashboard Hebdomadaire</h1>
+          <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>Suivi semaine par semaine du réseau OMY</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {activeTab !== 'overview' && (
+            <select
+              value={criterion}
+              onChange={(e) => setCriterion(e.target.value)}
+              className="btn btn-ghost btn-sm"
+              style={{ minWidth: 220 }}
+            >
+              {Object.entries(OMY_CRITERIA).map(([value, meta]) => (
+                <option key={value} value={value}>{meta.label}</option>
+              ))}
+            </select>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '8px 16px' }}>
+            <button onClick={prevWeek} disabled={!canGoPrevSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoPrevSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoPrevSem?1:0.3 }}>‹</button>
+            <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', minWidth: 130, textAlign: 'center' }}>
+              Semaine {semaine} · {annee}
+            </span>
+            <button onClick={nextWeek} disabled={!canGoNextSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoNextSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoNextSem?1:0.3 }}>›</button>
+          </div>
+        </div>
+      </div>
+
+      {/* TABS */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 28, background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '6px' }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            style={{ padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+              background: activeTab === t.key ? 'var(--primary)' : 'transparent',
+              color: activeTab === t.key ? '#fff' : '#8a8a9a',
+              transition: 'all 0.2s' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENU */}
+      {activeTab === 'overview' && <OngletVueEnsemble annee={annee} semaine={semaine} />}
+      {activeTab === 'top' && <OngletSuiviTop annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'pareto' && <OngletPareto annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'progression' && <OngletProgression annee={annee} semaine={semaine} criterion={criterion} />}
+    </div>
+  );
+}
+
+// ─── ONGLET 3 : RAPPORT PARETO ────────────────────────────────────────────────
 function OngletPareto({ annee, semaine, criterion }) {
   const [zoneFilter, setZoneFilter] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
 
   const { data: weeklyDash } = useQuery(
@@ -1114,7 +1250,13 @@ function OngletPareto({ annee, semaine, criterion }) {
 
   const filtered = zoneFilter ? allPdvs.filter(p => p.zone === zoneFilter) : allPdvs;
   const sorted = [...filtered].sort((a, b) => getMetricValue(b, criterion) - getMetricValue(a, criterion));
-  const displayedPdvs = sorted.filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
+  const displayedPdvs = sorted
+    .filter(p => {
+      if (activeFilter === 'fort') return p.dans_pareto;
+      if (activeFilter === 'faible') return !p.dans_pareto;
+      return true;
+    })
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
   const totalMetric = filtered.reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
 
   let cumul = 0;
@@ -1148,12 +1290,12 @@ function OngletPareto({ annee, semaine, criterion }) {
   return (
     <div>
       <div className="grid-3 mb-24">
-        <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
+        <div className="card" style={{ borderLeft: '3px solid #00d68f', cursor: 'pointer', outline: activeFilter === 'fort' ? '2px solid #00d68f' : 'none', transform: activeFilter === 'fort' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'fort' ? null : 'fort')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>PDVs Fort Impact (80% {totalMetricLabel})</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: '#00d68f' }}>{fortImpact.length}</div>
           <div style={{ fontSize: 13, color: '#ccc', marginTop: 4 }}>{formatCA(metricFort)}</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+        <div className="card" style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer', outline: activeFilter === 'faible' ? '2px solid #ff4757' : 'none', transform: activeFilter === 'faible' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }} onClick={() => setActiveFilter(prev => prev === 'faible' ? null : 'faible')}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>PDVs Faible Impact</div>
           <div style={{ fontSize: 24, fontWeight: 800, color: '#ff4757' }}>{faibleImpact.length}</div>
           <div style={{ fontSize: 13, color: '#ccc', marginTop: 4 }}>{formatCA(metricFaible)}</div>
@@ -1177,6 +1319,13 @@ function OngletPareto({ annee, semaine, criterion }) {
           </button>
         </div>
       </div>
+
+      {activeFilter && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
+          <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
+        </div>
+      )}
 
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
