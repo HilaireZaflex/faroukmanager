@@ -42,13 +42,28 @@ export default function KPICard({ title, value, formatted, subtitle, icon: Icon,
         </>
       ) : (
         <>
-          <div className="kpi-value" style={{ fontSize: displayFormatted.length > 20 ? '16px' : displayFormatted.length > 15 ? '18px' : '22px', lineHeight: 1.2, wordBreak: 'keep-all', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="kpi-value">
             {displayFormatted.includes('FCFA') ? (
               <>
-                <span>{displayFormatted.replace(' FCFA', '')}</span>
-                <span style={{ fontSize: '11px', display: 'block', color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>FCFA</span>
+                <span style={{
+                  display: 'block',
+                  fontSize: displayFormatted.length > 22 ? '18px' : displayFormatted.length > 18 ? '22px' : '28px',
+                  fontWeight: 800,
+                  lineHeight: 1.1,
+                  letterSpacing: '-0.5px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                  {displayFormatted.replace(' FCFA', '')}
+                </span>
+                <span style={{ fontSize: '12px', display: 'block', color: 'var(--text-secondary)', fontWeight: 600, marginTop: 4, letterSpacing: '0.5px' }}>FCFA</span>
               </>
-            ) : displayFormatted}
+            ) : (
+              <span style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {displayFormatted}
+              </span>
+            )}
           </div>
           {subtitle && <div className="kpi-subtitle">{subtitle}</div>}
           {trend !== undefined && trendValue !== undefined && (

@@ -802,11 +802,35 @@ function TabEvolution({ annee, mois, criterion }) {
 
   return (
     <div>
+      {/* KPI Cards — même design que OngletEvolution hebdo */}
       <div className="grid-4 mb-24">
-        <KPICard title={`${getMetricLabel(criterion)} ${MOIS_NOMS[mois]} ${annee}`} formatted={formatCA(totalActuel || 0)} icon={DollarSign} color="#00d68f" subtitle="Mois actuel" />
-        <KPICard title={`${getMetricLabel(criterion)} ${MOIS_NOMS[prevMois]} ${prevAnnee}`} formatted={formatCA(totalPrecedent || 0)} icon={TrendingUp} color="#ffa502" subtitle="Mois précédent" />
-        <KPICard title="Variation" formatted={(totalVariation >= 0 ? '+' : '') + formatCA(totalVariation)} icon={TrendingUp} color={totalVariation >= 0 ? '#00d68f' : '#ff4757'} />
-        <KPICard title="Taux Global" formatted={`${totalTaux >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(totalTaux))}%`} icon={Activity} color={totalTaux >= 0 ? '#00d68f' : '#ff4757'} />
+        <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>{getMetricLabel(criterion)} {MOIS_NOMS[mois-1]} {annee}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#00d68f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {(totalActuel||0).toLocaleString('en-US').replace(/,/g,' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>{getMetricLabel(criterion)} {MOIS_NOMS[prevMois-1]} {prevAnnee}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {(totalPrecedent||0).toLocaleString('en-US').replace(/,/g,' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid ' + (totalVariation >= 0 ? '#00d68f' : '#ff4757') }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Variation ({getMetricLabel(criterion)})</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: totalVariation >= 0 ? '#00d68f' : '#ff4757', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {totalVariation >= 0 ? '+' : ''}{Math.abs(totalVariation).toLocaleString('en-US').replace(/,/g,' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
+        </div>
+        <div className="card" style={{ borderLeft: '3px solid ' + (totalTaux >= 0 ? '#00d68f' : '#ff4757') }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Taux Global</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: totalTaux >= 0 ? '#00d68f' : '#ff4757' }}>
+            {totalTaux >= 0 ? '▲' : '▼'} {Math.abs(totalTaux).toFixed(1)}%
+          </div>
+        </div>
       </div>
 
       <div style={{ marginBottom: 20 }}>
