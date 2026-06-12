@@ -42,7 +42,14 @@ export default function KPICard({ title, value, formatted, subtitle, icon: Icon,
         </>
       ) : (
         <>
-          <div className="kpi-value">{displayFormatted}</div>
+          <div className="kpi-value" style={{ fontSize: displayFormatted.length > 20 ? '16px' : displayFormatted.length > 15 ? '18px' : '22px', lineHeight: 1.2, wordBreak: 'keep-all', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {displayFormatted.includes('FCFA') ? (
+              <>
+                <span>{displayFormatted.replace(' FCFA', '')}</span>
+                <span style={{ fontSize: '11px', display: 'block', color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>FCFA</span>
+              </>
+            ) : displayFormatted}
+          </div>
           {subtitle && <div className="kpi-subtitle">{subtitle}</div>}
           {trend !== undefined && trendValue !== undefined && (
             <div className={`kpi-trend ${trend >= 0 ? 'up' : 'down'}`}>

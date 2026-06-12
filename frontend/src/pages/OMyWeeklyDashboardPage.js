@@ -11,6 +11,7 @@ import {
   TrendingDown, TrendingUp, AlertTriangle, Target, Activity, Users, Zap
 } from 'lucide-react';
 import KPICard from '../components/common/KPICard';
+import { useHierarchicalFilters, HierarchicalFilters } from '../hooks/useHierarchicalFilters';
 import api from '../services/api';
 import * as XLSX from 'xlsx';
 import './WeeklyDashboardPage.css';
@@ -1125,7 +1126,6 @@ export default function OMyWeeklyDashboardPage() {
 
 // ─── ONGLET 3 : RAPPORT PARETO ────────────────────────────────────────────────
 function OngletPareto({ annee, semaine, criterion }) {
-  const [zoneFilter, setZoneFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
 
@@ -1137,7 +1137,7 @@ function OngletPareto({ annee, semaine, criterion }) {
 
   const allPdvs = weeklyDash?.all_pdvs || weeklyDash?.top_pdvs || [];
   const totalCA = weeklyDash?.total_ca || 0;
-  const zones = [...new Set(allPdvs.map(p => p.zone).filter(Boolean))];
+  const { zoneFilter, setZoneFilter, supFilter, setSupFilter, zoneList, supList, hasFilters, resetFilters } = useHierarchicalFilters(allPdvs);
   
   // Fallback: si on n'a qu'un top/bottom partiel, utiliser l'endpoint weekly complet étendu si disponible plus tard.
 
@@ -1203,17 +1203,16 @@ function OngletPareto({ annee, semaine, criterion }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', fontSize: 13 }}>
-          <option value="">Toutes les zones</option>
-          {zones.map(z => <option key={z} value={z}>{z}</option>)}
-        </select>
-        <div style={{ marginLeft: 'auto' }}>
-          <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Download size={14} /> Export Excel
-          </button>
-        </div>
+      <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <HierarchicalFilters
+          zoneFilter={zoneFilter} setZoneFilter={(z) => { setZoneFilter(z); }}
+          supFilter={supFilter} setSupFilter={setSupFilter}
+          zoneList={zoneList} supList={supList}
+          hasFilters={hasFilters} resetFilters={resetFilters}
+        />
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
+        </button>
       </div>
 
       {activeFilter && (
