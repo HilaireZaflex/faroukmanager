@@ -832,9 +832,9 @@ function OngletBaisse({ annee, semaine, criterion }) {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : displayedPdvs.length === 0 ? (
-                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse cette semaine</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse cette semaine</td></tr>
               ) : displayedPdvs.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
@@ -892,18 +892,28 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   const rawPdvs = data?.pdvs || [];
 
-  // KPIs Option A - utilise les vrais champs du backend
+  // KPIs demandés
+  const pdvsReguliers = rawPdvs.filter(p => p.est_regulier === true);
+  const pdvsToujours10 = rawPdvs.filter(p => (p.nb_fois_top10||0) >= 3);
+  const meilleurMois = rawPdvs.reduce((best, p) => {
+    const ca = p.ca_max || 0;
+    return (!best || ca > (best.ca_max||0)) ? p : best;
+  }, null);
+  const pireMois = rawPdvs.reduce((worst, p) => {
+    const ca = p.ca_min || Infinity;
+    return (!worst || (p.ca_min > 0 && ca < (worst.ca_min||Infinity))) ? p : worst;
+  }, null);
+
+  // Variables anciennes utilisées dans le JSX (à remplacer)
   const pdvsHausse = rawPdvs.filter(p => p.tendance === 'HAUSSE');
   const pdvsBaisse = rawPdvs.filter(p => p.tendance === 'BAISSE');
-  const pdvsStables = rawPdvs.filter(p => p.tendance === 'STABLE');
   const topPerformer = rawPdvs.reduce((best, p) => (!best || (p.variation_globale||0) > (best.variation_globale||0)) ? p : best, null);
   const variationMoyenne = rawPdvs.length > 0 ? rawPdvs.reduce((sum, p) => sum + (p.variation_globale||0), 0) / rawPdvs.length : 0;
-  const pdvsTop10Consecutifs = rawPdvs.filter(p => (p.nb_mois_consecutifs_top10||0) >= 2);
 
   const allPdvs = rawPdvs
     .filter(p => {
-      if (activeFilter === 'hausse') return p.tendance === 'HAUSSE';
-      if (activeFilter === 'baisse') return p.tendance === 'BAISSE';
+      if (activeFilter === 'reguliers') return p.est_regulier === true;
+      if (activeFilter === 'top10') return (p.nb_fois_top10||0) >= 3;
       return true;
     })
     .filter(p => !search ||
@@ -935,51 +945,44 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   return (
     <div>
-      {/* ── 4 KPI Cards interactives (Option C) ── */}
+      {/* ── 4 KPI Cards (Option demandée) ── */}
       <div className="grid-4 mb-24">
-        <div className="card" onClick={() => setActiveFilter(prev => prev === 'hausse' ? null : 'hausse')}
+        <div className="card" onClick={() => setActiveFilter(prev => prev === 'reguliers' ? null : 'reguliers')}
           style={{ borderLeft: '3px solid #00d68f', cursor: 'pointer',
-            outline: activeFilter === 'hausse' ? '2px solid #00d68f' : 'none',
-            transform: activeFilter === 'hausse' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }}>
-          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 PDVs en Hausse</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#00d68f' }}>{pdvsHausse.length}</div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
-            {rawPdvs.length > 0 ? ((pdvsHausse.length / rawPdvs.length) * 100).toFixed(1) : 0}% du réseau
-          </div>
+            outline: activeFilter === 'reguliers' ? '2px solid #00d68f' : 'none',
+            transform: activeFilter === 'reguliers' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>✅ Réguliers</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#00d68f' }}>{pdvsReguliers.length}</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>PDVs présents TOUS les mois (Top fiable)</div>
         </div>
-        <div className="card" onClick={() => setActiveFilter(prev => prev === 'baisse' ? null : 'baisse')}
-          style={{ borderLeft: '3px solid #ff4757', cursor: 'pointer',
-            outline: activeFilter === 'baisse' ? '2px solid #ff4757' : 'none',
-            transform: activeFilter === 'baisse' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }}>
-          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📉 PDVs en Baisse</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#ff4757' }}>{pdvsBaisse.length}</div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
-            {rawPdvs.length > 0 ? ((pdvsBaisse.length / rawPdvs.length) * 100).toFixed(1) : 0}% du réseau
-          </div>
+        <div className="card" onClick={() => setActiveFilter(prev => prev === 'top10' ? null : 'top10')}
+          style={{ borderLeft: '3px solid #FFD700', cursor: 'pointer',
+            outline: activeFilter === 'top10' ? '2px solid #FFD700' : 'none',
+            transform: activeFilter === 'top10' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🏆 Toujours Top 10</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#FFD700' }}>{pdvsToujours10.length}</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>PDVs classés Top 10 ≥ 3 mois sur 5</div>
         </div>
-        <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
-          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🏆 Meilleure Progression</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502' }}>
-            {(topPerformer?.variation_globale||0) >= 0 ? '+' : ''}{(topPerformer?.variation_globale||0).toFixed(1)}%
+        <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 Meilleur Mois</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#00d68f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {meilleurMois?.semaine_meilleur_ca ? 'S' + (meilleurMois.semaine_meilleur_ca.includes('-W') ? parseInt(meilleurMois.semaine_meilleur_ca.split('-W')[1]) : meilleurMois.semaine_meilleur_ca) : '—'}
           </div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {topPerformer?.numero_pdv} — {topPerformer?.nom?.substring(0, 18) || '—'}
-          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Semaine avec le CA le plus élevé du réseau</div>
         </div>
-        <div className="card" onClick={() => setActiveFilter(null)}
-          style={{ borderLeft: '3px solid ' + (variationMoyenne >= 0 ? '#00d68f' : '#ff4757'), cursor: 'pointer', transition: 'all 0.2s' }}>
-          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📊 Variation Moy. Réseau</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: variationMoyenne >= 0 ? '#00d68f' : '#ff4757' }}>
-            {variationMoyenne >= 0 ? '▲' : '▼'} {Math.abs(variationMoyenne).toFixed(1)}%
+        <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚠️ Pire Mois</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#ff4757', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {pireMois?.semaine_pire_ca ? 'S' + (pireMois.semaine_pire_ca.includes('-W') ? parseInt(pireMois.semaine_pire_ca.split('-W')[1]) : pireMois.semaine_pire_ca) : '—'}
           </div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Tendance générale</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Semaine avec le CA le plus faible (parmi les semaines actives)</div>
         </div>
       </div>
 
       {activeFilter && (
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>
-            Filtre: {activeFilter === 'hausse' ? '📈 En Hausse' : '📉 En Baisse'} ({allPdvs.length} PDVs)
+            Filtre: {activeFilter === 'reguliers' ? '✅ Réguliers' : activeFilter === 'top10' ? '🏆 Toujours Top 10' : activeFilter} ({allPdvs.length} PDVs)
           </span>
           <button onClick={() => setActiveFilter(null)} style={{ fontSize: 11, background: 'none', border: 'none', color: '#8a8a9a', cursor: 'pointer' }}>✕ Effacer</button>
         </div>
@@ -1049,7 +1052,7 @@ function OngletProgression({ annee, semaine, criterion }) {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : pdvs.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: selectedPdv?.pdv_id === p.pdv_id ? 'rgba(255,105,0,0.05)' : 'transparent' }}>
                   <td style={{ padding: '10px 14px' }}>
