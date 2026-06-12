@@ -276,6 +276,31 @@ export default function PDVsPage() {
         </span>
       </div>
 
+      {/* ── Sélecteur de service (comme dans OMY) ── */}
+      <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
+        <span style={{ fontSize:12, color:'var(--text-secondary)', fontWeight:600 }}>Service :</span>
+        {[
+          { key: 'OMY',    label: 'PDV OMY',    color: '#FF6900' },
+          { key: 'KAABU',  label: 'PDV KAABU',  color: '#00d68f' },
+          { key: 'NAFAMA', label: 'PDV NAFAMA',  color: '#a29bfe' },
+        ].map(s => (
+          <button key={s.key} onClick={() => { setService(s.key); setPage(0); }}
+            style={{
+              padding: '6px 18px', borderRadius: 8, border: `1px solid ${service === s.key ? s.color : 'var(--border)'}`,
+              fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+              background: service === s.key ? s.color : 'rgba(255,255,255,0.06)',
+              color: service === s.key ? '#fff' : 'var(--text-secondary)',
+            }}>
+            {s.label}
+          </button>
+        ))}
+        {service !== 'OMY' && (
+          <span style={{ fontSize:11, color:'var(--text-secondary)', fontStyle:'italic', marginLeft:8 }}>
+            ⚠️ Données {service} non encore importées — affichage en attente
+          </span>
+        )}
+      </div>
+
       <div className="pdv-mini-stats mb-24">
         <div className="mini-stat-card" style={{ '--color': '#00d68f', cursor: 'pointer', outline: statut === '' ? '2px solid #00d68f' : 'none' }} onClick={() => { setStatut(''); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.total_pdvs || 0}</span>
@@ -328,15 +353,6 @@ export default function PDVsPage() {
             <option value="RSF">RSF</option>
             <option value="RNS">RNS</option>
             <option value="KIOSQUE">Kiosque</option>
-          </select>
-          <select value={service} onChange={e => { setService(e.target.value); setPage(0); }}
-            style={{ background: service === 'OMY' ? 'rgba(255,105,0,0.15)' : service === 'KAABU' ? 'rgba(0,214,143,0.15)' : 'rgba(162,155,254,0.15)',
-              borderColor: service === 'OMY' ? 'rgba(255,105,0,0.4)' : service === 'KAABU' ? 'rgba(0,214,143,0.4)' : 'rgba(162,155,254,0.4)',
-              color: service === 'OMY' ? '#FF6900' : service === 'KAABU' ? '#00d68f' : '#a29bfe',
-              fontWeight: 700 }}>
-            <option value="OMY">PDV OMY</option>
-            <option value="KAABU">PDV KAABU</option>
-            <option value="NAFAMA">PDV NAFAMA</option>
           </select>
         </div>
       </div>
