@@ -481,21 +481,28 @@ function OngletEvolution({ annee, semaine, criterion }) {
       <div className="grid-4 mb-24">
         <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>{getMetricLabel(criterion)} S{semaine}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#00d68f' }}>{formatCA(getMetricValue({ ca: evo?.total_ca_actuel, montant_transaction: evo?.total_montant_transaction_actuel, montant_ca: evo?.total_montant_ca_actuel, commission_pdg: evo?.total_commission_pdg_actuel }, criterion))}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#00d68f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {(getMetricValue({ ca: evo?.total_ca_actuel, montant_transaction: evo?.total_montant_transaction_actuel, montant_ca: evo?.total_montant_ca_actuel, commission_pdg: evo?.total_commission_pdg_actuel }, criterion)||0).toLocaleString('en-US').replace(/,/g,' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid #ffa502' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>{getMetricLabel(criterion)} S{prevSemaine}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502' }}>{formatCA(getMetricValue({ ca: evo?.total_ca_precedent, montant_transaction: evo?.total_montant_transaction_precedent, montant_ca: evo?.total_montant_ca_precedent, commission_pdg: evo?.total_commission_pdg_precedent }, criterion))}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#ffa502', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {(getMetricValue({ ca: evo?.total_ca_precedent, montant_transaction: evo?.total_montant_transaction_precedent, montant_ca: evo?.total_montant_ca_precedent, commission_pdg: evo?.total_commission_pdg_precedent }, criterion)||0).toLocaleString('en-US').replace(/,/g,' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid ' + (variationCritere >= 0 ? '#00d68f' : '#ff4757') }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Variation ({getMetricLabel(criterion)})</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: variationCritere >= 0 ? '#00d68f' : '#ff4757' }}>
-            {variationCritere >= 0 ? '+' : ''}{formatCA(variationCritere)}
+          <div style={{ fontSize: 22, fontWeight: 800, color: variationCritere >= 0 ? '#00d68f' : '#ff4757', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {variationCritere >= 0 ? '+' : ''}{Math.abs(variationCritere).toLocaleString('en-US').replace(/,/g,' ')}
           </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid ' + (tauxCritereGlobal >= 0 ? '#00d68f' : '#ff4757') }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Taux Global</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: tauxCritereGlobal >= 0 ? '#00d68f' : '#ff4757' }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: tauxCritereGlobal >= 0 ? '#00d68f' : '#ff4757' }}>
             {tauxCritereGlobal >= 0 ? '▲' : '▼'} {Math.abs(tauxCritereGlobal).toFixed(1)}%
           </div>
         </div>
