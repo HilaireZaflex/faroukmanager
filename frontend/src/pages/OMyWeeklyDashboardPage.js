@@ -1122,63 +1122,6 @@ export default function OMyWeeklyDashboardPage() {
   );
 }
 
-  ];
-
-  return (
-    <div className="page">
-      <div className="page-header" style={{ marginBottom: 20 }}>
-        <div>
-          <h1 className="page-title">OMY — Dashboard Hebdomadaire</h1>
-          <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>Suivi semaine par semaine du réseau OMY</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {activeTab !== 'overview' && (
-            <select
-              value={criterion}
-              onChange={(e) => setCriterion(e.target.value)}
-              className="btn btn-ghost btn-sm"
-              style={{ minWidth: 220 }}
-            >
-              {Object.entries(OMY_CRITERIA).map(([value, meta]) => (
-                <option key={value} value={value}>{meta.label}</option>
-              ))}
-            </select>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: '8px 16px' }}>
-            <button onClick={prevWeek} disabled={!canGoPrevSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoPrevSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoPrevSem?1:0.3 }}>‹</button>
-            <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', minWidth: 130, textAlign: 'center' }}>
-              Semaine {semaine} · {annee}
-            </span>
-            <button onClick={nextWeek} disabled={!canGoNextSem} style={{ background: 'none', border: 'none', color: '#FF6900', cursor: canGoNextSem?'pointer':'not-allowed', fontSize: 18, lineHeight: 1, opacity: canGoNextSem?1:0.3 }}>›</button>
-          </div>
-        </div>
-      </div>
-
-      {/* TABS */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 28, background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '6px' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)}
-            style={{ padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-              background: activeTab === t.key ? 'var(--primary)' : 'transparent',
-              color: activeTab === t.key ? '#fff' : '#8a8a9a',
-              transition: 'all 0.2s' }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* CONTENU */}
-      {activeTab === 'overview' && <OngletVueEnsemble annee={annee} semaine={semaine} />}
-      {activeTab === 'top' && <OngletSuiviTop annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'pareto' && <OngletPareto annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'progression' && <OngletProgression annee={annee} semaine={semaine} criterion={criterion} />}
-    </div>
-  );
-}
-
 // ─── ONGLET 3 : RAPPORT PARETO ────────────────────────────────────────────────
 function OngletPareto({ annee, semaine, criterion }) {
   const [zoneFilter, setZoneFilter] = useState('');
