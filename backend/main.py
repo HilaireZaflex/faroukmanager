@@ -294,6 +294,50 @@ async def purge_desactives():
     finally:
         db.close()
 
+@app.get("/api/reseau/equipe")
+async def get_equipe_reseau():
+    """Retourne la liste de toute l'équipe réseau avec leurs numéros de téléphone"""
+    from app.core.database import SessionLocal
+    from app.models.pdv import PDV
+    from sqlalchemy import text
+
+    db = SessionLocal()
+    try:
+        pdvs = db.query(PDV).filter(PDV.statut != 'DESACTIVE').all()
+
+        # Extraire les équipes uniques
+        superviseurs = {}
+        gestionnaires = {}
+        developpeurs = {}
+        teleconseilleres = {}
+
+        for p in pdvs:
+            if p.superviseur and p.superviseur.strip() and p.superviseur.strip().upper() not in ('AU BUREAU', 'NAN', 'NONE'):
+                nom = p.superviseur.strip()
+                if nom not in superviseurs:
+                    superviseurs[nom] = ''  # pas de tel en base pour superviseurs
+            if p.gestionnaire and p.gestionnaire.strip() and p.gestionnaire.strip().upper() not in ('NAN', 'NONE'):
+                nom = p.gestionnaire.strip()
+                if nom not in gestionnaires:
+                    gestionnaires[nom] = ''
+            if p.developpeur and p.developpeur.strip() and p.developpeur.strip().upper() not in ('NAN', 'NONE'):
+                nom = p.developpeur.strip()
+                if nom not in developpeurs:
+                    developpeurs[nom] = ''
+            if p.teleconseillere and p.teleconseillere.strip() and p.teleconseillere.strip().upper() not in ('AU BUREAU', 'NAN', 'NONE'):
+                nom = p.teleconseillere.strip()
+                if nom not in teleconseilleres:
+                    teleconseilleres[nom] = ''
+
+        return {
+            "superviseurs": [{"nom": k, "telephone": v} for k, v in sorted(superviseurs.items())],
+            "gestionnaires": [{"nom": k, "telephone": v} for k, v in sorted(gestionnaires.items())],
+            "developpeurs": [{"nom": k, "telephone": v} for k, v in sorted(developpeurs.items())],
+            "teleconseilleres": [{"nom": k, "telephone": v} for k, v in sorted(teleconseilleres.items())],
+        }
+    finally:
+        db.close()
+
 @app.get("/db-info")
 async def db_info():
     """Diagnostic: affiche quelle base de données est utilisée"""

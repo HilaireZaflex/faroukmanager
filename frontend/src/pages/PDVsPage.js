@@ -97,6 +97,26 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
   const [loading, setLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  // Charger l'équipe réseau depuis le backend
+  const { data: equipe } = useQuery('equipe-reseau',
+    () => api.get('/reseau/equipe').then(r => r.data).catch(() => ({ superviseurs:[], gestionnaires:[], developpeurs:[], teleconseilleres:[] })),
+    { staleTime: 300000 }
+  );
+
+  // Sélecteur avec auto-remplissage du téléphone
+  const TeamSelect = ({ label, nameKey, telKey, options=[] }) => (
+    <FL label={label}>
+      <FS value={form[nameKey]} onChange={e => {
+        const nom = e.target.value;
+        const found = options.find(o => o.nom === nom);
+        setForm(f => ({ ...f, [nameKey]: nom, [telKey]: found?.telephone || '' }));
+      }}>
+        <option value="">-- Sélectionner --</option>
+        {options.map(o => <option key={o.nom} value={o.nom}>{o.nom}</option>)}
+      </FS>
+    </FL>
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.numero_pdv || !form.zone) {
@@ -213,14 +233,22 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
 
           {/* SECTION 4 — Équipe Réseau */}
           <Section title="Équipe Réseau" icon="👥" cols={2}>
-            <FL label="Développeur"><FI placeholder="Nom du développeur" value={form.developpeur} onChange={e=>set('developpeur',e.target.value)} /></FL>
-            <FL label="Tél. Développeur"><FI placeholder="+223 XX XX XX XX" value={form.tel_developpeur} onChange={e=>set('tel_developpeur',e.target.value)} /></FL>
-            <FL label="Gestionnaire"><FI placeholder="Nom du gestionnaire" value={form.gestionnaire} onChange={e=>set('gestionnaire',e.target.value)} /></FL>
-            <FL label="Tél. Gestionnaire"><FI placeholder="+223 XX XX XX XX" value={form.tel_gestionnaire} onChange={e=>set('tel_gestionnaire',e.target.value)} /></FL>
-            <FL label="Superviseur"><FI placeholder="Nom du superviseur" value={form.superviseur} onChange={e=>set('superviseur',e.target.value)} /></FL>
-            <FL label="Tél. Superviseur"><FI placeholder="+223 XX XX XX XX" value={form.tel_superviseur} onChange={e=>set('tel_superviseur',e.target.value)} /></FL>
-            <FL label="Téléconseillère"><FI placeholder="Nom de la téléconseillère" value={form.teleconseillere} onChange={e=>set('teleconseillere',e.target.value)} /></FL>
-            <FL label="Tél. Téléconseillère"><FI placeholder="+223 XX XX XX XX" value={form.tel_teleconseillere} onChange={e=>set('tel_teleconseillere',e.target.value)} /></FL>
+            <TeamSelect label="Développeur" nameKey="developpeur" telKey="tel_developpeur" options={equipe?.developpeurs || []} />
+            <FL label="Tél. Développeur">
+              <FI placeholder="Auto-rempli ou saisir" value={form.tel_developpeur} onChange={e=>set('tel_developpeur',e.target.value)} />
+            </FL>
+            <TeamSelect label="Gestionnaire" nameKey="gestionnaire" telKey="tel_gestionnaire" options={equipe?.gestionnaires || []} />
+            <FL label="Tél. Gestionnaire">
+              <FI placeholder="Auto-rempli ou saisir" value={form.tel_gestionnaire} onChange={e=>set('tel_gestionnaire',e.target.value)} />
+            </FL>
+            <TeamSelect label="Superviseur" nameKey="superviseur" telKey="tel_superviseur" options={equipe?.superviseurs || []} />
+            <FL label="Tél. Superviseur">
+              <FI placeholder="Auto-rempli ou saisir" value={form.tel_superviseur} onChange={e=>set('tel_superviseur',e.target.value)} />
+            </FL>
+            <TeamSelect label="Téléconseillère" nameKey="teleconseillere" telKey="tel_teleconseillere" options={equipe?.teleconseilleres || []} />
+            <FL label="Tél. Téléconseillère">
+              <FI placeholder="Auto-rempli ou saisir" value={form.tel_teleconseillere} onChange={e=>set('tel_teleconseillere',e.target.value)} />
+            </FL>
           </Section>
 
           {/* SECTION 4 — Formations suivies */}
