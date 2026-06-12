@@ -1183,6 +1183,7 @@ function TabProgression({ annee, criterion }) {
 
   const [selectedPDV, setSelectedPDV] = useState(null);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const PAGE_SIZE = 20;
 
   const toggleChart = (pdv) => {
@@ -1209,11 +1210,17 @@ function TabProgression({ annee, criterion }) {
     XLSX.writeFile(wb, `progression-${annee}.xlsx`);
   };
 
-  const allSortedPDVs = [...(progression?.pdvs || [])].sort((a, b) => {
-    const maxA = getMetricValue({ ca: a.ca_max, montant_ca: a.montant_ca_max, commission_pdg: a.commission_pdg_max }, criterion);
-    const maxB = getMetricValue({ ca: b.ca_max, montant_ca: b.montant_ca_max, commission_pdg: b.commission_pdg_max }, criterion);
-    return maxB - maxA;
-  });
+  const allSortedPDVs = [...(progression?.pdvs || [])]
+    .filter(p => !search ||
+      (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const maxA = getMetricValue({ ca: a.ca_max, montant_ca: a.montant_ca_max, commission_pdg: a.commission_pdg_max }, criterion);
+      const maxB = getMetricValue({ ca: b.ca_max, montant_ca: b.montant_ca_max, commission_pdg: b.commission_pdg_max }, criterion);
+      return maxB - maxA;
+    });
   const totalPages = Math.ceil(allSortedPDVs.length / PAGE_SIZE);
   const sortedPDVs = allSortedPDVs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const getChartData = (pdv) => [...(pdv?.historique_mensuel || [])]
@@ -1236,6 +1243,20 @@ function TabProgression({ annee, criterion }) {
         <button className="btn btn-ghost" onClick={exportExcel}>
           <Download size={14} /> Excel
         </button>
+      </div>
+
+      {/* Barre de recherche — style PDVsPage */}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>

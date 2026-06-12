@@ -828,6 +828,7 @@ function OngletBaisse({ annee, semaine, criterion }) {
 function OngletProgression({ annee, semaine, criterion }) {
   const [selectedPdv, setSelectedPdv] = useState(null);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const PAGE_SIZE = 20;
 
   const { data, isLoading } = useQuery(
@@ -842,7 +843,11 @@ function OngletProgression({ annee, semaine, criterion }) {
     { enabled: !!selectedPdv, staleTime: 120000 }
   );
 
-  const allPdvs = data?.pdvs || [];
+  const allPdvs = (data?.pdvs || []).filter(p => !search ||
+    (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
+  );
   const totalPages = Math.ceil(allPdvs.length / PAGE_SIZE);
   const pdvs = allPdvs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -871,6 +876,20 @@ function OngletProgression({ annee, semaine, criterion }) {
         <button className="btn btn-ghost" onClick={exportExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Download size={14} /> Export Excel
         </button>
+      </div>
+
+      {/* Barre de recherche */}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-search">
+          <Search size={15} className="search-icon"/>
+          <input
+            type="text"
+            placeholder="Rechercher un PDV, numéro, superviseur..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
       </div>
 
       {selectedPdv && pdvHistory && (
