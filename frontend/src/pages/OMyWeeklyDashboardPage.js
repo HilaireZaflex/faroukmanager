@@ -1173,15 +1173,9 @@ function OngletPareto({ annee, semaine, criterion }) {
   );
 }
 
-import React, { useState, useEffect } from 'react';
-import { useQuery } from 'react-query';
-import { useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
-import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, AreaChart, Area, Legend
 } from 'recharts';
-import {
   ChevronLeft, ChevronRight, Download, Home, Trophy, BarChart3,
   TrendingDown, TrendingUp, AlertTriangle, Target, Activity, Users, Zap
 } from 'lucide-react';
