@@ -1292,17 +1292,24 @@ function TabProgression({ annee, criterion }) {
   const getMetricMax = (p) => getMetricValue({ ca: p.ca_max, montant_ca: p.montant_ca_max, commission_pdg: p.commission_pdg_max }, criterion);
   const getMetricMin = (p) => getMetricValue({ ca: p.ca_min, montant_ca: p.montant_ca_min, commission_pdg: p.commission_pdg_min }, criterion);
 
-  // KPIs interactifs (Option C) - progression = (max - min) / min * 100
-  const getTauxProgression = (p) => (p.ca_min > 0 ? ((p.ca_max - p.ca_min) / p.ca_min * 100) : 0);
-  const pdvsHausse = allPDVs.filter(p => getTauxProgression(p) > 5);
-  const pdvsBaisse = allPDVs.filter(p => getTauxProgression(p) < -5);
+  // KPIs interactifs (Option C) - comparer dernier mois vs premier mois
+  const getTauxProgression = (p) => {
+    const hist = p.historique_mensuel || [];
+    if (hist.length < 2) return 0;
+    const sorted = [...hist].sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.mois - b.mois);
+    const premier = sorted[0]?.ca || 0;
+    const dernier = sorted[sorted.length-1]?.ca || 0;
+    return premier > 0 ? ((dernier - premier) / premier * 100) : 0;
+  };
+  const pdvsHausse = allPDVs.filter(p => getTauxProgression(p) > 0);
+  const pdvsBaisse = allPDVs.filter(p => getTauxProgression(p) < 0);
   const topPerformer = allPDVs.reduce((best, p) => (!best || getTauxProgression(p) > getTauxProgression(best)) ? p : best, null);
   const variationMoyenne = allPDVs.length > 0 ? allPDVs.reduce((sum, p) => sum + getTauxProgression(p), 0) / allPDVs.length : 0;
 
   const allSortedPDVs = allPDVs
     .filter(p => {
-      if (activeFilter === 'hausse') return getTauxProgression(p) > 5;
-      if (activeFilter === 'baisse') return getTauxProgression(p) < -5;
+      if (activeFilter === 'hausse') return getTauxProgression(p) > 0;
+      if (activeFilter === 'baisse') return getTauxProgression(p) < 0;
       return true;
     })
     .filter(p => !search ||

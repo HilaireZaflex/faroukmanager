@@ -892,17 +892,24 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   const rawPdvs = data?.pdvs || [];
 
-  // KPIs interactifs (Option C) - progression = (max - min) / min * 100
-  const getTauxProgression = (p) => (p.ca_min > 0 ? ((p.ca_max - p.ca_min) / p.ca_min * 100) : 0);
-  const pdvsHausse = rawPdvs.filter(p => getTauxProgression(p) > 5);
-  const pdvsBaisse = rawPdvs.filter(p => getTauxProgression(p) < -5);
+  // KPIs interactifs (Option C) - comparer dernier mois vs premier mois
+  const getTauxProgression = (p) => {
+    const hist = p.historique_mensuel || [];
+    if (hist.length < 2) return 0;
+    const sorted = [...hist].sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.mois - b.mois);
+    const premier = sorted[0]?.ca || 0;
+    const dernier = sorted[sorted.length-1]?.ca || 0;
+    return premier > 0 ? ((dernier - premier) / premier * 100) : 0;
+  };
+  const pdvsHausse = rawPdvs.filter(p => getTauxProgression(p) > 0);
+  const pdvsBaisse = rawPdvs.filter(p => getTauxProgression(p) < 0);
   const topPerformer = rawPdvs.reduce((best, p) => (!best || getTauxProgression(p) > getTauxProgression(best)) ? p : best, null);
   const variationMoyenne = rawPdvs.length > 0 ? rawPdvs.reduce((sum, p) => sum + getTauxProgression(p), 0) / rawPdvs.length : 0;
 
   const allPdvs = rawPdvs
     .filter(p => {
-      if (activeFilter === 'hausse') return getTauxProgression(p) > 5;
-      if (activeFilter === 'baisse') return getTauxProgression(p) < -5;
+      if (activeFilter === 'hausse') return getTauxProgression(p) > 0;
+      if (activeFilter === 'baisse') return getTauxProgression(p) < 0;
       return true;
     })
     .filter(p => !search ||
