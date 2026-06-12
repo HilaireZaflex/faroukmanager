@@ -303,38 +303,84 @@ async def get_equipe_reseau():
 
     db = SessionLocal()
     try:
+        # Charger les numéros sauvegardés
+        try:
+            phones_rows = db.execute(text("SELECT nom, role, telephone FROM equipe_reseau")).fetchall()
+            phones = {(r[0], r[1]): r[2] for r in phones_rows}
+        except:
+            phones = {}
+
         pdvs = db.query(PDV).filter(PDV.statut != 'DESACTIVE').all()
 
-        # Extraire les équipes uniques
         superviseurs = {}
         gestionnaires = {}
         developpeurs = {}
         teleconseilleres = {}
 
+        EXCLUS = {'AU BUREAU', 'NAN', 'NONE', '', 'NONE'}
+
         for p in pdvs:
-            if p.superviseur and p.superviseur.strip() and p.superviseur.strip().upper() not in ('AU BUREAU', 'NAN', 'NONE'):
-                nom = p.superviseur.strip()
-                if nom not in superviseurs:
-                    superviseurs[nom] = ''  # pas de tel en base pour superviseurs
-            if p.gestionnaire and p.gestionnaire.strip() and p.gestionnaire.strip().upper() not in ('NAN', 'NONE'):
-                nom = p.gestionnaire.strip()
-                if nom not in gestionnaires:
-                    gestionnaires[nom] = ''
-            if p.developpeur and p.developpeur.strip() and p.developpeur.strip().upper() not in ('NAN', 'NONE'):
-                nom = p.developpeur.strip()
-                if nom not in developpeurs:
-                    developpeurs[nom] = ''
-            if p.teleconseillere and p.teleconseillere.strip() and p.teleconseillere.strip().upper() not in ('AU BUREAU', 'NAN', 'NONE'):
-                nom = p.teleconseillere.strip()
-                if nom not in teleconseilleres:
-                    teleconseilleres[nom] = ''
+            for attr, dct, role in [
+                ('superviseur', superviseurs, 'superviseur'),
+                ('gestionnaire', gestionnaires, 'gestionnaire'),
+                ('developpeur', developpeurs, 'developpeur'),
+                ('teleconseillere', teleconseilleres, 'teleconseillere'),
+            ]:
+                val = getattr(p, attr, None)
+                if val and val.strip().upper() not in EXCLUS:
+                    nom = val.strip()
+                    if nom not in dct:
+                        dct[nom] = phones.get((nom, role), '')
 
         return {
-            "superviseurs": [{"nom": k, "telephone": v} for k, v in sorted(superviseurs.items())],
-            "gestionnaires": [{"nom": k, "telephone": v} for k, v in sorted(gestionnaires.items())],
-            "developpeurs": [{"nom": k, "telephone": v} for k, v in sorted(developpeurs.items())],
-            "teleconseilleres": [{"nom": k, "telephone": v} for k, v in sorted(teleconseilleres.items())],
+            "superviseurs":    [{"nom": k, "telephone": v} for k, v in sorted(superviseurs.items())],
+            "gestionnaires":   [{"nom": k, "telephone": v} for k, v in sorted(gestionnaires.items())],
+            "developpeurs":    [{"nom": k, "telephone": v} for k, v in sorted(developpeurs.items())],
+            "teleconseilleres":[{"nom": k, "telephone": v} for k, v in sorted(teleconseilleres.items())],
         }
+    finally:
+        db.close()
+
+@app.post("/api/reseau/equipe/update")
+async def update_equipe_reseau(data: dict):
+    """Sauvegarde les numéros de téléphone de l'équipe réseau"""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+
+    db = SessionLocal()
+    try:
+        # Créer la table si elle n'existe pas
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS equipe_reseau (
+                id SERIAL PRIMARY KEY,
+                nom VARCHAR(200) NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                telephone VARCHAR(50),
+                UNIQUE(nom, role)
+            )
+        """))
+        db.commit()
+
+        # Mettre à jour les numéros
+        membres = data.get('membres', [])
+        updated = 0
+        for m in membres:
+            nom = m.get('nom', '').strip()
+            role = m.get('role', '').strip()
+            tel = m.get('telephone', '').strip()
+            if nom and role:
+                db.execute(text("""
+                    INSERT INTO equipe_reseau (nom, role, telephone)
+                    VALUES (:nom, :role, :tel)
+                    ON CONFLICT (nom, role) DO UPDATE SET telephone = :tel
+                """), {"nom": nom, "role": role, "tel": tel})
+                updated += 1
+
+        db.commit()
+        return {"message": f"✅ {updated} numéros sauvegardés", "updated": updated}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
     finally:
         db.close()
 

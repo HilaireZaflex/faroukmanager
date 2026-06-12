@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Users, Database, Shield, Bell, RefreshCw, UserPlus, Trash2, Edit3, Check, X, Eye, EyeOff, Key, Lock, Save, User } from 'lucide-react';
+import { Users, Database, Shield, Bell, RefreshCw, UserPlus, Trash2, Edit3, Check, X, Eye, EyeOff, Key, Lock, Save, User, Phone } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
@@ -496,6 +496,97 @@ function SectionRoles() {
 }
 
 // ─── SECTION BASE DE DONNEES ──────────────────────────────────────────────────
+
+function SectionEquipeReseau() {
+  const queryClient = useQueryClient();
+  const [edited, setEdited] = useState({});
+
+  const { data: equipe, isLoading } = useQuery('equipe-reseau',
+    () => api.get('/reseau/equipe').then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const saveMutation = useMutation(
+    (membres) => api.post('/reseau/equipe/update', { membres }),
+    {
+      onSuccess: (data) => {
+        toast.success(data.data?.message || 'Numéros sauvegardés !');
+        setEdited({});
+        queryClient.invalidateQueries('equipe-reseau');
+      },
+      onError: () => toast.error('Erreur lors de la sauvegarde')
+    }
+  );
+
+  const handleSave = () => {
+    if (!equipe) return;
+    const membres = [];
+    const roles = [
+      { key: 'superviseurs', role: 'superviseur' },
+      { key: 'gestionnaires', role: 'gestionnaire' },
+      { key: 'developpeurs', role: 'developpeur' },
+      { key: 'teleconseilleres', role: 'teleconseillere' },
+    ];
+    roles.forEach(({ key, role }) => {
+      (equipe[key] || []).forEach(m => {
+        const tel = edited[`${role}:${m.nom}`] ?? m.telephone;
+        membres.push({ nom: m.nom, role, telephone: tel });
+      });
+    });
+    saveMutation.mutate(membres);
+  };
+
+  const setTel = (role, nom, val) => setEdited(e => ({ ...e, [`${role}:${nom}`]: val }));
+  const getTel = (role, nom, orig) => edited[`${role}:${nom}`] ?? orig ?? '';
+
+  const RoleTable = ({ title, icon, items, role, color }) => (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${color}33` }}>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</span>
+        <span style={{ fontSize: 11, color: '#666', marginLeft: 4 }}>({items?.length || 0})</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {(items || []).map(m => (
+          <div key={m.nom} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.nom}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Phone size={12} style={{ color: '#666' }} />
+              <input
+                value={getTel(role, m.nom, m.telephone)}
+                onChange={e => setTel(role, m.nom, e.target.value)}
+                placeholder="+223 XX XX XX XX"
+                style={{ width: 140, padding: '4px 8px', borderRadius: 6, border: getTel(role, m.nom, m.telephone) !== (m.telephone || '') ? '1px solid #FF6900' : '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 11 }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (isLoading) return <div style={{ color: '#8a8a9a', textAlign: 'center', padding: 40 }}>⏳ Chargement de l'équipe...</div>;
+
+  const hasChanges = Object.keys(edited).length > 0;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <p style={{ color: '#8a8a9a', fontSize: 13 }}>Renseignez les numéros de téléphone de l'équipe. Ils s'auto-rempliront dans le formulaire de Nouvelle Activation.</p>
+        <button onClick={handleSave} disabled={!hasChanges || saveMutation.isLoading}
+          style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: hasChanges ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'rgba(255,255,255,0.06)', color: hasChanges ? '#fff' : '#666', fontSize: 13, fontWeight: 700, cursor: hasChanges ? 'pointer' : 'default', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Save size={14} /> {saveMutation.isLoading ? 'Sauvegarde...' : 'Sauvegarder'}
+        </button>
+      </div>
+      {hasChanges && <div style={{ marginBottom: 16, padding: '8px 14px', background: 'rgba(255,105,0,0.1)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, fontSize: 12, color: '#FF6900' }}>⚠️ {Object.keys(edited).length} modification(s) non sauvegardée(s)</div>}
+      <RoleTable title="Superviseurs" icon="👤" items={equipe?.superviseurs} role="superviseur" color="#4a9eff" />
+      <RoleTable title="Gestionnaires" icon="💼" items={equipe?.gestionnaires} role="gestionnaire" color="#FF6900" />
+      <RoleTable title="Développeurs" icon="🚨" items={equipe?.developpeurs} role="developpeur" color="#00d68f" />
+      <RoleTable title="Téléconseillères" icon="📞" items={equipe?.teleconseilleres} role="teleconseillere" color="#a29bfe" />
+    </div>
+  );
+}
+
 function SectionDatabase() {
   const queryClient = useQueryClient();
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 120000 });
@@ -587,6 +678,7 @@ export default function SettingsPage() {
     { id:'utilisateurs',   label:'Gestion des Utilisateurs', icon: Users,    color:'#FF6900', adminOnly: true },
     { id:'roles',          label:'Roles & Permissions',      icon: Shield,   color:'#a855f7', adminOnly: true },
     { id:'database',       label:'Base de Donnees',          icon: Database, color:'#00d68f' },
+    { id:'equipe',         label:'Equipe Reseau',             icon: Phone,    color:'#00d68f' },
     { id:'notifications',  label:'Notifications',            icon: Bell,     color:'#ffaa00' },
   ].filter(s => !s.adminOnly || user?.role === 'admin');
 
@@ -623,6 +715,7 @@ export default function SettingsPage() {
           {activeSection === 'utilisateurs'  && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Gestion des Utilisateurs</h2><SectionUtilisateurs currentUser={user} /></>}
           {activeSection === 'roles'         && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Roles & Permissions</h2><p style={{ color:'#8a8a9a', fontSize:13, marginBottom:20 }}>Definissez ce que chaque role peut voir, ajouter, modifier ou supprimer dans l\'application.</p><SectionRoles /></>}
           {activeSection === 'database'      && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Base de Donnees</h2><SectionDatabase /></>}
+          {activeSection === 'equipe'        && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>📞 Equipe Reseau & Numéros</h2><SectionEquipeReseau /></>}
           {activeSection === 'notifications' && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Notifications & Alertes</h2><SectionNotifications /></>}
         </div>
       </div>
