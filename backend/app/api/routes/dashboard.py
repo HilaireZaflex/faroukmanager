@@ -89,6 +89,7 @@ def monthly_dashboard(
     type_pdv: Optional[str] = None,
     quartier: Optional[str] = None,
     sous_zone: Optional[str] = None,
+    service: str = Query('OMY'),
     top_n: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
 ):
@@ -100,22 +101,27 @@ def monthly_dashboard(
     zone = zone or f.get('zone')
 
     # Toutes les perfs du mois
+    service_filter = service.upper() if service else 'OMY'
     all_perfs = db.query(MonthlyPerformance).filter(
         MonthlyPerformance.annee == annee,
-        MonthlyPerformance.mois == mois
+        MonthlyPerformance.mois == mois,
+        MonthlyPerformance.indicateur == service_filter
     ).all()
     pdv_map = _get_pdv_map(db)
     pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv, quartier, sous_zone)
 
     if not pairs:
         # Fallback : mois précédents disponibles
-        latest = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).distinct().order_by(
+        latest = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).filter(
+            MonthlyPerformance.indicateur == service_filter
+        ).distinct().order_by(
             MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
         ).first()
         if latest:
             all_perfs = db.query(MonthlyPerformance).filter(
                 MonthlyPerformance.annee == latest[0],
-                MonthlyPerformance.mois == latest[1]
+                MonthlyPerformance.mois == latest[1],
+                MonthlyPerformance.indicateur == service_filter
             ).all()
             annee, mois = latest
             pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv, quartier, sous_zone)
@@ -333,6 +339,7 @@ def weekly_dashboard(
     gestionnaire: Optional[str] = None,
     type_pdv: Optional[str] = None,
     sous_zone: Optional[str] = None,
+    service: str = Query('OMY'),
     top_n: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
 ):
@@ -343,22 +350,27 @@ def weekly_dashboard(
     gestionnaire = gestionnaire or f.get('gestionnaire')
     zone = zone or f.get('zone')
 
+    service_filter_w = service.upper() if service else 'OMY'
     all_perfs = db.query(WeeklyPerformance).filter(
         WeeklyPerformance.annee == annee,
-        WeeklyPerformance.semaine == semaine
+        WeeklyPerformance.semaine == semaine,
+        WeeklyPerformance.indicateur == service_filter_w
     ).all()
     pdv_map = _get_pdv_map(db)
     pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv, sous_zone=sous_zone)
 
     # Fallback : dernière semaine disponible
     if not pairs:
-        latest = db.query(WeeklyPerformance.annee, WeeklyPerformance.semaine).distinct().order_by(
+        latest = db.query(WeeklyPerformance.annee, WeeklyPerformance.semaine).filter(
+            WeeklyPerformance.indicateur == service_filter_w
+        ).distinct().order_by(
             WeeklyPerformance.annee.desc(), WeeklyPerformance.semaine.desc()
         ).first()
         if latest:
             all_perfs = db.query(WeeklyPerformance).filter(
                 WeeklyPerformance.annee == latest[0],
-                WeeklyPerformance.semaine == latest[1]
+                WeeklyPerformance.semaine == latest[1],
+                WeeklyPerformance.indicateur == service_filter_w
             ).all()
             annee, semaine = latest
             pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone, superviseur, gestionnaire, type_pdv)

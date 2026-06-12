@@ -835,6 +835,7 @@ async def import_export_orange(
     annee: Optional[int] = Form(None),
     mois: Optional[int] = Form(None),
     semaine: Optional[int] = Form(None),
+    service: str = Form("OMY"),           # OMY | KAABU | NAFAMA
     db: Session = Depends(get_db),
     current_user = Depends(require_admin),
 ):
@@ -1047,6 +1048,7 @@ async def import_export_orange(
                         montant_ca=0.0, commission_pdg=0.0,
                         commission_revendeur=0.0, ratio_ca_transaction=0.0,
                         est_actif=False, ca=0.0,
+                    indicateur=service.upper(),
                     ))
                     inactif_created += 1
     else:
@@ -1072,6 +1074,7 @@ async def import_export_orange(
                         montant_ca=0.0, commission_pdg=0.0,
                         commission_revendeur=0.0, ratio_ca_transaction=0.0,
                         est_actif=False, ca=0.0,
+                    indicateur=service.upper(),
                     ))
                     inactif_created += 1
 

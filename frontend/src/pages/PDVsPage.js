@@ -148,6 +148,7 @@ export default function PDVsPage() {
   const [zone, setZone] = useState('');
   const [statut, setStatut] = useState('');
   const [typePdv, setTypePdv] = useState('');
+  const [service, setService] = useState('OMY');
   const [page, setPage] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const limit = 20;
@@ -174,11 +175,11 @@ export default function PDVsPage() {
   const semainesDisponibles = lastAvailable?.semaines_disponibles || [];
   
   const { data: statsBase } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
-  const { data: dashboardMonthly } = useQuery(['pdv-dashboard-monthly', annee, mois, zone, typePdv], () =>
-    api.get('/dashboard/monthly', { params: { annee, mois, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}) } }).then(r => r.data),
+  const { data: dashboardMonthly } = useQuery(['pdv-dashboard-monthly', annee, mois, zone, typePdv, service], () =>
+    api.get('/dashboard/monthly', { params: { annee, mois, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}), service } }).then(r => r.data),
     { staleTime: 0, enabled: periodeType === 'mensuel' && !!lastAvailable });
-  const { data: dashboardWeekly } = useQuery(['pdv-dashboard-weekly', lastSemaineAnnee, lastSemaine, zone, typePdv], () =>
-    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}) } }).then(r => r.data),
+  const { data: dashboardWeekly } = useQuery(['pdv-dashboard-weekly', lastSemaineAnnee, lastSemaine, zone, typePdv, service], () =>
+    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}), service } }).then(r => r.data),
     { staleTime: 0, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
   
   const activeDash = periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly;
@@ -327,6 +328,15 @@ export default function PDVsPage() {
             <option value="RSF">RSF</option>
             <option value="RNS">RNS</option>
             <option value="KIOSQUE">Kiosque</option>
+          </select>
+          <select value={service} onChange={e => { setService(e.target.value); setPage(0); }}
+            style={{ background: service === 'OMY' ? 'rgba(255,105,0,0.15)' : service === 'KAABU' ? 'rgba(0,214,143,0.15)' : 'rgba(162,155,254,0.15)',
+              borderColor: service === 'OMY' ? 'rgba(255,105,0,0.4)' : service === 'KAABU' ? 'rgba(0,214,143,0.4)' : 'rgba(162,155,254,0.4)',
+              color: service === 'OMY' ? '#FF6900' : service === 'KAABU' ? '#00d68f' : '#a29bfe',
+              fontWeight: 700 }}>
+            <option value="OMY">PDV OMY</option>
+            <option value="KAABU">PDV KAABU</option>
+            <option value="NAFAMA">PDV NAFAMA</option>
           </select>
         </div>
       </div>
