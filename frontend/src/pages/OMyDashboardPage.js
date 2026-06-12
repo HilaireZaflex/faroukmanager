@@ -1295,14 +1295,9 @@ function TabProgression({ annee, criterion }) {
   // KPIs demandés
   const pdvsReguliers = allPDVs.filter(p => p.est_regulier === true);
   const pdvsToujours10 = allPDVs.filter(p => (p.nb_fois_top10||0) >= 3);
-  const meilleurMois = allPDVs.reduce((best, p) => {
-    const ca = p.ca_max || 0;
-    return (!best || ca > (best.ca_max||0)) ? p : best;
-  }, null);
-  const pireMois = allPDVs.reduce((worst, p) => {
-    const ca = p.ca_min || Infinity;
-    return (!worst || (p.ca_min > 0 && ca < (worst.ca_min||Infinity))) ? p : worst;
-  }, null);
+  // Meilleur/Pire mois du réseau (depuis le backend)
+  const meilleurMoisReseau = progression?.meilleur_mois_reseau;
+  const pireMoisReseau = progression?.pire_mois_reseau;
 
   // Variables anciennes utilisées dans le JSX (à remplacer)
   const pdvsHausse = allPDVs.filter(p => p.tendance === 'HAUSSE');
@@ -1360,17 +1355,21 @@ function TabProgression({ annee, criterion }) {
         </div>
         <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 Meilleur Mois</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#00d68f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {meilleurMois?.mois_meilleur_ca ? MOIS_NOMS[parseInt(meilleurMois.mois_meilleur_ca.split('-')[1])-1] : '—'}
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#00d68f' }}>
+            {meilleurMoisReseau?.nom || '—'}
           </div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Mois avec le CA le plus élevé du réseau</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
+            CA: {meilleurMoisReseau ? Math.round(meilleurMoisReseau.ca_total).toLocaleString('en-US').replace(/,/g, ' ') : 0} FCFA
+          </div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚠️ Pire Mois</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#ff4757', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {pireMois?.mois_pire_ca ? MOIS_NOMS[parseInt(pireMois.mois_pire_ca.split('-')[1])-1] : '—'}
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#ff4757' }}>
+            {pireMoisReseau?.nom || '—'}
           </div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Mois avec le CA le plus faible (parmi les mois actifs)</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
+            CA: {pireMoisReseau ? Math.round(pireMoisReseau.ca_total).toLocaleString('en-US').replace(/,/g, ' ') : 0} FCFA
+          </div>
         </div>
       </div>
 

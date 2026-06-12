@@ -895,14 +895,8 @@ function OngletProgression({ annee, semaine, criterion }) {
   // KPIs demandés
   const pdvsReguliers = rawPdvs.filter(p => p.est_regulier === true);
   const pdvsToujours10 = rawPdvs.filter(p => (p.nb_fois_top10||0) >= 3);
-  const meilleurMois = rawPdvs.reduce((best, p) => {
-    const ca = p.ca_max || 0;
-    return (!best || ca > (best.ca_max||0)) ? p : best;
-  }, null);
-  const pireMois = rawPdvs.reduce((worst, p) => {
-    const ca = p.ca_min || Infinity;
-    return (!worst || (p.ca_min > 0 && ca < (worst.ca_min||Infinity))) ? p : worst;
-  }, null);
+  const meilleurMoisReseau = data?.meilleur_mois_reseau;
+  const pireMoisReseau = data?.pire_mois_reseau;
 
   // Variables anciennes utilisées dans le JSX (à remplacer)
   const pdvsHausse = rawPdvs.filter(p => p.tendance === 'HAUSSE');
@@ -965,17 +959,21 @@ function OngletProgression({ annee, semaine, criterion }) {
         </div>
         <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 Meilleur Mois</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#00d68f', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {meilleurMois?.semaine_meilleur_ca ? 'S' + (meilleurMois.semaine_meilleur_ca.includes('-W') ? parseInt(meilleurMois.semaine_meilleur_ca.split('-W')[1]) : meilleurMois.semaine_meilleur_ca) : '—'}
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#00d68f' }}>
+            {meilleurMoisReseau?.nom || '—'}
           </div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Semaine avec le CA le plus élevé du réseau</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
+            CA: {meilleurMoisReseau ? Math.round(meilleurMoisReseau.ca_total).toLocaleString('en-US').replace(/,/g, ' ') : 0} FCFA
+          </div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid #ff4757' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>⚠️ Pire Mois</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: '#ff4757', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {pireMois?.semaine_pire_ca ? 'S' + (pireMois.semaine_pire_ca.includes('-W') ? parseInt(pireMois.semaine_pire_ca.split('-W')[1]) : pireMois.semaine_pire_ca) : '—'}
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#ff4757' }}>
+            {pireMoisReseau?.nom || '—'}
           </div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>Semaine avec le CA le plus faible (parmi les semaines actives)</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>
+            CA: {pireMoisReseau ? Math.round(pireMoisReseau.ca_total).toLocaleString('en-US').replace(/,/g, ' ') : 0} FCFA
+          </div>
         </div>
       </div>
 

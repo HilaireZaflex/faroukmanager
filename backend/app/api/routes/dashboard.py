@@ -1275,9 +1275,10 @@ def monthly_progression(
             else:
                 break
 
-        # PDV régulier : présent dans tous les mois disponibles
-        mois_disponibles = len(set((h['annee'], h['mois']) for h in historique))
-        est_regulier = (mois_disponibles == nb_mois and nb_mois > 0)
+        # PDV régulier : actif (ca > 0) dans TOUS les mois disponibles
+        mois_actifs = set((h['annee'], h['mois']) for h in historique if h['ca'] > 0)
+        nb_mois_total_reseau = 5  # Jan-Mai 2026 (5 mois)
+        est_regulier = len(mois_actifs) >= nb_mois_total_reseau
 
         # Variation mensuelle max (plus grande hausse entre 2 mois consécutifs)
         var_consec = []
@@ -1316,10 +1317,38 @@ def monthly_progression(
 
     result_pdvs = sorted(result_pdvs, key=lambda x: x["nb_fois_top10"], reverse=True)[:top_n]
 
+    # Métriques réseau: meilleur et pire mois
+    ca_par_mois = {}
+    for p in result_pdvs:
+        for h in p.get('historique_mensuel', []):
+            key = f"{h['annee']}-{h['mois']:02d}"
+            ca_par_mois[key] = ca_par_mois.get(key, 0) + (h['ca'] or 0)
+
+    MOIS_NOMS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+    meilleur_mois_reseau = None
+    pire_mois_reseau = None
+    if ca_par_mois:
+        meilleur_key = max(ca_par_mois, key=lambda k: ca_par_mois[k])
+        pire_key = min(ca_par_mois, key=lambda k: ca_par_mois[k])
+        m_idx = int(meilleur_key.split('-')[1]) - 1
+        p_idx = int(pire_key.split('-')[1]) - 1
+        meilleur_mois_reseau = {
+            'mois_key': meilleur_key,
+            'nom': MOIS_NOMS_FR[m_idx] if 0 <= m_idx < 12 else meilleur_key,
+            'ca_total': round(ca_par_mois[meilleur_key], 2)
+        }
+        pire_mois_reseau = {
+            'mois_key': pire_key,
+            'nom': MOIS_NOMS_FR[p_idx] if 0 <= p_idx < 12 else pire_key,
+            'ca_total': round(ca_par_mois[pire_key], 2)
+        }
+
     return {
         "annee": annee,
         "total_pdvs": len(result_pdvs),
         "pdvs": result_pdvs,
+        "meilleur_mois_reseau": meilleur_mois_reseau,
+        "pire_mois_reseau": pire_mois_reseau,
     }
 
 
