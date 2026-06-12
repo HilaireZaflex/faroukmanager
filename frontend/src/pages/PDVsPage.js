@@ -409,7 +409,7 @@ export default function PDVsPage() {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-ghost btn-sm" onClick={handleExportExcel}><Download size={14}/> Exporter Excel</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}><Plus size={14}/> Nouveau PDV</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}><Plus size={14}/> Nouvelle Activation</button>
         </div>
       </div>
 
