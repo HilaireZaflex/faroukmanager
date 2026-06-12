@@ -195,12 +195,15 @@ export default function PDVsPage() {
     { staleTime: 0, cacheTime: 0 }
   );
 
-  // Utiliser activeDash (période) pour actifs/inactifs filtrés par zone/type + dashboard
-  // Les KPIs réagissent à zone, type ET statut
+  // KPIs dynamiques — réagissent à zone, type, statut, service ET période
+  // - total_pdvs : total réseau filtré (backend filtre par zone/type)
+  // - actifs : PDVs avec transactions ce mois/semaine (activeDash)
+  // - inactifs : PDVs sans transactions ce mois/semaine (activeDash)
+  // - en_recuperation, nouvelles_creations : depuis /pdvs/stats (filtré par zone/type/statut)
   const dynamicStats = {
     total_pdvs: activeDash?.total_pdvs ?? dynamicStatsRaw?.total_pdvs ?? 0,
-    actifs: activeDash?.pdvs_avec_donnees ?? activeDash?.active_pdvs ?? dynamicStatsRaw?.actifs ?? 0,
-    inactifs: activeDash?.pdvs_sans_donnees ?? activeDash?.inactive_pdvs ?? dynamicStatsRaw?.inactifs ?? 0,
+    actifs: activeDash?.active_pdvs ?? dynamicStatsRaw?.actifs ?? 0,
+    inactifs: (activeDash?.inactive_pdvs ?? 0) + (activeDash?.pdvs_sans_donnees ?? 0),
     en_recuperation: dynamicStatsRaw?.en_recuperation ?? 0,
     nouvelles_creations: dynamicStatsRaw?.nouvelles_creations ?? 0,
   };

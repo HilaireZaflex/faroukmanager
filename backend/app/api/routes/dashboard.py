@@ -154,12 +154,17 @@ def monthly_dashboard(
     montant_depots = sum(p.montant_depots for p, _ in pairs)
     total_retraits = sum(p.nb_retraits for p, _ in pairs)
     montant_retraits = sum(p.montant_retraits for p, _ in pairs)
-    # Vrai total réseau (tous PDVs actifs, avec ou sans performances ce mois)
-    total_reseau = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).count()
+    # Total réseau filtré (respecte zone, type, superviseur)
+    q_total = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+    if zone: q_total = q_total.filter(PDV.zone == zone)
+    if type_pdv: q_total = q_total.filter(PDV.type_pdv == type_pdv)
+    if superviseur: q_total = q_total.filter(PDV.superviseur == superviseur)
+    if gestionnaire: q_total = q_total.filter(PDV.gestionnaire == gestionnaire)
+    total_reseau = q_total.count()
     active_pdvs = sum(1 for p, _ in pairs if p.est_actif)
     inactive_pdvs = len(pairs) - active_pdvs
-    # PDVs sans données ce mois = dans le réseau mais pas dans les performances
-    pdvs_sans_donnees = total_reseau - len(pairs)
+    # PDVs sans données ce mois = dans le réseau filtré mais pas dans les performances
+    pdvs_sans_donnees = max(0, total_reseau - len(pairs))
     taux_activite = (active_pdvs / total_reseau * 100) if total_reseau > 0 else 0.0
     avg_ca = total_ca / len(pairs) if pairs else 0.0
 
@@ -403,8 +408,12 @@ def weekly_dashboard(
     total_retraits = sum(p.nb_retraits for p, _ in pairs)
     montant_depots = sum(p.montant_depots for p, _ in pairs)
     montant_retraits = sum(p.montant_retraits for p, _ in pairs)
-    # Vrai total réseau
-    total_reseau_w = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).count()
+    # Total réseau filtré (respecte zone, type, superviseur)
+    q_total_w = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+    if zone: q_total_w = q_total_w.filter(PDV.zone == zone)
+    if type_pdv: q_total_w = q_total_w.filter(PDV.type_pdv == type_pdv)
+    if superviseur: q_total_w = q_total_w.filter(PDV.superviseur == superviseur)
+    total_reseau_w = q_total_w.count()
     active_pdvs = sum(1 for p, _ in pairs if p.est_actif)
     inactive_pdvs = len(pairs) - active_pdvs
     taux_activite = (active_pdvs / total_reseau_w * 100) if total_reseau_w > 0 else 0.0
