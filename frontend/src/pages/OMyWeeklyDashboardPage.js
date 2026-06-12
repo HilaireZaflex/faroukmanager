@@ -894,7 +894,7 @@ function OngletProgression({ annee, semaine, criterion }) {
 
   // KPIs demandés
   const pdvsReguliers = rawPdvs.filter(p => p.est_regulier === true);
-  const pdvsToujours10 = rawPdvs.filter(p => (p.nb_fois_top10||0) >= 3);
+  const pdvsToujours10 = rawPdvs.filter(p => (p.nb_fois_top10||0) >= 5);
   const meilleurMoisReseau = data?.meilleur_mois_reseau;
   const pireMoisReseau = data?.pire_mois_reseau;
 
@@ -907,7 +907,7 @@ function OngletProgression({ annee, semaine, criterion }) {
   const allPdvs = rawPdvs
     .filter(p => {
       if (activeFilter === 'reguliers') return p.est_regulier === true;
-      if (activeFilter === 'top10') return (p.nb_fois_top10||0) >= 3;
+      if (activeFilter === 'top10') return (p.nb_fois_top10||0) >= 5;
       return true;
     })
     .filter(p => !search ||
@@ -955,7 +955,7 @@ function OngletProgression({ annee, semaine, criterion }) {
             transform: activeFilter === 'top10' ? 'scale(1.02)' : 'scale(1)', transition: 'all 0.2s' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>🏆 Toujours Top 10</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#FFD700' }}>{pdvsToujours10.length}</div>
-          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>PDVs classés Top 10 ≥ 3 mois sur 5</div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>PDVs classés Top 10 dans TOUS les mois</div>
         </div>
         <div className="card" style={{ borderLeft: '3px solid #00d68f' }}>
           <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>📈 Meilleur Mois</div>
