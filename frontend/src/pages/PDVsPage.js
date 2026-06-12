@@ -48,6 +48,7 @@ const INITIAL_FORM = {
   montant_activation: '',
   // Réseau
   zone: '', sous_zone: '', quartier: '',
+  nom_garant: '', tel_garant: '',
   developpeur: '', tel_developpeur: '',
   gestionnaire: '', tel_gestionnaire: '',
   superviseur: '', tel_superviseur: '',
@@ -176,12 +177,11 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
             <FL label="Numéro de pièce"><FI placeholder="N° pièce d'identité" value={form.numero_piece} onChange={e=>set('numero_piece',e.target.value)} /></FL>
             <FL label="Date de délivrance"><FI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></FL>
             <FL label="Domicile"><FI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></FL>
-            <FL label="Téléphone"><FI placeholder="+223 XX XX XX XX" value={form.telephone} onChange={e=>set('telephone',e.target.value)} /></FL>
           </Section>
 
           {/* SECTION 2 — Informations PDV */}
           <Section title="Informations du PDV" icon="🏪" cols={3}>
-            <FL label="Numéro PDV *" required><FI placeholder="N° PDV Orange" value={form.numero_pdv} onChange={e=>set('numero_pdv',e.target.value)} required /></FL>
+            <FL label="Numéro Flotte *" required><FI placeholder="N° Flotte" value={form.numero_pdv} onChange={e=>set('numero_pdv',e.target.value)} required /></FL>
             <FL label="N° Personnel"><FI placeholder="N° Personnel" value={form.numero_personnel} onChange={e=>set('numero_personnel',e.target.value)} /></FL>
             <FL label="Type de réseau">
               <FS value={form.type_pdv} onChange={e=>set('type_pdv',e.target.value)}>
@@ -205,7 +205,13 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
             <FL label="Montant d'activation (FCFA)"><FI type="number" placeholder="0" value={form.montant_activation} onChange={e=>set('montant_activation',e.target.value)} /></FL>
           </Section>
 
-          {/* SECTION 3 — Équipe Réseau */}
+          {/* SECTION 3 — Le Garant */}
+          <Section title="Le Garant" icon="🤝" cols={2}>
+            <FL label="Nom du Garant"><FI placeholder="Nom complet du garant" value={form.nom_garant} onChange={e=>set('nom_garant',e.target.value)} /></FL>
+            <FL label="Téléphone du Garant"><FI placeholder="+223 XX XX XX XX" value={form.tel_garant} onChange={e=>set('tel_garant',e.target.value)} /></FL>
+          </Section>
+
+          {/* SECTION 4 — Équipe Réseau */}
           <Section title="Équipe Réseau" icon="👥" cols={2}>
             <FL label="Développeur"><FI placeholder="Nom du développeur" value={form.developpeur} onChange={e=>set('developpeur',e.target.value)} /></FL>
             <FL label="Tél. Développeur"><FI placeholder="+223 XX XX XX XX" value={form.tel_developpeur} onChange={e=>set('tel_developpeur',e.target.value)} /></FL>
