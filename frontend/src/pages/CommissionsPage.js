@@ -147,35 +147,38 @@ function TabDashboard({ period }) {
         {/* Barre RNS/RSF */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-            <span>🟦 RNS / RSF — Orange paie directement les PDVs</span>
-            <span>{data.n_pdv_directs} PDV</span>
+            <span>🟦 RNS / RSF — {data.n_pdv_directs} PDV</span>
+            <span style={{ fontWeight: 700 }}>Total : {fmt((cb.rns_rsf||0) + (cr.rns_rsf||0))}</span>
           </div>
-          <div style={{ display: 'flex', height: 26, borderRadius: 6, overflow: 'hidden' }}>
-            <div style={{ width: `${(cb.rns_rsf||0) / ((cb.rns_rsf||0) + (cr.rns_rsf||1)) * 100}%`, minWidth: '20%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
-              PDG: {fmt(cb.rns_rsf||0)}
+          <div style={{ display: 'flex', height: 28, borderRadius: 6, overflow: 'hidden' }}>
+            <div style={{ width: '30%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
+              30% PDG : {fmt(cb.rns_rsf||0)}
             </div>
-            <div style={{ flex: 1, background: 'rgba(139,92,246,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)', fontSize: 11, fontWeight: 700 }}>
-              PDV (via Orange): {fmt(cr.rns_rsf||0)}
+            <div style={{ width: '70%', background: 'rgba(139,92,246,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)', fontSize: 11, fontWeight: 700 }}>
+              70% PDV (via Orange) : {fmt(cr.rns_rsf||0)}
             </div>
+          </div>
+          <div style={{fontSize: 11, color: 'var(--text-muted)', marginTop: 4}}>
+            💡 Orange verse les 30% ({fmt(cb.rns_rsf||0)}) au PDG et paie directement les 70% ({fmt(cr.rns_rsf||0)}) aux PDVs
           </div>
         </div>
 
         {/* Barre RS/KIOSQUE */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-            <span>🟧 RS / KIOSQUE — Orange verse <b>tout</b> au PDG</span>
-            <span>{data.n_pdv_geres} PDV</span>
+            <span>🟧 RS / KIOSQUE — {data.n_pdv_geres} PDV</span>
+            <span style={{ fontWeight: 700 }}>Total reçu par PDG : {fmt(cb.rs_kiosque||0)}</span>
           </div>
           <div style={{ display: 'flex', height: 28, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
-            <div style={{ width: `${(cb.rs_kiosque||0) / ((cb.rs_kiosque||0) + (cr.rs_kiosque||1)) * 100}%`, minWidth: '20%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
-              PDG garde: {fmt(cb.rs_kiosque||0)}
+            <div style={{ width: '30%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
+              30% PDG garde : {fmt((cb.rs_kiosque||0) * 0.3)}
             </div>
             <div style={{ flex: 1, background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
-              PDG reverse aux PDV: {fmt(cr.rs_kiosque||0)}
+              70% PDG reverse aux PDV : {fmt((cb.rs_kiosque||0) * 0.7)}
             </div>
           </div>
           <div style={{fontSize: 11, color: 'var(--text-muted)', marginTop: 4}}>
-            💡 Le PDG reçoit {fmt((cb.rs_kiosque||0)+(cr.rs_kiosque||0))} d'Orange, garde {fmt(cb.rs_kiosque||0)} et reverse {fmt(cr.rs_kiosque||0)} aux PDVs
+            💡 Orange verse 100% ({fmt(cb.rs_kiosque||0)}) au PDG, qui garde 30% ({fmt((cb.rs_kiosque||0)*0.3)}) et reverse 70% ({fmt((cb.rs_kiosque||0)*0.7)}) aux PDVs
           </div>
         </div>
       </div>
@@ -214,9 +217,9 @@ function TabDashboard({ period }) {
           </table>
         </div>
         <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8, padding: '10px 0', borderTop: '1px solid var(--border)' }}>
-          📌 <b>RNS & RSF</b> : Orange paye directement le PDV. Le PDG reçoit uniquement ses 30%.<br/>
-          📌 <b>RS & KIOSQUE</b> : Orange verse 100% au PDG. Le PDG paie ensuite directement le PDV (70%).<br/>
-          📌 <b>Dans tous les cas</b> : chaque PDV est payé. Le PDG conserve toujours ses 30% de commission.
+          📌 <b>RNS & RSF</b> : Commission PDG = 30% reçus par le PDG. Commission Revendeur = 70% payés directement par Orange aux PDV.<br/>
+          📌 <b>RS & KIOSQUE</b> : Commission PDG = 100% reçus par le PDG. Le PDG garde 30% et reverse 70% aux PDV.<br/>
+          📌 <b>Commission Réelle PDG</b> = (Commission PDG + Commission Revendeur) × 30%.
         </div>
       </div>
 
@@ -255,23 +258,32 @@ function TabDashboard({ period }) {
         <div className="stats-grid">
           <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
             <div className="stat-label">🟢 Commission PDG</div>
-            <div className="stat-value" style={{ fontSize: 16, color: 'var(--success)' }}>{fmt(cb.total||0)}</div>
-            <small>Sa part définitive</small>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)', whiteSpace: 'nowrap' }}>
+              {Math.round(cb.total||0).toLocaleString('en-US').replace(/,/g, ' ')}
+            </div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 2 }}>FCFA</div>
+            <small>30% RNS/RSF + 100% RS/KIOSQUE</small>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#8b5cf6' }}>
             <div className="stat-label">🟣 Commission Revendeur</div>
-            <div className="stat-value" style={{ fontSize: 16, color: '#8b5cf6' }}>{fmt(data.commission_revendeur_total||0)}</div>
-            <small>RNS/RSF via Orange · RS/KIOSQUE via le PDG</small>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#8b5cf6', whiteSpace: 'nowrap' }}>
+              {Math.round(data.commission_revendeur_total||0).toLocaleString('en-US').replace(/,/g, ' ')}
+            </div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 2 }}>FCFA</div>
+            <small>70% RNS/RSF payés par Orange aux PDV</small>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
             <div className="stat-label">💰 Commission Réelle PDG</div>
-            <div className="stat-value" style={{ fontSize: 16, color: '#f59e0b' }}>{fmt(data.commission_reelle_pdg||0)}</div>
-            <small>(Comm PDG + Comm Revendeur) × 30%</small>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#f59e0b', whiteSpace: 'nowrap' }}>
+              {Math.round(data.commission_reelle_pdg||0).toLocaleString('en-US').replace(/,/g, ' ')}
+            </div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 2 }}>FCFA</div>
+            <small>({fmtM(cb.total||0)} + {fmtM(data.commission_revendeur_total||0)}) × 30%</small>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#3b82f6' }}>
             <div className="stat-label">📊 PDV actifs</div>
-            <div className="stat-value" style={{ fontSize: 16, color: '#3b82f6' }}>{data.n_pdv_total}</div>
-            <small>{data.n_pdv_directs} RNS/RSF · {data.n_pdv_geres} RS/KIOSQUE</small>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#3b82f6' }}>{data.n_pdv_total}</div>
+            <small>RNS/RSF : {data.n_pdv_directs} · RS/KIOSQUE : {data.n_pdv_geres}</small>
           </div>
         </div>
       </div>
