@@ -130,51 +130,6 @@ function TabDashboard({ period }) {
         </div>
       </div>
 
-      {/* ── KPI NIVEAU 2 : Commission PDG / Commission Revendeur ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, margin: '16px 0' }}>
-
-        {/* Commission PDG */}
-        <div style={{ padding: 18, background: 'rgba(34,197,94,0.08)', borderRadius: 10, borderLeft: '4px solid var(--success)' }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
-            🟢 Commission PDG — Ce que le PDG garde définitivement
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>{fmt(cb.total||0)}</div>
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <span>📦 RNS/RSF ({data.n_pdv_directs} PDV)</span>
-              <b style={{ color: 'var(--success)' }}>{fmt(cb.rns_rsf||0)}</b>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>🏪 RS/KIOSQUE ({data.n_pdv_geres} PDV)</span>
-              <b style={{ color: 'var(--success)' }}>{fmt(cb.rs_kiosque||0)}</b>
-            </div>
-          </div>
-          <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(34,197,94,0.12)', borderRadius: 6, fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
-            ✅ Total = {fmt(cb.rns_rsf||0)} + {fmt(cb.rs_kiosque||0)} = {fmt(cb.total||0)}
-          </div>
-        </div>
-
-        {/* Commission Revendeur */}
-        <div style={{ padding: 18, background: 'rgba(139,92,246,0.10)', borderRadius: 10, borderLeft: '4px solid #8b5cf6' }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', marginBottom: 4 }}>
-            🟣 Commission Revendeur — Ce que les PDV reçoivent
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: '#8b5cf6' }}>{fmt(data.commission_revendeur_total||0)}</div>
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.9 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <span>📦 RNS/RSF — Payé directement par Orange</span>
-              <b style={{ color: '#8b5cf6' }}>{fmt(cr.rns_rsf||0)}</b>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>🏪 RS/KIOSQUE — À reverser par le PDG</span>
-              <b style={{ color: '#8b5cf6' }}>{fmt(cr.rs_kiosque||0)}</b>
-            </div>
-          </div>
-          <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(139,92,246,0.12)', borderRadius: 6, fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>
-            ✅ Total = {fmt(cr.rns_rsf||0)} + {fmt(cr.rs_kiosque||0)} = {fmt(data.commission_revendeur_total||0)}
-          </div>
-        </div>
-      </div>
 
       {/* ── Schéma visuel répartition ── */}
       <div className="modal-section" style={{ background: 'var(--bg-card)' }}>
