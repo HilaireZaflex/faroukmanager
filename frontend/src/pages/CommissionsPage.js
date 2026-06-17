@@ -142,10 +142,10 @@ function TabDashboard({ period }) {
 
       {/* ── Schéma visuel répartition ── */}
       {(() => {
-        // RNS/RSF : total = CommPDG + CommRev, 30% PDG = total×30%, 70% PDV = total×70%
-        const totalRnsRsf = (cb.rns_rsf || 0) + (cr.rns_rsf || 0);
-        const rns_rsf_30 = totalRnsRsf * 30 / 100;
-        const rns_rsf_70 = totalRnsRsf * 70 / 100;
+        // RNS/RSF : 70% PDV = Commission Revendeur totale (même montant qu'en haut)
+        const rns_rsf_70 = data.commission_revendeur_total || 0;
+        const totalRnsRsf = (cb.rns_rsf || 0) + rns_rsf_70;
+        const rns_rsf_30 = cb.rns_rsf || 0;
 
         // RS/KIOSQUE : CommPDG = 100%, 30% PDG garde, 70% PDV reverse
         const totalRsKiosque = cb.rs_kiosque || 0;
