@@ -243,43 +243,38 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     # = ses 30% + les 70% RS/KIOSQUE pas encore reversés
     commission_nette = commission_brute_total + total_reste
 
-    # ── Commission Revendeur depuis monthly_performances (= fichier Excel Orange) ──
-    from app.models.performance import MonthlyPerformance as MP
-    from sqlalchemy import func as sqlfunc
+    # ── Commission Revendeur = 70% de tous les PDV (ce que les PDV reçoivent) ──
+    commission_revendeur_total = round(total_pdv, 2)  # Σ montant_pdv = 70% tous types
+
+    # ── Taux de variation vs mois précédent ───────────────────────────────────
+    # Comparer les commission_brute (30% réseau) du mois courant vs mois précédent
     year_str, month_str = period_key.split("-")
     annee_int, mois_int = int(year_str), int(month_str)
-    comm_rev_total = db.query(sqlfunc.sum(MP.commission_revendeur)).filter(
-        MP.annee == annee_int, MP.mois == mois_int, MP.est_actif == True
-    ).scalar() or 0
-    
-    # ── Taux de variation vs mois précédent (avec même filtre type PDV) ───────
     mois_prec = mois_int - 1 if mois_int > 1 else 12
     annee_prec = annee_int if mois_int > 1 else annee_int - 1
-    
-    # Recalculer total_brut du mois précédent avec le même filtre type PDV
-    from app.models.pdv import PDV as PDVModel
-    query_prec = db.query(sqlfunc.sum(MP.commission_pdg)).join(
-        PDVModel, MP.pdv_id == PDVModel.id
-    ).filter(MP.annee == annee_prec, MP.mois == mois_prec, MP.est_actif == True)
-    
-    # Appliquer le même filtre de type si présent
-    if pdv_type:
-        from app.models.commission import PDVType as CommPDVType
-        try:
-            query_prec = query_prec.filter(PDVModel.type_pdv == pdv_type.value)
-        except: pass
-    
-    total_brut_prec = query_prec.scalar() or 0
-    taux_variation = round(((total_brut - total_brut_prec) / total_brut_prec * 100), 2) if total_brut_prec > 0 else 0
+    prev_period = f"{annee_prec:04d}-{mois_prec:02d}"
 
-    # ── Montant que le PDG garde définitivement ───────────────────────────────
-    # RNS/RSF  → PDG garde tout le montant (déjà sa part, Orange paye les PDVs séparément)
-    # RS/KIOSQUE → PDG garde 30% (il reverse 70% aux PDVs)
-    montant_recu_pdg = round(
-        sum(e.montant_brut for e in ents_directs)          # RNS/RSF: montant PDG garde en entier
-        + sum(e.montant_reseau for e in ents_geres),       # RS/KIOSQUE: 30% que le PDG garde
-        2
+    # Requête mois précédent sur commission_entries (même source de données)
+    q_prec = db.query(func.sum(CommissionEntry.montant_reseau)).filter(
+        CommissionEntry.period_key == prev_period
     )
+    if pdv_type:
+        q_prec = q_prec.filter(CommissionEntry.pdv_type == pdv_type)
+    if superviseur:
+        q_prec = q_prec.filter(CommissionEntry.superviseur.ilike(f"%{superviseur}%"))
+    if gestionnaire:
+        q_prec = q_prec.filter(CommissionEntry.gestionnaire.ilike(f"%{gestionnaire}%"))
+    if zone:
+        q_prec = q_prec.filter(CommissionEntry.zone == zone)
+
+    reseau_prec = q_prec.scalar() or 0
+    taux_variation = round(((commission_brute_total - reseau_prec) / reseau_prec * 100), 2) if reseau_prec > 0 else 0
+
+    # ── Montant que le PDG garde définitivement = ses 30% sur tout ────────────
+    # RNS/RSF  → PDG reçoit 30% (montant_reseau), Orange paye les 70% aux PDVs
+    # RS/KIOSQUE → PDG reçoit 100% mais garde 30%, reverse 70%
+    # Dans tous les cas, le PDG garde ses 30% = total_reseau
+    montant_recu_pdg = round(total_reseau, 2)
 
     # ── Ventilation par type ───────────────────────────────────────────────────
     by_type = {}
@@ -367,13 +362,12 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         "taux_variation": taux_variation,
         "taux_pdv":    TAUX_PDV * 100,
  
-        # ── Décomposition par type de PDV ──────────────────────────────────
-        # RNS/RSF: Orange verse 30% au PDG (commission_pdg) + 70% aux PDVs (commission_revendeur)
-        # RS/KIOSQUE: Orange verse 100% au PDG qui reverse 70% aux PDVs
+        # ── Décomposition 30% réseau par type de PDV ─────────────────
+        # commission_brute = les 30% que le PDG garde définitivement
         "commission_brute": {
-            "total":      round(total_brut, 2),
-            "rns_rsf":    round(sum(e.montant_brut for e in ents_directs), 2),    # 30% RNS/RSF que PDG reçoit
-            "rs_kiosque": round(sum(e.montant_brut for e in ents_geres), 2),      # 100% RS/KIOSQUE que PDG reçoit
+            "total":      round(commission_brute_total, 2),                               # Σ 30% tous types
+            "rns_rsf":    round(commission_brute_rns_rsf, 2),                              # 30% RNS/RSF
+            "rs_kiosque": round(commission_brute_rs_kiosque, 2),                            # 30% RS/KIOSQUE
         },
         "montant_en_transit": {
             "total":          round(montant_en_transit, 2),  # 70% RS+KIOSQUE reçus par PDG
@@ -388,8 +382,12 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         # = ce que le PDG a réellement EN CAISSE maintenant
 
         "montant_recu_pdg": round(montant_recu_pdg, 2),
-        "commission_revendeur_total": round(comm_rev_total, 2),
-        # = 30%(RNS+RSF) + 100%(RS+KIOSQUE) = total reçu en trésorerie
+        "commission_revendeur_total": round(commission_revendeur_total, 2),
+        # = Σ 70% tous types = ce que les PDV reçoivent au total
+        
+        # Bruts par catégorie (pour affichage frontend flux Orange)
+        "brut_rns_rsf": round(sum(e.montant_brut for e in ents_directs), 2),
+        "brut_rs_kiosque": round(sum(e.montant_brut for e in ents_geres), 2),
 
         # ── Ventilations ──────────────────────────────────────────────────
         "by_type":     list(by_type.values()),
@@ -415,10 +413,14 @@ def _empty_dashboard(period_key: str) -> Dict[str, Any]:
         "n_pdv_directs": 0, "n_pdv_geres": 0,
         "total_brut": 0, "total_reseau": 0, "total_pdv": 0,
         "taux_reseau": 30, "taux_pdv": 70,
+        "taux_variation": 0,
         "commission_brute":    empty_brute,
         "montant_en_transit":  empty_transit,
         "commission_nette":    0,
         "montant_recu_pdg":    0,
+        "commission_revendeur_total": 0,
+        "brut_rns_rsf": 0,
+        "brut_rs_kiosque": 0,
         "by_type": [], "by_quartier": [], "by_zone": [],
         "reversements": {"total_a_reverser": 0, "total_reverse": 0, "total_reste": 0,
                          "n_pdv_concernes": 0, "by_status": {}},
