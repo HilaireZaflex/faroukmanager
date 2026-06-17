@@ -292,13 +292,24 @@ def import_orange_export(
     now = datetime.utcnow()
 
     for numero, d in pdv_data.items():
-        # Déterminer le type
-        grade = d["grade"]
+        pdv_obj = pdv_index.get(numero)
+
+        # Priorité 1 : type venant de la table PDV (BASE REELLE)
         pdv_type = None
-        for g_key, g_type in GRADE_TO_TYPE.items():
-            if g_key in grade:
-                pdv_type = g_type
-                break
+        if pdv_obj and pdv_obj.type_pdv:
+            try:
+                pdv_type = PDVType(pdv_obj.type_pdv.upper())
+            except Exception:
+                pass
+
+        # Priorité 2 : mapping via grade Orange (si PDV inconnu dans la base)
+        if pdv_type is None:
+            grade = d.get("grade", "")
+            for g_key, g_type in GRADE_TO_TYPE.items():
+                if g_key in grade:
+                    pdv_type = g_type
+                    break
+
         if pdv_type is None:
             skipped += 1
             continue
@@ -324,14 +335,13 @@ def import_orange_export(
         montant_reseau = comm_pdg
         montant_pdv = comm_rev
 
-        pdv_obj = pdv_index.get(numero)
         pdv_id = pdv_obj.id if pdv_obj else None
         pdv_nom = pdv_obj.nom if pdv_obj else None
         quartier = pdv_obj.quartier if pdv_obj else None
         zone = pdv_obj.zone if pdv_obj else None
         sous_zone = pdv_obj.sous_zone if pdv_obj and hasattr(pdv_obj, 'sous_zone') else None
         gestionnaire = pdv_obj.gestionnaire if pdv_obj and hasattr(pdv_obj, 'gestionnaire') else None
-        superviseur = d.get("superviseur")
+        superviseur = pdv_obj.superviseur if pdv_obj and pdv_obj.superviseur else d.get("superviseur")
 
         existing = db.query(CommissionEntry).filter(
             CommissionEntry.pdv_numero == numero,
