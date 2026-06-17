@@ -99,31 +99,40 @@ function TabDashboard({ period }) {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total PDV actifs</div>
-          <div className="stat-value">{data.n_pdv_total}</div>
+          <div className="stat-value" style={{ fontSize: 28, fontWeight: 800 }}>{data.n_pdv_total}</div>
           <small style={{ color: 'var(--text-muted)' }}>
             RNS/RSF : {data.n_pdv_directs} · RS/KIOSQUE : {data.n_pdv_geres}
           </small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
           <div className="stat-label">🏦 Commission PDG</div>
-          <div className="stat-value" style={{ fontSize: 15 }}>{fmt(cb.total||0)}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {Math.round(cb.total||0).toLocaleString('en-US').replace(/,/g, ' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
           <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-            30% RNS/RSF ({fmt(cb.rns_rsf||0)}) + 100% RS/KIOSQUE ({fmt(cb.rs_kiosque||0)})
+            30% RNS/RSF ({fmtM(cb.rns_rsf||0)}) + 100% RS/KIOSQUE ({fmtM(cb.rs_kiosque||0)})
           </small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#8b5cf6' }}>
           <div className="stat-label">🔵 Commission Revendeur</div>
-          <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.commission_revendeur_total||0)}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#8b5cf6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {Math.round(data.commission_revendeur_total||0).toLocaleString('en-US').replace(/,/g, ' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
           <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>70% RNS/RSF payés directement par Orange aux PDV</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">💰 Commission Réelle PDG</div>
-          <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.commission_reelle_pdg||0)}</div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>({fmt(cb.total||0)} + {fmt(data.commission_revendeur_total||0)}) × 30%</small>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#f59e0b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {Math.round(data.commission_reelle_pdg||0).toLocaleString('en-US').replace(/,/g, ' ')}
+          </div>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>({fmtM(cb.total||0)} + {fmtM(data.commission_revendeur_total||0)}) × 30%</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">📊 Variation vs mois précédent</div>
-          <div className="stat-value" style={{ fontSize: 20, color: (data.taux_variation||0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: (data.taux_variation||0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
             {(data.taux_variation||0) >= 0 ? '+' : ''}{(data.taux_variation||0).toFixed(2)}%
           </div>
           <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Évolution Commission Réelle PDG vs mois précédent</small>
