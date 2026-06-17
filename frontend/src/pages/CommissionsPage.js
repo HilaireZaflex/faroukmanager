@@ -142,35 +142,21 @@ function TabDashboard({ period }) {
 
       {/* ── Schéma visuel répartition ── */}
       {(() => {
-        const rns_rsf_30 = cb.rns_rsf || 0;                         // RNS/RSF : déjà les 30% du PDG
-        const rns_rsf_70 = cr.rns_rsf || 0;                         // RNS/RSF : 70% payés par Orange aux PDV
-        const rs_kiosque_30 = (cb.rs_kiosque || 0) * 30 / 100;      // RS/KIOSQUE : 30% que le PDG garde
-        const rs_kiosque_70 = (cb.rs_kiosque || 0) * 70 / 100;      // RS/KIOSQUE : 70% que le PDG reverse
-        const total_30 = rns_rsf_30 + rs_kiosque_30;                 // Total 30% = Commission Réelle PDG
-        const total_70 = rns_rsf_70 + rs_kiosque_70;                 // Total 70% = Part des PDV
+        const totalRnsRsf = (cb.rns_rsf || 0) + (cr.rns_rsf || 0);           // Total RNS/RSF (CommPDG + CommRev)
+        const rns_rsf_30 = totalRnsRsf * 30 / 100;                            // 30% réels RNS/RSF
+        const rns_rsf_70 = totalRnsRsf * 70 / 100;                            // 70% réels RNS/RSF
+        const totalRsKiosque = cb.rs_kiosque || 0;                             // Total RS/KIOSQUE (= CommPDG = 100%)
+        const rs_kiosque_30 = totalRsKiosque * 30 / 100;                      // 30% réels RS/KIOSQUE
+        const rs_kiosque_70 = totalRsKiosque * 70 / 100;                      // 70% réels RS/KIOSQUE
         return (
       <div className="modal-section" style={{ background: 'var(--bg-card)' }}>
         <h3>📐 Répartition Orange Mali — Comment ça fonctionne</h3>
-
-        {/* Totaux 30% / 70% */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-          <div style={{ flex: 1, padding: 12, background: 'rgba(34,197,94,0.08)', borderRadius: 8, borderLeft: '4px solid var(--success)', textAlign: 'center' }}>
-            <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 1 }}>🟢 Total 30% PDG</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)', marginTop: 4 }}>{Math.round(total_30).toLocaleString('en-US').replace(/,/g, ' ')}</div>
-            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600 }}>FCFA</div>
-          </div>
-          <div style={{ flex: 1, padding: 12, background: 'rgba(139,92,246,0.08)', borderRadius: 8, borderLeft: '4px solid #8b5cf6', textAlign: 'center' }}>
-            <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 1 }}>🟣 Total 70% PDV</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#8b5cf6', marginTop: 4 }}>{Math.round(total_70).toLocaleString('en-US').replace(/,/g, ' ')}</div>
-            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600 }}>FCFA</div>
-          </div>
-        </div>
 
         {/* Barre RNS/RSF */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
             <span>🟦 RNS / RSF — {data.n_pdv_directs} PDV</span>
-            <span style={{ fontWeight: 700 }}>Total : {fmt(rns_rsf_30 + rns_rsf_70)}</span>
+            <span style={{ fontWeight: 700 }}>Total : {fmt(totalRnsRsf)}</span>
           </div>
           <div style={{ display: 'flex', height: 28, borderRadius: 6, overflow: 'hidden' }}>
             <div style={{ width: '30%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
@@ -186,7 +172,7 @@ function TabDashboard({ period }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
             <span>🟧 RS / KIOSQUE — {data.n_pdv_geres} PDV</span>
-            <span style={{ fontWeight: 700 }}>Total : {fmt(rs_kiosque_30 + rs_kiosque_70)}</span>
+            <span style={{ fontWeight: 700 }}>Total : {fmt(totalRsKiosque)}</span>
           </div>
           <div style={{ display: 'flex', height: 28, borderRadius: 6, overflow: 'hidden', gap: 2 }}>
             <div style={{ width: '30%', background: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>
