@@ -117,9 +117,9 @@ function TabDashboard({ period }) {
           <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Ce que les PDV reçoivent</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
-          <div className="stat-label">💰 Montant reçu par le PDG</div>
-          <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.montant_recu_pdg||0)}</div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Trésorerie entrante (CommPDG + CommRev RS/KIOSQUE)</small>
+          <div className="stat-label">💰 Commission Réelle PDG</div>
+          <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.commission_reelle_pdg||0)}</div>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>(Comm PDG + Comm Revendeur) × 30%</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">📊 Variation vs mois précédent</div>
@@ -255,9 +255,9 @@ function TabDashboard({ period }) {
             <small>RNS/RSF via Orange · RS/KIOSQUE via le PDG</small>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
-            <div className="stat-label">💰 Trésorerie PDG</div>
-            <div className="stat-value" style={{ fontSize: 16, color: '#f59e0b' }}>{fmt(data.montant_recu_pdg||0)}</div>
-            <small>Total entrant : CommPDG + CommRev RS/KIOSQUE</small>
+            <div className="stat-label">💰 Commission Réelle PDG</div>
+            <div className="stat-value" style={{ fontSize: 16, color: '#f59e0b' }}>{fmt(data.commission_reelle_pdg||0)}</div>
+            <small>(Comm PDG + Comm Revendeur) × 30%</small>
           </div>
           <div className="stat-card" style={{ borderLeftColor: '#3b82f6' }}>
             <div className="stat-label">📊 PDV actifs</div>

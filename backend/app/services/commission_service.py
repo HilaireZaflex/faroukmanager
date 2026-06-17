@@ -452,12 +452,9 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     # = sa Commission PDG + les Comm Revendeur RS/KIOSQUE pas encore reversées
     commission_nette = commission_pdg_total + total_reste
 
-    # ── Montant total reçu par le PDG (trésorerie entrante) ─────────────────
-    # RNS/RSF : reçoit seulement Commission PDG
-    # RS/KIOSQUE : reçoit Commission PDG + Commission Revendeur
-    montant_recu_pdg = round(
-        commission_pdg_rns_rsf + (commission_pdg_rs_kiosque + commission_rev_rs_kiosque), 2
-    )
+    # ── Commission Réelle PDG = (Commission PDG + Commission Revendeur) × 30% ──
+    # = 30% du total de toutes les commissions tous types confondus
+    commission_reelle_pdg = round((total_reseau + total_pdv) * 30 / 100, 2)
 
     # ── Taux de variation Commission PDG vs mois précédent ───────────────────
     year_str, month_str = period_key.split("-")
@@ -587,7 +584,7 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         # = commission_brute_total + reste_a_payer
         # = ce que le PDG a réellement EN CAISSE maintenant
 
-        "montant_recu_pdg": round(montant_recu_pdg, 2),
+        "commission_reelle_pdg": commission_reelle_pdg,
         "commission_revendeur_total": round(commission_revendeur_total, 2),
 
         # ── Ventilations ──────────────────────────────────────────────────
@@ -618,7 +615,7 @@ def _empty_dashboard(period_key: str) -> Dict[str, Any]:
         "commission_revendeur":  empty_comm,
         "montant_en_transit":    empty_transit,
         "commission_nette":      0,
-        "montant_recu_pdg":      0,
+        "commission_reelle_pdg": 0,
         "commission_revendeur_total": 0,
         "by_type": [], "by_quartier": [], "by_zone": [],
         "reversements": {"total_a_reverser": 0, "total_reverse": 0, "total_reste": 0,
