@@ -3,10 +3,19 @@ Service Commissions Réseau.
 ============================
 Calcul, import Excel, reporting par type/zone/période.
 
-Règle universelle :
-  montant_reseau = brut × 30%
-  montant_pdv    = brut × 70%
-  gere_reversement = True si KIOSQUE ou RS (PDG reçoit les 70% et doit les reverser)
+Logique Orange Mali :
+  - RNS / RSF  : gere_reversement = False
+      → Orange paie directement les PDVs leur Commission Revendeur.
+      → Le PDG reçoit SEULEMENT sa Commission PDG.
+      → montant_brut   = Commission PDG (ce que le PDG reçoit d'Orange)
+      → montant_pdv    = Commission Revendeur (payé directement par Orange aux PDVs)
+      → montant_reseau = montant_brut (= Commission PDG = ce que le PDG garde)
+
+  - RS / KIOSQUE : gere_reversement = True
+      → Le PDG reçoit TOUT (Commission PDG + Commission Revendeur).
+      → montant_brut   = Commission PDG + Commission Revendeur (total reçu par le PDG)
+      → montant_pdv    = Commission Revendeur (70%, à reverser aux PDVs par le PDG)
+      → montant_reseau = Commission PDG (ce que le PDG garde après reversement)
 """
 from __future__ import annotations
 from datetime import datetime, timedelta
@@ -185,6 +194,201 @@ def import_xlsx(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Import depuis fichier EXPORT Orange (JANVIER.xlsx, FEVRIER.xlsx, etc.)
+# ─────────────────────────────────────────────────────────────────────────────
+# Mapping Grade Orange → Type PDV interne
+GRADE_TO_TYPE = {
+    "revendeur g1":            PDVType.RNS,
+    "agent reseau structure":  PDVType.RNS,
+    "agent wholesaler grade":  PDVType.RNS,      # Comm Rev = 0, comme RNS
+    "agent rs fractionne":     PDVType.RSF,
+    "agent grade2":            PDVType.RS,
+}
+
+
+def import_orange_export(
+    db: Session,
+    file_bytes: bytes,
+    filename: str,
+    period_key: str,
+    user_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Importe un fichier EXPORT Orange (14 colonnes) dans commission_entries.
+
+    Colonnes attendues :
+      A: Numero revendeur, B: Grade, C: Numero parent, D: Numero pdg,
+      E: Nom pdg, F: Service, G: Nombre transaction, H: Montant transaction,
+      I: Transaction CA, J: Commission pdg, K: Commission revendeur,
+      L: Tax amount, M: Prelevement, N: Date transaction
+
+    Agrégation par PDV (Numero revendeur) pour la période.
+    """
+    from openpyxl import load_workbook
+
+    wb = load_workbook(BytesIO(file_bytes), data_only=True, read_only=True)
+    ws = wb.active
+
+    # Lecture en-têtes
+    headers = [str(c.value or "").strip().lower() for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    col_idx = {h: i for i, h in enumerate(headers)}
+
+    # Colonnes nécessaires
+    def ci(name):
+        for k, v in col_idx.items():
+            if name.lower() in k.lower():
+                return v
+        return None
+
+    idx_numero = ci("numero revendeur")
+    idx_grade  = ci("grade")
+    idx_parent = ci("numero parent")
+    idx_comm_pdg = ci("commission pdg")
+    idx_comm_rev = ci("commission revendeur")
+
+    if idx_numero is None or idx_grade is None or idx_comm_pdg is None:
+        raise HTTPException(400, f"Colonnes obligatoires introuvables. Colonnes: {headers}")
+
+    # Agrégation par PDV
+    pdv_data: Dict[str, Dict[str, Any]] = {}
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row or row[idx_numero] is None:
+            continue
+
+        numero = str(row[idx_numero]).strip()
+        if not numero:
+            continue
+
+        grade_raw = str(row[idx_grade] or "").strip().lower()
+
+        def pf(val):
+            try: return float(str(val or 0).replace(" ", "").replace(",", "."))
+            except: return 0.0
+
+        comm_pdg = pf(row[idx_comm_pdg])
+        comm_rev = pf(row[idx_comm_rev]) if idx_comm_rev is not None else 0.0
+        superviseur = str(row[idx_parent]).strip() if idx_parent is not None and row[idx_parent] else None
+
+        if numero not in pdv_data:
+            pdv_data[numero] = {
+                "grade": grade_raw,
+                "superviseur": superviseur,
+                "comm_pdg": 0.0,
+                "comm_rev": 0.0,
+            }
+        pdv_data[numero]["comm_pdg"] += comm_pdg
+        pdv_data[numero]["comm_rev"] += comm_rev
+
+    wb.close()
+
+    # Index PDV existants
+    pdv_index = {
+        str(p.numero_pdv).strip(): p
+        for p in db.query(PDV).filter(PDV.numero_pdv.isnot(None)).all()
+    }
+
+    created, updated, skipped = 0, 0, 0
+    now = datetime.utcnow()
+
+    for numero, d in pdv_data.items():
+        # Déterminer le type
+        grade = d["grade"]
+        pdv_type = None
+        for g_key, g_type in GRADE_TO_TYPE.items():
+            if g_key in grade:
+                pdv_type = g_type
+                break
+        if pdv_type is None:
+            skipped += 1
+            continue
+
+        comm_pdg = round(d["comm_pdg"], 2)
+        comm_rev = round(d["comm_rev"], 2)
+        gere_rev = TYPE_GERE_REVERSEMENT[pdv_type]
+
+        # Logique Orange Mali :
+        # RNS/RSF : PDG reçoit seulement Commission PDG, Orange paie les PDVs
+        #   → montant_brut = comm_pdg (seul montant reçu par le PDG)
+        #   → montant_reseau = comm_pdg (le PDG garde tout ce qu'il reçoit)
+        #   → montant_pdv = comm_rev (payé directement par Orange, pas par le PDG)
+        # RS/KIOSQUE : PDG reçoit tout (comm_pdg + comm_rev)
+        #   → montant_brut = comm_pdg + comm_rev (total reçu par le PDG)
+        #   → montant_reseau = comm_pdg (ce que le PDG garde)
+        #   → montant_pdv = comm_rev (ce que le PDG doit reverser)
+        if gere_rev:
+            montant_brut = comm_pdg + comm_rev
+        else:
+            montant_brut = comm_pdg
+
+        montant_reseau = comm_pdg
+        montant_pdv = comm_rev
+
+        pdv_obj = pdv_index.get(numero)
+        pdv_id = pdv_obj.id if pdv_obj else None
+        pdv_nom = pdv_obj.nom if pdv_obj else None
+        quartier = pdv_obj.quartier if pdv_obj else None
+        zone = pdv_obj.zone if pdv_obj else None
+        sous_zone = pdv_obj.sous_zone if pdv_obj and hasattr(pdv_obj, 'sous_zone') else None
+        gestionnaire = pdv_obj.gestionnaire if pdv_obj and hasattr(pdv_obj, 'gestionnaire') else None
+        superviseur = d.get("superviseur")
+
+        existing = db.query(CommissionEntry).filter(
+            CommissionEntry.pdv_numero == numero,
+            CommissionEntry.period_key == period_key,
+        ).first()
+
+        if existing:
+            existing.pdv_type = pdv_type
+            existing.montant_brut = montant_brut
+            existing.montant_reseau = montant_reseau
+            existing.montant_pdv = montant_pdv
+            existing.gere_reversement = gere_rev
+            existing.superviseur = superviseur or existing.superviseur
+            existing.quartier = quartier or existing.quartier
+            existing.zone = zone or existing.zone
+            existing.imported_at = now
+            if existing.reversement_status == ReversementStatus.NON_APPLICABLE and gere_rev:
+                existing.reversement_status = ReversementStatus.EN_ATTENTE
+            elif not gere_rev:
+                existing.reversement_status = ReversementStatus.NON_APPLICABLE
+            updated += 1
+        else:
+            db.add(CommissionEntry(
+                pdv_id=pdv_id, pdv_numero=numero, pdv_nom=pdv_nom,
+                pdv_type=pdv_type, quartier=quartier, zone=zone,
+                sous_zone=sous_zone, gestionnaire=gestionnaire,
+                superviseur=superviseur, period_key=period_key,
+                period_type="MONTHLY",
+                montant_brut=montant_brut,
+                montant_reseau=montant_reseau,
+                montant_pdv=montant_pdv,
+                gere_reversement=gere_rev,
+                reversement_status=(
+                    ReversementStatus.EN_ATTENTE if gere_rev
+                    else ReversementStatus.NON_APPLICABLE
+                ),
+                source="import_orange_export",
+                imported_by_id=user_id,
+            ))
+            created += 1
+
+    db.commit()
+
+    db.add(CommissionImport(
+        filename=filename, period_key=period_key, period_type="MONTHLY",
+        imported_by_id=user_id, n_created=created, n_updated=updated, n_skipped=skipped,
+        notes=f"Import EXPORT Orange - {len(pdv_data)} PDVs agrégés"
+    ))
+    db.commit()
+
+    return {
+        "created": created, "updated": updated, "skipped": skipped,
+        "period_key": period_key, "total_pdvs": len(pdv_data),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # DASHBOARD GLOBAL
 # ─────────────────────────────────────────────────────────────────────────────
 def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
@@ -194,18 +398,18 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     Vue synthétique pour une période.
 
     Logique Orange Mali :
-      ─ RNS / RSF : Orange verse 100% au PDV directement.
-                    Le réseau reçoit SEULEMENT ses 30% (montant_reseau).
+      ─ RNS / RSF : Orange paie directement les PDVs (Commission Revendeur).
+                    Le PDG reçoit SEULEMENT sa Commission PDG (montant_reseau).
                     → gere_reversement = False
-      ─ RS / KIOSQUE : Orange verse 100% au PDG.
-                    Le PDG garde ses 30% ET détient les 70% du PDV en transit.
+      ─ RS / KIOSQUE : Orange verse tout au PDG (Commission PDG + Commission Revendeur).
+                    Le PDG garde sa Commission PDG (montant_reseau)
+                    et détient la Commission Revendeur en transit (montant_pdv, à reverser).
                     → gere_reversement = True
 
-    Trois niveaux de lecture du "montant réseau" :
-      1. commission_brute   = Σ(montant_reseau) tous types       ← ce que le réseau DOIT garder
-      2. montant_en_transit = Σ(montant_pdv) RS+KIOSQUE          ← 70% reçus, à reverser
-      3. commission_nette   = commission_brute + reste_a_reverser ← ce que le PDG a EN CAISSE maintenant
-                            = commission_brute si tout est reversé
+    Trois niveaux de lecture :
+      1. commission_pdg     = Σ(montant_reseau) tous types       ← ce que le PDG GARDE définitivement
+      2. montant_en_transit = Σ(montant_pdv) RS+KIOSQUE          ← Comm Revendeur reçue, à reverser
+      3. commission_nette   = commission_pdg + reste_a_reverser  ← ce que le PDG a EN CAISSE maintenant
     """
     q = db.query(CommissionEntry).filter(CommissionEntry.period_key == period_key)
     if pdv_type:
@@ -229,32 +433,39 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     total_reseau = sum(e.montant_reseau for e in entries)   # Σ 30% tous types
     total_pdv    = sum(e.montant_pdv for e in entries)      # Σ 70% tous types
 
-    # ── Commission BRUTE réseau (30% pour tous les PDV) ──────────────────────
-    commission_brute_rns_rsf    = sum(e.montant_reseau for e in ents_directs)
-    commission_brute_rs_kiosque = sum(e.montant_reseau for e in ents_geres)
-    commission_brute_total      = round(total_reseau, 2)   # = commission_brute_rns_rsf + commission_brute_rs_kiosque
+    # ── Commission PDG = Σ(montant_reseau) = ce que le PDG garde ────────────
+    commission_pdg_rns_rsf    = sum(e.montant_reseau for e in ents_directs)
+    commission_pdg_rs_kiosque = sum(e.montant_reseau for e in ents_geres)
+    commission_pdg_total      = round(total_reseau, 2)
 
-    # ── Montant en transit (70% RS+KIOSQUE que le PDG détient) ───────────────
-    montant_en_transit = sum(e.montant_pdv for e in ents_geres)     # à reverser
+    # ── Commission Revendeur = Σ(montant_pdv) = ce que les PDV reçoivent ─────
+    commission_rev_rns_rsf    = sum(e.montant_pdv for e in ents_directs)   # payé par Orange directement
+    commission_rev_rs_kiosque = sum(e.montant_pdv for e in ents_geres)     # à reverser par le PDG
+    commission_revendeur_total = round(total_pdv, 2)
+
+    # ── Montant en transit (Comm Revendeur RS+KIOSQUE que le PDG détient) ────
+    montant_en_transit = commission_rev_rs_kiosque                # à reverser
     total_reverse      = sum(e.montant_reverse or 0 for e in ents_geres)
-    total_reste        = montant_en_transit - total_reverse          # reste dû aux PDV
+    total_reste        = montant_en_transit - total_reverse       # reste dû aux PDV
 
-    # ── Commission NETTE réseau (ce que le PDG a réellement en caisse) ────────
-    # = ses 30% + les 70% RS/KIOSQUE pas encore reversés
-    commission_nette = commission_brute_total + total_reste
+    # ── Commission NETTE (ce que le PDG a EN CAISSE maintenant) ──────────────
+    # = sa Commission PDG + les Comm Revendeur RS/KIOSQUE pas encore reversées
+    commission_nette = commission_pdg_total + total_reste
 
-    # ── Commission Revendeur = 70% de tous les PDV (ce que les PDV reçoivent) ──
-    commission_revendeur_total = round(total_pdv, 2)  # Σ montant_pdv = 70% tous types
+    # ── Montant total reçu par le PDG (trésorerie entrante) ─────────────────
+    # RNS/RSF : reçoit seulement Commission PDG
+    # RS/KIOSQUE : reçoit Commission PDG + Commission Revendeur
+    montant_recu_pdg = round(
+        commission_pdg_rns_rsf + (commission_pdg_rs_kiosque + commission_rev_rs_kiosque), 2
+    )
 
-    # ── Taux de variation vs mois précédent ───────────────────────────────────
-    # Comparer les commission_brute (30% réseau) du mois courant vs mois précédent
+    # ── Taux de variation Commission PDG vs mois précédent ───────────────────
     year_str, month_str = period_key.split("-")
     annee_int, mois_int = int(year_str), int(month_str)
     mois_prec = mois_int - 1 if mois_int > 1 else 12
     annee_prec = annee_int if mois_int > 1 else annee_int - 1
     prev_period = f"{annee_prec:04d}-{mois_prec:02d}"
 
-    # Requête mois précédent sur commission_entries (même source de données)
     q_prec = db.query(func.sum(CommissionEntry.montant_reseau)).filter(
         CommissionEntry.period_key == prev_period
     )
@@ -267,14 +478,8 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     if zone:
         q_prec = q_prec.filter(CommissionEntry.zone == zone)
 
-    reseau_prec = q_prec.scalar() or 0
-    taux_variation = round(((commission_brute_total - reseau_prec) / reseau_prec * 100), 2) if reseau_prec > 0 else 0
-
-    # ── Montant que le PDG garde définitivement = ses 30% sur tout ────────────
-    # RNS/RSF  → PDG reçoit 30% (montant_reseau), Orange paye les 70% aux PDVs
-    # RS/KIOSQUE → PDG reçoit 100% mais garde 30%, reverse 70%
-    # Dans tous les cas, le PDG garde ses 30% = total_reseau
-    montant_recu_pdg = round(total_reseau, 2)
+    pdg_prec = q_prec.scalar() or 0
+    taux_variation = round(((commission_pdg_total - pdg_prec) / pdg_prec * 100), 2) if pdg_prec > 0 else 0
 
     # ── Ventilation par type ───────────────────────────────────────────────────
     by_type = {}
@@ -352,22 +557,23 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         "n_pdv_directs": len(ents_directs),    # RNS + RSF
         "n_pdv_geres":   len(ents_geres),      # RS + KIOSQUE
 
-        # ── Montants globaux (correspondance exacte fichier Orange Excel) ──────
-        # total_brut = Commission PDG dans Excel (ce qu'Orange verse au PDG)
-        # total_pdv  = Commission Revendeur dans Excel (70% RNS/RSF payé par Orange aux PDVs)
-        "total_brut":   round(total_brut, 2),    # = Commission PDG Excel (30% RNS/RSF + 100% RS/KIOSQUE)
-        "total_reseau":  round(total_reseau, 2),  # Σ 30% de tout
-        "total_pdv":    round(total_pdv, 2),     # = Commission Revendeur Excel (70% RNS/RSF)
-        "taux_reseau": TAUX_RESEAU * 100,
+        # ── Montants globaux ──────────────────────────────────────────────
+        "total_brut":   round(total_brut, 2),     # Σ montant_brut (RNS/RSF: CommPDG seul | RS/KIOSQUE: CommPDG+CommRev)
+        "total_reseau": round(total_reseau, 2),   # Σ Commission PDG tous types
+        "total_pdv":    round(total_pdv, 2),      # Σ Commission Revendeur tous types
         "taux_variation": taux_variation,
-        "taux_pdv":    TAUX_PDV * 100,
- 
-        # ── Décomposition 30% réseau par type de PDV ─────────────────
-        # commission_brute = les 30% que le PDG garde définitivement
+
+        # ── Commission PDG par type ──────────────────────────────────
         "commission_brute": {
-            "total":      round(commission_brute_total, 2),                               # Σ 30% tous types
-            "rns_rsf":    round(commission_brute_rns_rsf, 2),                              # 30% RNS/RSF
-            "rs_kiosque": round(commission_brute_rs_kiosque, 2),                            # 30% RS/KIOSQUE
+            "total":      round(commission_pdg_total, 2),         # Σ Commission PDG tous types
+            "rns_rsf":    round(commission_pdg_rns_rsf, 2),       # Commission PDG RNS/RSF
+            "rs_kiosque": round(commission_pdg_rs_kiosque, 2),    # Commission PDG RS/KIOSQUE
+        },
+        # ── Commission Revendeur par type ────────────────────────────
+        "commission_revendeur": {
+            "total":      round(commission_revendeur_total, 2),   # Σ Commission Revendeur tous types
+            "rns_rsf":    round(commission_rev_rns_rsf, 2),       # payé par Orange directement
+            "rs_kiosque": round(commission_rev_rs_kiosque, 2),    # à reverser par le PDG
         },
         "montant_en_transit": {
             "total":          round(montant_en_transit, 2),  # 70% RS+KIOSQUE reçus par PDG
@@ -383,11 +589,6 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
 
         "montant_recu_pdg": round(montant_recu_pdg, 2),
         "commission_revendeur_total": round(commission_revendeur_total, 2),
-        # = Σ 70% tous types = ce que les PDV reçoivent au total
-        
-        # Bruts par catégorie (pour affichage frontend flux Orange)
-        "brut_rns_rsf": round(sum(e.montant_brut for e in ents_directs), 2),
-        "brut_rs_kiosque": round(sum(e.montant_brut for e in ents_geres), 2),
 
         # ── Ventilations ──────────────────────────────────────────────────
         "by_type":     list(by_type.values()),
@@ -407,20 +608,18 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
 
 def _empty_dashboard(period_key: str) -> Dict[str, Any]:
     empty_transit = {"total": 0, "deja_reverse": 0, "reste_a_payer": 0, "taux_reversement": 0}
-    empty_brute   = {"total": 0, "rns_rsf": 0, "rs_kiosque": 0}
+    empty_comm    = {"total": 0, "rns_rsf": 0, "rs_kiosque": 0}
     return {
         "period_key": period_key, "n_pdv_total": 0,
         "n_pdv_directs": 0, "n_pdv_geres": 0,
         "total_brut": 0, "total_reseau": 0, "total_pdv": 0,
-        "taux_reseau": 30, "taux_pdv": 70,
         "taux_variation": 0,
-        "commission_brute":    empty_brute,
-        "montant_en_transit":  empty_transit,
-        "commission_nette":    0,
-        "montant_recu_pdg":    0,
+        "commission_brute":      empty_comm,
+        "commission_revendeur":  empty_comm,
+        "montant_en_transit":    empty_transit,
+        "commission_nette":      0,
+        "montant_recu_pdg":      0,
         "commission_revendeur_total": 0,
-        "brut_rns_rsf": 0,
-        "brut_rs_kiosque": 0,
         "by_type": [], "by_quartier": [], "by_zone": [],
         "reversements": {"total_a_reverser": 0, "total_reverse": 0, "total_reste": 0,
                          "n_pdv_concernes": 0, "by_status": {}},

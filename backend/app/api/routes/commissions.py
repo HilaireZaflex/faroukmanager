@@ -106,6 +106,19 @@ def import_xlsx(
                            period_key, period_type, col_mapping, current_user.id)
 
 
+@router.post("/import-orange")
+def import_orange(
+    period_key: str = Form(..., description="ex: 2026-04"),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Import depuis fichier EXPORT Orange (14 colonnes: Numero revendeur, Grade, ..., Commission pdg, Commission revendeur, ...)"""
+    content = file.file.read()
+    return svc.import_orange_export(db, content, file.filename or "export_orange.xlsx",
+                                    period_key, current_user.id)
+
+
 @router.get("/export.xlsx")
 def export(
     period_key: str = Query(...),
