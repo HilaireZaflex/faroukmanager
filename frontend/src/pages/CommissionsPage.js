@@ -96,13 +96,39 @@ function TabDashboard({ period }) {
       </div>
 
       {/* ── KPI NIVEAU 1 : Vue globale ── */}
+      {(() => {
+        const isDirect = typeFilter === 'RNS' || typeFilter === 'RSF';
+        const isGere   = typeFilter === 'RS'  || typeFilter === 'KIOSQUE';
+        const isAll    = !typeFilter;
+
+        // Légende dynamique Commission PDG
+        let legendCommPDG;
+        if (typeFilter === 'RNS')     legendCommPDG = '30% RNS — reçus par le PDG d\'Orange';
+        else if (typeFilter === 'RSF') legendCommPDG = '30% RSF — reçus par le PDG d\'Orange';
+        else if (typeFilter === 'RS')  legendCommPDG = '100% RS — reçus par le PDG (30% gardés + 70% à reverser)';
+        else if (typeFilter === 'KIOSQUE') legendCommPDG = '100% KIOSQUE — reçus par le PDG (30% gardés + 70% à reverser)';
+        else legendCommPDG = `30% RNS/RSF (${fmtM(cb.rns_rsf||0)}) + 100% RS/KIOSQUE (${fmtM(cb.rs_kiosque||0)})`;
+
+        // Légende dynamique Commission Revendeur
+        let legendCommRev;
+        if (isGere)    legendCommRev = `70% ${typeFilter} à reverser par le PDG aux PDV`;
+        else if (isDirect) legendCommRev = `70% ${typeFilter} payés directement par Orange aux PDV`;
+        else           legendCommRev = '70% RNS/RSF payés directement par Orange aux PDV';
+
+        // Légende Commission Réelle PDG
+        const legendCommReelle = `(${fmtM(cb.total||0)} + ${fmtM(data.commission_revendeur_total||0)}) × 30%`;
+
+        // Légende PDV actifs
+        let legendPDV;
+        if (typeFilter) legendPDV = `${data.n_pdv_total} PDV de type ${typeFilter}`;
+        else legendPDV = `RNS/RSF : ${data.n_pdv_directs} · RS/KIOSQUE : ${data.n_pdv_geres}`;
+
+        return (
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total PDV actifs</div>
           <div className="stat-value" style={{ fontSize: 28, fontWeight: 800 }}>{data.n_pdv_total}</div>
-          <small style={{ color: 'var(--text-muted)' }}>
-            RNS/RSF : {data.n_pdv_directs} · RS/KIOSQUE : {data.n_pdv_geres}
-          </small>
+          <small style={{ color: 'var(--text-muted)' }}>{legendPDV}</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
           <div className="stat-label">🏦 Commission PDG</div>
@@ -110,9 +136,7 @@ function TabDashboard({ period }) {
             {Math.round(cb.total||0).toLocaleString('en-US').replace(/,/g, ' ')}
           </div>
           <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-            30% RNS/RSF ({fmtM(cb.rns_rsf||0)}) + 100% RS/KIOSQUE ({fmtM(cb.rs_kiosque||0)})
-          </small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>{legendCommPDG}</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#8b5cf6' }}>
           <div className="stat-label">🔵 Commission Revendeur</div>
@@ -120,7 +144,7 @@ function TabDashboard({ period }) {
             {Math.round(data.commission_revendeur_total||0).toLocaleString('en-US').replace(/,/g, ' ')}
           </div>
           <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>70% RNS/RSF payés directement par Orange aux PDV</small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>{legendCommRev}</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">💰 Commission Réelle PDG</div>
@@ -128,16 +152,20 @@ function TabDashboard({ period }) {
             {Math.round(data.commission_reelle_pdg||0).toLocaleString('en-US').replace(/,/g, ' ')}
           </div>
           <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>({fmtM(cb.total||0)} + {fmtM(data.commission_revendeur_total||0)}) × 30%</small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>{legendCommReelle}</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">📊 Variation vs mois précédent</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: (data.taux_variation||0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
             {(data.taux_variation||0) >= 0 ? '+' : ''}{(data.taux_variation||0).toFixed(2)}%
           </div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Évolution Commission Réelle PDG vs mois précédent</small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+            {typeFilter ? `Commission Réelle PDG — ${typeFilter}` : 'Évolution Commission Réelle PDG vs mois précédent'}
+          </small>
         </div>
       </div>
+        );
+      })()}
 
 
       {/* ── Schéma visuel répartition ── */}
