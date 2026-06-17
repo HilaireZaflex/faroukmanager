@@ -452,12 +452,8 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     # = sa Commission PDG + les Comm Revendeur RS/KIOSQUE pas encore reversées
     commission_nette = commission_pdg_total + total_reste
 
-    # ── Commission Réelle PDG ──────────────────────────────────────────────────
-    # RNS/RSF  : CommPDG = déjà les 30% du PDG → contribution = commission_pdg_rns_rsf
-    # RS/KIOSQUE : CommPDG = 100% → 30% PDG = commission_pdg_rs_kiosque × 30%
-    commission_reelle_pdg = round(
-        commission_pdg_rns_rsf + commission_pdg_rs_kiosque * 30 / 100, 2
-    )
+    # ── Commission Réelle PDG = (Commission PDG + Commission Revendeur) × 30% ──
+    commission_reelle_pdg = round((total_reseau + total_pdv) * 30 / 100, 2)
 
     # ── Taux de variation Commission PDG vs mois précédent ───────────────────
     year_str, month_str = period_key.split("-")

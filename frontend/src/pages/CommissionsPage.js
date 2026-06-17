@@ -142,18 +142,17 @@ function TabDashboard({ period }) {
 
       {/* ── Schéma visuel répartition ── */}
       {(() => {
-        // RNS/RSF : CommPDG = déjà les 30%, CommRev = les 70% directs
-        const rns_rsf_30 = cb.rns_rsf || 0;                                   // 30% PDG RNS/RSF (= col CommPDG Orange)
-        const rns_rsf_70 = cr.rns_rsf || 0;                                   // 70% PDV RNS/RSF (= col CommRev Orange)
-        const totalRnsRsf = rns_rsf_30 + rns_rsf_70;                          // Total RNS/RSF
+        // RNS/RSF : total = CommPDG + CommRev, 30% PDG = total×30%, 70% PDV = total×70%
+        const totalRnsRsf = (cb.rns_rsf || 0) + (cr.rns_rsf || 0);
+        const rns_rsf_30 = totalRnsRsf * 30 / 100;
+        const rns_rsf_70 = totalRnsRsf * 70 / 100;
 
-        // RS/KIOSQUE : CommPDG = 100% → 30% PDG garde, 70% PDV reverse
-        const totalRsKiosque = cb.rs_kiosque || 0;                             // 100% reçus par le PDG
-        const rs_kiosque_30 = totalRsKiosque * 30 / 100;                      // 30% que le PDG garde
-        const rs_kiosque_70 = totalRsKiosque * 70 / 100;                      // 70% que le PDG reverse aux PDV
+        // RS/KIOSQUE : CommPDG = 100%, 30% PDG garde, 70% PDV reverse
+        const totalRsKiosque = cb.rs_kiosque || 0;
+        const rs_kiosque_30 = totalRsKiosque * 30 / 100;
+        const rs_kiosque_70 = totalRsKiosque * 70 / 100;
 
-        // Vérification : total_30 doit = Commission Réelle PDG
-        // total_30 = rns_rsf_30 + rs_kiosque_30
+        // total_30 = rns_rsf_30 + rs_kiosque_30 = Commission Réelle PDG ✅
         return (
       <div className="modal-section" style={{ background: 'var(--bg-card)' }}>
         <h3>📐 Répartition Orange Mali — Comment ça fonctionne</h3>
