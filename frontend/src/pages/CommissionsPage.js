@@ -101,32 +101,32 @@ function TabDashboard({ period }) {
           <div className="stat-label">Total PDV actifs</div>
           <div className="stat-value">{data.n_pdv_total}</div>
           <small style={{ color: 'var(--text-muted)' }}>
-            {data.n_pdv_directs} RNS/RSF · {data.n_pdv_geres} RS/KIOSQUE
+            RNS/RSF : {data.n_pdv_directs} · RS/KIOSQUE : {data.n_pdv_geres}
           </small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
           <div className="stat-label">🏦 Commission PDG</div>
           <div className="stat-value" style={{ fontSize: 15 }}>{fmt(cb.total||0)}</div>
           <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-            Ce que le PDG garde définitivement
+            30% RNS/RSF ({fmt(cb.rns_rsf||0)}) + 100% RS/KIOSQUE ({fmt(cb.rs_kiosque||0)})
           </small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#8b5cf6' }}>
           <div className="stat-label">🔵 Commission Revendeur</div>
           <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.commission_revendeur_total||0)}</div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Ce que les PDV reçoivent</small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>70% RNS/RSF payés directement par Orange aux PDV</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">💰 Commission Réelle PDG</div>
           <div className="stat-value" style={{ fontSize: 15 }}>{fmt(data.commission_reelle_pdg||0)}</div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>(Comm PDG + Comm Revendeur) × 30%</small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>({fmt(cb.total||0)} + {fmt(data.commission_revendeur_total||0)}) × 30%</small>
         </div>
         <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
           <div className="stat-label">📊 Variation vs mois précédent</div>
           <div className="stat-value" style={{ fontSize: 20, color: (data.taux_variation||0) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
             {(data.taux_variation||0) >= 0 ? '+' : ''}{(data.taux_variation||0).toFixed(2)}%
           </div>
-          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Évolution Commission PDG vs mois précédent</small>
+          <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>Évolution Commission Réelle PDG vs mois précédent</small>
         </div>
       </div>
 
