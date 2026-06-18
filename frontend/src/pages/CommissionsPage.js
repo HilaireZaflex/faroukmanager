@@ -392,6 +392,10 @@ function TabDetails({ period }) {
   const [gestionnaires, setGestionnaires] = useState([]);
   const [superviseurs, setSuperviseurs]   = useState([]);
 
+  // Pagination
+  const [page1, setPage1] = useState(1);
+  const [page2, setPage2] = useState(1);
+
   useEffect(() => {
     setLoading(true);
     commissionService.entries({ period_key: period, limit: 2000 }).then(r => {
@@ -404,7 +408,7 @@ function TabDetails({ period }) {
     }).finally(() => setLoading(false));
   }, [period]);
 
-  // Filtrage section 1
+  // Filtrage section 1 — reset page quand filtre change
   const entries1 = allEntries.filter(e => {
     if (zone && e.zone !== zone) return false;
     if (sousZone && e.sous_zone !== sousZone) return false;
@@ -413,7 +417,7 @@ function TabDetails({ period }) {
     return true;
   });
 
-  // Filtrage section 2
+  // Filtrage section 2 — reset page quand filtre change
   const entries2 = allEntries.filter(e => {
     if (gestionnaire && e.gestionnaire !== gestionnaire) return false;
     if (superviseur && e.superviseur !== superviseur) return false;
@@ -422,57 +426,84 @@ function TabDetails({ period }) {
     return true;
   });
 
-  const renderTable = (entries) => (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr>
-            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>N° PDV / Nom</th>
-            <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Type</th>
-            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone / Quartier</th>
-            <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
-            <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
-            <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
-            <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Paiement</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map(e => {
-            const isGere = e.gere_reversement;
-            const commPDG    = isGere ? e.montant_brut : e.montant_reseau;
-            const commRev    = isGere ? e.montant_brut * 0.7 : e.montant_pdv;
-            const commReelle = isGere ? e.montant_brut * 0.3 : e.montant_reseau;
-            return (
-              <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '10px 12px' }}>
-                  <div style={{ fontWeight: 700 }}>{e.pdv_numero}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_nom || '—'}</div>
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                  <span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span>
-                </td>
-                <td style={{ padding: '10px 12px' }}>
-                  <div style={{ fontSize: 12 }}>{e.zone || '—'}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.quartier || '—'}</div>
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(commPDG)}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(commRev)}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                  {isGere
-                    ? <span className="status-badge" style={{ background: '#8b5cf6', fontSize: 10 }}>🏪 PDG → PDV</span>
-                    : <span className="status-badge" style={{ background: '#3b82f6', fontSize: 10 }}>🟦 Orange → PDV</span>}
-                </td>
-              </tr>
-            );
-          })}
-          {entries.length === 0 && (
-            <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
+  // Reset pages quand filtres changent
+  useEffect(() => { setPage1(1); }, [zone, sousZone, quartier, search1]);
+  useEffect(() => { setPage2(1); }, [gestionnaire, superviseur, pdvType, search2]);
+
+  const PAGE_SIZE = 20;
+
+  const renderTable = (entries, page, setPage) => {
+    const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+    const paginated  = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    return (
+    <>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>N° PDV / Nom</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Type</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone / Quartier</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Paiement</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.map(e => {
+              const isGere = e.gere_reversement;
+              const commPDG    = isGere ? e.montant_brut : e.montant_reseau;
+              const commRev    = isGere ? e.montant_brut * 0.7 : e.montant_pdv;
+              const commReelle = isGere ? e.montant_brut * 0.3 : e.montant_reseau;
+              return (
+                <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ fontWeight: 700 }}>{e.pdv_numero}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_nom || '—'}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                    <span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ fontSize: 12 }}>{e.zone || '—'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.quartier || '—'}</div>
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(commPDG)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(commRev)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                    {isGere
+                      ? <span className="status-badge" style={{ background: '#8b5cf6', fontSize: 10 }}>🏪 PDG → PDV</span>
+                      : <span className="status-badge" style={{ background: '#3b82f6', fontSize: 10 }}>🟦 Orange → PDV</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            {paginated.length === 0 && (
+              <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="pdv-pagination">
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            {entries.length} PDV · Page {page} / {totalPages}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPage(1)} disabled={page === 1}>«</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← Préc.</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Suiv. →</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</button>
+          </div>
+        </div>
+      )}
+    </>
+    );
+  };
 
   if (loading) return <div className="loading-state">Chargement…</div>;
 
@@ -506,7 +537,7 @@ function TabDetails({ period }) {
             </select>
           </div>
         </div>
-        {renderTable(entries1)}
+        {renderTable(entries1, page1, setPage1)}
       </AccordionSection>
 
       {/* ── Section 2 : Réseau & PDV ── */}
@@ -537,7 +568,7 @@ function TabDetails({ period }) {
             </select>
           </div>
         </div>
-        {renderTable(entries2)}
+        {renderTable(entries2, page2, setPage2)}
       </AccordionSection>
     </>
   );
