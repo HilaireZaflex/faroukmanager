@@ -227,36 +227,60 @@ function TabDashboard({ period }) {
           <table>
             <thead>
               <tr>
-                <th>Type</th><th>PDV</th><th>Brut (100%)</th>
-                <th style={{ color: 'var(--success)' }}>Réseau (30%)</th>
-                <th style={{ color: '#8b5cf6' }}>PDV (70%)</th>
-                <th style={{ color: '#3b82f6' }}>Comm. NET</th>
-                <th>Mode</th>
+                <th>Type</th>
+                <th>Nbre PDV</th>
+                <th style={{ color: 'var(--success)' }}>Commission PDG</th>
+                <th style={{ color: '#8b5cf6' }}>Commission Revendeur</th>
+                <th style={{ color: '#f59e0b' }}>Commission Réelle PDG (30%)</th>
+                <th>Mode paiement PDV</th>
               </tr>
             </thead>
             <tbody>
-              {data.by_type.map(t => (
+              {data.by_type.map(t => {
+                // RNS/RSF : CommPDG = reseau, CommRev = pdv (payé par Orange)
+                // RS/KIOSQUE : CommPDG = brut (100%), CommRev = brut×70% (à reverser), Réelle = brut×30%
+                const isGere = t.gere_reversement;
+                const commPDG = isGere ? t.brut : t.reseau;
+                const commRev = isGere ? t.brut * 0.7 : t.pdv;
+                const commReelle = isGere ? t.brut * 0.3 : t.reseau;
+                return (
                 <tr key={t.type}>
                   <td><span className="status-badge" style={{ background: TYPE_COLORS[t.type] }}>{TYPE_LABELS[t.type]}</span></td>
-                  <td>{t.n_pdv}</td>
-                  <td style={{ fontFamily: 'monospace' }}>{fmt(t.brut)}</td>
-                  <td style={{ fontFamily: 'monospace', color: 'var(--success)', fontWeight: 700 }}>{fmt(t.reseau)}</td>
-                  <td style={{ fontFamily: 'monospace', color: '#8b5cf6' }}>{fmt(t.pdv)}</td>
-                  <td style={{ fontFamily: 'monospace', color: '#3b82f6', fontWeight: 700 }}>{fmt(t.commission_nette)}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 700 }}>{t.n_pdv}</td>
+                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(commPDG)}</td>
+                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#8b5cf6' }}>{fmt(commRev)}</td>
+                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
                   <td>
-                    {t.gere_reversement
-                      ? <span className="status-badge" style={{ background: '#8b5cf6' }}>🏪 PDG → PDV</span>
-                      : <span className="status-badge" style={{ background: '#3b82f6' }}>🟦 Orange → PDV</span>}
+                    {isGere
+                      ? <span className="status-badge" style={{ background: '#8b5cf6' }}>🏪 PDG reverse au PDV</span>
+                      : <span className="status-badge" style={{ background: '#3b82f6' }}>🟦 Orange paie directement</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
+              {/* Ligne total */}
+              {data.by_type.length > 0 && (() => {
+                const totalCommPDG = data.by_type.reduce((s, t) => s + (t.gere_reversement ? t.brut : t.reseau), 0);
+                const totalCommRev = data.by_type.reduce((s, t) => s + (t.gere_reversement ? t.brut * 0.7 : t.pdv), 0);
+                const totalCommReelle = data.by_type.reduce((s, t) => s + (t.gere_reversement ? t.brut * 0.3 : t.reseau), 0);
+                return (
+                  <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.03)' }}>
+                    <td><b>TOTAL</b></td>
+                    <td style={{ textAlign: 'center', fontWeight: 800 }}>{data.n_pdv_total}</td>
+                    <td style={{ fontFamily: 'monospace', textAlign: 'right', color: 'var(--success)', fontWeight: 800 }}>{fmt(totalCommPDG)}</td>
+                    <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#8b5cf6', fontWeight: 800 }}>{fmt(totalCommRev)}</td>
+                    <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(totalCommReelle)}</td>
+                    <td></td>
+                  </tr>
+                );
+              })()}
             </tbody>
           </table>
         </div>
         <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8, padding: '10px 0', borderTop: '1px solid var(--border)' }}>
-          📌 <b>RNS & RSF</b> : Commission PDG = 30% reçus par le PDG. Commission Revendeur = 70% payés directement par Orange aux PDV.<br/>
-          📌 <b>RS & KIOSQUE</b> : Commission PDG = 100% reçus par le PDG. Le PDG garde 30% et reverse 70% aux PDV.<br/>
-          📌 <b>Commission Réelle PDG</b> = (Commission PDG + Commission Revendeur) × 30%.
+          📌 <b>RNS & RSF</b> : Commission PDG = 30% reçus d'Orange. Commission Revendeur = 70% payés directement par Orange aux PDV.<br/>
+          📌 <b>RS & KIOSQUE</b> : Commission PDG = 100% reçus d'Orange. Le PDG garde 30% (Comm Réelle) et reverse 70% aux PDV.<br/>
+          📌 <b>Commission Réelle PDG</b> = 30% pour RNS/RSF + 30% × CommPDG pour RS/KIOSQUE.
         </div>
       </div>
 
