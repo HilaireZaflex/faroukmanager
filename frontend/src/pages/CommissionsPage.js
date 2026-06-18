@@ -352,84 +352,174 @@ function TabDashboard({ period }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Onglet 2 : DÉTAIL PDV
 // ─────────────────────────────────────────────────────────────────────────────
+function AccordionSection({ title, defaultOpen = true, children, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="modal-section" style={{ background: 'var(--bg-card)', padding: 0, marginBottom: 12 }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px', background: open ? 'rgba(255,105,0,0.08)' : 'rgba(255,255,255,0.03)',
+        border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14, fontWeight: 700, borderRadius: 'var(--radius)',
+      }}>
+        <span>{title}{badge && <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,105,0,0.2)', color: '#FF6900', marginLeft: 10 }}>{badge}</span>}</span>
+        <span style={{ fontSize: 18, transition: 'transform 0.2s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', color: '#FF6900' }}>▾</span>
+      </button>
+      {open && <div style={{ padding: '16px 20px' }}>{children}</div>}
+    </div>
+  );
+}
+
 function TabDetails({ period }) {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ pdv_type: '', quartier: '', search: '' });
-  const [quartiers, setQuartiers] = useState([]);
+  const [allEntries, setAllEntries] = useState([]);
+  const [loading, setLoading]       = useState(false);
+
+  // Filtres section 1 : Zones & Localisation
+  const [zone, setZone]         = useState('');
+  const [sousZone, setSousZone] = useState('');
+  const [quartier, setQuartier] = useState('');
+  const [search1, setSearch1]   = useState('');
+
+  // Filtres section 2 : Réseau & PDV
+  const [gestionnaire, setGestionnaire] = useState('');
+  const [superviseur, setSuperviseur]   = useState('');
+  const [pdvType, setPdvType]           = useState('');
+  const [search2, setSearch2]           = useState('');
+
+  // Listes déroulantes dynamiques
+  const [zones, setZones]           = useState([]);
+  const [sousZones, setSousZones]   = useState([]);
+  const [quartiers, setQuartiers]   = useState([]);
+  const [gestionnaires, setGestionnaires] = useState([]);
+  const [superviseurs, setSuperviseurs]   = useState([]);
 
   useEffect(() => {
     setLoading(true);
-    commissionService.entries({ period_key: period, limit: 200,
-      ...(filters.pdv_type ? { pdv_type: filters.pdv_type } : {}),
-      ...(filters.quartier ? { quartier: filters.quartier } : {}),
-      ...(filters.search ? { search: filters.search } : {}),
-    }).then(r => {
-      setEntries(r);
-      const qs = [...new Set(r.map(e => e.quartier).filter(Boolean))].sort();
-      setQuartiers(qs);
+    commissionService.entries({ period_key: period, limit: 2000 }).then(r => {
+      setAllEntries(r);
+      setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
+      setGestionnaires([...new Set(r.map(e => e.gestionnaire).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
     }).finally(() => setLoading(false));
-  }, [period, filters]);
+  }, [period]);
+
+  // Filtrage section 1
+  const entries1 = allEntries.filter(e => {
+    if (zone && e.zone !== zone) return false;
+    if (sousZone && e.sous_zone !== sousZone) return false;
+    if (quartier && e.quartier !== quartier) return false;
+    if (search1 && !(e.pdv_numero?.includes(search1) || e.pdv_nom?.toLowerCase().includes(search1.toLowerCase()))) return false;
+    return true;
+  });
+
+  // Filtrage section 2
+  const entries2 = allEntries.filter(e => {
+    if (gestionnaire && e.gestionnaire !== gestionnaire) return false;
+    if (superviseur && e.superviseur !== superviseur) return false;
+    if (pdvType && e.pdv_type !== pdvType) return false;
+    if (search2 && !(e.pdv_numero?.includes(search2) || e.pdv_nom?.toLowerCase().includes(search2.toLowerCase()))) return false;
+    return true;
+  });
+
+  const renderTable = (entries) => (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>N° PDV / Nom</th>
+            <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Type</th>
+            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone / Quartier</th>
+            <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
+            <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
+            <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
+            <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Paiement</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(e => {
+            const isGere = e.gere_reversement;
+            const commPDG    = isGere ? e.montant_brut : e.montant_reseau;
+            const commRev    = isGere ? e.montant_brut * 0.7 : e.montant_pdv;
+            const commReelle = isGere ? e.montant_brut * 0.3 : e.montant_reseau;
+            return (
+              <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '10px 12px' }}>
+                  <div style={{ fontWeight: 700 }}>{e.pdv_numero}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_nom || '—'}</div>
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                  <span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span>
+                </td>
+                <td style={{ padding: '10px 12px' }}>
+                  <div style={{ fontSize: 12 }}>{e.zone || '—'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.quartier || '—'}</div>
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(commPDG)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(commRev)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                  {isGere
+                    ? <span className="status-badge" style={{ background: '#8b5cf6', fontSize: 10 }}>🏪 PDG → PDV</span>
+                    : <span className="status-badge" style={{ background: '#3b82f6', fontSize: 10 }}>🟦 Orange → PDV</span>}
+                </td>
+              </tr>
+            );
+          })}
+          {entries.length === 0 && (
+            <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const selectStyle = { padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 };
+  const inputStyle  = { padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12, minWidth: 180 };
+
+  if (loading) return <div className="loading-state">Chargement…</div>;
 
   return (
     <>
-      <div className="filters">
-        <input placeholder="Rechercher PDV…" value={filters.search}
-          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}/>
-        <select value={filters.pdv_type} onChange={e => setFilters(f => ({ ...f, pdv_type: e.target.value }))}>
-          <option value="">Tous types</option>
-          {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <select value={filters.quartier} onChange={e => setFilters(f => ({ ...f, quartier: e.target.value }))}>
-          <option value="">Tous quartiers</option>
-          {quartiers.map(q => <option key={q} value={q}>{q}</option>)}
-        </select>
-      </div>
-
-      {loading ? <div className="loading-state">Chargement…</div> : (
-        <div className="prospects-table">
-          <table>
-            <thead>
-              <tr>
-                <th>N° PDV</th><th>Nom</th><th>Type</th><th>Quartier</th>
-                <th>Brut (100%)</th>
-                <th style={{ color: 'var(--success)' }}>Réseau (30%)</th>
-                <th style={{ color: '#8b5cf6' }}>PDV (70%)</th>
-                <th style={{ color: '#3b82f6' }}>Comm. NET</th>
-                <th>Paiement PDV</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map(e => (
-                <tr key={e.id}>
-                  <td><b>{e.pdv_numero}</b></td>
-                  <td>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{e.pdv_numero || '—'}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_nom}</div>
-                </td>
-                  <td><span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span></td>
-                  <td>{e.quartier || '—'}</td>
-                  <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>{fmt(e.montant_brut)}</td>
-                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(e.montant_reseau)}</td>
-                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#8b5cf6' }}>{fmt(e.montant_pdv)}</td>
-                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#3b82f6', fontWeight: 700 }}>
-                    {fmt(e.commission_nette)}
-                  </td>
-                  <td>
-                    {e.gere_reversement
-                      ? <span className="status-badge" style={{ background: '#22c55e', color: '#fff' }}>
-                          ✅ Payé par le PDG
-                        </span>
-                      : <span className="status-badge" style={{ background: '#3b82f6', color: '#fff' }}>
-                          ✅ Payé par Orange
-                        </span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* ── Section 1 : Zones & Localisation ── */}
+      <AccordionSection title="🌍 Zones & Localisation" badge={`${entries1.length} PDV`} defaultOpen={true}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14, alignItems: 'center' }}>
+          <select style={selectStyle} value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}>
+            <option value="">Toutes les zones</option>
+            {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select style={selectStyle} value={sousZone} onChange={e => setSousZone(e.target.value)}>
+            <option value="">Toutes les sous-zones</option>
+            {sousZones.filter(sz => !zone || allEntries.find(e => e.zone === zone && e.sous_zone === sz)).map(sz => <option key={sz} value={sz}>{sz}</option>)}
+          </select>
+          <select style={selectStyle} value={quartier} onChange={e => setQuartier(e.target.value)}>
+            <option value="">Tous les quartiers</option>
+            {quartiers.filter(q => !zone || allEntries.find(e => e.zone === zone && e.quartier === q)).map(q => <option key={q} value={q}>{q}</option>)}
+          </select>
+          <input style={inputStyle} placeholder="🔍 Rechercher N° ou nom PDV…" value={search1} onChange={e => setSearch1(e.target.value)} />
         </div>
-      )}
+        {renderTable(entries1)}
+      </AccordionSection>
+
+      {/* ── Section 2 : Réseau & PDV ── */}
+      <AccordionSection title="👥 Réseau & PDV" badge={`${entries2.length} PDV`} defaultOpen={false}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14, alignItems: 'center' }}>
+          <select style={selectStyle} value={superviseur} onChange={e => setSuperviseur(e.target.value)}>
+            <option value="">Tous les superviseurs</option>
+            {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select style={selectStyle} value={gestionnaire} onChange={e => setGestionnaire(e.target.value)}>
+            <option value="">Tous les gestionnaires</option>
+            {gestionnaires.filter(g => !superviseur || allEntries.find(e => e.superviseur === superviseur && e.gestionnaire === g)).map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <select style={selectStyle} value={pdvType} onChange={e => setPdvType(e.target.value)}>
+            <option value="">Tous types</option>
+            {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <input style={inputStyle} placeholder="🔍 Rechercher N° ou nom PDV…" value={search2} onChange={e => setSearch2(e.target.value)} />
+        </div>
+        {renderTable(entries2)}
+      </AccordionSection>
     </>
   );
 }
