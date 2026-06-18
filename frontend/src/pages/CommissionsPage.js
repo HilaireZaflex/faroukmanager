@@ -474,49 +474,68 @@ function TabDetails({ period }) {
     </div>
   );
 
-  const selectStyle = { padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 };
-  const inputStyle  = { padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12, minWidth: 180 };
-
   if (loading) return <div className="loading-state">Chargement…</div>;
 
   return (
     <>
       {/* ── Section 1 : Zones & Localisation ── */}
       <AccordionSection title="🌍 Zones & Localisation" badge={`${entries1.length} PDV`} defaultOpen={true}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14, alignItems: 'center' }}>
-          <select style={selectStyle} value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}>
-            <option value="">Toutes les zones</option>
-            {zones.map(z => <option key={z} value={z}>{z}</option>)}
-          </select>
-          <select style={selectStyle} value={sousZone} onChange={e => setSousZone(e.target.value)}>
-            <option value="">Toutes les sous-zones</option>
-            {sousZones.filter(sz => !zone || allEntries.find(e => e.zone === zone && e.sous_zone === sz)).map(sz => <option key={sz} value={sz}>{sz}</option>)}
-          </select>
-          <select style={selectStyle} value={quartier} onChange={e => setQuartier(e.target.value)}>
-            <option value="">Tous les quartiers</option>
-            {quartiers.filter(q => !zone || allEntries.find(e => e.zone === zone && e.quartier === q)).map(q => <option key={q} value={q}>{q}</option>)}
-          </select>
-          <input style={inputStyle} placeholder="🔍 Rechercher N° ou nom PDV…" value={search1} onChange={e => setSearch1(e.target.value)} />
+        <div className="pdv-filters card mb-16">
+          <div className="filter-search">
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#8a8a9a', fontSize: 14 }}>🔍</span>
+            <input
+              type="text"
+              placeholder="Rechercher N° ou nom PDV…"
+              value={search1}
+              onChange={e => setSearch1(e.target.value)}
+              style={{ paddingLeft: 32 }}
+            />
+          </div>
+          <div className="filter-selects">
+            <select value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}>
+              <option value="">Toutes les zones</option>
+              {zones.map(z => <option key={z} value={z}>{z}</option>)}
+            </select>
+            <select value={sousZone} onChange={e => setSousZone(e.target.value)}>
+              <option value="">Toutes sous-zones</option>
+              {sousZones.filter(sz => !zone || allEntries.find(e => e.zone === zone && e.sous_zone === sz)).map(sz => <option key={sz} value={sz}>{sz}</option>)}
+            </select>
+            <select value={quartier} onChange={e => setQuartier(e.target.value)}>
+              <option value="">Tous quartiers</option>
+              {quartiers.filter(q => !zone || allEntries.find(e => e.zone === zone && e.quartier === q)).map(q => <option key={q} value={q}>{q}</option>)}
+            </select>
+          </div>
         </div>
         {renderTable(entries1)}
       </AccordionSection>
 
       {/* ── Section 2 : Réseau & PDV ── */}
       <AccordionSection title="👥 Réseau & PDV" badge={`${entries2.length} PDV`} defaultOpen={false}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14, alignItems: 'center' }}>
-          <select style={selectStyle} value={superviseur} onChange={e => setSuperviseur(e.target.value)}>
-            <option value="">Tous les superviseurs</option>
-            {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select style={selectStyle} value={gestionnaire} onChange={e => setGestionnaire(e.target.value)}>
-            <option value="">Tous les gestionnaires</option>
-            {gestionnaires.filter(g => !superviseur || allEntries.find(e => e.superviseur === superviseur && e.gestionnaire === g)).map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-          <select style={selectStyle} value={pdvType} onChange={e => setPdvType(e.target.value)}>
-            <option value="">Tous types</option>
-            {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-          <input style={inputStyle} placeholder="🔍 Rechercher N° ou nom PDV…" value={search2} onChange={e => setSearch2(e.target.value)} />
+        <div className="pdv-filters card mb-16">
+          <div className="filter-search">
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#8a8a9a', fontSize: 14 }}>🔍</span>
+            <input
+              type="text"
+              placeholder="Rechercher N° ou nom PDV…"
+              value={search2}
+              onChange={e => setSearch2(e.target.value)}
+              style={{ paddingLeft: 32 }}
+            />
+          </div>
+          <div className="filter-selects">
+            <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}>
+              <option value="">Tous superviseurs</option>
+              {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select value={gestionnaire} onChange={e => setGestionnaire(e.target.value)}>
+              <option value="">Tous gestionnaires</option>
+              {gestionnaires.filter(g => !superviseur || allEntries.find(e => e.superviseur === superviseur && e.gestionnaire === g)).map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <select value={pdvType} onChange={e => setPdvType(e.target.value)}>
+              <option value="">Tous types</option>
+              {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
         </div>
         {renderTable(entries2)}
       </AccordionSection>
