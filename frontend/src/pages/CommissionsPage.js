@@ -24,7 +24,7 @@ export default function CommissionsPage() {
     { id: 'details',    label: '📋 Détail PDV' },
     { id: 'evolution',  label: '📈 Évolution' },
     { id: 'top',        label: '🏆 Top PDV' },
-    { id: 'import',     label: '📥 Import Excel' },
+    { id: 'analyse',    label: '🤖 Analyse IA' },
   ];
 
   return (
@@ -61,7 +61,7 @@ export default function CommissionsPage() {
           {activeTab === 'details'     && <TabDetails key={`e-${period}-${refreshKey}`} period={period}/>}
           {activeTab === 'evolution'   && <TabEvolution key={`ev-${refreshKey}`}/>}
           {activeTab === 'top'         && <TabTop key={`t-${period}-${refreshKey}`} period={period}/>}
-          {activeTab === 'import'      && <TabImport key={`i-${refreshKey}`} onImported={() => { setRefreshKey(k => k+1); window.location.reload(); }}/>}
+          {activeTab === 'analyse'     && <TabAnalyseIA key={`a-${period}-${refreshKey}`} period={period}/>}
         </>
       )}
     </div>
@@ -999,7 +999,308 @@ function TabReversement({ period }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Onglet 6 : IMPORT EXCEL
+// Onglet 5 : ANALYSE IA
+// ─────────────────────────────────────────────────────────────────────────────
+function TabAnalyseIA({ period }) {
+  const [allEntries, setAllEntries] = useState([]);
+  const [evolution, setEvolution]   = useState([]);
+  const [loading, setLoading]       = useState(true);
+
+  const [typeFilter, setTypeFilter] = useState('');
+  const [zone, setZone]             = useState('');
+  const [sousZone, setSousZone]     = useState('');
+  const [quartier, setQuartier]     = useState('');
+  const [superviseur, setSuperviseur] = useState('');
+  const [zones, setZones]           = useState([]);
+  const [sousZones, setSousZones]   = useState([]);
+  const [quartiers, setQuartiers]   = useState([]);
+  const [superviseurs, setSuperviseurs] = useState([]);
+  const [activeSection, setActiveSection] = useState('tendances');
+  const [prevEntries, setPrevEntries] = useState([]);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      commissionService.entries({ period_key: period, limit: 2000 }),
+      commissionService.evolution(6),
+    ]).then(([entries, evo]) => {
+      setAllEntries(entries);
+      const enrichedEvo = evo.map(d => ({ ...d, reelle: (d.reseau + d.pdv) * 0.3 }));
+      setEvolution(enrichedEvo);
+      setZones([...new Set(entries.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(entries.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(entries.map(e => e.quartier).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(entries.map(e => e.superviseur).filter(Boolean))].sort());
+      // Charger mois précédent
+      if (enrichedEvo.length >= 2) {
+        const prevPeriod = enrichedEvo[enrichedEvo.length - 2]?.period_key;
+        if (prevPeriod) commissionService.entries({ period_key: prevPeriod, limit: 2000 }).then(setPrevEntries).catch(() => {});
+      }
+    }).finally(() => setLoading(false));
+  }, [period]);
+
+  const filtered = allEntries.filter(e => {
+    if (typeFilter && e.pdv_type !== typeFilter) return false;
+    if (zone && e.zone !== zone) return false;
+    if (sousZone && e.sous_zone !== sousZone) return false;
+    if (quartier && e.quartier !== quartier) return false;
+    if (superviseur && e.superviseur !== superviseur) return false;
+    return true;
+  }).map(e => ({ ...e, commPDG: e.montant_reseau||0, commRev: e.montant_pdv||0, commReelle: ((e.montant_reseau||0)+(e.montant_pdv||0))*0.3 }));
+
+  const prevMap = {};
+  prevEntries.forEach(e => { prevMap[e.pdv_numero] = ((e.montant_reseau||0)+(e.montant_pdv||0))*0.3; });
+
+  const pdvTendances = filtered.map(e => {
+    const curr = e.commReelle, prev = prevMap[e.pdv_numero]||0;
+    const delta = prev > 0 ? ((curr-prev)/prev*100) : null;
+    return { ...e, prev, delta, tendance: delta===null?'nouveau': delta>=10?'hausse': delta<=-20?'chute': delta<0?'baisse':'stable' };
+  }).filter(e => e.commReelle > 0);
+
+  const enHausse = pdvTendances.filter(e=>e.tendance==='hausse').sort((a,b)=>b.delta-a.delta);
+  const enBaisse = pdvTendances.filter(e=>e.tendance==='baisse').sort((a,b)=>a.delta-b.delta);
+  const enChute  = pdvTendances.filter(e=>e.tendance==='chute').sort((a,b)=>a.delta-b.delta);
+  const stables  = pdvTendances.filter(e=>e.tendance==='stable');
+  const nouveaux = pdvTendances.filter(e=>e.tendance==='nouveau');
+
+  const byZone = {};
+  filtered.forEach(e => { const z=e.zone||'Sans zone'; if(!byZone[z]) byZone[z]={zone:z,n:0,commReelle:0,commPDG:0}; byZone[z].n++; byZone[z].commReelle+=e.commReelle; byZone[z].commPDG+=e.commPDG; });
+  const zonesData = Object.values(byZone).sort((a,b)=>b.commReelle-a.commReelle);
+
+  const byQ = {};
+  filtered.forEach(e => { const q=e.quartier||'Sans quartier'; if(!byQ[q]) byQ[q]={quartier:q,n:0,commReelle:0,zone:e.zone}; byQ[q].n++; byQ[q].commReelle+=e.commReelle; });
+  const quartiersData = Object.values(byQ).sort((a,b)=>b.commReelle-a.commReelle);
+  const top5Q = quartiersData.slice(0,5);
+  const flop5Q = [...quartiersData].sort((a,b)=>a.commReelle-b.commReelle).slice(0,5);
+  const opportunities = [...enBaisse,...enChute].filter(e=>e.prev>50000).sort((a,b)=>b.prev-a.prev).slice(0,20);
+
+  const sections = [
+    { id:'tendances', label:'📊 Tendances PDV', color:'#3b82f6' },
+    { id:'zones',     label:'🌍 Zones & Quartiers', color:'#8b5cf6' },
+    { id:'opportunites', label:'🎯 Opportunités', color:'#f59e0b' },
+  ];
+
+  if (loading) return <div className="loading-state">🤖 Analyse IA en cours…</div>;
+
+  const thStyle = c => ({ padding:'10px 12px', textAlign:'left', color: c||'#8a8a9a' });
+  const tdStyle = (align, color, fw) => ({ padding:'10px 12px', textAlign:align||'left', color:color||'inherit', fontWeight:fw||'normal' });
+
+  return (
+    <>
+      <div className="pdv-filters card mb-16">
+        <div className="filter-selects" style={{ flexWrap:'nowrap', overflowX:'auto' }}>
+          <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
+            <option value="">Tous types</option>
+            {Object.entries(TYPE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+          </select>
+          <select value={zone} onChange={e=>{setZone(e.target.value);setSousZone('');setQuartier('');}}>
+            <option value="">Toutes zones</option>{zones.map(z=><option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={sousZone} onChange={e=>setSousZone(e.target.value)}>
+            <option value="">Toutes sous-zones</option>{sousZones.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={quartier} onChange={e=>setQuartier(e.target.value)}>
+            <option value="">Tous quartiers</option>{quartiers.map(q=><option key={q} value={q}>{q}</option>)}
+          </select>
+          <select value={superviseur} onChange={e=>setSuperviseur(e.target.value)}>
+            <option value="">Tous superviseurs</option>{superviseurs.map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="stats-grid" style={{ marginBottom:16 }}>
+        {[
+          { label:'📈 En hausse', val:enHausse.length, color:'var(--success)', sub:'≥ +10% vs mois préc.' },
+          { label:'📉 En baisse', val:enBaisse.length, color:'#f59e0b', sub:'-1% à -19%' },
+          { label:'🔴 En chute', val:enChute.length, color:'var(--danger)', sub:'≤ -20%' },
+          { label:'⚖️ Stables', val:stables.length, color:'#8b5cf6', sub:'0% à +9%' },
+          { label:'🆕 Nouveaux', val:nouveaux.length, color:'#3b82f6', sub:'Absents le mois préc.' },
+        ].map(k=>(
+          <div key={k.label} className="stat-card" style={{ borderLeftColor:k.color }}>
+            <div className="stat-label">{k.label}</div>
+            <div className="stat-value" style={{ fontSize:28, color:k.color, fontWeight:800 }}>{k.val}</div>
+            <small>{k.sub}</small>
+          </div>
+        ))}
+      </div>
+
+      {/* Navigation sections */}
+      <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+        {sections.map(s=>(
+          <button key={s.id} onClick={()=>setActiveSection(s.id)} style={{
+            padding:'8px 16px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:12, transition:'all 0.2s',
+            background: activeSection===s.id ? s.color : 'var(--bg-card)',
+            color: activeSection===s.id ? '#fff' : 'var(--text-secondary)',
+            boxShadow: activeSection===s.id ? `0 2px 8px ${s.color}55` : 'none',
+          }}>{s.label}</button>
+        ))}
+      </div>
+
+      {/* Tendances */}
+      {activeSection==='tendances' && [
+        { list:enChute, label:`🔴 PDV en chute libre (${enChute.length})`, color:'var(--danger)', bg:'rgba(239,68,68,0.06)' },
+        { list:enBaisse, label:`📉 PDV en baisse (${enBaisse.length})`, color:'#f59e0b', bg:'rgba(245,158,11,0.06)' },
+        { list:enHausse, label:`📈 PDV en hausse (${enHausse.length})`, color:'var(--success)', bg:'rgba(34,197,94,0.06)' },
+      ].map(({list,label,color,bg}) => list.length>0 && (
+        <AccordionSection key={label} title={label} badge={`${list.length} PDV`} defaultOpen={true}>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr>
+                <th style={thStyle()}>PDV</th><th style={thStyle()}>Type</th><th style={thStyle()}>Zone / Quartier</th>
+                <th style={{...thStyle(),...{textAlign:'right'}}}>Mois préc.</th>
+                <th style={{...thStyle('#f59e0b'),...{textAlign:'right'}}}>Actuel</th>
+                <th style={{...thStyle(color),...{textAlign:'right'}}}>Variation</th>
+                <th style={thStyle()}>Superviseur</th>
+              </tr></thead>
+              <tbody>
+                {list.slice(0,50).map(e=>(
+                  <tr key={e.id} style={{borderBottom:'1px solid var(--border)',background:bg}}>
+                    <td style={tdStyle()}><PDVCell numero={e.pdv_numero} nom={e.pdv_nom}/></td>
+                    <td style={tdStyle('center')}><span className="status-badge" style={{background:TYPE_COLORS[e.pdv_type]}}>{e.pdv_type}</span></td>
+                    <td style={tdStyle()}><div style={{fontSize:12}}>{e.zone||'—'}</div><div style={{fontSize:11,color:'var(--text-secondary)'}}>{e.quartier||''}</div></td>
+                    <td style={tdStyle('right','var(--text-secondary)')}>{fmt(e.prev)}</td>
+                    <td style={tdStyle('right','#f59e0b',700)}>{fmt(e.commReelle)}</td>
+                    <td style={tdStyle('right',color,800)}>{e.delta>=0?'▲':'▼'} {Math.abs(e.delta).toFixed(1)}%</td>
+                    <td style={{...tdStyle(),...{fontSize:11,color:'var(--text-secondary)'}}}>{e.superviseur||'—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </AccordionSection>
+      ))}
+
+      {/* Zones & Quartiers */}
+      {activeSection==='zones' && <>
+        <AccordionSection title="🌍 Performance par Zone" badge={`${zonesData.length} zones`} defaultOpen={true}>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr>
+                <th style={thStyle()}>Zone</th><th style={{...thStyle(),...{textAlign:'center'}}}>PDV</th>
+                <th style={thStyle('#f59e0b')}>Comm. Réelle PDG</th><th style={thStyle('var(--success)')}>Comm. PDG</th>
+                <th style={thStyle()}>Moy./PDV</th><th style={thStyle()}>Part</th>
+              </tr></thead>
+              <tbody>
+                {zonesData.map((z,i)=>{
+                  const total=zonesData.reduce((s,x)=>s+x.commReelle,0);
+                  const pct=total>0?z.commReelle/total*100:0;
+                  const isTop=i<Math.ceil(zonesData.length*0.3);
+                  const isFlop=i>=zonesData.length-Math.ceil(zonesData.length*0.3);
+                  return (
+                    <tr key={z.zone} style={{borderBottom:'1px solid var(--border)'}}>
+                      <td style={tdStyle(null,null,700)}>{z.zone}</td>
+                      <td style={tdStyle('center')}>{z.n}</td>
+                      <td style={tdStyle('right','#f59e0b',700)}>{fmt(z.commReelle)}</td>
+                      <td style={tdStyle('right','var(--success)')}>{fmt(z.commPDG)}</td>
+                      <td style={tdStyle('right','var(--text-secondary)')}>{z.n>0?fmt(z.commReelle/z.n):'—'}</td>
+                      <td style={tdStyle()}>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <div style={{flex:1,height:8,background:'rgba(255,255,255,0.1)',borderRadius:4}}>
+                            <div style={{width:`${pct}%`,height:'100%',borderRadius:4,background:isTop?'var(--success)':isFlop?'var(--danger)':'#f59e0b'}}/>
+                          </div>
+                          <span style={{fontSize:11,color:isTop?'var(--success)':isFlop?'var(--danger)':'#f59e0b',fontWeight:700}}>{pct.toFixed(1)}% {isTop?'🌟':isFlop?'⚠️':''}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </AccordionSection>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+          {[{list:top5Q,title:'🏆 Top 5 Quartiers',color:'#FFD700'},{list:flop5Q,title:'⚠️ Flop 5 Quartiers',color:'var(--danger)'}].map(({list,title,color})=>(
+            <AccordionSection key={title} title={title} defaultOpen={true}>
+              {list.map((q,i)=>(
+                <div key={q.quartier} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+                  <div>
+                    <span style={{fontWeight:800,color,marginRight:8}}>#{i+1}</span>
+                    <span style={{fontWeight:700}}>{q.quartier}</span>
+                    <div style={{fontSize:11,color:'var(--text-secondary)'}}>{q.zone} · {q.n} PDV</div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontWeight:800,color:'#f59e0b'}}>{fmt(q.commReelle)}</div>
+                    <div style={{fontSize:10,color:'var(--text-secondary)'}}>Comm. Réelle</div>
+                  </div>
+                </div>
+              ))}
+            </AccordionSection>
+          ))}
+        </div>
+      </>}
+
+      {/* Opportunités */}
+      {activeSection==='opportunites' && <>
+        <div className="modal-section" style={{background:'rgba(245,158,11,0.08)',borderLeft:'4px solid #f59e0b'}}>
+          <h3>🎯 Opportunités identifiées</h3>
+          <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:0}}>
+            PDV qui avaient un bon potentiel le mois précédent mais qui ont chuté. Une intervention ciblée peut les récupérer.
+          </p>
+        </div>
+        <AccordionSection title={`🎯 PDV à récupérer (${opportunities.length})`} defaultOpen={true}>
+          <div style={{overflowX:'auto'}}>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <thead><tr>
+                <th style={thStyle()}>PDV</th><th style={thStyle()}>Type</th><th style={thStyle()}>Zone</th>
+                <th style={{...thStyle('var(--success)'),...{textAlign:'right'}}}>Potentiel</th>
+                <th style={{...thStyle('var(--danger)'),...{textAlign:'right'}}}>Actuel</th>
+                <th style={{...thStyle('var(--danger)'),...{textAlign:'right'}}}>Chute</th>
+                <th style={thStyle()}>Superviseur</th>
+                <th style={{...thStyle(),...{textAlign:'center'}}}>Action</th>
+              </tr></thead>
+              <tbody>
+                {opportunities.map(e=>(
+                  <tr key={e.id} style={{borderBottom:'1px solid var(--border)'}}>
+                    <td style={tdStyle()}><PDVCell numero={e.pdv_numero} nom={e.pdv_nom}/></td>
+                    <td style={tdStyle('center')}><span className="status-badge" style={{background:TYPE_COLORS[e.pdv_type]}}>{e.pdv_type}</span></td>
+                    <td style={tdStyle()}><div style={{fontSize:12}}>{e.zone||'—'}</div><div style={{fontSize:11,color:'var(--text-secondary)'}}>{e.quartier||''}</div></td>
+                    <td style={tdStyle('right','var(--success)',700)}>{fmt(e.prev)}</td>
+                    <td style={tdStyle('right','var(--danger)',700)}>{fmt(e.commReelle)}</td>
+                    <td style={tdStyle('right','var(--danger)',800)}>▼ {Math.abs(e.delta).toFixed(1)}%</td>
+                    <td style={{...tdStyle(),...{fontSize:11,color:'var(--text-secondary)'}}}>{e.superviseur||'—'}</td>
+                    <td style={tdStyle('center')}>
+                      <span style={{fontSize:10,padding:'3px 8px',borderRadius:4,background:'rgba(245,158,11,0.2)',color:'#f59e0b',fontWeight:700}}>
+                        {Math.abs(e.delta)>=20?'🚨 Visite urgente':'📞 Appel ciblé'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {opportunities.length===0&&<tr><td colSpan={8} style={{padding:20,textAlign:'center',color:'var(--success)'}}>✅ Pas d'opportunités critiques — réseau en bonne santé !</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </AccordionSection>
+
+        <div className="modal-section" style={{background:'var(--bg-card)'}}>
+          <h3>💡 Recommandations IA</h3>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12}}>
+            {enChute.length>0&&<div style={{padding:16,background:'rgba(239,68,68,0.08)',borderRadius:8,borderLeft:'4px solid var(--danger)'}}>
+              <div style={{fontWeight:800,color:'var(--danger)',marginBottom:8}}>🚨 Alerte prioritaire</div>
+              <div style={{fontSize:13}}>{enChute.length} PDV en chute libre. Action terrain urgente recommandée.</div>
+            </div>}
+            {top5Q.length>0&&<div style={{padding:16,background:'rgba(34,197,94,0.08)',borderRadius:8,borderLeft:'4px solid var(--success)'}}>
+              <div style={{fontWeight:800,color:'var(--success)',marginBottom:8}}>🌟 Zone forte</div>
+              <div style={{fontSize:13}}>Concentrez vos efforts sur <b>{top5Q[0]?.quartier}</b> — meilleur potentiel.</div>
+            </div>}
+            {flop5Q.length>0&&<div style={{padding:16,background:'rgba(245,158,11,0.08)',borderRadius:8,borderLeft:'4px solid #f59e0b'}}>
+              <div style={{fontWeight:800,color:'#f59e0b',marginBottom:8}}>📍 Quartier à améliorer</div>
+              <div style={{fontSize:13}}><b>{flop5Q[0]?.quartier}</b> est sous-performant. Plan d'action recommandé.</div>
+            </div>}
+            {nouveaux.length>0&&<div style={{padding:16,background:'rgba(59,130,246,0.08)',borderRadius:8,borderLeft:'4px solid #3b82f6'}}>
+              <div style={{fontWeight:800,color:'#3b82f6',marginBottom:8}}>🆕 Nouveaux PDV</div>
+              <div style={{fontSize:13}}>{nouveaux.length} nouveaux PDV actifs. Suivi rapproché recommandé.</div>
+            </div>}
+          </div>
+        </div>
+      </>}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Onglet 6 : IMPORT EXCEL (gardé en interne)
 // ─────────────────────────────────────────────────────────────────────────────
 function TabImport({ onImported }) {
   const [file, setFile] = useState(null);
