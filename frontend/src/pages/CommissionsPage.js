@@ -849,12 +849,20 @@ function TabTop({ period }) {
         ))}
       </div>
 
-      {/* Ligne 2 : selects */}
+      {/* Slider + selects */}
       <div className="pdv-filters card mb-16">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Top PDV :</span>
+          <input
+            type="range" min={5} max={100} step={5} value={n}
+            onChange={e => setN(parseInt(e.target.value))}
+            style={{ flex: 1, accentColor: crit.color }}
+          />
+          <span style={{ fontSize: 14, fontWeight: 800, color: crit.color, minWidth: 60, textAlign: 'center' }}>
+            Top {n}
+          </span>
+        </div>
         <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto' }}>
-          <select value={n} onChange={e => setN(parseInt(e.target.value))}>
-            <option value={10}>Top 10</option><option value={20}>Top 20</option><option value={50}>Top 50</option>
-          </select>
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
             <option value="">Tous types</option>
             {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
