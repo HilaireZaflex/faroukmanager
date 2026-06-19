@@ -1003,7 +1003,6 @@ function TabReversement({ period }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAnalyseIA({ period }) {
   const [allEntries, setAllEntries] = useState([]);
-  const [evolution, setEvolution]   = useState([]);
   const [loading, setLoading]       = useState(true);
 
   const [typeFilter, setTypeFilter] = useState('');
@@ -1020,22 +1019,22 @@ function TabAnalyseIA({ period }) {
 
   useEffect(() => {
     setLoading(true);
+    // Calculer la période précédente directement depuis le period prop
+    const [yr, mn] = period.split('-').map(Number);
+    const prevMn = mn === 1 ? 12 : mn - 1;
+    const prevYr = mn === 1 ? yr - 1 : yr;
+    const prevPeriod = `${prevYr.toString().padStart(4,'0')}-${prevMn.toString().padStart(2,'0')}`;
+
     Promise.all([
       commissionService.entries({ period_key: period, limit: 2000 }),
-      commissionService.evolution(6),
-    ]).then(([entries, evo]) => {
+      commissionService.entries({ period_key: prevPeriod, limit: 2000 }),
+    ]).then(([entries, prev]) => {
       setAllEntries(entries);
-      const enrichedEvo = evo.map(d => ({ ...d, reelle: (d.reseau + d.pdv) * 0.3 }));
-      setEvolution(enrichedEvo);
+      setPrevEntries(prev);
       setZones([...new Set(entries.map(e => e.zone).filter(Boolean))].sort());
       setSousZones([...new Set(entries.map(e => e.sous_zone).filter(Boolean))].sort());
       setQuartiers([...new Set(entries.map(e => e.quartier).filter(Boolean))].sort());
       setSuperviseurs([...new Set(entries.map(e => e.superviseur).filter(Boolean))].sort());
-      // Charger mois précédent
-      if (enrichedEvo.length >= 2) {
-        const prevPeriod = enrichedEvo[enrichedEvo.length - 2]?.period_key;
-        if (prevPeriod) commissionService.entries({ period_key: prevPeriod, limit: 2000 }).then(setPrevEntries).catch(() => {});
-      }
     }).finally(() => setLoading(false));
   }, [period]);
 
