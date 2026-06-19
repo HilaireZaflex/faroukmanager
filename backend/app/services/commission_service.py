@@ -663,21 +663,28 @@ def list_entries(
             CommissionEntry.quartier.ilike(like),
         ))
     entries = q.order_by(CommissionEntry.montant_brut.desc()).offset(skip).limit(limit).all()
-    return [_entry_to_dict(e) for e in entries]
+
+    # Récupérer les vrais noms depuis la table PDV
+    numeros = [e.pdv_numero for e in entries if e.pdv_numero]
+    pdv_names = {
+        str(p.numero_pdv): p.nom
+        for p in db.query(PDV).filter(PDV.numero_pdv.in_(numeros)).all()
+    }
+    return [_entry_to_dict(e, pdv_names) for e in entries]
 
 
-def _entry_to_dict(e: CommissionEntry) -> Dict[str, Any]:
+def _entry_to_dict(e: CommissionEntry, pdv_names: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     montant_pdv    = e.montant_pdv or 0
     montant_reverse = e.montant_reverse or 0
     reste = round(montant_pdv - montant_reverse, 2) if e.gere_reversement else 0
 
-    # Commission NETTE pour ce PDV :
-    # ─ RNS/RSF    : juste les 30% (les 70% sont partis directement au PDV via Orange)
-    # ─ RS/KIOSQUE : 30% + les 70% pas encore reversés (encore en caisse du PDG)
+    # Vrai nom du PDV depuis la table PDV (pas le nom du PDG)
+    pdv_nom = (pdv_names or {}).get(str(e.pdv_numero), e.pdv_nom)
+
     commission_nette = round((e.montant_reseau or 0) + reste, 2)
 
     return {
-        "id": e.id, "pdv_numero": e.pdv_numero, "pdv_nom": e.pdv_nom,
+        "id": e.id, "pdv_numero": e.pdv_numero, "pdv_nom": pdv_nom,
         "pdv_type": e.pdv_type.value, "quartier": e.quartier,
         "zone": e.zone, "sous_zone": e.sous_zone,
         "gestionnaire": e.gestionnaire, "superviseur": e.superviseur,
@@ -745,7 +752,9 @@ def top_pdvs(db: Session, period_key: str, n: int = 20,
     if gestionnaire: q = q.filter(CommissionEntry.gestionnaire.ilike(f"%{gestionnaire}%"))
     if zone: q = q.filter(CommissionEntry.zone == zone)
     entries = q.order_by(CommissionEntry.montant_brut.desc()).limit(n).all()
-    return [_entry_to_dict(e) for e in entries]
+    numeros = [e.pdv_numero for e in entries if e.pdv_numero]
+    pdv_names = {str(p.numero_pdv): p.nom for p in db.query(PDV).filter(PDV.numero_pdv.in_(numeros)).all()}
+    return [_entry_to_dict(e, pdv_names) for e in entries]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
