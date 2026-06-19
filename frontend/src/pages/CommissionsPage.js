@@ -654,48 +654,46 @@ function TabEvolution() {
 
   return (
     <>
-      {/* ── Sélecteur de critère — style OMY ── */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* ── Sélecteur de critère + filtres ── */}
+      {/* Ligne 1 : boutons critères */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
         {Object.entries(COMM_CRITERIA).map(([key, c]) => (
           <button key={key}
             onClick={() => setCriterion(key)}
             style={{
               padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
-              background: criterion === key ? crit.color : 'var(--bg-card)',
+              background: criterion === key ? COMM_CRITERIA[criterion].color : 'var(--bg-card)',
               color: criterion === key ? '#fff' : 'var(--text-secondary)',
-              boxShadow: criterion === key ? `0 2px 8px ${crit.color}55` : 'none',
+              boxShadow: criterion === key ? `0 2px 8px ${COMM_CRITERIA[criterion].color}55` : 'none',
               transition: 'all 0.2s',
             }}>
             {c.label}
           </button>
         ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <select value={nPeriods} onChange={e => setNPeriods(parseInt(e.target.value))}
-            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+      </div>
+      {/* Ligne 2 : tous les selects sur une seule ligne */}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto' }}>
+          <select value={nPeriods} onChange={e => setNPeriods(parseInt(e.target.value))}>
             <option value={3}>3 mois</option><option value={6}>6 mois</option><option value={12}>12 mois</option>
           </select>
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
             <option value="">Tous types</option>
             {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
-          <select value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}
-            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+          <select value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}>
             <option value="">Toutes zones</option>
             {zones.map(z => <option key={z} value={z}>{z}</option>)}
           </select>
-          <select value={sousZone} onChange={e => setSousZone(e.target.value)}
-            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+          <select value={sousZone} onChange={e => setSousZone(e.target.value)}>
             <option value="">Toutes sous-zones</option>
             {sousZones.map(sz => <option key={sz} value={sz}>{sz}</option>)}
           </select>
-          <select value={quartier} onChange={e => setQuartier(e.target.value)}
-            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+          <select value={quartier} onChange={e => setQuartier(e.target.value)}>
             <option value="">Tous quartiers</option>
             {quartiers.map(q => <option key={q} value={q}>{q}</option>)}
           </select>
-          <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}
-            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+          <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}>
             <option value="">Tous superviseurs</option>
             {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
