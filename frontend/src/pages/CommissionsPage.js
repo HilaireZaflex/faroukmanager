@@ -1015,6 +1015,7 @@ function TabAnalyseIA({ period }) {
   const [quartiers, setQuartiers]   = useState([]);
   const [superviseurs, setSuperviseurs] = useState([]);
   const [activeSection, setActiveSection] = useState('tendances');
+  const [activeTendance, setActiveTendance] = useState(null); // filtre KPI cliqué
   const [prevEntries, setPrevEntries] = useState([]);
 
   useEffect(() => {
@@ -1107,21 +1108,30 @@ function TabAnalyseIA({ period }) {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs cliquables */}
       <div className="stats-grid" style={{ marginBottom:16 }}>
         {[
-          { label:'📈 En hausse', val:enHausse.length, color:'var(--success)', sub:'≥ +10% vs mois préc.' },
-          { label:'📉 En baisse', val:enBaisse.length, color:'#f59e0b', sub:'-1% à -19%' },
-          { label:'🔴 En chute', val:enChute.length, color:'var(--danger)', sub:'≤ -20%' },
-          { label:'⚖️ Stables', val:stables.length, color:'#8b5cf6', sub:'0% à +9%' },
-          { label:'🆕 Nouveaux', val:nouveaux.length, color:'#3b82f6', sub:'Absents le mois préc.' },
-        ].map(k=>(
-          <div key={k.label} className="stat-card" style={{ borderLeftColor:k.color }}>
+          { key:'hausse',  label:'📈 En hausse', val:enHausse.length, color:'var(--success)', sub:'≥ +10% vs mois préc.' },
+          { key:'baisse',  label:'📉 En baisse',  val:enBaisse.length, color:'#f59e0b',        sub:'-1% à -19%' },
+          { key:'chute',   label:'🔴 En chute',   val:enChute.length,  color:'var(--danger)',  sub:'≤ -20%' },
+          { key:'stable',  label:'⚖️ Stables',    val:stables.length,  color:'#8b5cf6',        sub:'0% à +9%' },
+          { key:'nouveau', label:'🆕 Nouveaux',   val:nouveaux.length, color:'#3b82f6',        sub:'Absents le mois préc.' },
+        ].map(k=>{
+          const isActive = activeTendance === k.key;
+          return (
+          <div key={k.label} className="stat-card"
+            onClick={() => { setActiveTendance(isActive ? null : k.key); setActiveSection('tendances'); }}
+            style={{ borderLeftColor:k.color, cursor:'pointer', transition:'all 0.2s',
+              background: isActive ? `${k.color}22` : undefined,
+              boxShadow: isActive ? `0 0 0 2px ${k.color}` : undefined,
+            }}>
             <div className="stat-label">{k.label}</div>
             <div className="stat-value" style={{ fontSize:28, color:k.color, fontWeight:800 }}>{k.val}</div>
             <small>{k.sub}</small>
+            {isActive && <div style={{ fontSize:10, color:k.color, fontWeight:700, marginTop:4 }}>✓ Filtré</div>}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Navigation sections */}
@@ -1137,11 +1147,16 @@ function TabAnalyseIA({ period }) {
       </div>
 
       {/* Tendances */}
-      {activeSection==='tendances' && [
-        { list:enChute, label:`🔴 PDV en chute libre (${enChute.length})`, color:'var(--danger)', bg:'rgba(239,68,68,0.06)' },
-        { list:enBaisse, label:`📉 PDV en baisse (${enBaisse.length})`, color:'#f59e0b', bg:'rgba(245,158,11,0.06)' },
-        { list:enHausse, label:`📈 PDV en hausse (${enHausse.length})`, color:'var(--success)', bg:'rgba(34,197,94,0.06)' },
-      ].map(({list,label,color,bg}) => list.length>0 && (
+      {activeSection==='tendances' && (() => {
+        const allSections = [
+          { key:'chute',   list:enChute,  label:`🔴 PDV en chute libre (${enChute.length})`,  color:'var(--danger)',  bg:'rgba(239,68,68,0.06)' },
+          { key:'baisse',  list:enBaisse, label:`📉 PDV en baisse (${enBaisse.length})`,       color:'#f59e0b',       bg:'rgba(245,158,11,0.06)' },
+          { key:'hausse',  list:enHausse, label:`📈 PDV en hausse (${enHausse.length})`,       color:'var(--success)',bg:'rgba(34,197,94,0.06)' },
+          { key:'stable',  list:stables,  label:`⚖️ PDV stables (${stables.length})`,          color:'#8b5cf6',       bg:'rgba(139,92,246,0.06)' },
+          { key:'nouveau', list:nouveaux, label:`🆕 Nouveaux PDV (${nouveaux.length})`,        color:'#3b82f6',       bg:'rgba(59,130,246,0.06)' },
+        ];
+        const toShow = activeTendance ? allSections.filter(s=>s.key===activeTendance) : allSections;
+        return toShow.map(({list,label,color,bg,key}) => list.length>0 && (
         <AccordionSection key={label} title={label} badge={`${list.length} PDV`} defaultOpen={true}>
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
@@ -1168,7 +1183,8 @@ function TabAnalyseIA({ period }) {
             </table>
           </div>
         </AccordionSection>
-      ))}
+        ));
+      })()}
 
       {/* Zones & Quartiers */}
       {activeSection==='zones' && <>
