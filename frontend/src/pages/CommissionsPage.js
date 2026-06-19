@@ -850,19 +850,19 @@ function TabTop({ period }) {
       </div>
 
       {/* Slider + selects */}
-      <div className="pdv-filters card mb-16">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', marginBottom: 8 }}>
-          <span style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Top PDV :</span>
+      <div className="pdv-filters card mb-16" style={{ flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
+          <span style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap', fontWeight: 600 }}>Top PDV :</span>
           <input
             type="range" min={5} max={100} step={5} value={n}
             onChange={e => setN(parseInt(e.target.value))}
-            style={{ flex: 1, accentColor: crit.color }}
+            style={{ flex: 1, accentColor: crit.color, height: 4 }}
           />
-          <span style={{ fontSize: 14, fontWeight: 800, color: crit.color, minWidth: 60, textAlign: 'center' }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: crit.color, minWidth: 55, textAlign: 'right' }}>
             Top {n}
           </span>
         </div>
-        <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto' }}>
+        <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto', width: '100%' }}>
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
             <option value="">Tous types</option>
             {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
