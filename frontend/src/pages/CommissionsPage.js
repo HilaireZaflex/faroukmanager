@@ -237,10 +237,10 @@ function TabDashboard({ period }) {
             </thead>
             <tbody>
               {data.by_type.map(t => {
-                const isGere = t.gere_reversement;
-                const commPDG = isGere ? t.brut : t.reseau;
-                const commRev = isGere ? t.brut * 0.7 : t.pdv;
-                const commReelle = isGere ? t.brut * 0.3 : t.reseau;
+                // Même logique que le dashboard : reseau=CommPDG, pdv=CommRev
+                const commPDG    = t.reseau || 0;
+                const commRev    = t.pdv || 0;
+                const commReelle = (commPDG + commRev) * 0.3;
                 return (
                 <tr key={t.type} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px' }}><span className="status-badge" style={{ background: TYPE_COLORS[t.type] }}>{TYPE_LABELS[t.type]}</span></td>
@@ -257,9 +257,9 @@ function TabDashboard({ period }) {
                 );
               })}
               {data.by_type.length > 0 && (() => {
-                const totalCommPDG = data.by_type.reduce((s, t) => s + (t.gere_reversement ? t.brut : t.reseau), 0);
-                const totalCommRev = data.by_type.reduce((s, t) => s + (t.gere_reversement ? t.brut * 0.7 : t.pdv), 0);
-                const totalCommReelle = data.by_type.reduce((s, t) => s + (t.gere_reversement ? t.brut * 0.3 : t.reseau), 0);
+                const totalCommPDG    = data.by_type.reduce((s, t) => s + (t.reseau || 0), 0);
+                const totalCommRev    = data.by_type.reduce((s, t) => s + (t.pdv || 0), 0);
+                const totalCommReelle = (totalCommPDG + totalCommRev) * 0.3;
                 return (
                   <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.03)', fontWeight: 800, fontSize: 13 }}>
                     <td style={{ padding: '10px 12px' }}><b>TOTAL</b></td>
@@ -453,10 +453,13 @@ function TabDetails({ period }) {
           </thead>
           <tbody>
             {paginated.map(e => {
-              const isGere = e.gere_reversement;
-              const commPDG    = isGere ? e.montant_brut : e.montant_reseau;
-              const commRev    = isGere ? e.montant_brut * 0.7 : e.montant_pdv;
-              const commReelle = isGere ? e.montant_brut * 0.3 : e.montant_reseau;
+              // Même logique que le dashboard backend :
+              // montant_reseau = CommPDG (ce que le PDG garde)
+              // montant_pdv    = CommRev (ce que les PDV reçoivent)
+              // CommRéelle PDG = (CommPDG + CommRev) × 30%
+              const commPDG    = e.montant_reseau || 0;
+              const commRev    = e.montant_pdv || 0;
+              const commReelle = (commPDG + commRev) * 0.3;
               return (
                 <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px' }}>
@@ -474,7 +477,7 @@ function TabDetails({ period }) {
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(commRev)}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                    {isGere
+                    {e.gere_reversement
                       ? <span className="status-badge" style={{ background: '#8b5cf6', fontSize: 10 }}>🏪 PDG → PDV</span>
                       : <span className="status-badge" style={{ background: '#3b82f6', fontSize: 10 }}>🟦 Orange → PDV</span>}
                   </td>
