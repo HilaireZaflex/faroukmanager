@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PDVCell from '../components/common/PDVCell';
 import { RefreshCw, Download, Upload } from 'lucide-react';
 import commissionService, {
   TYPE_COLORS, TYPE_LABELS, REV_STATUS_LABELS, fmt, fmtM,
@@ -464,8 +465,7 @@ function TabDetails({ period }) {
               return (
                 <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px' }}>
-                    <div style={{ fontWeight: 700 }}>{e.pdv_numero}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_nom || '—'}</div>
+                    <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span>
