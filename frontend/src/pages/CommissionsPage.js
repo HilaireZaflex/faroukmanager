@@ -596,75 +596,126 @@ function TabDetails({ period }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Onglet 3 : ÉVOLUTION
 // ─────────────────────────────────────────────────────────────────────────────
+const COMM_CRITERIA = {
+  commission_pdg:   { label: 'Commission PDG',       field: 'reseau', color: 'var(--success)' },
+  commission_reelle:{ label: 'Commission Réelle PDG', field: 'reelle', color: '#f59e0b' },
+};
+
 function TabEvolution() {
-  const [data, setData] = useState([]);
+  const [data, setData]         = useState([]);
   const [nPeriods, setNPeriods] = useState(6);
   const [typeFilter, setTypeFilter] = useState('');
+  const [criterion, setCriterion]   = useState('commission_pdg');
 
   useEffect(() => {
-    commissionService.evolution(nPeriods, typeFilter || undefined).then(setData);
+    commissionService.evolution(nPeriods, typeFilter || undefined).then(rows => {
+      // Calculer la commission réelle pour chaque période
+      const enriched = rows.map(d => ({
+        ...d,
+        reelle: (d.reseau + d.pdv) * 0.3,
+      }));
+      setData(enriched);
+    });
   }, [nPeriods, typeFilter]);
 
   if (!data.length) return <div className="loading-state">Calcul…</div>;
 
-  const maxBrut = Math.max(...data.map(d => d.brut)) || 1;
+  const crit = COMM_CRITERIA[criterion];
+  const getValue = d => d[crit.field] || 0;
+  const maxVal = Math.max(...data.map(getValue)) || 1;
+
   return (
     <>
-      <div className="filters">
-        <select value={nPeriods} onChange={e => setNPeriods(parseInt(e.target.value))}>
-          <option value={3}>3 mois</option><option value={6}>6 mois</option><option value={12}>12 mois</option>
-        </select>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          <option value="">Tous types</option>
-          {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+      {/* ── Sélecteur de critère — style OMY ── */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        {Object.entries(COMM_CRITERIA).map(([key, c]) => (
+          <button key={key}
+            onClick={() => setCriterion(key)}
+            style={{
+              padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              background: criterion === key ? crit.color : 'var(--bg-card)',
+              color: criterion === key ? '#fff' : 'var(--text-secondary)',
+              boxShadow: criterion === key ? `0 2px 8px ${crit.color}55` : 'none',
+              transition: 'all 0.2s',
+            }}>
+            {c.label}
+          </button>
+        ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <select value={nPeriods} onChange={e => setNPeriods(parseInt(e.target.value))}
+            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value={3}>3 mois</option><option value={6}>6 mois</option><option value={12}>12 mois</option>
+          </select>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="">Tous types</option>
+            {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
       </div>
 
+      {/* ── Graphique en barres ── */}
       <div className="modal-section" style={{ background: 'var(--bg-card)' }}>
-        <h3>📈 Évolution mensuelle des commissions</h3>
-        {/* Graphique en barres simple */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 200, marginTop: 16 }}>
-          {data.map(d => {
-            const h = d.brut > 0 ? (d.brut / maxBrut * 180) : 4;
-            const hR = d.brut > 0 ? (d.reseau / maxBrut * 180) : 4;
+        <h3>📈 Évolution — {crit.label}</h3>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 220, marginTop: 16, padding: '0 8px' }}>
+          {data.map((d, i) => {
+            const val = getValue(d);
+            const h = val > 0 ? (val / maxVal * 190) : 4;
+            const prev = data[i - 1];
+            const delta = prev && getValue(prev) ? ((val - getValue(prev)) / getValue(prev) * 100) : null;
             return (
               <div key={d.period_key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ fontSize: 10, color: 'var(--success)', fontWeight: 700 }}>{fmt(d.reseau)}</div>
-                <div style={{ width: '100%', position: 'relative', height: h }}>
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: h, background: '#8b5cf620', borderRadius: '4px 4px 0 0' }}/>
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: hR, background: 'var(--success)', borderRadius: '4px 4px 0 0' }}/>
+                <div style={{ fontSize: 10, color: crit.color, fontWeight: 700, textAlign: 'center' }}>
+                  {fmtM(val)}
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{d.period_key}</div>
+                {delta !== null && (
+                  <div style={{ fontSize: 9, fontWeight: 700, color: delta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
+                  </div>
+                )}
+                <div style={{ width: '100%', position: 'relative', height: h }}>
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: h, background: crit.color, borderRadius: '4px 4px 0 0', opacity: 0.85 }}/>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>{d.period_key}</div>
                 <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{d.n_pdv} PDV</div>
               </div>
             );
           })}
         </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 12 }}>
-          <span>🟢 Part réseau (30%)</span>
-          <span style={{ color: 'var(--text-muted)' }}>⬜ Part PDV (70%)</span>
-        </div>
       </div>
 
-      <div className="prospects-table">
-        <table>
-          <thead><tr><th>Période</th><th>PDV</th><th>Brut (100%)</th><th>Réseau (30%)</th><th>PDV (70%)</th><th>Var. réseau</th></tr></thead>
+      {/* ── Tableau de données ── */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Période</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>PDV</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Commission Réelle PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: crit.color }}>Variation {crit.label}</th>
+            </tr>
+          </thead>
           <tbody>
             {data.map((d, i) => {
               const prev = data[i - 1];
-              const delta = prev && prev.reseau ? ((d.reseau - prev.reseau) / prev.reseau * 100).toFixed(1) : null;
+              const val = getValue(d);
+              const delta = prev && getValue(prev) ? ((val - getValue(prev)) / getValue(prev) * 100) : null;
               return (
-                <tr key={d.period_key}>
-                  <td><b>{d.period_key}</b></td>
-                  <td>{d.n_pdv}</td>
-                  <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>{fmt(d.brut)}</td>
-                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(d.reseau)}</td>
-                  <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#8b5cf6' }}>{fmt(d.pdv)}</td>
-                  <td>{delta !== null ? (
-                    <span style={{ color: parseFloat(delta) >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
-                      {parseFloat(delta) >= 0 ? '▲' : '▼'} {Math.abs(delta)}%
-                    </span>
-                  ) : '—'}</td>
+                <tr key={d.period_key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700 }}>{d.period_key}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>{d.n_pdv}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(d.reseau)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(d.pdv)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(d.reelle)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                    {delta !== null ? (
+                      <span style={{ color: delta >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                        {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
+                      </span>
+                    ) : '—'}
+                  </td>
                 </tr>
               );
             })}
