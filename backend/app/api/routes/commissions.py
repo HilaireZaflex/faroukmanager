@@ -57,13 +57,19 @@ def list_entries(
 def evolution(
     n_periods: int = 6,
     pdv_type: Optional[PDVType] = None,
+    zone: Optional[str] = None,
+    sous_zone: Optional[str] = None,
+    quartier: Optional[str] = None,
+    superviseur: Optional[str] = None,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     f = get_pdv_filters(current_user)
     return svc.evolution(db, n_periods, pdv_type,
-                         superviseur=f.get('superviseur'),
+                         superviseur=superviseur or f.get('superviseur'),
                          gestionnaire=f.get('gestionnaire'),
-                         zone=f.get('zone'))
+                         zone=zone or f.get('zone'),
+                         sous_zone=sous_zone,
+                         quartier=quartier)
 
 
 @router.get("/top-pdvs")

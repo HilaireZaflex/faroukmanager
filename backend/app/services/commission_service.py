@@ -710,7 +710,8 @@ def _entry_to_dict(e: CommissionEntry, pdv_names: Optional[Dict[str, str]] = Non
 def evolution(db: Session, n_periods: int = 6,
               pdv_type: Optional[PDVType] = None,
               superviseur: Optional[str] = None, gestionnaire: Optional[str] = None,
-              zone: Optional[str] = None) -> List[Dict[str, Any]]:
+              zone: Optional[str] = None, sous_zone: Optional[str] = None,
+              quartier: Optional[str] = None) -> List[Dict[str, Any]]:
     """Tendance sur les N dernières périodes mensuelles."""
     now = datetime.utcnow()
     keys = [(now - timedelta(days=30 * i)).strftime("%Y-%m")
@@ -728,6 +729,8 @@ def evolution(db: Session, n_periods: int = 6,
         if superviseur: q = q.filter(CommissionEntry.superviseur.ilike(f"%{superviseur}%"))
         if gestionnaire: q = q.filter(CommissionEntry.gestionnaire.ilike(f"%{gestionnaire}%"))
         if zone: q = q.filter(CommissionEntry.zone == zone)
+        if sous_zone: q = q.filter(CommissionEntry.sous_zone == sous_zone)
+        if quartier: q = q.filter(CommissionEntry.quartier == quartier)
         r = q.first()
         out.append({
             "period_key": pk,

@@ -602,21 +602,49 @@ const COMM_CRITERIA = {
 };
 
 function TabEvolution() {
-  const [data, setData]         = useState([]);
-  const [nPeriods, setNPeriods] = useState(6);
+  const [data, setData]             = useState([]);
+  const [nPeriods, setNPeriods]     = useState(6);
   const [typeFilter, setTypeFilter] = useState('');
   const [criterion, setCriterion]   = useState('commission_pdg');
 
+  // Filtres géographiques et réseau
+  const [zone, setZone]             = useState('');
+  const [sousZone, setSousZone]     = useState('');
+  const [quartier, setQuartier]     = useState('');
+  const [superviseur, setSuperviseur] = useState('');
+
+  // Listes dynamiques (chargées depuis les entries de la période la plus récente)
+  const [zones, setZones]           = useState([]);
+  const [sousZones, setSousZones]   = useState([]);
+  const [quartiers, setQuartiers]   = useState([]);
+  const [superviseurs, setSuperviseurs] = useState([]);
+
+  // Charger les listes de filtres une seule fois
   useEffect(() => {
-    commissionService.evolution(nPeriods, typeFilter || undefined).then(rows => {
-      // Calculer la commission réelle pour chaque période
+    commissionService.entries({ period_key: new Date().toISOString().slice(0, 7), limit: 2000 })
+      .catch(() => commissionService.entries({ limit: 500 }))
+      .then(r => {
+        setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
+        setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
+        setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
+        setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
+      }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    commissionService.evolution(nPeriods, typeFilter || undefined, {
+      zone: zone || undefined,
+      sous_zone: sousZone || undefined,
+      quartier: quartier || undefined,
+      superviseur: superviseur || undefined,
+    }).then(rows => {
       const enriched = rows.map(d => ({
         ...d,
         reelle: (d.reseau + d.pdv) * 0.3,
       }));
       setData(enriched);
     });
-  }, [nPeriods, typeFilter]);
+  }, [nPeriods, typeFilter, zone, sousZone, quartier, superviseur]);
 
   if (!data.length) return <div className="loading-state">Calcul…</div>;
 
@@ -641,7 +669,7 @@ function TabEvolution() {
             {c.label}
           </button>
         ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <select value={nPeriods} onChange={e => setNPeriods(parseInt(e.target.value))}
             style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
             <option value={3}>3 mois</option><option value={6}>6 mois</option><option value={12}>12 mois</option>
@@ -650,6 +678,26 @@ function TabEvolution() {
             style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
             <option value="">Tous types</option>
             {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <select value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}
+            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="">Toutes zones</option>
+            {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={sousZone} onChange={e => setSousZone(e.target.value)}
+            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="">Toutes sous-zones</option>
+            {sousZones.map(sz => <option key={sz} value={sz}>{sz}</option>)}
+          </select>
+          <select value={quartier} onChange={e => setQuartier(e.target.value)}
+            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="">Tous quartiers</option>
+            {quartiers.map(q => <option key={q} value={q}>{q}</option>)}
+          </select>
+          <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}
+            style={{ padding: '7px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="">Tous superviseurs</option>
+            {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </div>

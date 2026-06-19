@@ -7,7 +7,7 @@ export const commissionService = {
   periods:    ()       => api.get(`${base}/periods`).then(r => r.data),
   dashboard:  (p, t)   => api.get(`${base}/dashboard`, { params: { period_key: p, ...(t ? { pdv_type: t } : {}) } }).then(r => r.data),
   entries:    (params) => api.get(`${base}/entries`, { params }).then(r => r.data),
-  evolution:  (n, t)   => api.get(`${base}/evolution`, { params: { n_periods: n, ...(t ? { pdv_type: t } : {}) } }).then(r => r.data),
+  evolution:  (n, t, filters = {}) => api.get(`${base}/evolution`, { params: { n_periods: n, ...(t ? { pdv_type: t } : {}), ...Object.fromEntries(Object.entries(filters).filter(([,v]) => v)) } }).then(r => r.data),
   topPdvs:    (p, n, t)=> api.get(`${base}/top-pdvs`, { params: { period_key: p, n, ...(t ? { pdv_type: t } : {}) } }).then(r => r.data),
   exportUrl:  (p, t)   => `${api.defaults.baseURL}${base}/export.xlsx?period_key=${p}${t ? `&pdv_type=${t}` : ''}`,
   import:     (formData) => api.post(`${base}/import`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data),
