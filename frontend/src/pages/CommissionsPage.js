@@ -779,52 +779,143 @@ function TabEvolution() {
 // Onglet 4 : TOP PDV
 // ─────────────────────────────────────────────────────────────────────────────
 function TabTop({ period }) {
-  const [data, setData] = useState([]);
+  const [allData, setAllData]       = useState([]);
+  const [data, setData]             = useState([]);
   const [typeFilter, setTypeFilter] = useState('');
-  const [n, setN] = useState(20);
+  const [n, setN]                   = useState(20);
+  const [criterion, setCriterion]   = useState('commission_pdg');
 
+  const [zone, setZone]             = useState('');
+  const [sousZone, setSousZone]     = useState('');
+  const [quartier, setQuartier]     = useState('');
+  const [superviseur, setSuperviseur] = useState('');
+
+  const [zones, setZones]           = useState([]);
+  const [sousZones, setSousZones]   = useState([]);
+  const [quartiers, setQuartiers]   = useState([]);
+  const [superviseurs, setSuperviseurs] = useState([]);
+
+  // Charger les listes dynamiques
   useEffect(() => {
-    commissionService.topPdvs(period, n, typeFilter || undefined).then(setData);
-  }, [period, n, typeFilter]);
+    commissionService.entries({ period_key: period, limit: 2000 }).then(r => {
+      setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
+    }).catch(() => {});
+  }, [period]);
+
+  // Charger les données (top N avec filtre type)
+  useEffect(() => {
+    commissionService.topPdvs(period, 500, typeFilter || undefined).then(rows => {
+      const enriched = rows.map(e => ({
+        ...e,
+        commPDG:    e.montant_reseau || 0,
+        commRev:    e.montant_pdv || 0,
+        commReelle: ((e.montant_reseau || 0) + (e.montant_pdv || 0)) * 0.3,
+      }));
+      setAllData(enriched);
+    });
+  }, [period, typeFilter]);
+
+  // Filtrage + tri + limite
+  useEffect(() => {
+    let filtered = [...allData];
+    if (zone)        filtered = filtered.filter(e => e.zone === zone);
+    if (sousZone)    filtered = filtered.filter(e => e.sous_zone === sousZone);
+    if (quartier)    filtered = filtered.filter(e => e.quartier === quartier);
+    if (superviseur) filtered = filtered.filter(e => e.superviseur === superviseur);
+    const field = criterion === 'commission_reelle' ? 'commReelle' : 'commPDG';
+    filtered.sort((a, b) => b[field] - a[field]);
+    setData(filtered.slice(0, n));
+  }, [allData, zone, sousZone, quartier, superviseur, criterion, n]);
+
+  const crit = COMM_CRITERIA[criterion];
+  const medalColor = i => i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--text-muted)';
 
   return (
     <>
-      <div className="filters">
-        <select value={n} onChange={e => setN(parseInt(e.target.value))}>
-          <option value={10}>Top 10</option><option value={20}>Top 20</option><option value={50}>Top 50</option>
-        </select>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-          <option value="">Tous types</option>
-          {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+      {/* Ligne 1 : boutons critères */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+        {Object.entries(COMM_CRITERIA).map(([key, c]) => (
+          <button key={key} onClick={() => setCriterion(key)}
+            style={{
+              padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+              background: criterion === key ? c.color : 'var(--bg-card)',
+              color: criterion === key ? '#fff' : 'var(--text-secondary)',
+              boxShadow: criterion === key ? `0 2px 8px ${c.color}55` : 'none',
+              transition: 'all 0.2s',
+            }}>{c.label}</button>
+        ))}
       </div>
 
-      <div className="prospects-table">
-        <table>
+      {/* Ligne 2 : selects */}
+      <div className="pdv-filters card mb-16">
+        <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto' }}>
+          <select value={n} onChange={e => setN(parseInt(e.target.value))}>
+            <option value={10}>Top 10</option><option value={20}>Top 20</option><option value={50}>Top 50</option>
+          </select>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+            <option value="">Tous types</option>
+            {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <select value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}>
+            <option value="">Toutes zones</option>
+            {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={sousZone} onChange={e => setSousZone(e.target.value)}>
+            <option value="">Toutes sous-zones</option>
+            {sousZones.map(sz => <option key={sz} value={sz}>{sz}</option>)}
+          </select>
+          <select value={quartier} onChange={e => setQuartier(e.target.value)}>
+            <option value="">Tous quartiers</option>
+            {quartiers.map(q => <option key={q} value={q}>{q}</option>)}
+          </select>
+          <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}>
+            <option value="">Tous superviseurs</option>
+            {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Tableau */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr>
-              <th>#</th><th>PDV</th><th>Type</th><th>Quartier</th>
-              <th>Brut (100%)</th>
-              <th style={{ color: 'var(--success)' }}>Réseau (30%)</th>
-              <th style={{ color: '#8b5cf6' }}>PDV (70%)</th>
-              <th style={{ color: '#3b82f6' }}>Comm. NET</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Type</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone / Quartier</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
             </tr>
           </thead>
           <tbody>
             {data.map((e, i) => (
-              <tr key={e.id}>
-                <td><b style={{ color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--text-muted)' }}>#{i+1}</b></td>
-                <td><b>{e.pdv_numero}</b><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{e.pdv_nom}</div></td>
-                <td><span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span></td>
-                <td>{e.quartier || '—'}</td>
-                <td style={{ fontFamily: 'monospace', textAlign: 'right' }}>{fmt(e.montant_brut)}</td>
-                <td style={{ fontFamily: 'monospace', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(e.montant_reseau)}</td>
-                <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#8b5cf6' }}>{fmt(e.montant_pdv)}</td>
-                <td style={{ fontFamily: 'monospace', textAlign: 'right', color: '#3b82f6', fontWeight: 700 }}>
-                  {fmt(e.commission_nette)}
+              <tr key={e.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                  <b style={{ color: medalColor(i), fontSize: 15 }}>#{i+1}</b>
                 </td>
+                <td style={{ padding: '10px 12px' }}>
+                  <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                  <span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span>
+                </td>
+                <td style={{ padding: '10px 12px' }}>
+                  <div style={{ fontSize: 12 }}>{e.zone || '—'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.quartier || '—'}</div>
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(e.commPDG)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(e.commRev)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(e.commReelle)}</td>
               </tr>
             ))}
+            {data.length === 0 && (
+              <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
+            )}
           </tbody>
         </table>
       </div>
