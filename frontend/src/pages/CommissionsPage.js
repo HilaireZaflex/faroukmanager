@@ -619,16 +619,19 @@ function TabEvolution() {
   const [quartiers, setQuartiers]   = useState([]);
   const [superviseurs, setSuperviseurs] = useState([]);
 
-  // Charger les listes de filtres une seule fois
+  // Charger les listes de filtres depuis la période la plus récente disponible
   useEffect(() => {
-    commissionService.entries({ period_key: new Date().toISOString().slice(0, 7), limit: 2000 })
-      .catch(() => commissionService.entries({ limit: 500 }))
-      .then(r => {
-        setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
-        setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
-        setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
-        setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
-      }).catch(() => {});
+    commissionService.periods().then(periods => {
+      if (!periods.length) return;
+      const latestPeriod = periods[0]; // la plus récente
+      return commissionService.entries({ period_key: latestPeriod, limit: 2000 });
+    }).then(r => {
+      if (!r) return;
+      setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
