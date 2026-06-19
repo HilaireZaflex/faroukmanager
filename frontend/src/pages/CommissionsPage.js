@@ -714,8 +714,8 @@ function TabEvolution() {
             const delta = prev && getValue(prev) ? ((val - getValue(prev)) / getValue(prev) * 100) : null;
             return (
               <div key={d.period_key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ fontSize: 10, color: crit.color, fontWeight: 700, textAlign: 'center' }}>
-                  {fmtM(val)}
+                <div style={{ fontSize: 9, color: crit.color, fontWeight: 700, textAlign: 'center', wordBreak: 'break-all' }}>
+                  {Math.round(val).toLocaleString('en-US').replace(/,/g, ' ')}
                 </div>
                 {delta !== null && (
                   <div style={{ fontSize: 9, fontWeight: 700, color: delta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
