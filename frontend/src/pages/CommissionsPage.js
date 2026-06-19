@@ -436,6 +436,11 @@ function TabDetails({ period }) {
     const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
     const paginated  = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+    // Totaux sur toutes les entrées filtrées (pas seulement la page courante)
+    const totalCommPDG    = entries.reduce((s, e) => s + (e.montant_reseau || 0), 0);
+    const totalCommRev    = entries.reduce((s, e) => s + (e.montant_pdv || 0), 0);
+    const totalCommReelle = (totalCommPDG + totalCommRev) * 0.3;
+
     return (
     <>
       <div style={{ overflowX: 'auto' }}>
@@ -453,10 +458,6 @@ function TabDetails({ period }) {
           </thead>
           <tbody>
             {paginated.map(e => {
-              // Même logique que le dashboard backend :
-              // montant_reseau = CommPDG (ce que le PDG garde)
-              // montant_pdv    = CommRev (ce que les PDV reçoivent)
-              // CommRéelle PDG = (CommPDG + CommRev) × 30%
               const commPDG    = e.montant_reseau || 0;
               const commRev    = e.montant_pdv || 0;
               const commReelle = (commPDG + commRev) * 0.3;
@@ -486,6 +487,21 @@ function TabDetails({ period }) {
             })}
             {paginated.length === 0 && (
               <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
+            )}
+            {/* Ligne de totaux (sur toutes les entrées filtrées) */}
+            {entries.length > 0 && (
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,105,0,0.06)', fontWeight: 800 }}>
+                <td style={{ padding: '10px 12px', color: '#FF6900' }}>
+                  <b>TOTAL</b>
+                  <div style={{ fontSize: 10, color: '#8a8a9a', fontWeight: 400 }}>{entries.length} PDV</div>
+                </td>
+                <td></td>
+                <td></td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 800 }}>{fmt(totalCommPDG)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 800 }}>{fmt(totalCommRev)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(totalCommReelle)}</td>
+                <td></td>
+              </tr>
             )}
           </tbody>
         </table>
