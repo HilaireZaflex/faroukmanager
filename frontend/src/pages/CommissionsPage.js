@@ -249,7 +249,7 @@ function TabDashboard({ period }) {
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(commRev)}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                    {isGere
+                    {t.gere_reversement
                       ? <span className="status-badge" style={{ background: '#8b5cf6' }}>🏪 PDG reverse au PDV</span>
                       : <span className="status-badge" style={{ background: '#3b82f6' }}>🟦 Orange paie directement</span>}
                   </td>
