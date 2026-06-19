@@ -1014,9 +1014,10 @@ function TabAnalyseIA({ period }) {
   const [sousZones, setSousZones]   = useState([]);
   const [quartiers, setQuartiers]   = useState([]);
   const [superviseurs, setSuperviseurs] = useState([]);
-  const [activeSection, setActiveSection] = useState('tendances');
-  const [activeTendance, setActiveTendance] = useState(null); // filtre KPI cliqué
-  const [prevEntries, setPrevEntries] = useState([]);
+  const [activeSection, setActiveSection]   = useState('tendances');
+  const [activeTendance, setActiveTendance] = useState(null);
+  const [criterion, setCriterion]           = useState('commission_pdg'); // commission_pdg | commission_reelle
+  const [prevEntries, setPrevEntries]       = useState([]);
 
   useEffect(() => {
     setLoading(true);
@@ -1048,14 +1049,21 @@ function TabAnalyseIA({ period }) {
     return true;
   }).map(e => ({ ...e, commPDG: e.montant_reseau||0, commRev: e.montant_pdv||0, commReelle: ((e.montant_reseau||0)+(e.montant_pdv||0))*0.3 }));
 
+  const crit = COMM_CRITERIA[criterion];
+  const getValue = e => criterion === 'commission_reelle' ? e.commReelle : e.commPDG;
+
   const prevMap = {};
-  prevEntries.forEach(e => { prevMap[e.pdv_numero] = ((e.montant_reseau||0)+(e.montant_pdv||0))*0.3; });
+  prevEntries.forEach(e => {
+    const commPDG = e.montant_reseau || 0;
+    const commReelle = ((e.montant_reseau||0)+(e.montant_pdv||0))*0.3;
+    prevMap[e.pdv_numero] = criterion === 'commission_reelle' ? commReelle : commPDG;
+  });
 
   const pdvTendances = filtered.map(e => {
-    const curr = e.commReelle, prev = prevMap[e.pdv_numero]||0;
+    const curr = getValue(e), prev = prevMap[e.pdv_numero]||0;
     const delta = prev > 0 ? ((curr-prev)/prev*100) : null;
     return { ...e, prev, delta, tendance: delta===null?'nouveau': delta>=10?'hausse': delta<=-20?'chute': delta<0?'baisse':'stable' };
-  }).filter(e => e.commReelle > 0);
+  }).filter(e => getValue(e) > 0);
 
   const enHausse = pdvTendances.filter(e=>e.tendance==='hausse').sort((a,b)=>b.delta-a.delta);
   const enBaisse = pdvTendances.filter(e=>e.tendance==='baisse').sort((a,b)=>a.delta-b.delta);
@@ -1087,6 +1095,21 @@ function TabAnalyseIA({ period }) {
 
   return (
     <>
+      {/* Boutons critères */}
+      <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+        {Object.entries(COMM_CRITERIA).map(([key, c]) => (
+          <button key={key} onClick={() => { setCriterion(key); setActiveTendance(null); }}
+            style={{
+              padding:'8px 18px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:13,
+              background: criterion===key ? c.color : 'var(--bg-card)',
+              color: criterion===key ? '#fff' : 'var(--text-secondary)',
+              boxShadow: criterion===key ? `0 2px 8px ${c.color}55` : 'none',
+              transition:'all 0.2s',
+            }}>{c.label}</button>
+        ))}
+      </div>
+
+      {/* Filtres */}
       <div className="pdv-filters card mb-16">
         <div className="filter-selects" style={{ flexWrap:'nowrap', overflowX:'auto' }}>
           <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
@@ -1163,7 +1186,7 @@ function TabAnalyseIA({ period }) {
               <thead><tr>
                 <th style={thStyle()}>PDV</th><th style={thStyle()}>Type</th><th style={thStyle()}>Zone / Quartier</th>
                 <th style={{...thStyle(),...{textAlign:'right'}}}>Mois préc.</th>
-                <th style={{...thStyle('#f59e0b'),...{textAlign:'right'}}}>Actuel</th>
+                <th style={{...thStyle(crit.color),...{textAlign:'right'}}}>Actuel ({crit.label})</th>
                 <th style={{...thStyle(color),...{textAlign:'right'}}}>Variation</th>
                 <th style={thStyle()}>Superviseur</th>
               </tr></thead>
@@ -1174,7 +1197,7 @@ function TabAnalyseIA({ period }) {
                     <td style={tdStyle('center')}><span className="status-badge" style={{background:TYPE_COLORS[e.pdv_type]}}>{e.pdv_type}</span></td>
                     <td style={tdStyle()}><div style={{fontSize:12}}>{e.zone||'—'}</div><div style={{fontSize:11,color:'var(--text-secondary)'}}>{e.quartier||''}</div></td>
                     <td style={tdStyle('right','var(--text-secondary)')}>{fmt(e.prev)}</td>
-                    <td style={tdStyle('right','#f59e0b',700)}>{fmt(e.commReelle)}</td>
+                    <td style={tdStyle('right',crit.color,700)}>{fmt(getValue(e))}</td>
                     <td style={tdStyle('right',color,800)}>{e.delta>=0?'▲':'▼'} {Math.abs(e.delta).toFixed(1)}%</td>
                     <td style={{...tdStyle(),...{fontSize:11,color:'var(--text-secondary)'}}}>{e.superviseur||'—'}</td>
                   </tr>
