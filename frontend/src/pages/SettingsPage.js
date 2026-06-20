@@ -158,8 +158,13 @@ function SectionUtilisateurs({ currentUser }) {
   const [editUser, setEditUser] = useState(null);
   const [showPwd, setShowPwd] = useState(false);
   const [newUser, setNewUser] = useState({ nom:'', prenom:'', email:'', role:'superviseur', password:'', zone:'' });
-  const [managingPerms, setManagingPerms] = useState(null); // user gérant ses perms
-  const [userPerms, setUserPerms] = useState({});           // { userId: [menuIds] }
+  const [managingPerms, setManagingPerms] = useState(null);
+  const [userPerms, setUserPerms] = useState({});
+  const [selectedMembre, setSelectedMembre] = useState(''); // nom du membre terrain sélectionné
+
+  // Charger l'équipe terrain pour le formulaire
+  const { data: equipe } = useQuery('equipe-reseau-form',
+    () => api.get('/reseau/equipe').then(r => r.data), { staleTime: 60000 });
 
   const { data: users, refetch } = useQuery('all-users',
     () => api.get('/auth/users').then(r => r.data), { staleTime: 30000 });
@@ -220,38 +225,79 @@ function SectionUtilisateurs({ currentUser }) {
 
       {showAdd && (
         <div style={{ background:'rgba(255,105,0,0.05)', border:'1px solid rgba(255,105,0,0.15)', borderRadius:14, padding:20, marginBottom:20 }}>
-          <h4 style={{ fontSize:13, fontWeight:700, marginBottom:16, color:'#FF6900' }}>Creer un nouvel utilisateur</h4>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:12 }}>
-            {[['nom','Nom *'],['prenom','Prenom'],['email','Email *'],['zone','Zone']].map(([k,l]) => (
-              <div key={k}>
-                <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:4 }}>{l}</label>
-                <input type="text" value={newUser[k]} onChange={e => setNewUser(u => ({...u,[k]:e.target.value}))} placeholder={l} style={inp()} />
-              </div>
-            ))}
-            <div>
-              <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:4 }}>Mot de passe *</label>
-              <div style={{ position:'relative' }}>
-                <input type={showPwd?'text':'password'} value={newUser.password} onChange={e => setNewUser(u => ({...u,password:e.target.value}))} placeholder="Mot de passe" style={inp({ paddingRight:40 })} />
-                <button onClick={() => setShowPwd(v=>!v)} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#8a8a9a', cursor:'pointer' }}>
-                  {showPwd ? <EyeOff size={14}/> : <Eye size={14}/>}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:4 }}>Role *</label>
-              <select value={newUser.role} onChange={e => setNewUser(u => ({...u,role:e.target.value}))} style={{ ...inp(), appearance:'none' }}>
-                <option value="admin">🔴 Administrateur</option>
-                <option value="manager">🟠 Manager</option>
-                <option value="superviseur">🟡 Superviseur</option>
-                <option value="rc">🟢 Responsable Commercial</option>
-                <option value="developpeur">🔵 Développeur</option>
-                <option value="teleconseillere">🟣 Téléconseillère</option>
-              </select>
+          <h4 style={{ fontSize:13, fontWeight:700, marginBottom:16, color:'#FF6900' }}>Créer un compte utilisateur</h4>
+
+          {/* Étape 1: Sélectionner un membre terrain OU créer manuellement */}
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:6 }}>
+              1️⃣ Sélectionner un membre de l'équipe terrain (ou remplir manuellement)
+            </label>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+              {[
+                { key:'superviseurs', role:'superviseur', label:'👤 Superviseur', color:'#4a9eff' },
+                { key:'gestionnaires', role:'gestionnaire', label:'💼 Gestionnaire', color:'#FF6900' },
+                { key:'developpeurs', role:'developpeur', label:'🚨 Développeur', color:'#00d68f' },
+                { key:'teleconseilleres', role:'teleconseillere', label:'📞 Téléconseillère', color:'#a29bfe' },
+              ].map(({ key, role, label, color }) => (
+                <div key={key}>
+                  <label style={{ fontSize:10, fontWeight:700, color, display:'block', marginBottom:4 }}>{label}</label>
+                  <select style={{ ...inp(), fontSize:11 }}
+                    value={newUser.role === role ? selectedMembre : ''}
+                    onChange={e => {
+                      const nom = e.target.value;
+                      if (!nom) return;
+                      setSelectedMembre(nom);
+                      // Remplir automatiquement nom/prenom depuis le nom complet
+                      const parts = nom.split(' ');
+                      const prenom = parts[0] || '';
+                      const nomFam = parts.slice(1).join(' ') || '';
+                      setNewUser(u => ({ ...u, role, nom: nomFam || nom, prenom }));
+                    }}>
+                    <option value="">-- Choisir --</option>
+                    {(equipe?.[key] || []).map(m => <option key={m.nom} value={m.nom}>{m.nom}</option>)}
+                  </select>
+                </div>
+              ))}
             </div>
           </div>
+
+          <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:16, marginBottom:12 }}>
+            <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:10 }}>
+              2️⃣ Informations du compte
+            </label>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:12 }}>
+              {[['nom','Nom *'],['prenom','Prénom'],['email','Email *'],['zone','Zone']].map(([k,l]) => (
+                <div key={k}>
+                  <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:4 }}>{l}</label>
+                  <input type="text" value={newUser[k]} onChange={e => setNewUser(u => ({...u,[k]:e.target.value}))} placeholder={l} style={inp()} />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:4 }}>Mot de passe *</label>
+                <div style={{ position:'relative' }}>
+                  <input type={showPwd?'text':'password'} value={newUser.password} onChange={e => setNewUser(u => ({...u,password:e.target.value}))} placeholder="Mot de passe" style={inp({ paddingRight:40 })} />
+                  <button onClick={() => setShowPwd(v=>!v)} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#8a8a9a', cursor:'pointer' }}>
+                    {showPwd ? <EyeOff size={14}/> : <Eye size={14}/>}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize:10, fontWeight:700, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:'1px', display:'block', marginBottom:4 }}>Rôle *</label>
+                <select value={newUser.role} onChange={e => setNewUser(u => ({...u,role:e.target.value}))} style={{ ...inp(), appearance:'none' }}>
+                  <option value="admin">🔴 Administrateur</option>
+                  <option value="manager">🟠 Manager</option>
+                  <option value="superviseur">🟡 Superviseur</option>
+                  <option value="gestionnaire">💼 Gestionnaire</option>
+                  <option value="developpeur">🔵 Développeur</option>
+                  <option value="teleconseillere">🟣 Téléconseillère</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <button onClick={() => addUser.mutate()} disabled={addUser.isLoading || !newUser.nom || !newUser.email || !newUser.password}
             style={{ background:'#FF6900', color:'#fff', border:'none', borderRadius:10, padding:'9px 20px', fontWeight:700, cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', gap:8, opacity: (!newUser.nom||!newUser.email||!newUser.password)?0.5:1 }}>
-            <Check size={14}/> {addUser.isLoading ? 'Creation...' : 'Creer l\'utilisateur'}
+            <Check size={14}/> {addUser.isLoading ? 'Création...' : 'Créer le compte'}
           </button>
         </div>
       )}
