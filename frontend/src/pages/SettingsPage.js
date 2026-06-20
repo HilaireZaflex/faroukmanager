@@ -7,12 +7,14 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 
 const DEFAULT_ROLES = [
-  { id: 'admin',           label: '🔴 Administrateur',       color: '#ff3d71', bg: 'rgba(255,61,113,0.15)',  locked: true },
-  { id: 'manager',         label: '🟠 Manager',              color: '#FF6900', bg: 'rgba(255,105,0,0.15)',   locked: true },
-  { id: 'superviseur',     label: '🟡 Superviseur',          color: '#eab308', bg: 'rgba(234,179,8,0.15)',   locked: false },
-  { id: 'rc',              label: '🟢 Resp. Commercial',     color: '#22c55e', bg: 'rgba(34,197,94,0.15)',   locked: false },
-  { id: 'developpeur',     label: '🔵 Développeur',          color: '#3b82f6', bg: 'rgba(59,130,246,0.15)',  locked: false },
-  { id: 'teleconseillere', label: '🟣 Téléconseillère',      color: '#a855f7', bg: 'rgba(168,85,247,0.15)', locked: false },
+  { id: 'admin',           label: '🔴 Administrateur',            color: '#ff3d71', bg: 'rgba(255,61,113,0.15)',  locked: true },
+  { id: 'manager',         label: '🟠 Manager',                   color: '#FF6900', bg: 'rgba(255,105,0,0.15)',   locked: true },
+  { id: 'superviseur',     label: '👤 Superviseur',               color: '#eab308', bg: 'rgba(234,179,8,0.15)',   locked: false },
+  { id: 'gestionnaire',    label: '💼 Gestionnaire',              color: '#f97316', bg: 'rgba(249,115,22,0.15)',  locked: false },
+  { id: 'developpeur',     label: '🚨 Développeur',               color: '#3b82f6', bg: 'rgba(59,130,246,0.15)',  locked: false },
+  { id: 'teleconseillere', label: '📞 Téléconseillère',           color: '#a855f7', bg: 'rgba(168,85,247,0.15)', locked: false },
+  { id: 'rc',              label: '🟢 Resp. Commercial',          color: '#22c55e', bg: 'rgba(34,197,94,0.15)',   locked: false },
+  { id: 'conformite',      label: '🛡️ Resp. de Conformité',       color: '#0ea5e9', bg: 'rgba(14,165,233,0.15)',  locked: false },
 ];
 
 const ROLES = DEFAULT_ROLES.map(r => r.id);
@@ -234,10 +236,12 @@ function SectionUtilisateurs({ currentUser }) {
             </label>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
               {[
-                { key:'superviseurs', role:'superviseur', label:'👤 Superviseur', color:'#4a9eff' },
-                { key:'gestionnaires', role:'gestionnaire', label:'💼 Gestionnaire', color:'#FF6900' },
-                { key:'developpeurs', role:'developpeur', label:'🚨 Développeur', color:'#00d68f' },
-                { key:'teleconseilleres', role:'teleconseillere', label:'📞 Téléconseillère', color:'#a29bfe' },
+                { key:'superviseurs',    role:'superviseur',     label:'👤 Superviseur',        color:'#4a9eff' },
+                { key:'gestionnaires',  role:'gestionnaire',    label:'💼 Gestionnaire',        color:'#FF6900' },
+                { key:'developpeurs',   role:'developpeur',     label:'🚨 Développeur',         color:'#00d68f' },
+                { key:'teleconseilleres',role:'teleconseillere',label:'📞 Téléconseillère',     color:'#a29bfe' },
+                { key:'rc',            role:'rc',              label:'🟢 Resp. Commercial',    color:'#22c55e' },
+                { key:'conformite',    role:'conformite',      label:'🛡️ Resp. Conformité',    color:'#0ea5e9' },
               ].map(({ key, role, label, color }) => (
                 <div key={key}>
                   <label style={{ fontSize:10, fontWeight:700, color, display:'block', marginBottom:4 }}>{label}</label>
@@ -286,10 +290,12 @@ function SectionUtilisateurs({ currentUser }) {
                 <select value={newUser.role} onChange={e => setNewUser(u => ({...u,role:e.target.value}))} style={{ ...inp(), appearance:'none' }}>
                   <option value="admin">🔴 Administrateur</option>
                   <option value="manager">🟠 Manager</option>
-                  <option value="superviseur">🟡 Superviseur</option>
+                  <option value="superviseur">👤 Superviseur</option>
                   <option value="gestionnaire">💼 Gestionnaire</option>
-                  <option value="developpeur">🔵 Développeur</option>
-                  <option value="teleconseillere">🟣 Téléconseillère</option>
+                  <option value="developpeur">🚨 Développeur</option>
+                  <option value="teleconseillere">📞 Téléconseillère</option>
+                  <option value="rc">🟢 Resp. Commercial</option>
+                  <option value="conformite">🛡️ Resp. de Conformité</option>
                 </select>
               </div>
             </div>
@@ -621,10 +627,12 @@ function SectionRoles() {
 // ─── SECTION BASE DE DONNEES ──────────────────────────────────────────────────
 
 const ROLE_TABS = [
-  { key: 'superviseurs',    role: 'superviseur',     label: 'Superviseurs',     icon: '👤', color: '#4a9eff' },
-  { key: 'gestionnaires',   role: 'gestionnaire',    label: 'Gestionnaires',    icon: '💼', color: '#FF6900' },
-  { key: 'developpeurs',    role: 'developpeur',     label: 'Développeurs',     icon: '🚨', color: '#00d68f' },
-  { key: 'teleconseilleres',role: 'teleconseillere', label: 'Téléconseillères', icon: '📞', color: '#a29bfe' },
+  { key: 'superviseurs',    role: 'superviseur',     label: 'Superviseurs',        icon: '👤', color: '#4a9eff' },
+  { key: 'gestionnaires',   role: 'gestionnaire',    label: 'Gestionnaires',       icon: '💼', color: '#FF6900' },
+  { key: 'developpeurs',    role: 'developpeur',     label: 'Développeurs',        icon: '🚨', color: '#00d68f' },
+  { key: 'teleconseilleres',role: 'teleconseillere', label: 'Téléconseillères',    icon: '📞', color: '#a29bfe' },
+  { key: 'rc',              role: 'rc',              label: 'Resp. Commerciaux',   icon: '🟢', color: '#22c55e' },
+  { key: 'conformite',      role: 'conformite',      label: 'Resp. Conformité',    icon: '🛡️', color: '#0ea5e9' },
 ];
 
 const EMPTY_FORM = { nom: '', telephone: '', zone: '' };

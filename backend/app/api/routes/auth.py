@@ -75,10 +75,16 @@ def get_pdv_filters(user: User) -> dict:
         return {}  # Pas de filtre — voient tout
     elif role == 'superviseur':
         return {'superviseur': nom_complet}
+    elif role == 'gestionnaire':
+        return {'gestionnaire': nom_complet}
+    elif role == 'developpeur':
+        return {'developpeur': nom_complet}
+    elif role == 'teleconseillere':
+        return {'teleconseillere': nom_complet}
     elif role == 'rc':
         return {'gestionnaire': nom_complet}
-    elif role in ('developpeur', 'teleconseillere'):
-        return {'zone': user.zone} if user.zone else {}
+    elif role == 'conformite':
+        return {}  # Resp. Conformité voit tout
     return {}
 
 @router.post("/auth/login", response_model=Token)
