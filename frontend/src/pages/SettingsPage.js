@@ -140,15 +140,53 @@ function SectionProfil({ user }) {
 }
 
 // ─── SECTION UTILISATEURS ─────────────────────────────────────────────────────
+// Menus extras disponibles à attribuer
+const EXTRA_MENUS = [
+  { id: 'indicateurs',  label: '📊 Indicateurs' },
+  { id: 'commissions',  label: '💰 Commissions' },
+  { id: 'reseau',       label: '🌐 Gestion Réseau' },
+  { id: 'ia',           label: '🤖 Intelligence IA' },
+  { id: 'carte',        label: '🗺️ Carte Interactive' },
+  { id: 'recovery',     label: '🔄 Recovery' },
+  { id: 'reports',      label: '📋 Rapports' },
+  { id: 'settings',     label: '⚙️ Paramètres' },
+];
+
 function SectionUtilisateurs({ currentUser }) {
   const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [showPwd, setShowPwd] = useState(false);
   const [newUser, setNewUser] = useState({ nom:'', prenom:'', email:'', role:'superviseur', password:'', zone:'' });
+  const [managingPerms, setManagingPerms] = useState(null); // user gérant ses perms
+  const [userPerms, setUserPerms] = useState({});           // { userId: [menuIds] }
 
   const { data: users, refetch } = useQuery('all-users',
     () => api.get('/auth/users').then(r => r.data), { staleTime: 30000 });
+
+  // Charger les permissions d'un utilisateur
+  const loadUserPerms = async (userId) => {
+    try {
+      const res = await api.get(`/user-permissions/${userId}`);
+      setUserPerms(p => ({ ...p, [userId]: res.data.extra_menus || [] }));
+    } catch {}
+  };
+
+  // Sauvegarder les permissions d'un utilisateur
+  const savePerms = async (userId) => {
+    try {
+      await api.put(`/user-permissions/${userId}`, { extra_menus: userPerms[userId] || [] });
+      toast.success('Accès mis à jour !');
+      setManagingPerms(null);
+    } catch { toast.error('Erreur sauvegarde'); }
+  };
+
+  const toggleMenu = (userId, menuId) => {
+    setUserPerms(p => {
+      const current = p[userId] || [];
+      return { ...p, [userId]: current.includes(menuId) ? current.filter(m => m !== menuId) : [...current, menuId] };
+    });
+  };
 
   const addUser = useMutation(() => api.post('/auth/register', newUser), {
     onSuccess: () => { toast.success(`Utilisateur cree avec succes !`); setShowAdd(false); setNewUser({nom:'',prenom:'',email:'',role:'superviseur',password:'',zone:''}); refetch(); },
@@ -237,6 +275,12 @@ function SectionUtilisateurs({ currentUser }) {
                 <div style={{ position:'absolute', top:3, left:u.is_active?20:3, width:16, height:16, borderRadius:'50%', background:'white', transition:'left 0.2s', boxShadow:'0 1px 4px rgba(0,0,0,0.3)' }}/>
               </div>
             </div>
+            {u.id !== currentUser?.id && u.role !== 'admin' && (
+              <button onClick={() => { setManagingPerms(managingPerms===u.id?null:u.id); loadUserPerms(u.id); }}
+                style={{ background: managingPerms===u.id ? 'rgba(255,105,0,0.2)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: managingPerms===u.id ? '#FF6900' : '#8a8a9a', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, fontWeight:700 }}>
+                🔐 Accès
+              </button>
+            )}
             {u.id !== currentUser?.id && (
               <button onClick={() => { if(window.confirm(`Supprimer ${u.nom} ?`)) deleteUser.mutate(u.id); }}
                 style={{ background:'rgba(255,61,113,0.1)', border:'1px solid rgba(255,61,113,0.2)', color:'#ff3d71', borderRadius:8, padding:'6px 10px', cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:12 }}>
@@ -244,6 +288,38 @@ function SectionUtilisateurs({ currentUser }) {
               </button>
             )}
           </div>
+          {/* Panneau de gestion des accès */}
+          {managingPerms === u.id && (
+            <div style={{ marginTop:12, padding:16, background:'rgba(255,105,0,0.06)', border:'1px solid rgba(255,105,0,0.2)', borderRadius:10 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#FF6900', marginBottom:10 }}>
+                🔐 Menus additionnels pour {u.nom} {u.prenom}
+              </div>
+              <p style={{ fontSize:11, color:'#8a8a9a', marginBottom:12 }}>
+                Par défaut : Accueil + Dashboards + PDV + Prospection + Évaluations + Alertes.<br/>
+                Cochez les menus supplémentaires à activer pour cet utilisateur.
+              </p>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:8, marginBottom:14 }}>
+                {EXTRA_MENUS.map(m => {
+                  const checked = (userPerms[u.id]||[]).includes(m.id);
+                  return (
+                    <label key={m.id} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'8px 12px', borderRadius:8, background: checked?'rgba(255,105,0,0.12)':'rgba(255,255,255,0.03)', border: checked?'1px solid rgba(255,105,0,0.3)':'1px solid rgba(255,255,255,0.06)' }}>
+                      <input type="checkbox" checked={checked} onChange={()=>toggleMenu(u.id,m.id)} style={{ accentColor:'#FF6900' }}/>
+                      <span style={{ fontSize:12, fontWeight: checked?700:400, color: checked?'#FF6900':'#8a8a9a' }}>{m.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={()=>savePerms(u.id)} style={{ padding:'8px 18px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                  ✅ Sauvegarder
+                </button>
+                <button onClick={()=>setManagingPerms(null)} style={{ padding:'8px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'transparent', color:'#8a8a9a', fontSize:13, cursor:'pointer' }}>
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         ))}
       </div>
     </div>
