@@ -303,10 +303,27 @@ async def get_equipe_reseau():
 
     db = SessionLocal()
     try:
+        # Créer la table si elle n'existe pas
+        try:
+            db.execute(text("""
+                CREATE TABLE IF NOT EXISTS equipe_reseau (
+                    id SERIAL PRIMARY KEY,
+                    nom VARCHAR(200) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    telephone VARCHAR(50),
+                    email VARCHAR(100),
+                    zone VARCHAR(100),
+                    UNIQUE(nom, role)
+                )
+            """))
+            db.commit()
+        except Exception as e:
+            db.rollback()
+
         # Charger les numéros sauvegardés
         try:
-            phones_rows = db.execute(text("SELECT nom, role, telephone FROM equipe_reseau")).fetchall()
-            phones = {(r[0], r[1]): r[2] for r in phones_rows}
+            phones_rows = db.execute(text("SELECT nom, role, telephone, zone FROM equipe_reseau")).fetchall()
+            phones = {(r[0], r[1]): {"telephone": r[2], "zone": r[3]} for r in phones_rows}
         except:
             phones = {}
 
@@ -330,13 +347,20 @@ async def get_equipe_reseau():
                 if val and val.strip().upper() not in EXCLUS:
                     nom = val.strip()
                     if nom not in dct:
-                        dct[nom] = phones.get((nom, role), '')
+                        info = phones.get((nom, role), {})
+                        dct[nom] = {
+                            "telephone": info.get("telephone", "") if isinstance(info, dict) else "",
+                            "zone": info.get("zone", "") if isinstance(info, dict) else "",
+                        }
+
+        def to_list(dct):
+            return [{"nom": k, "telephone": v.get("telephone",""), "zone": v.get("zone","")} for k, v in sorted(dct.items())]
 
         return {
-            "superviseurs":    [{"nom": k, "telephone": v} for k, v in sorted(superviseurs.items())],
-            "gestionnaires":   [{"nom": k, "telephone": v} for k, v in sorted(gestionnaires.items())],
-            "developpeurs":    [{"nom": k, "telephone": v} for k, v in sorted(developpeurs.items())],
-            "teleconseilleres":[{"nom": k, "telephone": v} for k, v in sorted(teleconseilleres.items())],
+            "superviseurs":    to_list(superviseurs),
+            "gestionnaires":   to_list(gestionnaires),
+            "developpeurs":    to_list(developpeurs),
+            "teleconseilleres":to_list(teleconseilleres),
         }
     finally:
         db.close()
