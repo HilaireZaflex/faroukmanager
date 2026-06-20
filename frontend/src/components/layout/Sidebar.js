@@ -35,6 +35,7 @@ export default function Sidebar() {
   // Helpers utilisant le store
   const can  = (item) => canAccess(item);
   const canD = (dash) => canAccessDash(dash);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const initials = user ? `${(user.nom||'?')[0]}${(user.prenom||'')[0]||''}`.toUpperCase() : '?';
