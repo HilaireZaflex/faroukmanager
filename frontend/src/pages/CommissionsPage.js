@@ -82,6 +82,10 @@ function TabDashboard({ period }) {
   const transit = data.montant_en_transit || {};
   const rev = data.reversements || {};
 
+  // RS et KIOSQUE : Commission Revendeur = 0 (accessible partout dans le composant)
+  const isGereType = typeFilter === 'RS' || typeFilter === 'KIOSQUE';
+  const commRevDisplay = isGereType ? 0 : (data.commission_revendeur_total || 0);
+
   return (
     <>
       {/* Filtrage par type */}
@@ -101,8 +105,6 @@ function TabDashboard({ period }) {
         const isDirect = typeFilter === 'RNS' || typeFilter === 'RSF';
         const isGere   = typeFilter === 'RS'  || typeFilter === 'KIOSQUE';
         const isAll    = !typeFilter;
-        // RS et KIOSQUE : Commission Revendeur = 0 (Orange ne verse pas de CommRev pour ces types)
-        const commRevDisplay = isGere ? 0 : (data.commission_revendeur_total || 0);
 
         // Légende dynamique Commission PDG
         let legendCommPDG;
