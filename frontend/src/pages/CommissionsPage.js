@@ -101,6 +101,8 @@ function TabDashboard({ period }) {
         const isDirect = typeFilter === 'RNS' || typeFilter === 'RSF';
         const isGere   = typeFilter === 'RS'  || typeFilter === 'KIOSQUE';
         const isAll    = !typeFilter;
+        // RS et KIOSQUE : Commission Revendeur = 0 (Orange ne verse pas de CommRev pour ces types)
+        const commRevDisplay = isGere ? 0 : (data.commission_revendeur_total || 0);
 
         // Légende dynamique Commission PDG
         let legendCommPDG;
@@ -142,7 +144,7 @@ function TabDashboard({ period }) {
         <div className="stat-card" style={{ borderLeftColor: '#8b5cf6' }}>
           <div className="stat-label">🔵 Commission Revendeur</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: '#8b5cf6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {Math.round(data.commission_revendeur_total||0).toLocaleString('en-US').replace(/,/g, ' ')}
+            {Math.round(commRevDisplay).toLocaleString('en-US').replace(/,/g, ' ')}
           </div>
           <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 3 }}>FCFA</div>
           <small style={{ color: 'var(--text-muted)', fontSize: 11 }}>{legendCommRev}</small>
