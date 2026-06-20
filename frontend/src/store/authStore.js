@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import api from '../services/api';
 
 // Menus de base pour tous les non-admin
 export const DEFAULT_MENUS = ['pdvs', 'prospection', 'evaluations', 'alerts'];
@@ -42,11 +41,16 @@ const useAuthStore = create(
       // Charger les permissions depuis l'API
       loadPermissions: async () => {
         try {
-          const res = await api.get('/my-permissions');
-          set({ permissions: res.data });
-          return res.data;
+          const { token } = get();
+          const baseURL = process.env.REACT_APP_API_BASE_URL || 'https://faroukmanager-backend-production-feb9.up.railway.app/api';
+          const res = await fetch(`${baseURL}/my-permissions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!res.ok) throw new Error('Failed');
+          const data = await res.json();
+          set({ permissions: data });
+          return data;
         } catch {
-          // Fallback : menus de base
           const fallback = { menus: DEFAULT_MENUS, dashboards: DEFAULT_DASHBOARDS, is_admin: false };
           set({ permissions: fallback });
           return fallback;
