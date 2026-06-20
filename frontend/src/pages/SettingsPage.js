@@ -784,6 +784,40 @@ function SectionEquipeReseau() {
   );
 }
 
+// ─── SECTION FUSIONNÉE : ÉQUIPE & ACCÈS ──────────────────────────────────────
+function SectionEquipeEtAcces({ currentUser }) {
+  const [activeTab, setActiveTab] = useState('comptes');
+
+  const tabs = [
+    { id: 'comptes', label: '🔐 Comptes Utilisateurs', color: '#FF6900' },
+    { id: 'terrain', label: '👥 Équipe Terrain',        color: '#4a9eff' },
+  ];
+
+  return (
+    <div>
+      <h2 style={{ fontSize:18, fontWeight:800, marginBottom:16 }}>👥 Équipe & Accès</h2>
+      <p style={{ color:'#8a8a9a', fontSize:13, marginBottom:20 }}>
+        Gérez les comptes de connexion et les membres de l'équipe terrain.
+      </p>
+
+      {/* Onglets internes */}
+      <div style={{ display:'flex', gap:8, marginBottom:24, borderBottom:'1px solid rgba(255,255,255,0.06)', paddingBottom:12 }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            style={{ padding:'8px 20px', borderRadius:8, border:'none', cursor:'pointer', fontWeight:700, fontSize:13, transition:'all 0.2s',
+              background: activeTab===t.id ? t.color : 'rgba(255,255,255,0.05)',
+              color: activeTab===t.id ? '#fff' : '#8a8a9a',
+              boxShadow: activeTab===t.id ? `0 2px 8px ${t.color}55` : 'none',
+            }}>{t.label}</button>
+        ))}
+      </div>
+
+      {activeTab === 'comptes' && <SectionUtilisateurs currentUser={currentUser} />}
+      {activeTab === 'terrain' && <SectionEquipeReseau />}
+    </div>
+  );
+}
+
 function SectionDatabase() {
   const queryClient = useQueryClient();
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 120000 });
@@ -872,10 +906,9 @@ export default function SettingsPage() {
 
   const sections = [
     { id:'profil',         label:'Mon Profil',              icon: User,     color:'#4a9eff' },
-    { id:'utilisateurs',   label:'Gestion des Utilisateurs', icon: Users,    color:'#FF6900', adminOnly: true },
+    { id:'equipe',         label:'Équipe & Accès',           icon: Users,    color:'#FF6900', adminOnly: true },
     { id:'roles',          label:'Roles & Permissions',      icon: Shield,   color:'#a855f7', adminOnly: true },
     { id:'database',       label:'Base de Donnees',          icon: Database, color:'#00d68f' },
-    { id:'equipe',         label:'Equipe Reseau',             icon: Phone,    color:'#00d68f' },
     { id:'notifications',  label:'Notifications',            icon: Bell,     color:'#ffaa00' },
   ].filter(s => !s.adminOnly || user?.role === 'admin');
 
@@ -909,10 +942,9 @@ export default function SettingsPage() {
         {/* Contenu */}
         <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:16, padding:28, minHeight:400 }}>
           {activeSection === 'profil'        && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Mon Profil</h2><SectionProfil user={user} key={user?.nom} /></>}
-          {activeSection === 'utilisateurs'  && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Gestion des Utilisateurs</h2><SectionUtilisateurs currentUser={user} /></>}
+          {activeSection === 'equipe'        && <SectionEquipeEtAcces currentUser={user} />}
           {activeSection === 'roles'         && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Roles & Permissions</h2><p style={{ color:'#8a8a9a', fontSize:13, marginBottom:20 }}>Definissez ce que chaque role peut voir, ajouter, modifier ou supprimer dans l\'application.</p><SectionRoles /></>}
           {activeSection === 'database'      && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Base de Donnees</h2><SectionDatabase /></>}
-          {activeSection === 'equipe'        && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>📞 Equipe Reseau & Numéros</h2><SectionEquipeReseau /></>}
           {activeSection === 'notifications' && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Notifications & Alertes</h2><SectionNotifications /></>}
         </div>
       </div>
