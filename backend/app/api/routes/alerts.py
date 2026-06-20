@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from app.api.routes.auth import get_current_user, get_pdv_filters
+from app.models.user import User
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
@@ -153,7 +155,8 @@ def list_inactive_alerts(
     superviseur: Optional[str] = Query(None),
     type_pdv: Optional[str] = Query(None),
     gestionnaire: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     GET /alerts/inactive - PDVs inactifs depuis le plus longtemps
@@ -171,6 +174,12 @@ def list_inactive_alerts(
             annee, semaine = int(last[0]), int(last[1])
         else:
             annee, semaine = 2026, 20
+
+    # Appliquer les filtres de l'utilisateur connecté
+    f = get_pdv_filters(current_user)
+    superviseur = superviseur or f.get('superviseur')
+    gestionnaire = gestionnaire or f.get('gestionnaire')
+    zone = zone or f.get('zone')
 
     inactive_pdvs = get_inactive_pdvs_with_history(
         db,
@@ -197,7 +206,8 @@ def list_declining_alerts(
     zone: Optional[str] = Query(None),
     superviseur: Optional[str] = Query(None),
     type_pdv: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     GET /alerts/declining - PDVs avec baisse de CA significative
@@ -216,6 +226,11 @@ def list_declining_alerts(
     - Calcule score_risque et type_baisse (ANORMALE si > 30% ou 3 sem consécutives)
     - Retourne liste triée par taux_variation ASC (plus grandes baisses en premier)
     """
+    # Appliquer les filtres de l'utilisateur connecté
+    f = get_pdv_filters(current_user)
+    superviseur = superviseur or f.get('superviseur')
+    zone = zone or f.get('zone')
+
     declining_pdvs = get_declining_pdvs_with_risk(
         db,
         annee=annee,

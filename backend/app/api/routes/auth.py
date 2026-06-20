@@ -59,6 +59,17 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def apply_filters_to_query(query, model, user: User):
+    """Applique automatiquement les filtres PDV à une query SQLAlchemy selon le rôle de l'utilisateur."""
+    filters = get_pdv_filters(user)
+    if not filters:
+        return query
+    for field, value in filters.items():
+        if value and hasattr(model, field):
+            query = query.filter(getattr(model, field).ilike(f"%{value}%"))
+    return query
+
+
 def get_pdv_filters(user: User) -> dict:
     """
     Retourne les filtres PDV automatiques selon le rôle de l'utilisateur.

@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.models.pdv import PDV
 from app.models.performance import WeeklyPerformance, MonthlyPerformance
 from app.models.user import User
-from app.api.routes.auth import require_admin
+from app.api.routes.auth import require_admin, get_current_user, get_pdv_filters
 from pydantic import BaseModel
 from datetime import datetime
 import io
@@ -639,18 +639,26 @@ def monthly_summary(
     mois: int = Query(...),
     indicateur: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(get_current_user),
 ):
     """
-    Résumé mensuel des performances, filtré par indicateur si fourni.
-    Retourne: ca_total, montant_ca, commission_pdg, commission_revendeur,
-              pdvs_actifs, pdvs_inactifs, ca_moyen, by_zone, by_type, evolution
+    Résumé mensuel des performances, filtré selon le rôle de l'utilisateur.
     """
+    from app.api.routes.auth import get_pdv_filters
+    f = get_pdv_filters(current_user)
+
     q = db.query(MonthlyPerformance, PDV).join(PDV, MonthlyPerformance.pdv_id == PDV.id).filter(
         MonthlyPerformance.annee == annee,
         MonthlyPerformance.mois == mois,
         PDV.statut != 'DESACTIVE',
     )
+    # Appliquer les filtres utilisateur
+    if f.get('superviseur'):
+        q = q.filter(PDV.superviseur.ilike(f'%{f["superviseur"]}%'))
+    if f.get('gestionnaire'):
+        q = q.filter(PDV.gestionnaire.ilike(f'%{f["gestionnaire"]}%'))
+    if f.get('zone'):
+        q = q.filter(PDV.zone == f['zone'])
     if indicateur:
         q = q.filter(MonthlyPerformance.indicateur == indicateur)
 
@@ -764,14 +772,23 @@ def weekly_summary(
     semaine: int = Query(...),
     indicateur: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user=Depends(require_admin),
+    current_user=Depends(get_current_user),
 ):
-    """Résumé hebdomadaire des performances."""
+    """Résumé hebdomadaire des performances, filtré selon le rôle."""
+    from app.api.routes.auth import get_pdv_filters
+    f = get_pdv_filters(current_user)
+
     q = db.query(WeeklyPerformance, PDV).join(PDV, WeeklyPerformance.pdv_id == PDV.id).filter(
         WeeklyPerformance.annee == annee,
         WeeklyPerformance.semaine == semaine,
         PDV.statut != 'DESACTIVE',
     )
+    if f.get('superviseur'):
+        q = q.filter(PDV.superviseur.ilike(f'%{f["superviseur"]}%'))
+    if f.get('gestionnaire'):
+        q = q.filter(PDV.gestionnaire.ilike(f'%{f["gestionnaire"]}%'))
+    if f.get('zone'):
+        q = q.filter(PDV.zone == f['zone'])
     if indicateur:
         q = q.filter(WeeklyPerformance.indicateur == indicateur)
 
