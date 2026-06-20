@@ -240,9 +240,9 @@ function TabDashboard({ period }) {
             </thead>
             <tbody>
               {data.by_type.map(t => {
-                // Même logique que le dashboard : reseau=CommPDG, pdv=CommRev
+                // RS et KIOSQUE : Commission Revendeur = 0
                 const commPDG    = t.reseau || 0;
-                const commRev    = t.pdv || 0;
+                const commRev    = t.gere_reversement ? 0 : (t.pdv || 0);
                 const commReelle = (commPDG + commRev) * 0.3;
                 return (
                 <tr key={t.type} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -261,7 +261,7 @@ function TabDashboard({ period }) {
               })}
               {data.by_type.length > 0 && (() => {
                 const totalCommPDG    = data.by_type.reduce((s, t) => s + (t.reseau || 0), 0);
-                const totalCommRev    = data.by_type.reduce((s, t) => s + (t.pdv || 0), 0);
+                const totalCommRev    = data.by_type.reduce((s, t) => s + (t.gere_reversement ? 0 : (t.pdv || 0)), 0);
                 const totalCommReelle = (totalCommPDG + totalCommRev) * 0.3;
                 return (
                   <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.03)', fontWeight: 800, fontSize: 13 }}>
@@ -328,7 +328,7 @@ function TabDashboard({ period }) {
           <div className="stat-card" style={{ borderLeftColor: '#8b5cf6' }}>
             <div className="stat-label">🟣 Commission Revendeur</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#8b5cf6', whiteSpace: 'nowrap' }}>
-              {Math.round(data.commission_revendeur_total||0).toLocaleString('en-US').replace(/,/g, ' ')}
+              {Math.round(commRevDisplay||0).toLocaleString('en-US').replace(/,/g, ' ')}
             </div>
             <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 2 }}>FCFA</div>
             <small>70% RNS/RSF payés par Orange aux PDV</small>
@@ -439,9 +439,9 @@ function TabDetails({ period }) {
     const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
     const paginated  = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-    // Totaux sur toutes les entrées filtrées (pas seulement la page courante)
+    // Totaux sur toutes les entrées filtrées (RS/KIOSQUE : CommRev = 0)
     const totalCommPDG    = entries.reduce((s, e) => s + (e.montant_reseau || 0), 0);
-    const totalCommRev    = entries.reduce((s, e) => s + (e.montant_pdv || 0), 0);
+    const totalCommRev    = entries.reduce((s, e) => s + (e.gere_reversement ? 0 : (e.montant_pdv || 0)), 0);
     const totalCommReelle = (totalCommPDG + totalCommRev) * 0.3;
 
     return (
@@ -462,7 +462,7 @@ function TabDetails({ period }) {
           <tbody>
             {paginated.map(e => {
               const commPDG    = e.montant_reseau || 0;
-              const commRev    = e.montant_pdv || 0;
+              const commRev    = e.gere_reversement ? 0 : (e.montant_pdv || 0);
               const commReelle = (commPDG + commRev) * 0.3;
               return (
                 <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -813,8 +813,8 @@ function TabTop({ period }) {
       const enriched = rows.map(e => ({
         ...e,
         commPDG:    e.montant_reseau || 0,
-        commRev:    e.montant_pdv || 0,
-        commReelle: ((e.montant_reseau || 0) + (e.montant_pdv || 0)) * 0.3,
+        commRev:    e.gere_reversement ? 0 : (e.montant_pdv || 0),
+        commReelle: ((e.montant_reseau || 0) + (e.gere_reversement ? 0 : (e.montant_pdv || 0))) * 0.3,
       }));
       setAllData(enriched);
     });
