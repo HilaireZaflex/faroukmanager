@@ -631,7 +631,7 @@ const ROLE_TABS = [
   { key: 'gestionnaires',   role: 'gestionnaire',    label: 'Gestionnaires',       icon: '💼', color: '#FF6900' },
   { key: 'developpeurs',    role: 'developpeur',     label: 'Développeurs',        icon: '🚨', color: '#00d68f' },
   { key: 'teleconseilleres',role: 'teleconseillere', label: 'Téléconseillères',    icon: '📞', color: '#a29bfe' },
-  { key: 'rc',              role: 'rc',              label: 'Resp. Commerciaux',   icon: '🟢', color: '#22c55e' },
+  { key: 'rc',              role: 'rc',              label: 'Resp. Commercial',    icon: '🟢', color: '#22c55e' },
   { key: 'conformite',      role: 'conformite',      label: 'Resp. Conformité',    icon: '🛡️', color: '#0ea5e9' },
 ];
 
