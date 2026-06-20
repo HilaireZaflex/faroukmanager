@@ -13,7 +13,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const login = useAuthStore(s => s.login);
+  const login           = useAuthStore(s => s.login);
+  const loadPermissions = useAuthStore(s => s.loadPermissions);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,6 +24,7 @@ export default function LoginPage() {
       const res = await api.post('/auth/login', { email, password });
       const { user, access_token } = res.data;
       login(user, access_token);
+      await loadPermissions();
       toast.success(`Bienvenue, ${user.nom} !`, { duration: 3000 });
       navigate('/accueil');
     } catch (err) {

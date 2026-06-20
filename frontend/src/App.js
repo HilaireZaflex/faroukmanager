@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import useAuthStore from './store/authStore';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import useAuthStore, { MENU_ROUTES, DEFAULT_MENUS } from './store/authStore';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -35,18 +35,51 @@ import EvaluationsPage from './pages/EvaluationsPage';
 // Layout
 import Layout from './components/layout/Layout';
 
-// Protected Route Component
+// ── Route protégée par authentification ──────────────────────────────────────
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+  const hasHydrated     = useAuthStore((state) => state._hasHydrated);
+  const loadPermissions = useAuthStore((state) => state.loadPermissions);
+  const permissions     = useAuthStore((state) => state.permissions);
 
-  // Attendre que le store soit hydraté depuis localStorage
+  // Charger les permissions si pas encore chargées
+  useEffect(() => {
+    if (isAuthenticated && !permissions) {
+      loadPermissions();
+    }
+  }, [isAuthenticated, permissions, loadPermissions]);
+
   if (!hasHydrated) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#fff', fontSize: '18px' }}>Chargement...</div>;
   }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+// ── Route protégée par menu ───────────────────────────────────────────────────
+const MenuRoute = ({ menuId, children }) => {
+  const canAccess   = useAuthStore((state) => state.canAccess);
+  const user        = useAuthStore((state) => state.user);
+  const permissions = useAuthStore((state) => state.permissions);
+  const location    = useLocation();
+
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+
+  // Admin : accès total
+  if (role === 'admin') return children;
+
+  // Attendre que les permissions soient chargées
+  if (!permissions) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#fff', fontSize: '18px' }}>Vérification des droits...</div>;
+  }
+
+  // Vérifier l'accès
+  if (!canAccess(menuId)) {
+    return <Navigate to="/accueil" replace state={{ blocked: true, from: location.pathname }} />;
   }
 
   return children;
@@ -73,33 +106,37 @@ function App() {
           <ProtectedRoute>
             <Layout>
               <Routes>
+                {/* ── Routes libres (toujours accessibles) ── */}
                 <Route path="/accueil" element={<AccueilPage />} />
-                <Route path="/carte" element={<CartePage />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/dashboard/weekly" element={<WeeklyDashboardPage />} />
-                <Route path="/pdvs" element={<PDVsPage />} />
-                <Route path="/pdvs/:id" element={<PDVDetailPage />} />
-                <Route path="/alerts" element={<AlertsPage />} />
-                <Route path="/analytics" element={<AnalyticsPage />} />
-                <Route path="/recovery" element={<RecoveryPage />} />
-                <Route path="/recovery/liste" element={<RecoveryListePage />} />
-                <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/ia" element={<IAPage />} />
-                <Route path="/ia/whatif" element={<WhatIfPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/superviseurs" element={<SuperviseurPage />} />
-                <Route path="/reseau" element={<GestionReseauPage />} />
-                <Route path="/prospection" element={<ProspectionPage />} />
-                <Route path="/indicateurs" element={<IndicatorsPage />} />
-                <Route path="/commissions" element={<CommissionsPage />} />
-                <Route path="/evaluations" element={<EvaluationsPage />} />
-                <Route path="/import" element={<ImportPage />} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
                 <Route path="/omy/dashboard/weekly" element={<OMyWeeklyDashboardPage />} />
                 <Route path="/nafama/dashboard" element={<NafamaDashboardPage />} />
                 <Route path="/nafama/dashboard/weekly" element={<NafamaWeeklyDashboardPage />} />
                 <Route path="/kaabu/dashboard" element={<KaabuDashboardPage />} />
                 <Route path="/kaabu/dashboard/weekly" element={<KaabuWeeklyDashboardPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/dashboard/weekly" element={<WeeklyDashboardPage />} />
+
+                {/* ── Routes protégées par menu ── */}
+                <Route path="/pdvs" element={<MenuRoute menuId="pdvs"><PDVsPage /></MenuRoute>} />
+                <Route path="/pdvs/:id" element={<MenuRoute menuId="pdvs"><PDVDetailPage /></MenuRoute>} />
+                <Route path="/prospection" element={<MenuRoute menuId="prospection"><ProspectionPage /></MenuRoute>} />
+                <Route path="/evaluations" element={<MenuRoute menuId="evaluations"><EvaluationsPage /></MenuRoute>} />
+                <Route path="/alerts" element={<MenuRoute menuId="alerts"><AlertsPage /></MenuRoute>} />
+                <Route path="/indicateurs" element={<MenuRoute menuId="indicateurs"><IndicatorsPage /></MenuRoute>} />
+                <Route path="/commissions" element={<MenuRoute menuId="commissions"><CommissionsPage /></MenuRoute>} />
+                <Route path="/reseau" element={<MenuRoute menuId="reseau"><GestionReseauPage /></MenuRoute>} />
+                <Route path="/ia" element={<MenuRoute menuId="ia"><IAPage /></MenuRoute>} />
+                <Route path="/ia/whatif" element={<MenuRoute menuId="ia"><WhatIfPage /></MenuRoute>} />
+                <Route path="/carte" element={<MenuRoute menuId="carte"><CartePage /></MenuRoute>} />
+                <Route path="/recovery" element={<MenuRoute menuId="recovery"><RecoveryPage /></MenuRoute>} />
+                <Route path="/recovery/liste" element={<MenuRoute menuId="recovery"><RecoveryListePage /></MenuRoute>} />
+                <Route path="/reports" element={<MenuRoute menuId="reports"><ReportsPage /></MenuRoute>} />
+                <Route path="/import" element={<MenuRoute menuId="import"><ImportPage /></MenuRoute>} />
+                <Route path="/settings" element={<MenuRoute menuId="settings"><SettingsPage /></MenuRoute>} />
+                <Route path="/analytics" element={<MenuRoute menuId="reports"><AnalyticsPage /></MenuRoute>} />
+                <Route path="/superviseurs" element={<MenuRoute menuId="settings"><SuperviseurPage /></MenuRoute>} />
+
                 <Route path="/" element={<Navigate to="/accueil" replace />} />
               </Routes>
             </Layout>

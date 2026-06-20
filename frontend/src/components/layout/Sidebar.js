@@ -9,80 +9,6 @@ import {
 import useAuthStore from '../../store/authStore';
 import './Sidebar.css';
 
-// ── Permissions par défaut (fallback si rien en localStorage) ─────────────────
-const DEFAULT_ROLE_PERMISSIONS = {
-  admin: {
-    dashboards: ['omy', 'nafama', 'kaabu'],
-    menus: ['pdvs','prospection','indicateurs','commissions','evaluations','alerts','reseau','ia','carte','recovery','import','reports','settings'],
-  },
-  manager: {
-    dashboards: ['omy', 'nafama', 'kaabu'],
-    menus: ['pdvs','prospection','indicateurs','commissions','evaluations','alerts','reseau','ia','carte','recovery','reports','settings'],
-  },
-  superviseur: {
-    dashboards: ['omy'],
-    menus: ['pdvs','prospection','indicateurs','alerts','reseau','carte','recovery'],
-  },
-  rc: {
-    dashboards: ['omy'],
-    menus: ['pdvs','commissions','alerts','recovery'],
-  },
-  developpeur: {
-    dashboards: [],
-    menus: ['prospection','alerts','reseau'],
-  },
-  teleconseillere: {
-    dashboards: [],
-    menus: ['prospection','indicateurs','alerts'],
-  },
-};
-
-// Cache des permissions chargées depuis l'API
-let _cachedPerms = null;
-
-// Charger les permissions depuis l'API et mettre en cache
-async function loadPermissionsFromAPI() {
-  try {
-    const res = await fetch(`${process.env.REACT_APP_API_BASE_URL}/role-permissions`);
-    if (res.ok) {
-      const data = await res.json();
-      _cachedPerms = { ...DEFAULT_ROLE_PERMISSIONS, ...data };
-      localStorage.setItem('fd_sidebar_permissions', JSON.stringify(_cachedPerms));
-      return _cachedPerms;
-    }
-  } catch (e) {}
-  return null;
-}
-
-// Lire les permissions : API (cache) → localStorage → défauts
-function getRolePermissions() {
-  if (_cachedPerms) return _cachedPerms;
-  try {
-    const saved = localStorage.getItem('fd_sidebar_permissions');
-    if (saved) {
-      _cachedPerms = { ...DEFAULT_ROLE_PERMISSIONS, ...JSON.parse(saved) };
-      return _cachedPerms;
-    }
-  } catch (e) {}
-  return DEFAULT_ROLE_PERMISSIONS;
-}
-
-function getRole(user) {
-  if (!user) return 'admin';
-  const r = (user.role || '').toLowerCase().replace('userrole.', '');
-  return DEFAULT_ROLE_PERMISSIONS[r] ? r : 'admin';
-}
-
-function can(user, item) {
-  const perms = getRolePermissions()[getRole(user)];
-  return perms?.menus?.includes(item) ?? true;
-}
-
-function canDash(user, dash) {
-  const perms = getRolePermissions()[getRole(user)];
-  return perms?.dashboards?.includes(dash) ?? true;
-}
-
 // ── Libellé rôle lisible ─────────────────────────────────────────────────────
 const ROLE_LABELS = {
   admin: '🔴 Administrateur',
@@ -101,19 +27,14 @@ export default function Sidebar() {
   const [nafamaOpen, setNafamaOpen] = useState(false);
   const [kaabuOpen, setKaabuOpen] = useState(false);
   const [reseauOpen, setReseauOpen] = useState(false);
-  const { user, logout } = useAuthStore();
+  const { user, logout, canAccess, canAccessDash } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const onIA = location.pathname.startsWith('/ia') || location.pathname.startsWith('/analytics');
-  const role = getRole(user);
-  const [, forceUpdate] = React.useState(0);
 
-  // Charger les permissions depuis l'API au montage du composant
-  React.useEffect(() => {
-    loadPermissionsFromAPI().then(perms => {
-      if (perms) forceUpdate(n => n + 1); // forcer re-render avec nouvelles permissions
-    });
-  }, []);
+  // Helpers utilisant le store
+  const can  = (item) => canAccess(item);
+  const canD = (dash) => canAccessDash(dash);
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const initials = user ? `${(user.nom||'?')[0]}${(user.prenom||'')[0]||''}`.toUpperCase() : '?';
@@ -148,7 +69,7 @@ export default function Sidebar() {
         {nl('/accueil', Home, 'Accueil', true)}
 
         {/* ── DASHBOARDS ── */}
-        {(canDash(user,'omy') || canDash(user,'nafama') || canDash(user,'kaabu')) && (
+        {(canD('omy') || canD('nafama') || canD('kaabu')) && (
           <>
             {!collapsed && <div className="nav-section-label">Dashboards</div>}
             {collapsed && <div className="nav-divider"/>}
@@ -156,7 +77,7 @@ export default function Sidebar() {
         )}
 
         {/* OMY */}
-        {canDash(user,'omy') && <>
+        {canD('omy') && <>
           <div className={`nav-item${location.pathname.startsWith('/omy') ? ' active' : ''}`}
             onClick={() => collapsed ? navigate('/omy/dashboard') : setOmyOpen(v => !v)}
             title={collapsed ? 'Gestion OMY' : ''}>
@@ -182,7 +103,7 @@ export default function Sidebar() {
         </>}
 
         {/* NAFAMA */}
-        {canDash(user,'nafama') && <>
+        {canD('nafama') && <>
           <div className={`nav-item${location.pathname.startsWith('/nafama') ? ' active' : ''}`}
             onClick={() => collapsed ? navigate('/nafama/dashboard') : setNafamaOpen(v => !v)}
             title={collapsed ? 'Gestion NAFAMA' : ''}>
@@ -208,7 +129,7 @@ export default function Sidebar() {
         </>}
 
         {/* KAABU */}
-        {canDash(user,'kaabu') && <>
+        {canD('kaabu') && <>
           <div className={`nav-item${location.pathname.startsWith('/kaabu') ? ' active' : ''}`}
             onClick={() => collapsed ? navigate('/kaabu/dashboard') : setKaabuOpen(v => !v)}
             title={collapsed ? 'Gestion KAABU' : ''}>
@@ -237,16 +158,16 @@ export default function Sidebar() {
         <div className="nav-divider"/>
         {!collapsed && <div className="nav-section-label">Gestion</div>}
 
-        {can(user,'pdvs')        && nl('/pdvs',        Store,       'Points de Vente')}
-        {can(user,'prospection') && nl('/prospection', UserPlus,    'Prospection OM')}
-        {can(user,'indicateurs') && nl('/indicateurs', Activity,    'Indicateurs')}
-        {can(user,'commissions') && nl('/commissions', DollarSign,  'Commissions')}
-        {can(user,'evaluations') && nl('/evaluations', Star,        'Évaluations')}
-        {can(user,'alerts')      && nl('/alerts',      Bell,        'Alertes')}
-        {can(user,'reseau')      && nl('/reseau',      Network,     'Gestion du Réseau')}
+        {can('pdvs')        && nl('/pdvs',        Store,       'Points de Vente')}
+        {can('prospection') && nl('/prospection', UserPlus,    'Prospection OM')}
+        {can('indicateurs') && nl('/indicateurs', Activity,    'Indicateurs')}
+        {can('commissions') && nl('/commissions', DollarSign,  'Commissions')}
+        {can('evaluations') && nl('/evaluations', Star,        'Évaluations')}
+        {can('alerts')      && nl('/alerts',      Bell,        'Alertes')}
+        {can('reseau')      && nl('/reseau',      Network,     'Gestion du Réseau')}
 
         {/* ── INTELLIGENCE ── */}
-        {can(user,'ia') && <>
+        {can('ia') && <>
           <div className="nav-divider"/>
           {!collapsed && <div className="nav-section-label">Intelligence</div>}
           <div className={`nav-item${onIA ? ' active' : ''}`}
@@ -270,10 +191,10 @@ export default function Sidebar() {
           )}
         </>}
 
-        {can(user,'carte') && nl('/carte', Map, 'Carte Interactive')}
+        {can('carte') && nl('/carte', Map, 'Carte Interactive')}
 
         {/* Récupérations */}
-        {can(user,'recovery') && <>
+        {can('recovery') && <>
           <div className={`nav-item${location.pathname.startsWith('/recovery') ? ' active' : ''}`}
             onClick={() => collapsed ? navigate('/recovery') : setRecoveryOpen(v => !v)}
             title={collapsed ? 'Récupérations' : ''}>
@@ -296,12 +217,12 @@ export default function Sidebar() {
         </>}
 
         {/* ── OUTILS ── */}
-        {(can(user,'import') || can(user,'reports') || can(user,'settings')) && <>
+        {(can('import') || can('reports') || can('settings')) && <>
           <div className="nav-divider"/>
           {!collapsed && <div className="nav-section-label">Outils</div>}
-          {can(user,'import')   && nl('/import',   Upload,   'Import Données')}
-          {can(user,'reports')  && nl('/reports',  FileText, 'Rapports')}
-          {can(user,'settings') && nl('/settings', Settings, 'Paramètres')}
+          {can('import')   && nl('/import',   Upload,   'Import Données')}
+          {can('reports')  && nl('/reports',  FileText, 'Rapports')}
+          {can('settings') && nl('/settings', Settings, 'Paramètres')}
         </>}
 
       </nav>
