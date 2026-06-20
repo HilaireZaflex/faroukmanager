@@ -258,7 +258,8 @@ function SectionUtilisateurs({ currentUser }) {
 
       <div style={{ display:'grid', gap:10 }}>
         {(users||[]).map((u, i) => (
-          <div key={i} style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 18px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:14, transition:'all 0.18s' }}>
+          <div key={i} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:14, overflow:'hidden' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 18px', transition:'all 0.18s' }}>
             <div style={{ width:42, height:42, borderRadius:11, background:`linear-gradient(135deg, ${ROLE_COLORS[u.role]?.color||'#8a8a9a'}, ${ROLE_COLORS[u.role]?.color||'#8a8a9a'}88)`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#fff', flexShrink:0 }}>
               {(u.nom||'?')[0]}{(u.prenom||'')[0]||''}
             </div>
