@@ -334,8 +334,9 @@ async def get_equipe_reseau():
         developpeurs = {}
         teleconseilleres = {}
 
-        EXCLUS = {'AU BUREAU', 'NAN', 'NONE', '', 'NONE'}
+        EXCLUS = {'AU BUREAU', 'NAN', 'NONE', '', '1172'}
 
+        # 1. Extraire depuis les PDVs
         for p in pdvs:
             for attr, dct, role in [
                 ('superviseur', superviseurs, 'superviseur'),
@@ -344,7 +345,7 @@ async def get_equipe_reseau():
                 ('teleconseillere', teleconseilleres, 'teleconseillere'),
             ]:
                 val = getattr(p, attr, None)
-                if val and val.strip().upper() not in EXCLUS:
+                if val and val.strip().upper() not in {e.upper() for e in EXCLUS}:
                     nom = val.strip()
                     if nom not in dct:
                         info = phones.get((nom, role), {})
@@ -352,6 +353,21 @@ async def get_equipe_reseau():
                             "telephone": info.get("telephone", "") if isinstance(info, dict) else "",
                             "zone": info.get("zone", "") if isinstance(info, dict) else "",
                         }
+
+        # 2. Compléter avec la table equipe_reseau (membres manuels + ceux absents des PDVs)
+        role_map = {
+            'superviseur': superviseurs,
+            'gestionnaire': gestionnaires,
+            'developpeur': developpeurs,
+            'teleconseillere': teleconseilleres,
+        }
+        for nom_db, role_db in [(r[0], r[1]) for r in phones.keys()]:
+            if role_db in role_map and nom_db not in role_map[role_db]:
+                info = phones.get((nom_db, role_db), {})
+                role_map[role_db][nom_db] = {
+                    "telephone": info.get("telephone", "") if isinstance(info, dict) else "",
+                    "zone": info.get("zone", "") if isinstance(info, dict) else "",
+                }
 
         def to_list(dct):
             return [{"nom": k, "telephone": v.get("telephone",""), "zone": v.get("zone","")} for k, v in sorted(dct.items())]
