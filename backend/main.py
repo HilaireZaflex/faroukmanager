@@ -329,10 +329,12 @@ async def get_equipe_reseau():
 
         pdvs = db.query(PDV).filter(PDV.statut != 'DESACTIVE').all()
 
-        superviseurs = {}
-        gestionnaires = {}
-        developpeurs = {}
+        superviseurs    = {}
+        gestionnaires   = {}
+        developpeurs    = {}
         teleconseilleres = {}
+        rc              = {}
+        conformite      = {}
 
         EXCLUS = {'AU BUREAU', 'NAN', 'NONE', '', '1172'}
 
@@ -356,10 +358,12 @@ async def get_equipe_reseau():
 
         # 2. Compléter avec la table equipe_reseau (membres manuels + ceux absents des PDVs)
         role_map = {
-            'superviseur': superviseurs,
-            'gestionnaire': gestionnaires,
-            'developpeur': developpeurs,
-            'teleconseillere': teleconseilleres,
+            'superviseur':    superviseurs,
+            'gestionnaire':   gestionnaires,
+            'developpeur':    developpeurs,
+            'teleconseillere':teleconseilleres,
+            'rc':             rc,
+            'conformite':     conformite,
         }
         for nom_db, role_db in [(r[0], r[1]) for r in phones.keys()]:
             if role_db in role_map and nom_db not in role_map[role_db]:
@@ -377,6 +381,8 @@ async def get_equipe_reseau():
             "gestionnaires":   to_list(gestionnaires),
             "developpeurs":    to_list(developpeurs),
             "teleconseilleres":to_list(teleconseilleres),
+            "rc":              to_list(rc),
+            "conformite":      to_list(conformite),
         }
     finally:
         db.close()
