@@ -98,10 +98,19 @@ def list_pdvs_status(
     zone: Optional[str] = None,
     sous_zone: Optional[str] = None,
     search: Optional[str] = None,
-    db: Session = Depends(get_db), _: User = Depends(get_current_user),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    filters = {k: v for k, v in {"quartier": quartier, "zone": zone,
-                                  "sous_zone": sous_zone, "search": search}.items() if v}
+    from app.api.routes.auth import get_pdv_filters
+    f = get_pdv_filters(current_user)
+    # Auto-remplir les filtres selon le rôle
+    zone = zone or f.get('zone')
+    superviseur = f.get('superviseur')
+    gestionnaire = f.get('gestionnaire')
+
+    filters = {k: v for k, v in {
+        "quartier": quartier, "zone": zone, "sous_zone": sous_zone,
+        "search": search, "superviseur": superviseur, "gestionnaire": gestionnaire
+    }.items() if v}
     return svc.get_pdvs_status(db, indicator_id, period_key, active_only, filters)
 
 
