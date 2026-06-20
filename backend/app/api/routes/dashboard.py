@@ -561,14 +561,19 @@ def pareto_analysis(
     mois: int = Query(12, ge=1, le=12),
     zone: Optional[str] = None,
     cible: float = Query(80.0, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
 ):
     """Analyse Pareto 80/20 — M4 du CDC."""
+    f_user = get_pdv_filters(current_user)
+    zone = zone or f_user.get('zone')
+    superviseur = f_user.get('superviseur')
+    gestionnaire = f_user.get('gestionnaire')
     all_perfs = db.query(MonthlyPerformance).filter(
         MonthlyPerformance.annee == annee,
         MonthlyPerformance.mois == mois
     ).all()
     pdv_map = _get_pdv_map(db)
-    pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone=zone)
+    pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone=zone, superviseur=superviseur, gestionnaire=gestionnaire)
 
     if not pairs:
         return {"total_ca": 0, "pareto_pdvs": [], "top_20_percent": [], "gini_coefficient": 0}
@@ -660,8 +665,12 @@ def classements(
     zone: Optional[str] = None,
     superviseur: Optional[str] = None,
     type_pdv: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Classements Top/Bottom N — M2 du CDC."""
+    f_user = get_pdv_filters(current_user)
+    superviseur = superviseur or f_user.get('superviseur')
+    zone = zone or f_user.get('zone')
     all_perfs = db.query(MonthlyPerformance).filter(
         MonthlyPerformance.annee == annee,
         MonthlyPerformance.mois == mois
@@ -865,8 +874,12 @@ def monthly_inactive(
     mois: int = Query(..., ge=1, le=12),
     zone: Optional[str] = None,
     superviseur: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Retourne les PDVs inactifs pour un mois donné."""
+    f_user = get_pdv_filters(current_user)
+    superviseur = superviseur or f_user.get('superviseur')
+    zone = zone or f_user.get('zone')
     all_perfs = db.query(MonthlyPerformance).filter(
         MonthlyPerformance.annee == annee,
         MonthlyPerformance.mois == mois,
@@ -948,8 +961,12 @@ def monthly_declining(
     zone: Optional[str] = None,
     superviseur: Optional[str] = None,
     seuil: float = Query(-10.0),
+    current_user: User = Depends(get_current_user),
 ):
     """Retourne les PDVs en baisse par rapport au mois précédent."""
+    f_user = get_pdv_filters(current_user)
+    superviseur = superviseur or f_user.get('superviseur')
+    zone = zone or f_user.get('zone')
     prev_mois = mois - 1 if mois > 1 else 12
     prev_annee = annee if mois > 1 else annee - 1
 
@@ -1038,8 +1055,13 @@ def monthly_evolution(
     annee: int = Query(...),
     mois: int = Query(..., ge=1, le=12),
     zone: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Comparaison CA mois actuel vs mois précédent (jointure réelle)."""
+    f_user = get_pdv_filters(current_user)
+    zone = zone or f_user.get('zone')
+    _sup = f_user.get('superviseur')
+    _gest = f_user.get('gestionnaire')
     # Mois précédent
     if mois == 1:
         prev_mois, prev_annee = 12, annee - 1
@@ -1047,6 +1069,13 @@ def monthly_evolution(
         prev_mois, prev_annee = mois - 1, annee
 
     pdv_map = _get_pdv_map(db)
+    # Filtrer pdv_map selon le rôle
+    if _sup:
+        pdv_map = {k: v for k, v in pdv_map.items() if (v.superviseur or '') == _sup}
+    elif _gest:
+        pdv_map = {k: v for k, v in pdv_map.items() if (v.gestionnaire or '') == _gest}
+    elif zone:
+        pdv_map = {k: v for k, v in pdv_map.items() if (v.zone or '') == zone}
 
     # Performances mois actuel
     perfs_actuel = {p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
@@ -1192,8 +1221,13 @@ def monthly_progression(
     db: Session = Depends(get_db),
     annee: Optional[int] = None,
     top_n: int = Query(1200, ge=1, le=1200),
+    current_user: User = Depends(get_current_user),
 ):
     """Statistiques de progression historique des PDVs — version optimisée (1 seule requête SQL)."""
+    f_user = get_pdv_filters(current_user)
+    _sup = f_user.get('superviseur')
+    _gest = f_user.get('gestionnaire')
+    _zone = f_user.get('zone')
     from datetime import datetime
     from collections import defaultdict
 
@@ -1206,7 +1240,14 @@ def monthly_progression(
     ).all()
 
     # Charger tous les PDVs en une seule requête
-    pdvs = {p.id: p for p in db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()}
+    q_pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+    if _sup:
+        q_pdvs = q_pdvs.filter(PDV.superviseur == _sup)
+    elif _gest:
+        q_pdvs = q_pdvs.filter(PDV.gestionnaire == _gest)
+    elif _zone:
+        q_pdvs = q_pdvs.filter(PDV.zone == _zone)
+    pdvs = {p.id: p for p in q_pdvs.all()}
 
     # Grouper par (annee, mois) et calculer les rangs
     mois_perfs = defaultdict(list)
@@ -1380,7 +1421,9 @@ def weekly_inactive(
     semaine: int = Query(..., ge=1, le=52),
     zone: Optional[str] = None,
     superviseur: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
+    f_user = get_pdv_filters(current_user); superviseur = superviseur or f_user.get("superviseur"); zone = zone or f_user.get("zone")
     """Retourne les PDVs inactifs pour une semaine donnée."""
     all_perfs = db.query(WeeklyPerformance).filter(
         WeeklyPerformance.annee == annee,
@@ -1463,7 +1506,9 @@ def weekly_declining(
     zone: Optional[str] = None,
     superviseur: Optional[str] = None,
     seuil: float = Query(-10.0),
+    current_user: User = Depends(get_current_user),
 ):
+    f_user = get_pdv_filters(current_user); superviseur = superviseur or f_user.get("superviseur"); zone = zone or f_user.get("zone")
     """Retourne les PDVs en baisse par rapport à la semaine précédente."""
     prev_semaine = semaine - 1 if semaine > 1 else 52
     prev_annee = annee if semaine > 1 else annee - 1
