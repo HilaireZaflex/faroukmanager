@@ -80,10 +80,17 @@ def get_pdv_filters(user: User) -> dict:
     - Téléconseillère : filtre par sa zone
     """
     role = str(user.role).lower().replace('userrole.', '')
-    nom_complet = f"{user.prenom} {user.nom}".strip() if user.prenom else user.nom
 
-    if role in ('admin', 'manager'):
-        return {}  # Pas de filtre — voient tout
+    # Le nom dans les PDVs peut être "PRENOM NOM" ou "NOM PRENOM" selon comment il a été créé
+    # On utilise user.nom qui peut contenir le nom complet (ex: "ABOUBACAR SANOGO")
+    # Si prenom est défini, on essaie "PRENOM NOM"
+    if user.prenom and user.prenom.strip():
+        nom_complet = f"{user.prenom} {user.nom}".strip()
+    else:
+        nom_complet = (user.nom or '').strip()
+
+    if role in ('admin', 'manager', 'conformite'):
+        return {}  # Voient tout
     elif role == 'superviseur':
         return {'superviseur': nom_complet}
     elif role == 'gestionnaire':
@@ -94,8 +101,6 @@ def get_pdv_filters(user: User) -> dict:
         return {'teleconseillere': nom_complet}
     elif role == 'rc':
         return {'gestionnaire': nom_complet}
-    elif role == 'conformite':
-        return {}  # Resp. Conformité voit tout
     return {}
 
 @router.post("/auth/login", response_model=Token)
