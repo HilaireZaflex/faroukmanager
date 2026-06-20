@@ -301,15 +301,20 @@ function TabDashboard({ period }) {
               </tr>
             </thead>
             <tbody>
-              {data.by_quartier.map(q => (
+              {data.by_quartier.map(q => {
+                // RS et KIOSQUE : Commission Revendeur = 0
+                const qCommRev    = isGereType ? 0 : (q.pdv || 0);
+                const qCommReelle = ((q.reseau || 0) + qCommRev) * 0.3;
+                return (
                 <tr key={q.quartier} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 700 }}>{q.quartier}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>{q.n_pdv}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(q.reseau)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(q.pdv)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(q.commission_nette)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(qCommRev)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(qCommReelle)}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
