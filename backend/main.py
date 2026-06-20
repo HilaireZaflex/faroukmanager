@@ -349,19 +349,19 @@ async def update_equipe_reseau(data: dict):
 
     db = SessionLocal()
     try:
-        # Créer la table si elle n'existe pas
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS equipe_reseau (
                 id SERIAL PRIMARY KEY,
                 nom VARCHAR(200) NOT NULL,
                 role VARCHAR(50) NOT NULL,
                 telephone VARCHAR(50),
+                email VARCHAR(100),
+                zone VARCHAR(100),
                 UNIQUE(nom, role)
             )
         """))
         db.commit()
 
-        # Mettre à jour les numéros
         membres = data.get('membres', [])
         updated = 0
         for m in membres:
@@ -378,6 +378,91 @@ async def update_equipe_reseau(data: dict):
 
         db.commit()
         return {"message": f"✅ {updated} numéros sauvegardés", "updated": updated}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+@app.post("/api/reseau/equipe/add")
+async def add_membre_equipe(data: dict):
+    """Ajoute un nouveau membre à l'équipe réseau"""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        nom   = data.get('nom', '').strip()
+        role  = data.get('role', '').strip()
+        tel   = data.get('telephone', '').strip()
+        email = data.get('email', '').strip()
+        zone  = data.get('zone', '').strip()
+        if not nom or not role:
+            return {"error": "Nom et rôle obligatoires"}
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS equipe_reseau (
+                id SERIAL PRIMARY KEY,
+                nom VARCHAR(200) NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                telephone VARCHAR(50),
+                email VARCHAR(100),
+                zone VARCHAR(100),
+                UNIQUE(nom, role)
+            )
+        """))
+        db.execute(text("""
+            INSERT INTO equipe_reseau (nom, role, telephone, email, zone)
+            VALUES (:nom, :role, :tel, :email, :zone)
+            ON CONFLICT (nom, role) DO UPDATE
+            SET telephone=:tel, email=:email, zone=:zone
+        """), {"nom": nom, "role": role, "tel": tel, "email": email, "zone": zone})
+        db.commit()
+        return {"success": True, "message": f"✅ {nom} ajouté(e) comme {role}"}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+@app.put("/api/reseau/equipe/{role}/{nom_encoded}")
+async def update_membre_equipe(role: str, nom_encoded: str, data: dict):
+    """Met à jour les infos d'un membre de l'équipe"""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    import urllib.parse
+    db = SessionLocal()
+    try:
+        nom = urllib.parse.unquote(nom_encoded)
+        tel   = data.get('telephone', '').strip()
+        email = data.get('email', '').strip()
+        zone  = data.get('zone', '').strip()
+        new_nom = data.get('nom', nom).strip()
+        db.execute(text("""
+            UPDATE equipe_reseau SET nom=:new_nom, telephone=:tel, email=:email, zone=:zone
+            WHERE nom=:nom AND role=:role
+        """), {"nom": nom, "role": role, "new_nom": new_nom, "tel": tel, "email": email, "zone": zone})
+        db.commit()
+        return {"success": True, "message": f"✅ {new_nom} mis à jour"}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+@app.delete("/api/reseau/equipe/{role}/{nom_encoded}")
+async def delete_membre_equipe(role: str, nom_encoded: str):
+    """Supprime un membre de l'équipe réseau"""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    import urllib.parse
+    db = SessionLocal()
+    try:
+        nom = urllib.parse.unquote(nom_encoded)
+        db.execute(text("DELETE FROM equipe_reseau WHERE nom=:nom AND role=:role"), {"nom": nom, "role": role})
+        db.commit()
+        return {"success": True, "message": f"✅ {nom} supprimé(e)"}
     except Exception as e:
         db.rollback()
         return {"error": str(e)}

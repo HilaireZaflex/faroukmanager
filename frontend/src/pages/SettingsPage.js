@@ -497,92 +497,212 @@ function SectionRoles() {
 
 // ─── SECTION BASE DE DONNEES ──────────────────────────────────────────────────
 
+const ROLE_TABS = [
+  { key: 'superviseurs',    role: 'superviseur',     label: 'Superviseurs',     icon: '👤', color: '#4a9eff' },
+  { key: 'gestionnaires',   role: 'gestionnaire',    label: 'Gestionnaires',    icon: '💼', color: '#FF6900' },
+  { key: 'developpeurs',    role: 'developpeur',     label: 'Développeurs',     icon: '🚨', color: '#00d68f' },
+  { key: 'teleconseilleres',role: 'teleconseillere', label: 'Téléconseillères', icon: '📞', color: '#a29bfe' },
+];
+
+const EMPTY_FORM = { nom: '', telephone: '', zone: '' };
+
 function SectionEquipeReseau() {
   const queryClient = useQueryClient();
-  const [edited, setEdited] = useState({});
+  const [activeTab, setActiveTab] = useState('superviseurs');
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [editingNom, setEditingNom] = useState(null);
+  const [search, setSearch] = useState('');
 
   const { data: equipe, isLoading } = useQuery('equipe-reseau',
     () => api.get('/reseau/equipe').then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 30000 }
   );
 
-  const saveMutation = useMutation(
-    (membres) => api.post('/reseau/equipe/update', { membres }),
+  const currentTab = ROLE_TABS.find(t => t.key === activeTab);
+  const items = (equipe?.[activeTab] || []).filter(m =>
+    !search || m.nom?.toLowerCase().includes(search.toLowerCase()) ||
+    m.telephone?.includes(search) || m.zone?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const addMutation = useMutation(
+    (data) => api.post('/reseau/equipe/add', data),
     {
-      onSuccess: (data) => {
-        toast.success(data.data?.message || 'Numéros sauvegardés !');
-        setEdited({});
+      onSuccess: (res) => {
+        toast.success(res.data?.message || 'Membre ajouté !');
+        setShowForm(false); setForm(EMPTY_FORM);
         queryClient.invalidateQueries('equipe-reseau');
       },
-      onError: () => toast.error('Erreur lors de la sauvegarde')
+      onError: () => toast.error('Erreur lors de l\'ajout')
     }
   );
 
-  const handleSave = () => {
-    if (!equipe) return;
-    const membres = [];
-    const roles = [
-      { key: 'superviseurs', role: 'superviseur' },
-      { key: 'gestionnaires', role: 'gestionnaire' },
-      { key: 'developpeurs', role: 'developpeur' },
-      { key: 'teleconseilleres', role: 'teleconseillere' },
-    ];
-    roles.forEach(({ key, role }) => {
-      (equipe[key] || []).forEach(m => {
-        const tel = edited[`${role}:${m.nom}`] ?? m.telephone;
-        membres.push({ nom: m.nom, role, telephone: tel });
-      });
-    });
-    saveMutation.mutate(membres);
+  const updateMutation = useMutation(
+    ({ nom, data }) => api.put(`/reseau/equipe/${currentTab.role}/${encodeURIComponent(nom)}`, data),
+    {
+      onSuccess: (res) => {
+        toast.success(res.data?.message || 'Mis à jour !');
+        setEditingNom(null); setForm(EMPTY_FORM);
+        queryClient.invalidateQueries('equipe-reseau');
+      },
+      onError: () => toast.error('Erreur lors de la mise à jour')
+    }
+  );
+
+  const deleteMutation = useMutation(
+    (nom) => api.delete(`/reseau/equipe/${currentTab.role}/${encodeURIComponent(nom)}`),
+    {
+      onSuccess: () => {
+        toast.success('Membre supprimé');
+        queryClient.invalidateQueries('equipe-reseau');
+      },
+      onError: () => toast.error('Erreur lors de la suppression')
+    }
+  );
+
+  const handleSubmit = () => {
+    if (!form.nom.trim()) { toast.error('Le nom est obligatoire'); return; }
+    if (editingNom) {
+      updateMutation.mutate({ nom: editingNom, data: { ...form, role: currentTab.role } });
+    } else {
+      addMutation.mutate({ ...form, role: currentTab.role });
+    }
   };
 
-  const setTel = (role, nom, val) => setEdited(e => ({ ...e, [`${role}:${nom}`]: val }));
-  const getTel = (role, nom, orig) => edited[`${role}:${nom}`] ?? orig ?? '';
+  const startEdit = (m) => {
+    setEditingNom(m.nom);
+    setForm({ nom: m.nom, telephone: m.telephone || '', zone: m.zone || '' });
+    setShowForm(true);
+  };
 
-  const RoleTable = ({ title, icon, items, role, color }) => (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${color}33` }}>
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        <span style={{ fontSize: 13, fontWeight: 800, color, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</span>
-        <span style={{ fontSize: 11, color: '#666', marginLeft: 4 }}>({items?.length || 0})</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {(items || []).map(m => (
-          <div key={m.nom} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.nom}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Phone size={12} style={{ color: '#666' }} />
-              <input
-                value={getTel(role, m.nom, m.telephone)}
-                onChange={e => setTel(role, m.nom, e.target.value)}
-                placeholder="+223 XX XX XX XX"
-                style={{ width: 140, padding: '4px 8px', borderRadius: 6, border: getTel(role, m.nom, m.telephone) !== (m.telephone || '') ? '1px solid #FF6900' : '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 11 }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const cancelForm = () => { setShowForm(false); setEditingNom(null); setForm(EMPTY_FORM); };
+
+  const inputStyle = { padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 13, width: '100%' };
 
   if (isLoading) return <div style={{ color: '#8a8a9a', textAlign: 'center', padding: 40 }}>⏳ Chargement de l'équipe...</div>;
 
-  const hasChanges = Object.keys(edited).length > 0;
-
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <p style={{ color: '#8a8a9a', fontSize: 13 }}>Renseignez les numéros de téléphone de l'équipe. Ils s'auto-rempliront dans le formulaire de Nouvelle Activation.</p>
-        <button onClick={handleSave} disabled={!hasChanges || saveMutation.isLoading}
-          style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: hasChanges ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'rgba(255,255,255,0.06)', color: hasChanges ? '#fff' : '#666', fontSize: 13, fontWeight: 700, cursor: hasChanges ? 'pointer' : 'default', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Save size={14} /> {saveMutation.isLoading ? 'Sauvegarde...' : 'Sauvegarder'}
+      <p style={{ color: '#8a8a9a', fontSize: 13, marginBottom: 20 }}>
+        Gérez les membres de l'équipe réseau. Ces informations sont utilisées dans toute l'application.
+      </p>
+
+      {/* Onglets par rôle */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {ROLE_TABS.map(t => {
+          const count = equipe?.[t.key]?.length || 0;
+          const isActive = activeTab === t.key;
+          return (
+            <button key={t.key} onClick={() => { setActiveTab(t.key); setShowForm(false); setEditingNom(null); setSearch(''); }}
+              style={{ padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, transition: 'all 0.2s',
+                background: isActive ? t.color : 'rgba(255,255,255,0.05)',
+                color: isActive ? '#fff' : '#8a8a9a',
+                boxShadow: isActive ? `0 2px 8px ${t.color}55` : 'none',
+              }}>
+              {t.icon} {t.label}
+              <span style={{ marginLeft: 6, fontSize: 11, padding: '2px 6px', borderRadius: 10, background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)' }}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Barre d'actions */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder={`🔍 Rechercher dans ${currentTab?.label}...`}
+          style={{ ...inputStyle, maxWidth: 280 }}
+        />
+        <button onClick={() => { setShowForm(!showForm); setEditingNom(null); setForm(EMPTY_FORM); }}
+          style={{ padding: '9px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+            background: showForm ? 'rgba(255,255,255,0.08)' : `linear-gradient(135deg,${currentTab?.color},${currentTab?.color}cc)`,
+            color: '#fff' }}>
+          {showForm ? '✕ Annuler' : `+ Ajouter ${currentTab?.label?.slice(0,-1) || 'membre'}`}
         </button>
       </div>
-      {hasChanges && <div style={{ marginBottom: 16, padding: '8px 14px', background: 'rgba(255,105,0,0.1)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, fontSize: 12, color: '#FF6900' }}>⚠️ {Object.keys(edited).length} modification(s) non sauvegardée(s)</div>}
-      <RoleTable title="Superviseurs" icon="👤" items={equipe?.superviseurs} role="superviseur" color="#4a9eff" />
-      <RoleTable title="Gestionnaires" icon="💼" items={equipe?.gestionnaires} role="gestionnaire" color="#FF6900" />
-      <RoleTable title="Développeurs" icon="🚨" items={equipe?.developpeurs} role="developpeur" color="#00d68f" />
-      <RoleTable title="Téléconseillères" icon="📞" items={equipe?.teleconseilleres} role="teleconseillere" color="#a29bfe" />
+
+      {/* Formulaire ajout/édition */}
+      {showForm && (
+        <div style={{ padding: 20, background: `${currentTab?.color}11`, border: `1px solid ${currentTab?.color}33`, borderRadius: 12, marginBottom: 20 }}>
+          <h4 style={{ margin: '0 0 16px', color: currentTab?.color, fontSize: 14 }}>
+            {editingNom ? `✏️ Modifier — ${editingNom}` : `➕ Nouveau ${currentTab?.label?.slice(0,-1)}`}
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 4 }}>Nom complet *</label>
+              <input value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
+                placeholder="PRÉNOM NOM" style={inputStyle} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 4 }}>Téléphone</label>
+              <input value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
+                placeholder="+223 XX XX XX XX" style={inputStyle} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 4 }}>Zone</label>
+              <input value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}
+                placeholder="Zone A, B, C..." style={inputStyle} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={handleSubmit} disabled={addMutation.isLoading || updateMutation.isLoading}
+              style={{ padding: '9px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, background: `linear-gradient(135deg,${currentTab?.color},${currentTab?.color}cc)`, color: '#fff' }}>
+              {editingNom ? '✅ Mettre à jour' : '✅ Ajouter'}
+            </button>
+            <button onClick={cancelForm}
+              style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', fontWeight: 600, fontSize: 13, background: 'transparent', color: '#8a8a9a' }}>
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Liste des membres */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Nom</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Téléphone</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((m, i) => (
+              <tr key={m.nom} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i%2===0?'transparent':'rgba(255,255,255,0.01)' }}>
+                <td style={{ padding: '10px 12px', fontWeight: 700 }}>
+                  <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: currentTab?.color, marginRight: 8 }}/>
+                  {m.nom}
+                </td>
+                <td style={{ padding: '10px 12px', color: m.telephone ? '#fff' : '#555' }}>
+                  {m.telephone ? `📞 ${m.telephone}` : <span style={{ fontStyle: 'italic', color: '#555' }}>Non renseigné</span>}
+                </td>
+                <td style={{ padding: '10px 12px', color: '#8a8a9a', fontSize: 12 }}>{m.zone || '—'}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                    <button onClick={() => startEdit(m)}
+                      style={{ padding: '5px 12px', borderRadius: 6, border: `1px solid ${currentTab?.color}44`, background: `${currentTab?.color}11`, color: currentTab?.color, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                      ✏️ Modifier
+                    </button>
+                    <button onClick={() => { if (window.confirm(`Supprimer ${m.nom} ?`)) deleteMutation.mutate(m.nom); }}
+                      style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                      🗑️ Supprimer
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr><td colSpan={4} style={{ padding: 30, textAlign: 'center', color: '#555', fontStyle: 'italic' }}>
+                {search ? 'Aucun résultat pour cette recherche' : `Aucun(e) ${currentTab?.label?.slice(0,-1)} enregistré(e) — cliquez sur "+ Ajouter" pour commencer`}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
