@@ -648,19 +648,24 @@ function TabEvolution() {
   const [sousZones, setSousZones]   = useState([]);
   const [quartiers, setQuartiers]   = useState([]);
   const [superviseurs, setSuperviseurs] = useState([]);
+  const [gestionnaires, setGestionnaires] = useState([]);
+  const [evoReseau, setEvoReseau] = useState([]);
 
-  // Charger les listes de filtres depuis la période la plus récente disponible
+  // Charger les listes de filtres depuis TOUTES les périodes disponibles pour avoir toutes les sous-zones
   useEffect(() => {
-    commissionService.periods().then(periods => {
+    commissionService.periods().then(async periods => {
       if (!periods.length) return;
-      const latestPeriod = periods[0]; // la plus récente
-      return commissionService.entries({ period_key: latestPeriod, limit: 2000 });
-    }).then(r => {
-      if (!r) return;
-      setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
-      setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
-      setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
-      setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
+      // Charger les 3 dernières périodes pour avoir toutes les valeurs distinctes
+      const periodsToLoad = periods.slice(0, 3);
+      const results = await Promise.all(
+        periodsToLoad.map(p => commissionService.entries({ period_key: p, limit: 5000 }).catch(() => []))
+      );
+      const allEntries = results.flat();
+      setZones([...new Set(allEntries.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(allEntries.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(allEntries.map(e => e.quartier).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(allEntries.map(e => e.superviseur).filter(Boolean))].sort());
+      setGestionnaires([...new Set(allEntries.map(e => e.gestionnaire).filter(Boolean))].sort());
     }).catch(() => {});
   }, []);
 
@@ -678,6 +683,31 @@ function TabEvolution() {
       setData(enriched);
     });
   }, [nPeriods, typeFilter, zone, sousZone, quartier, superviseur]);
+
+  // Charger l'évolution par gestionnaire/superviseur depuis les entries
+  useEffect(() => {
+    commissionService.periods().then(async periods => {
+      if (!periods.length) return;
+      const periodsToLoad = periods.slice(0, nPeriods);
+      const results = await Promise.all(
+        periodsToLoad.map(p => commissionService.entries({ period_key: p, limit: 5000 }).then(r => ({ period: p, entries: r })).catch(() => ({ period: p, entries: [] })))
+      );
+      // Construire le tableau par gestionnaire/superviseur par période
+      const byReseau = {};
+      results.forEach(({ period, entries }) => {
+        entries.forEach(e => {
+          const key = e.superviseur || '—';
+          if (!byReseau[key]) byReseau[key] = { superviseur: key, gestionnaires: new Set(), periods: {} };
+          if (e.gestionnaire) byReseau[key].gestionnaires.add(e.gestionnaire);
+          if (!byReseau[key].periods[period]) byReseau[key].periods[period] = { reseau: 0, pdv: 0, n: 0 };
+          byReseau[key].periods[period].reseau += e.montant_reseau || 0;
+          byReseau[key].periods[period].pdv += e.montant_pdv || 0;
+          byReseau[key].periods[period].n += 1;
+        });
+      });
+      setEvoReseau({ rows: Object.values(byReseau), periods: periodsToLoad });
+    }).catch(() => {});
+  }, [nPeriods]);
 
   if (!data.length) return <div className="loading-state">Calcul…</div>;
 
@@ -801,6 +831,65 @@ function TabEvolution() {
           </tbody>
         </table>
       </div>
+
+      {/* ── Évolution par Superviseur / Gestionnaire ── */}
+      {evoReseau?.rows?.length > 0 && (
+        <div className="modal-section" style={{ background: 'var(--bg-card)', marginTop: 24 }}>
+          <h3>👥 Évolution par Superviseur</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#8a8a9a', minWidth: 140 }}>Superviseur</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaires</th>
+                  {evoReseau.periods.map(p => (
+                    <th key={p} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--success)', whiteSpace: 'nowrap' }}>{p}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {evoReseau.rows.sort((a,b) => {
+                  const lastP = evoReseau.periods[0];
+                  return (b.periods[lastP]?.reseau||0) - (a.periods[lastP]?.reseau||0);
+                }).map((row, i) => (
+                  <tr key={row.superviseur} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--text-primary)' }}>{row.superviseur}</td>
+                    <td style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {[...row.gestionnaires].join(', ') || '—'}
+                    </td>
+                    {evoReseau.periods.map((p, pi) => {
+                      const cur = row.periods[p]?.reseau || 0;
+                      const prev = row.periods[evoReseau.periods[pi+1]]?.reseau || 0;
+                      const delta = prev ? ((cur - prev) / prev * 100) : null;
+                      return (
+                        <td key={p} style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: 'var(--success)', fontWeight: 700 }}>{fmt(cur)}</div>
+                          {delta !== null && (
+                            <div style={{ fontSize: 10, color: delta >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                              {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
+                            </div>
+                          )}
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{row.periods[p]?.n || 0} PDV</div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.04)', fontWeight: 800 }}>
+                  <td colSpan={2} style={{ padding: '8px 12px' }}><b>TOTAL RÉSEAU</b></td>
+                  {evoReseau.periods.map(p => (
+                    <td key={p} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 800 }}>
+                      {fmt(evoReseau.rows.reduce((s, r) => s + (r.periods[p]?.reseau || 0), 0))}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
     </>
   );
 }
