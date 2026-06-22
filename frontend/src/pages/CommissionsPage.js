@@ -74,8 +74,19 @@ export default function CommissionsPage() {
 function TabDashboard({ period }) {
   const [data, setData] = useState(null);
   const [typeFilter, setTypeFilter] = useState('');
+  const [sortQ, setSortQ] = useState({ col: 'reseau', dir: 'desc' });
   useEffect(() => { commissionService.dashboard(period, typeFilter || undefined).then(setData); }, [period, typeFilter]);
   if (!data) return <div className="loading-state">Calcul en cours…</div>;
+
+  const thSort = (col, label, color) => {
+    const active = sortQ.col === col;
+    return (
+      <th onClick={() => setSortQ(s => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }))}
+        style={{ padding: '10px 12px', textAlign: 'right', color: active ? color : '#8a8a9a', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+        {label} {active ? (sortQ.dir === 'desc' ? '▼' : '▲') : '⇅'}
+      </th>
+    );
+  };
 
   const cb = data.commission_brute || {};         // Commission PDG par type
   const cr = data.commission_revendeur || {};     // Commission Revendeur par type
@@ -295,27 +306,50 @@ function TabDashboard({ period }) {
               <tr>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Quartier</th>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Nbre PDV</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG (30%)</th>
+                {thSort('reseau',   'Commission PDG',        'var(--success)')}
+                {thSort('pdv',      'Commission Revendeur',  '#8b5cf6')}
+                {thSort('reelle',   'Comm. Réelle PDG (30%)','#f59e0b')}
               </tr>
             </thead>
             <tbody>
-              {data.by_quartier.map(q => {
-                // RS et KIOSQUE : Commission Revendeur = 0
-                const qCommRev    = isGereType ? 0 : (q.pdv || 0);
-                const qCommReelle = ((q.reseau || 0) + qCommRev) * 0.3;
-                return (
+              {[...data.by_quartier]
+                .map(q => {
+                  const qCommRev    = isGereType ? 0 : (q.pdv || 0);
+                  const qCommReelle = ((q.reseau || 0) + qCommRev) * 0.3;
+                  return { ...q, qCommRev, qCommReelle };
+                })
+                .sort((a, b) => {
+                  const valA = sortQ.col === 'reelle' ? a.qCommReelle : sortQ.col === 'pdv' ? a.qCommRev : (a[sortQ.col] || 0);
+                  const valB = sortQ.col === 'reelle' ? b.qCommReelle : sortQ.col === 'pdv' ? b.qCommRev : (b[sortQ.col] || 0);
+                  return sortQ.dir === 'desc' ? valB - valA : valA - valB;
+                })
+                .map(q => (
                 <tr key={q.quartier} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 700 }}>{q.quartier}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>{q.n_pdv}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(q.reseau)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(qCommRev)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(qCommReelle)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(q.qCommRev)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(q.qCommReelle)}</td>
                 </tr>
-                );
-              })}
+              ))}
             </tbody>
+            <tfoot>
+              {(() => {
+                const totalNPdv    = data.by_quartier.reduce((s, q) => s + (q.n_pdv || 0), 0);
+                const totalReseau  = data.by_quartier.reduce((s, q) => s + (q.reseau || 0), 0);
+                const totalRev     = isGereType ? 0 : data.by_quartier.reduce((s, q) => s + (q.pdv || 0), 0);
+                const totalReelle  = (totalReseau + totalRev) * 0.3;
+                return (
+                  <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.04)', fontWeight: 800, fontSize: 13 }}>
+                    <td style={{ padding: '10px 12px' }}><b>TOTAL</b></td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800 }}>{totalNPdv}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 800 }}>{fmt(totalReseau)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 800 }}>{fmt(totalRev)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(totalReelle)}</td>
+                  </tr>
+                );
+              })()}
+            </tfoot>
           </table>
         </div>
       </div>
