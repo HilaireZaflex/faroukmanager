@@ -1235,13 +1235,18 @@ function TabReversement({ period }) {
 // Onglet : RAPPORT PARETO (basé sur Commission Réelle PDG)
 // ─────────────────────────────────────────────────────────────────────────────
 function TabPareto({ period }) {
-  const [entries, setEntries]       = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [search, setSearch]         = useState('');
+  const [entries, setEntries]           = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [search, setSearch]             = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
-  const [zone, setZone]             = useState('');
-  const [superviseur, setSuperviseur] = useState('');
-  const [zones, setZones]           = useState([]);
+  const [typeFilter, setTypeFilter]     = useState('');
+  const [zone, setZone]                 = useState('');
+  const [sousZone, setSousZone]         = useState('');
+  const [quartier, setQuartier]         = useState('');
+  const [superviseur, setSuperviseur]   = useState('');
+  const [zones, setZones]               = useState([]);
+  const [sousZones, setSousZones]       = useState([]);
+  const [quartiers, setQuartiers]       = useState([]);
   const [superviseurs, setSuperviseurs] = useState([]);
 
   useEffect(() => {
@@ -1263,13 +1268,18 @@ function TabPareto({ period }) {
 
       setEntries(withCumul);
       setZones([...new Set(data.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(data.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(data.map(e => e.quartier).filter(Boolean))].sort());
       setSuperviseurs([...new Set(data.map(e => e.superviseur).filter(Boolean))].sort());
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [period]);
 
   const filtered = entries
+    .filter(e => !typeFilter || e.pdv_type === typeFilter)
     .filter(e => !zone || e.zone === zone)
+    .filter(e => !sousZone || e.sous_zone === sousZone)
+    .filter(e => !quartier || e.quartier === quartier)
     .filter(e => !superviseur || e.superviseur === superviseur)
     .filter(e => activeFilter === 'fort' ? e.dans_pareto : activeFilter === 'faible' ? !e.dans_pareto : true)
     .filter(e => !search || (e.pdv_numero||'').toLowerCase().includes(search.toLowerCase()) || (e.pdv_nom||'').toLowerCase().includes(search.toLowerCase()));
@@ -1307,25 +1317,33 @@ function TabPareto({ period }) {
         </div>
       </div>
 
-      <div className="pdv-filters card mb-16" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="text" placeholder="🔍 Rechercher un PDV..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}/>
-        <select value={zone} onChange={e => setZone(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
-          <option value="">Toutes les zones</option>
-          {zones.map(z => <option key={z} value={z}>{z}</option>)}
-        </select>
-        <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
-          <option value="">Tous les superviseurs</option>
-          {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        {(zone || superviseur || search || activeFilter) && (
-          <button onClick={() => { setZone(''); setSuperviseur(''); setSearch(''); setActiveFilter(null); }}
-            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--danger)', cursor: 'pointer', fontWeight: 600 }}>
-            ✕ Reset
-          </button>
-        )}
+      <div className="pdv-filters card mb-16" style={{ flexDirection: 'column', gap: 10 }}>
+        <div className="filter-search">
+          <input type="text" placeholder="🔍 Rechercher un PDV, numéro..." value={search}
+            onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto', width: '100%' }}>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+            <option value="">Tous types</option>
+            {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <select value={zone} onChange={e => { setZone(e.target.value); setSousZone(''); setQuartier(''); }}>
+            <option value="">Toutes zones</option>
+            {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={sousZone} onChange={e => setSousZone(e.target.value)}>
+            <option value="">Toutes sous-zones</option>
+            {sousZones.map(sz => <option key={sz} value={sz}>{sz}</option>)}
+          </select>
+          <select value={quartier} onChange={e => setQuartier(e.target.value)}>
+            <option value="">Tous quartiers</option>
+            {quartiers.map(q => <option key={q} value={q}>{q}</option>)}
+          </select>
+          <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}>
+            <option value="">Tous superviseurs</option>
+            {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
