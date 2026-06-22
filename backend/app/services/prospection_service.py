@@ -116,11 +116,21 @@ def _ensure_transition(current: ProspectStatus, target: ProspectStatus):
 
 
 def _generate_reference(db: Session) -> str:
-    """Génère une référence unique au format PROS-AAAA-NNNNNN."""
+    """Génère une référence unique au format PROS-AAAA-NNNNNN. Compatible SQLite + PostgreSQL."""
     year = datetime.utcnow().year
-    count = db.query(func.count(Prospect.id)).filter(
-        func.strftime("%Y", Prospect.created_at) == str(year)
-    ).scalar() or 0
+    try:
+        # PostgreSQL
+        count = db.query(func.count(Prospect.id)).filter(
+            func.extract('year', Prospect.created_at) == year
+        ).scalar() or 0
+    except Exception:
+        try:
+            # SQLite fallback
+            count = db.query(func.count(Prospect.id)).filter(
+                func.strftime("%Y", Prospect.created_at) == str(year)
+            ).scalar() or 0
+        except Exception:
+            count = db.query(func.count(Prospect.id)).scalar() or 0
     return f"PROS-{year}-{(count + 1):06d}"
 
 
