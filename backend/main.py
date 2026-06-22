@@ -589,32 +589,22 @@ async def clean_nan_pdvs():
 
 @app.post("/debug-create-prospect")
 async def debug_create_prospect(request: Request):
-    """Debug endpoint: essaie de créer un prospect et retourne l'erreur complète"""
+    """Debug endpoint: simule exactement create_prospect et retourne l'erreur complète"""
     import traceback
     from app.core.database import SessionLocal
-    from app.models.prospect import Prospect, ProspectStatus
-    from datetime import datetime
+    from app.models.user import User
+    from app.schemas.prospect import ProspectCreate
+    from app.services.prospection_service import create_prospect
     db = SessionLocal()
     try:
         body = await request.json()
-        p = Prospect(
-            reference=f"DEBUG-{datetime.utcnow().strftime('%H%M%S')}",
-            status=ProspectStatus.NOUVELLE,
-            nom=body.get("nom","Test"),
-            prenom=body.get("prenom","Debug"),
-            telephone_principal=body.get("telephone_principal","70000000"),
-            submitted_by_id=1,
-            submitted_at=datetime.utcnow(),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        db.add(p)
-        db.commit()
-        db.refresh(p)
+        admin = db.query(User).filter(User.email == "admin@faroukmanager.com").first()
+        payload = ProspectCreate(**body)
+        p = create_prospect(db, payload, admin)
         return {"success": True, "id": p.id, "reference": p.reference}
     except Exception as e:
         db.rollback()
-        return {"error": str(e), "traceback": traceback.format_exc()}
+        return {"error": str(e), "traceback": traceback.format_exc()[-2000:]}
     finally:
         db.close()
 
