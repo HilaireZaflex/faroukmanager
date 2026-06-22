@@ -618,6 +618,47 @@ async def debug_create_prospect(request: Request):
     finally:
         db.close()
 
+@app.get("/migrate-prospect-tables")
+async def migrate_prospect_tables():
+    """Migration: crée les tables prospect_history et prospect_attachments si manquantes"""
+    from app.core.database import engine
+    from sqlalchemy import text
+    results = []
+    sqls = [
+        """CREATE TABLE IF NOT EXISTS prospect_history (
+            id SERIAL PRIMARY KEY,
+            prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE NOT NULL,
+            user_id INTEGER REFERENCES users(id),
+            decision_type VARCHAR(50) NOT NULL,
+            from_status VARCHAR(50),
+            to_status VARCHAR(50),
+            comment TEXT,
+            extra JSON,
+            created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS prospect_attachments (
+            id SERIAL PRIMARY KEY,
+            prospect_id INTEGER REFERENCES prospects(id) ON DELETE CASCADE NOT NULL,
+            kind VARCHAR(50) DEFAULT 'AUTRE' NOT NULL,
+            filename VARCHAR(500) NOT NULL,
+            file_path VARCHAR(1000) NOT NULL,
+            file_size INTEGER,
+            mime_type VARCHAR(100),
+            uploaded_by_id INTEGER REFERENCES users(id),
+            uploaded_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )""",
+    ]
+    with engine.connect() as conn:
+        for sql in sqls:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+                table = sql.split("IF NOT EXISTS ")[1].split(" ")[0]
+                results.append({"table": table, "status": "OK"})
+            except Exception as e:
+                results.append({"sql": sql[:60], "status": str(e)[:100]})
+    return {"results": results}
+
 @app.get("/migrate-prospect-enums")
 async def migrate_prospect_enums():
     """Migration: crée les types Enum PostgreSQL manquants pour la table prospects"""
