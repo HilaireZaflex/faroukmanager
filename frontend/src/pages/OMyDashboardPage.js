@@ -743,11 +743,13 @@ function TabEvolution({ annee, mois, criterion }) {
 
   const totalActuel = getMetricValue({
     ca: evolution?.total_ca_actuel,
+    montant_transaction: evolution?.total_montant_transaction_actuel,
     montant_ca: evolution?.total_montant_ca_actuel,
     commission_pdg: evolution?.total_commission_pdg_actuel,
   }, criterion);
   const totalPrecedent = getMetricValue({
     ca: evolution?.total_ca_precedent,
+    montant_transaction: evolution?.total_montant_transaction_precedent,
     montant_ca: evolution?.total_montant_ca_precedent,
     commission_pdg: evolution?.total_commission_pdg_precedent,
   }, criterion);

@@ -450,7 +450,16 @@ function OngletEvolution({ annee, semaine, criterion }) {
           <tbody>
             {(rows || []).map((r, i) => (
               <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <td style={{ padding: '10px 14px', fontWeight: 600 }}>{r[keyField] || r.nom || '—'}</td>
+                <td style={{ padding: '10px 14px', fontWeight: 600 }}>
+                  {keyField === 'nom' && r.numero_pdv ? (
+                    <>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{r.numero_pdv}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{r.nom || r[keyField] || '—'}</div>
+                    </>
+                  ) : (
+                    <strong>{r[keyField] || r.nom || '—'}</strong>
+                  )}
+                </td>
                 <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700 }}>{formatCA(getMetricValue({ ca: r.ca_actuel, montant_transaction: r.montant_transaction_actuel, montant_ca: r.montant_ca_actuel, commission_pdg: r.commission_pdg_actuel }, criterion))}</td>
                 <td style={{ padding: '10px 14px', textAlign: 'right', color: '#aaa' }}>{formatCA(getMetricValue({ ca: r.ca_precedent, montant_transaction: r.montant_transaction_precedent, montant_ca: r.montant_ca_precedent, commission_pdg: r.commission_pdg_precedent }, criterion))}</td>
                 <td style={{ padding: '10px 14px', textAlign: 'right', color: (r.variation || 0) >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
