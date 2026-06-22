@@ -320,41 +320,6 @@ function TabDashboard({ period }) {
         </div>
       </div>
 
-      {/* ── Récapitulatif final ── */}
-      <div className="modal-section" style={{ background: 'var(--bg-card)', borderLeft: '4px solid var(--success)' }}>
-        <h3>✅ Récapitulatif — Ce que le PDG a gagné ce mois</h3>
-        <div className="stats-grid">
-          <div className="stat-card" style={{ borderLeftColor: 'var(--success)' }}>
-            <div className="stat-label">🟢 Commission PDG</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)', whiteSpace: 'nowrap' }}>
-              {Math.round(cb.total||0).toLocaleString('en-US').replace(/,/g, ' ')}
-            </div>
-            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 2 }}>FCFA</div>
-            <small>30% RNS/RSF + 100% RS/KIOSQUE</small>
-          </div>
-          <div className="stat-card" style={{ borderLeftColor: '#8b5cf6' }}>
-            <div className="stat-label">🟣 Commission Revendeur</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#8b5cf6', whiteSpace: 'nowrap' }}>
-              {Math.round(commRevDisplay||0).toLocaleString('en-US').replace(/,/g, ' ')}
-            </div>
-            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 2 }}>FCFA</div>
-            <small>70% RNS/RSF payés par Orange aux PDV</small>
-          </div>
-          <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
-            <div className="stat-label">💰 Commission Réelle PDG</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#f59e0b', whiteSpace: 'nowrap' }}>
-              {Math.round(data.commission_reelle_pdg||0).toLocaleString('en-US').replace(/,/g, ' ')}
-            </div>
-            <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600, marginTop: 2 }}>FCFA</div>
-            <small>({fmtM(cb.total||0)} + {fmtM(data.commission_revendeur_total||0)}) × 30%</small>
-          </div>
-          <div className="stat-card" style={{ borderLeftColor: '#3b82f6' }}>
-            <div className="stat-label">📊 PDV actifs</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: '#3b82f6' }}>{data.n_pdv_total}</div>
-            <small>RNS/RSF : {data.n_pdv_directs} · RS/KIOSQUE : {data.n_pdv_geres}</small>
-          </div>
-        </div>
-      </div>
     </>
   );
 }

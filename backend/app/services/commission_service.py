@@ -531,7 +531,7 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
         by_quartier[q_key]["pdv"]    += e.montant_pdv
         reste_e = (e.montant_pdv - (e.montant_reverse or 0)) if e.gere_reversement else 0
         by_quartier[q_key]["commission_nette"] += e.montant_reseau + reste_e
-    top_quartiers = sorted(by_quartier.values(), key=lambda x: x["brut"], reverse=True)[:15]
+    top_quartiers = sorted(by_quartier.values(), key=lambda x: x["brut"], reverse=True)
     for qq in top_quartiers:
         qq["brut"]             = round(qq["brut"], 2)
         qq["reseau"]           = round(qq["reseau"], 2)
