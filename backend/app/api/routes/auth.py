@@ -162,6 +162,19 @@ def update_me(
     
     return UserOut.from_orm(current_user)
 
+@router.get("/auth/developers")
+def list_developers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Liste des développeurs — accessible par admin, manager et RC pour affecter les visites."""
+    from app.models.user import UserRole
+    allowed = [UserRole.ADMIN, UserRole.MANAGER, UserRole.RC]
+    if current_user.role not in allowed:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    devs = db.query(User).filter(User.role == UserRole.DEVELOPPEUR, User.is_active == True).all()
+    return [{"id": u.id, "nom": u.nom, "prenom": u.prenom or "", "email": u.email, "role": u.role} for u in devs]
+
 @router.get("/auth/users", response_model=List[UserOut])
 def list_users(
     db: Session = Depends(get_db),

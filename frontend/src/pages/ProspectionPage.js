@@ -478,10 +478,13 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Charger la liste des utilisateurs (dev/RC) pour les sélecteurs
+  // Charger la liste des développeurs pour les sélecteurs (admin/manager/RC uniquement)
   useEffect(() => {
-    api.get('/auth/users').then(r => setUsers(r.data)).catch(() => setUsers([]));
-  }, []);
+    const role = currentUser?.role;
+    if (['admin','manager','rc'].includes(role)) {
+      api.get('/auth/developers').then(r => setUsers(r.data)).catch(() => setUsers([]));
+    }
+  }, [currentUser]);
 
   if (loading || !p) {
     return (
@@ -651,9 +654,9 @@ function ActionPanel({ prospect: p, developers, isAdmin, isRC, isSup, isDev, cur
     finally { setBusy(false); }
   };
 
-  // ── ASSIGN VISIT (Sup, RC, Admin) ───────
+  // ── ASSIGN VISIT (RC et Admin uniquement — pas les superviseurs ni développeurs) ───────
   const [devId, setDevId] = useState('');
-  const canAssign = (p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV') && (isSup || isRC || isAdmin);
+  const canAssign = (p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV') && (isRC || isAdmin);
 
   // ── DEV DECISION ─────────────────────
   const [devApproved, setDevApproved] = useState(true);
