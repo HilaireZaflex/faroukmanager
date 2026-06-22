@@ -478,17 +478,12 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Charger la liste des développeurs pour les sélecteurs (admin/manager/RC uniquement)
+  // Charger la liste des développeurs dès l'ouverture du modal
   useEffect(() => {
-    const role = currentUser?.role;
-    if (['admin','manager','rc'].includes(role)) {
-      api.get('/auth/developers')
-        .then(r => { setUsers(Array.isArray(r.data) ? r.data : []); })
-        .catch(() => setUsers([]));
-    } else {
-      setUsers([]);
-    }
-  }, [currentUser?.role]);
+    api.get('/auth/developers')
+      .then(r => { setUsers(Array.isArray(r.data) ? r.data : []); })
+      .catch(() => setUsers([]));
+  }, [prospectId]);
 
   if (loading || !p) {
     return (
