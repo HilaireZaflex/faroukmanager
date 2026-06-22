@@ -1,6 +1,12 @@
 import api from './api';
 const base = '/commissions';
-const fmt = (n) => n?.toLocaleString('en-US').replace(/,/g, ' ') + ' F';
+const fmt = (n) => {
+  if (n === null || n === undefined) return '0 F';
+  const rounded = Math.round(n * 100) / 100;  // max 2 décimales
+  const parts = rounded.toFixed(rounded % 1 === 0 ? 0 : 2).split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return (parts[1] && parts[1] !== '00' ? parts.join(',') : parts[0]) + ' F';
+};
 const fmtM = (n) => n ? (n / 1_000_000).toFixed(2).replace('.', ',').replace(/B(?=(d{3})+(?!d))/g, ' ') + ' MF' : '0 MF';
 
 export const commissionService = {
