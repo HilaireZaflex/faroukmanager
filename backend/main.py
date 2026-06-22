@@ -34,6 +34,10 @@ app.add_middleware(
     allow_origins=[
         "https://faroukmanager.onrender.com",
         "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "https://faroukmanager-frontend-production-70a6.up.railway.app",
         "https://faroukmanager-frontend-production.up.railway.app",
         "https://faroukmanager-frontend.up.railway.app",
