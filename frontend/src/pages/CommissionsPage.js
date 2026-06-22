@@ -405,6 +405,8 @@ function TabDetails({ period }) {
   const [page1, setPage1] = useState(1);
   const [page2, setPage2] = useState(1);
   const [sortD, setSortD] = useState({ col: 'commPDG', dir: 'desc' });
+  const [showAll1, setShowAll1] = useState(false);
+  const [showAll2, setShowAll2] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -452,7 +454,7 @@ function TabDetails({ period }) {
     );
   };
 
-  const renderTable = (entries, page, setPage) => {
+  const renderTable = (entries, page, setPage, showAll, setShowAll) => {
     const enriched = entries.map(e => ({
       ...e,
       commPDG:    e.montant_reseau || 0,
@@ -461,7 +463,7 @@ function TabDetails({ period }) {
     })).sort((a, b) => sortD.dir === 'desc' ? b[sortD.col] - a[sortD.col] : a[sortD.col] - b[sortD.col]);
 
     const totalPages = Math.max(1, Math.ceil(enriched.length / PAGE_SIZE));
-    const paginated  = enriched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    const paginated  = showAll ? enriched : enriched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     // Totaux sur toutes les entrées filtrées
     const totalCommPDG    = enriched.reduce((s, e) => s + e.commPDG, 0);
@@ -528,19 +530,26 @@ function TabDetails({ period }) {
         </table>
       </div>
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="pdv-pagination">
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            {entries.length} PDV · Page {page} / {totalPages}
-          </span>
-          <div style={{ display: 'flex', gap: 8 }}>
+      <div className="pdv-pagination">
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          {enriched.length} PDV {!showAll && totalPages > 1 ? `· Page ${page} / ${totalPages}` : '· Tous affichés'}
+        </span>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {!showAll && totalPages > 1 && <>
             <button className="btn btn-ghost btn-sm" onClick={() => setPage(1)} disabled={page === 1}>«</button>
             <button className="btn btn-ghost btn-sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← Préc.</button>
             <button className="btn btn-ghost btn-sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Suiv. →</button>
             <button className="btn btn-ghost btn-sm" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</button>
-          </div>
+          </>}
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => { setShowAll(v => !v); setPage(1); }}
+            style={{ color: showAll ? 'var(--primary)' : '#8a8a9a', fontWeight: 600 }}
+          >
+            {showAll ? '📄 Paginer' : '📋 Tout afficher'}
+          </button>
         </div>
-      )}
+      </div>
     </>
     );
   };
@@ -577,7 +586,7 @@ function TabDetails({ period }) {
             </select>
           </div>
         </div>
-        {renderTable(entries1, page1, setPage1)}
+        {renderTable(entries1, page1, setPage1, showAll1, setShowAll1)}
       </AccordionSection>
 
       {/* ── Section 2 : Réseau & PDV ── */}
@@ -608,7 +617,7 @@ function TabDetails({ period }) {
             </select>
           </div>
         </div>
-        {renderTable(entries2, page2, setPage2)}
+        {renderTable(entries2, page2, setPage2, showAll2, setShowAll2)}
       </AccordionSection>
     </>
   );
