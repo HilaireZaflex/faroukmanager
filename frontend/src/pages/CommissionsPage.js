@@ -624,6 +624,110 @@ function TabDetails({ period }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Composant : Évolution par Superviseur / Gestionnaire
+// ─────────────────────────────────────────────────────────────────────────────
+function EvoReseauSection({ nPeriods, superviseurs, gestionnaires, crit }) {
+  const [filterType, setFilterType] = useState('superviseur'); // 'superviseur' | 'gestionnaire'
+  const [selected, setSelected]     = useState('');
+  const [evoData, setEvoData]       = useState([]);
+  const [loading, setLoading]       = useState(false);
+
+  useEffect(() => {
+    if (!selected) { setEvoData([]); return; }
+    setLoading(true);
+    commissionService.evolution(nPeriods, undefined, {
+      [filterType]: selected,
+    }).then(rows => {
+      setEvoData(rows.map(d => ({ ...d, reelle: (d.reseau + d.pdv) * 0.3 })));
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [selected, filterType, nPeriods]);
+
+  const getValue = d => crit?.field === 'reelle' ? d.reelle : d.reseau;
+
+  return (
+    <div className="modal-section" style={{ background: 'var(--bg-card)', marginTop: 24 }}>
+      <h3>👥 Évolution par Superviseur / Gestionnaire</h3>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Toggle Superviseur / Gestionnaire */}
+        <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+          {['superviseur','gestionnaire'].map(t => (
+            <button key={t}
+              onClick={() => { setFilterType(t); setSelected(''); }}
+              style={{
+                padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                background: filterType === t ? 'var(--primary)' : 'var(--bg-card)',
+                color: filterType === t ? '#fff' : 'var(--text-secondary)',
+              }}>
+              {t === 'superviseur' ? '👤 Superviseur' : '🏪 Gestionnaire'}
+            </button>
+          ))}
+        </div>
+        {/* Select dynamique */}
+        <select value={selected} onChange={e => setSelected(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', minWidth: 200 }}>
+          <option value="">— Choisir un {filterType} —</option>
+          {(filterType === 'superviseur' ? superviseurs : gestionnaires).map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <div className="loading-state" style={{ padding: 20 }}>Chargement…</div>}
+
+      {!selected && !loading && (
+        <div style={{ padding: 20, color: 'var(--text-muted)', textAlign: 'center', fontSize: 13 }}>
+          Sélectionne un {filterType} pour voir son évolution
+        </div>
+      )}
+
+      {selected && !loading && evoData.length > 0 && (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Période</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>
+                  {filterType === 'superviseur' ? `PDV de ${selected}` : `PDV de ${selected}`}
+                </th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Commission Réelle PDG</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: crit?.color || 'var(--success)' }}>Variation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {evoData.map((d, i) => {
+                const prev = evoData[i - 1];
+                const val = getValue(d);
+                const prevVal = prev ? getValue(prev) : null;
+                const delta = prevVal ? ((val - prevVal) / prevVal * 100) : null;
+                return (
+                  <tr key={d.period_key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 700 }}>{d.period_key}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>{d.n_pdv}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(d.reseau)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(d.pdv)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(d.reelle)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      {delta !== null ? (
+                        <span style={{ color: delta >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                          {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
+                        </span>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Onglet 3 : ÉVOLUTION
 // ─────────────────────────────────────────────────────────────────────────────
 const COMM_CRITERIA = {
@@ -833,63 +937,7 @@ function TabEvolution() {
       </div>
 
       {/* ── Évolution par Superviseur / Gestionnaire ── */}
-      {evoReseau?.rows?.length > 0 && (
-        <div className="modal-section" style={{ background: 'var(--bg-card)', marginTop: 24 }}>
-          <h3>👥 Évolution par Superviseur</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#8a8a9a', minWidth: 140 }}>Superviseur</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaires</th>
-                  {evoReseau.periods.map(p => (
-                    <th key={p} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--success)', whiteSpace: 'nowrap' }}>{p}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {evoReseau.rows.sort((a,b) => {
-                  const lastP = evoReseau.periods[0];
-                  return (b.periods[lastP]?.reseau||0) - (a.periods[lastP]?.reseau||0);
-                }).map((row, i) => (
-                  <tr key={row.superviseur} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                    <td style={{ padding: '8px 12px', fontWeight: 700, color: 'var(--text-primary)' }}>{row.superviseur}</td>
-                    <td style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-secondary)' }}>
-                      {[...row.gestionnaires].join(', ') || '—'}
-                    </td>
-                    {evoReseau.periods.map((p, pi) => {
-                      const cur = row.periods[p]?.reseau || 0;
-                      const prev = row.periods[evoReseau.periods[pi+1]]?.reseau || 0;
-                      const delta = prev ? ((cur - prev) / prev * 100) : null;
-                      return (
-                        <td key={p} style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <div style={{ color: 'var(--success)', fontWeight: 700 }}>{fmt(cur)}</div>
-                          {delta !== null && (
-                            <div style={{ fontSize: 10, color: delta >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
-                              {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
-                            </div>
-                          )}
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{row.periods[p]?.n || 0} PDV</div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.04)', fontWeight: 800 }}>
-                  <td colSpan={2} style={{ padding: '8px 12px' }}><b>TOTAL RÉSEAU</b></td>
-                  {evoReseau.periods.map(p => (
-                    <td key={p} style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 800 }}>
-                      {fmt(evoReseau.rows.reduce((s, r) => s + (r.periods[p]?.reseau || 0), 0))}
-                    </td>
-                  ))}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
+      <EvoReseauSection nPeriods={nPeriods} superviseurs={superviseurs} gestionnaires={gestionnaires} crit={crit} />
     </>
   );
 }
