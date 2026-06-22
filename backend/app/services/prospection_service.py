@@ -343,26 +343,44 @@ def assign_visit(db: Session, prospect_id: int, payload: AssignVisitRequest, cur
     )
     p = _get_prospect_or_404(db, prospect_id)
 
-    target = _get_user_or_404(db, payload.developer_id)
-    if target.role != UserRole.DEVELOPPEUR:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="L'utilisateur affecté doit avoir le rôle DEVELOPPEUR.",
-        )
-    if not target.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Développeur inactif.",
-        )
+    # Support pour les développeurs du réseau (equipe_reseau) via developer_nom
+    # ou pour les users avec rôle developpeur via developer_id
+    dev_nom = getattr(payload, 'developer_nom', None)
+    dev_id = getattr(payload, 'developer_id', None)
+
+    if dev_nom:
+        # Développeur du réseau (equipe_reseau) — pas de user ID
+        target = None
+        target_nom = dev_nom
+    elif dev_id:
+        target = _get_user_or_404(db, dev_id)
+        if target.role != UserRole.DEVELOPPEUR:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="L'utilisateur affecté doit avoir le rôle DEVELOPPEUR.",
+            )
+        if not target.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Développeur inactif.",
+            )
+        target_nom = f"{target.nom} {target.prenom or ''}".strip()
+    else:
+        raise HTTPException(status_code=400, detail="developer_id ou developer_nom requis")
 
     _ensure_transition(p.status, ProspectStatus.EN_VISITE)
     is_reassignment = (p.status == ProspectStatus.REFUSEE_DEV)
 
     from_status = p.status
     p.status = ProspectStatus.EN_VISITE
-    p.visit_assigned_to_id = target.id
+    if target:
+        p.visit_assigned_to_id = target.id
     p.visit_assigned_at = datetime.utcnow()
     p.visit_attempts = (p.visit_attempts or 0) + 1
+    # Stocker le nom du développeur réseau dans les notes
+    if dev_nom:
+        existing_notes = p.notes or ""
+        p.notes = f"[Développeur affecté: {dev_nom}]\n{existing_notes}".strip()
     # Refresh SLA visite
     p.sla_visit_due_at = datetime.utcnow() + timedelta(hours=SLA_VISIT_HOURS)
 
@@ -372,13 +390,14 @@ def assign_visit(db: Session, prospect_id: int, payload: AssignVisitRequest, cur
         from_status=from_status,
         to_status=ProspectStatus.EN_VISITE,
         comment=payload.comment or (f"Réaffectation (tentative #{p.visit_attempts})" if is_reassignment
-                                     else f"Visite affectée à {target.nom}"),
-        extra={"developer_id": target.id, "attempt": p.visit_attempts},
+                                     else f"Visite affectée à {target_nom}"),
+        extra={"developer_nom": target_nom, "attempt": p.visit_attempts},
     )
     db.commit()
     db.refresh(p)
-    # 🔔 Notif au développeur affecté
-    _notify(db, template="visit_assigned", prospect=p, to_user=target)
+    # 🔔 Notif au développeur affecté (seulement si user)
+    if target:
+        _notify(db, template="visit_assigned", prospect=p, to_user=target)
     return p
 
 

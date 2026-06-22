@@ -710,7 +710,12 @@ function ActionPanel({ prospect: p, developers, isAdmin, isRC, isSup, isDev, cur
               {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom||''}{d.zone ? ` (${d.zone})` : ''}</option>)}
             </select>
             <button className="btn-primary" disabled={!devId || busy}
-              onClick={() => wrap(() => prospectService.assignVisit(p.id, { developer_id: parseInt(devId) }))}>
+              onClick={() => {
+                const payload = devId.toString().startsWith('reseau_')
+                  ? { developer_nom: developers.find(d => d.id === devId)?.nom + ' ' + (developers.find(d => d.id === devId)?.prenom || '') }
+                  : { developer_id: parseInt(devId) };
+                wrap(() => prospectService.assignVisit(p.id, payload));
+              }}>
               <Send size={12}/> Affecter
             </button>
           </div>
