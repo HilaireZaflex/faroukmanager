@@ -618,6 +618,48 @@ async def debug_create_prospect(request: Request):
     finally:
         db.close()
 
+@app.get("/migrate-prospect-enums")
+async def migrate_prospect_enums():
+    """Migration: crée les types Enum PostgreSQL manquants pour la table prospects"""
+    from app.core.database import engine
+    from sqlalchemy import text
+    enums = [
+        ("idtype", ["CNI", "NINA", "PASSEPORT", "PERMIS", "AUTRE"]),
+        ("localtype", ["BOUTIQUE_FIXE", "KIOSQUE", "TABLE", "MOBILE", "AUTRE"]),
+        ("frequentationlevel", ["TRES_FREQUENTE", "MOYENNE", "FAIBLE"]),
+        ("prospectstatus", ["NOUVELLE", "EN_VISITE", "VALIDEE_DEV", "REFUSEE_DEV", "EN_ATTENTE_RC", "APPROUVEE_RC", "REFUSEE_RC", "PUCE_ATTRIBUEE", "PUCE_ACTIVEE", "ANNULEE"]),
+        ("decisiontype", ["SUBMIT", "ASSIGN_VISIT", "DEV_APPROVE", "DEV_REJECT", "RC_APPROVE", "RC_REJECT", "ASSIGN_PUCE", "ACTIVATE", "CANCEL", "NOTE"]),
+    ]
+    results = []
+    with engine.connect() as conn:
+        for enum_name, values in enums:
+            vals = ", ".join([f"'{v}'" for v in values])
+            try:
+                conn.execute(text(f"CREATE TYPE {enum_name} AS ENUM ({vals})"))
+                conn.commit()
+                results.append({"enum": enum_name, "status": "CREATED"})
+            except Exception as e:
+                err = str(e)
+                if "already exists" in err:
+                    results.append({"enum": enum_name, "status": "ALREADY_EXISTS"})
+                else:
+                    results.append({"enum": enum_name, "status": err[:80]})
+        # Modifier les colonnes pour utiliser les bons types
+        alter_sqls = [
+            "ALTER TABLE prospects ALTER COLUMN type_local TYPE VARCHAR(50)",
+            "ALTER TABLE prospects ALTER COLUMN frequentation TYPE VARCHAR(50)",
+            "ALTER TABLE prospects ALTER COLUMN piece_identite_type TYPE VARCHAR(50)",
+            "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
+        ]
+        for sql in alter_sqls:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+                results.append({"sql": sql[:60], "status": "OK"})
+            except Exception as e:
+                results.append({"sql": sql[:60], "status": str(e)[:80]})
+    return {"results": results}
+
 @app.get("/migrate-prospect-columns")
 async def migrate_prospect_columns():
     """Migration: ajoute les colonnes manquantes à la table prospects"""

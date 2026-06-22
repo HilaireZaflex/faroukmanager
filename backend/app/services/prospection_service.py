@@ -213,13 +213,24 @@ def create_prospect(db: Session, payload: ProspectCreate, current_user: User) ->
         )
 
     now = datetime.utcnow()
+    payload_data = payload.model_dump(exclude_unset=True)
+    # Convertir les Enum en valeur string pour compatibilité PostgreSQL
+    if 'type_local' in payload_data and hasattr(payload_data['type_local'], 'value'):
+        payload_data['type_local'] = payload_data['type_local'].value
+    if 'frequentation' in payload_data and payload_data['frequentation'] and hasattr(payload_data['frequentation'], 'value'):
+        payload_data['frequentation'] = payload_data['frequentation'].value
+    if 'piece_identite_type' in payload_data and payload_data['piece_identite_type'] and hasattr(payload_data['piece_identite_type'], 'value'):
+        payload_data['piece_identite_type'] = payload_data['piece_identite_type'].value
+
     prospect = Prospect(
         reference=_generate_reference(db),
         status=ProspectStatus.NOUVELLE,
         submitted_by_id=current_user.id,
         submitted_at=now,
+        created_at=now,
+        updated_at=now,
         sla_visit_due_at=now + timedelta(hours=SLA_VISIT_HOURS),
-        **payload.model_dump(exclude_unset=False),
+        **payload_data,
     )
     db.add(prospect)
     db.flush()
