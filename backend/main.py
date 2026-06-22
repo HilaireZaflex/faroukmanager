@@ -587,6 +587,56 @@ async def clean_nan_pdvs():
     finally:
         db.close()
 
+@app.get("/migrate-prospect-columns")
+async def migrate_prospect_columns():
+    """Migration: ajoute les colonnes manquantes à la table prospects"""
+    from app.core.database import engine
+    from sqlalchemy import text
+    migrations = [
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS submitted_by_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP DEFAULT NOW()",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS assigned_dev_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS assigned_dev_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS sla_visit_due_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS dev_decision VARCHAR(20)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS dev_notes TEXT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS dev_decided_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS sla_rc_due_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS rc_decision VARCHAR(20)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS rc_notes TEXT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS rc_decided_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS rc_decided_by_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS assigned_puce VARCHAR(100)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS puce_assigned_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS sla_activation_due_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activated_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activated_by_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS cancelled_reason TEXT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS cancelled_by_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ai_score FLOAT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ai_recommendation TEXT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ai_go_nogo VARCHAR(10)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ai_risk_factors TEXT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ai_analyzed_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS latitude FLOAT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS longitude FLOAT",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS pdv_adresse VARCHAR(500)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS pdv_nom_lieu VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS concurrents JSON",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS notes TEXT",
+    ]
+    results = []
+    with engine.connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+                results.append({"sql": sql[:60], "status": "OK"})
+            except Exception as e:
+                results.append({"sql": sql[:60], "status": str(e)[:80]})
+    return {"migrations": results}
+
 @app.get("/migrate-pdv-columns")
 async def migrate_pdv_columns():
     """Migration temporaire: ajoute les colonnes manquantes à la table pdvs"""
