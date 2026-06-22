@@ -1318,10 +1318,6 @@ function TabPareto({ period }) {
       </div>
 
       <div className="pdv-filters card mb-16" style={{ flexDirection: 'column', gap: 10 }}>
-        <div className="filter-search">
-          <input type="text" placeholder="🔍 Rechercher un PDV, numéro..." value={search}
-            onChange={e => setSearch(e.target.value)} />
-        </div>
         <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto', width: '100%' }}>
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
             <option value="">Tous types</option>
