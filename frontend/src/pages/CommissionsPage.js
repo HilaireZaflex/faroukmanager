@@ -668,13 +668,17 @@ function EvoReseauSection({ nPeriods, superviseurs, gestionnaires }) {
       };
       const cur  = agg(curEntries, activeView);
       const prev = agg(prevEntries, activeView);
-      const rows = liste.map(nom => {
-        const c = cur[nom]  || { reseau:0, pdv:0, n:0 };
-        const p = prev[nom] || { reseau:0, pdv:0, n:0 };
-        const reelle = (c.reseau + c.pdv) * 0.3;
-        const delta  = p.reseau ? ((c.reseau - p.reseau) / p.reseau * 100) : null;
-        return { nom, n_pdv: c.n, reseau: c.reseau, pdv: c.pdv, reelle, delta };
-      }).sort((a, b) => b.reseau - a.reseau);
+      const rows = liste
+        .filter(nom => nom && nom !== '—' && nom.trim() !== '')
+        .map(nom => {
+          const c = cur[nom]  || { reseau:0, pdv:0, n:0 };
+          const p = prev[nom] || { reseau:0, pdv:0, n:0 };
+          const reelle = (c.reseau + c.pdv) * 0.3;
+          const delta  = p.reseau ? ((c.reseau - p.reseau) / p.reseau * 100) : null;
+          return { nom, n_pdv: c.n, reseau: c.reseau, pdv: c.pdv, reelle, delta };
+        })
+        .filter(r => !isNaN(r.reseau) && r.nom !== '—')
+        .sort((a, b) => b.reseau - a.reseau);
       setTableData(rows);
       setLoading(false);
     });
@@ -683,14 +687,9 @@ function EvoReseauSection({ nPeriods, superviseurs, gestionnaires }) {
   return (
     <div className="modal-section" style={{ background: 'var(--bg-card)', marginTop: 24 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <h3 style={{ margin: 0 }}>👥 Évolution par {activeView === 'superviseur' ? 'Superviseur' : 'Gestionnaire'}</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Filtre période */}
-          <select value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)}
-            style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
-            {allPeriods.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
+      <div style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: '0 0 12px 0' }}>👥 Évolution par {activeView === 'superviseur' ? 'Superviseur' : 'Gestionnaire'}</h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Toggle Superviseur / Gestionnaire */}
           <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
             {['superviseur','gestionnaire'].map(t => (
@@ -702,6 +701,11 @@ function EvoReseauSection({ nPeriods, superviseurs, gestionnaires }) {
               </button>
             ))}
           </div>
+          {/* Filtre période */}
+          <select value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)}
+            style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', minWidth: 130 }}>
+            {allPeriods.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
         </div>
       </div>
 
