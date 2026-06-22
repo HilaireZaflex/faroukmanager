@@ -707,7 +707,7 @@ function ActionPanel({ prospect: p, developers, isAdmin, isRC, isSup, isDev, cur
           <div className="action-bar">
             <select value={devId} onChange={e => setDevId(e.target.value)}>
               <option value="">— choisir un développeur —</option>
-              {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom||''}</option>)}
+              {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom||''}{d.zone ? ` (${d.zone})` : ''}</option>)}
             </select>
             <button className="btn-primary" disabled={!devId || busy}
               onClick={() => wrap(() => prospectService.assignVisit(p.id, { developer_id: parseInt(devId) }))}>

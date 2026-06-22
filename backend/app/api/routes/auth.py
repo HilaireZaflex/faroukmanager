@@ -167,13 +167,40 @@ def list_developers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Liste des développeurs — accessible par admin, manager et RC pour affecter les visites."""
+    """Liste des développeurs du réseau — accessible par admin, manager et RC pour affecter les visites.
+    Combine les users avec rôle developpeur ET les membres réseau avec rôle developpeur."""
     from app.models.user import UserRole
-    allowed = [UserRole.ADMIN, UserRole.MANAGER, UserRole.RC]
+    allowed = [UserRole.ADMIN, UserRole.MANAGER, UserRole.RC, UserRole.SUPERVISEUR]
     if current_user.role not in allowed:
         raise HTTPException(status_code=403, detail="Accès refusé")
-    devs = db.query(User).filter(User.role == UserRole.DEVELOPPEUR, User.is_active == True).all()
-    return [{"id": u.id, "nom": u.nom, "prenom": u.prenom or "", "email": u.email, "role": u.role} for u in devs]
+
+    results = []
+
+    # 1. Users avec rôle developpeur dans la table users
+    devs_users = db.query(User).filter(User.role == UserRole.DEVELOPPEUR, User.is_active == True).all()
+    for u in devs_users:
+        results.append({"id": f"user_{u.id}", "nom": u.nom, "prenom": u.prenom or "", "source": "user"})
+
+    # 2. Membres réseau avec rôle developpeur (table equipe_reseau)
+    try:
+        from sqlalchemy import text
+        rows = db.execute(text(
+            "SELECT id, nom, telephone, zone FROM equipe_reseau WHERE role = 'developpeur' ORDER BY nom"
+        )).fetchall()
+        for r in rows:
+            nom_parts = r[1].split(' ', 1) if r[1] else ['', '']
+            results.append({
+                "id": f"reseau_{r[0]}",
+                "nom": nom_parts[0],
+                "prenom": nom_parts[1] if len(nom_parts) > 1 else "",
+                "telephone": r[2] or "",
+                "zone": r[3] or "",
+                "source": "reseau"
+            })
+    except Exception as e:
+        pass
+
+    return results
 
 @router.get("/auth/users", response_model=List[UserOut])
 def list_users(
