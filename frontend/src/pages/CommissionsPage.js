@@ -627,102 +627,109 @@ function TabDetails({ period }) {
 // Composant : Évolution par Superviseur / Gestionnaire
 // ─────────────────────────────────────────────────────────────────────────────
 function EvoReseauSection({ nPeriods, superviseurs, gestionnaires, crit }) {
-  const [filterType, setFilterType] = useState('superviseur'); // 'superviseur' | 'gestionnaire'
-  const [selected, setSelected]     = useState('');
-  const [evoData, setEvoData]       = useState([]);
-  const [loading, setLoading]       = useState(false);
+  const [allData, setAllData] = useState({});  // { nom: [evoRows...] }
+  const [loading, setLoading] = useState(false);
+  const [activeView, setActiveView] = useState('superviseur'); // 'superviseur' | 'gestionnaire'
+
+  const liste = activeView === 'superviseur' ? superviseurs : gestionnaires;
 
   useEffect(() => {
-    if (!selected) { setEvoData([]); return; }
+    if (!liste.length) return;
     setLoading(true);
-    commissionService.evolution(nPeriods, undefined, {
-      [filterType]: selected,
-    }).then(rows => {
-      setEvoData(rows.map(d => ({ ...d, reelle: (d.reseau + d.pdv) * 0.3 })));
+    setAllData({});
+    Promise.all(
+      liste.map(nom =>
+        commissionService.evolution(nPeriods, undefined, { [activeView]: nom })
+          .then(rows => ({ nom, rows: rows.map(d => ({ ...d, reelle: (d.reseau + d.pdv) * 0.3 })) }))
+          .catch(() => ({ nom, rows: [] }))
+      )
+    ).then(results => {
+      const map = {};
+      results.forEach(({ nom, rows }) => { map[nom] = rows; });
+      setAllData(map);
       setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [selected, filterType, nPeriods]);
+    });
+  }, [activeView, nPeriods, superviseurs.join(','), gestionnaires.join(',')]);
 
+  // Collecter toutes les périodes distinctes
+  const allPeriods = [...new Set(Object.values(allData).flatMap(rows => rows.map(r => r.period_key)))].sort().reverse();
   const getValue = d => crit?.field === 'reelle' ? d.reelle : d.reseau;
+
+  const renderTable = (nom) => {
+    const rows = allData[nom] || [];
+    if (!rows.length) return <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Pas de données</div>;
+    return (
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 4 }}>
+        <thead>
+          <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <th style={{ padding: '8px 12px', textAlign: 'left', color: '#8a8a9a' }}>Période</th>
+            <th style={{ padding: '8px 12px', textAlign: 'center', color: '#8a8a9a' }}>PDV</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
+            <th style={{ padding: '8px 12px', textAlign: 'right', color: crit?.color || 'var(--success)' }}>Variation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((d, i) => {
+            const prev = rows[i - 1];
+            const val = getValue(d);
+            const prevVal = prev ? getValue(prev) : null;
+            const delta = prevVal ? ((val - prevVal) / prevVal * 100) : null;
+            return (
+              <tr key={d.period_key} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '8px 12px', fontWeight: 700 }}>{d.period_key}</td>
+                <td style={{ padding: '8px 12px', textAlign: 'center' }}>{d.n_pdv}</td>
+                <td style={{ padding: '8px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(d.reseau)}</td>
+                <td style={{ padding: '8px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(d.pdv)}</td>
+                <td style={{ padding: '8px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(d.reelle)}</td>
+                <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                  {delta !== null ? (
+                    <span style={{ color: delta >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                      {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
+                    </span>
+                  ) : '—'}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  };
 
   return (
     <div className="modal-section" style={{ background: 'var(--bg-card)', marginTop: 24 }}>
-      <h3>👥 Évolution par Superviseur / Gestionnaire</h3>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Toggle Superviseur / Gestionnaire */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <h3 style={{ margin: 0 }}>👥 Évolution par {activeView === 'superviseur' ? 'Superviseur' : 'Gestionnaire'}</h3>
         <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
           {['superviseur','gestionnaire'].map(t => (
-            <button key={t}
-              onClick={() => { setFilterType(t); setSelected(''); }}
-              style={{
-                padding: '8px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12,
-                background: filterType === t ? 'var(--primary)' : 'var(--bg-card)',
-                color: filterType === t ? '#fff' : 'var(--text-secondary)',
-              }}>
-              {t === 'superviseur' ? '👤 Superviseur' : '🏪 Gestionnaire'}
+            <button key={t} onClick={() => setActiveView(t)}
+              style={{ padding: '7px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12,
+                background: activeView === t ? 'var(--primary)' : 'var(--bg-card)',
+                color: activeView === t ? '#fff' : 'var(--text-secondary)' }}>
+              {t === 'superviseur' ? '👤 Superviseurs' : '🏪 Gestionnaires'}
             </button>
           ))}
         </div>
-        {/* Select dynamique */}
-        <select value={selected} onChange={e => setSelected(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', minWidth: 200 }}>
-          <option value="">— Choisir un {filterType} —</option>
-          {(filterType === 'superviseur' ? superviseurs : gestionnaires).map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
       </div>
 
-      {loading && <div className="loading-state" style={{ padding: 20 }}>Chargement…</div>}
+      {loading && <div className="loading-state" style={{ padding: 20 }}>Chargement de tous les {activeView}s…</div>}
 
-      {!selected && !loading && (
-        <div style={{ padding: 20, color: 'var(--text-muted)', textAlign: 'center', fontSize: 13 }}>
-          Sélectionne un {filterType} pour voir son évolution
-        </div>
+      {!loading && liste.length === 0 && (
+        <div style={{ padding: 20, color: 'var(--text-muted)', textAlign: 'center' }}>Aucun {activeView} trouvé</div>
       )}
 
-      {selected && !loading && evoData.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Période</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>
-                  {filterType === 'superviseur' ? `PDV de ${selected}` : `PDV de ${selected}`}
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Commission Réelle PDG</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: crit?.color || 'var(--success)' }}>Variation</th>
-              </tr>
-            </thead>
-            <tbody>
-              {evoData.map((d, i) => {
-                const prev = evoData[i - 1];
-                const val = getValue(d);
-                const prevVal = prev ? getValue(prev) : null;
-                const delta = prevVal ? ((val - prevVal) / prevVal * 100) : null;
-                return (
-                  <tr key={d.period_key} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 700 }}>{d.period_key}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>{d.n_pdv}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(d.reseau)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(d.pdv)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(d.reelle)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                      {delta !== null ? (
-                        <span style={{ color: delta >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
-                          {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}%
-                        </span>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {!loading && liste.map(nom => (
+        <div key={nom} style={{ marginBottom: 24 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', padding: '8px 0 4px', borderBottom: '2px solid var(--primary)', marginBottom: 8 }}>
+            {activeView === 'superviseur' ? '👤' : '🏪'} {nom}
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            {renderTable(nom)}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }
