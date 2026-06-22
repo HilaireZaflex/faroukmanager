@@ -24,6 +24,7 @@ export default function CommissionsPage() {
     { id: 'details',    label: '📋 Détail PDV' },
     { id: 'evolution',  label: '📈 Évolution' },
     { id: 'top',        label: '🏆 Top PDV' },
+    { id: 'pareto',     label: '📊 Rapport Pareto' },
     { id: 'analyse',    label: '🤖 Analyse IA' },
   ];
 
@@ -61,6 +62,7 @@ export default function CommissionsPage() {
           {activeTab === 'details'     && <TabDetails key={`e-${period}-${refreshKey}`} period={period}/>}
           {activeTab === 'evolution'   && <TabEvolution key={`ev-${refreshKey}`}/>}
           {activeTab === 'top'         && <TabTop key={`t-${period}-${refreshKey}`} period={period}/>}
+          {activeTab === 'pareto'      && <TabPareto key={`p-${period}-${refreshKey}`} period={period}/>}
           {activeTab === 'analyse'     && <TabAnalyseIA key={`a-${period}-${refreshKey}`} period={period}/>}
         </>
       )}
@@ -1226,6 +1228,159 @@ function TabReversement({ period }) {
         </table>
       </div>
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Onglet : RAPPORT PARETO (basé sur Commission Réelle PDG)
+// ─────────────────────────────────────────────────────────────────────────────
+function TabPareto({ period }) {
+  const [entries, setEntries]       = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [zone, setZone]             = useState('');
+  const [superviseur, setSuperviseur] = useState('');
+  const [zones, setZones]           = useState([]);
+  const [superviseurs, setSuperviseurs] = useState([]);
+
+  useEffect(() => {
+    setLoading(true);
+    commissionService.entries({ period_key: period, limit: 5000 }).then(data => {
+      const enriched = data.map(e => ({
+        ...e,
+        commReelle: ((e.montant_reseau || 0) + (e.gere_reversement ? 0 : (e.montant_pdv || 0))) * 0.3,
+      })).sort((a, b) => b.commReelle - a.commReelle);
+
+      const total = enriched.reduce((s, e) => s + e.commReelle, 0);
+      let cumul = 0;
+      const withCumul = enriched.map(e => {
+        cumul += e.commReelle;
+        const pct = total ? (e.commReelle / total * 100) : 0;
+        const cumulPct = total ? (cumul / total * 100) : 0;
+        return { ...e, pct, cumulPct, dans_pareto: (cumulPct - pct) < 80 };
+      });
+
+      setEntries(withCumul);
+      setZones([...new Set(data.map(e => e.zone).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(data.map(e => e.superviseur).filter(Boolean))].sort());
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [period]);
+
+  const filtered = entries
+    .filter(e => !zone || e.zone === zone)
+    .filter(e => !superviseur || e.superviseur === superviseur)
+    .filter(e => activeFilter === 'fort' ? e.dans_pareto : activeFilter === 'faible' ? !e.dans_pareto : true)
+    .filter(e => !search || (e.pdv_numero||'').toLowerCase().includes(search.toLowerCase()) || (e.pdv_nom||'').toLowerCase().includes(search.toLowerCase()));
+
+  const fortTotal   = filtered.filter(e => e.dans_pareto).reduce((s, e) => s + e.commReelle, 0);
+  const faibleTotal = filtered.filter(e => !e.dans_pareto).reduce((s, e) => s + e.commReelle, 0);
+  const totalFiltered = fortTotal + faibleTotal;
+  const nFort   = filtered.filter(e => e.dans_pareto).length;
+  const nFaible = filtered.filter(e => !e.dans_pareto).length;
+  const gini = entries.length > 1 ? (() => {
+    const vals = entries.map(e => e.commReelle).sort((a,b)=>a-b);
+    const n = vals.length; const mean = vals.reduce((s,v)=>s+v,0)/n;
+    if (!mean) return 0;
+    let sum = 0;
+    for (let i=0; i<n; i++) for (let j=0; j<n; j++) sum += Math.abs(vals[i]-vals[j]);
+    return sum / (2*n*n*mean);
+  })() : 0;
+
+  if (loading) return <div className="loading-state">Calcul Pareto en cours…</div>;
+
+  return (
+    <div>
+      <div className="grid-2 mb-24">
+        <div className="kpi-card" onClick={() => setActiveFilter(f => f === 'fort' ? null : 'fort')}
+          style={{ background: 'linear-gradient(135deg, rgba(255,105,0,0.1), rgba(255,105,0,0.05))', border: `1px solid ${activeFilter === 'fort' ? '#FF6900' : 'rgba(255,105,0,0.2)'}`, borderRadius: 'var(--radius)', padding: 20, cursor: 'pointer', transition: 'all 0.2s' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>💪 Fort Impact (Pareto 80%)</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#FF6900' }}>{fmt(fortTotal)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>{nFort} PDV · {totalFiltered ? (fortTotal/totalFiltered*100).toFixed(1) : 0}% du total</div>
+        </div>
+        <div className="kpi-card" onClick={() => setActiveFilter(f => f === 'faible' ? null : 'faible')}
+          style={{ background: 'linear-gradient(135deg, rgba(100,200,200,0.1), rgba(100,200,200,0.05))', border: `1px solid ${activeFilter === 'faible' ? '#00cec9' : 'rgba(100,200,200,0.2)'}`, borderRadius: 'var(--radius)', padding: 20, cursor: 'pointer', transition: 'all 0.2s' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>📉 Faible Impact</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#00cec9' }}>{fmt(faibleTotal)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>{nFaible} PDV · Gini: {gini.toFixed(3)}</div>
+        </div>
+      </div>
+
+      <div className="pdv-filters card mb-16" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input type="text" placeholder="🔍 Rechercher un PDV..." value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 180, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}/>
+        <select value={zone} onChange={e => setZone(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
+          <option value="">Toutes les zones</option>
+          {zones.map(z => <option key={z} value={z}>{z}</option>)}
+        </select>
+        <select value={superviseur} onChange={e => setSuperviseur(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
+          <option value="">Tous les superviseurs</option>
+          {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {(zone || superviseur || search || activeFilter) && (
+          <button onClick={() => { setZone(''); setSuperviseur(''); setSearch(''); setActiveFilter(null); }}
+            style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--danger)', cursor: 'pointer', fontWeight: 600 }}>
+            ✕ Reset
+          </button>
+        )}
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>% Contribution</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Cumul %</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((e, i) => (
+              <tr key={e.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FFD700' : 'var(--text-muted)' }}>#{i+1}</td>
+                <td style={{ padding: '10px 12px' }}>
+                  <div style={{ fontWeight: 700 }}>{e.pdv_numero}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_nom}</div>
+                </td>
+                <td style={{ padding: '10px 12px', fontSize: 12 }}>{e.zone || '—'}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12 }}>{e.superviseur || '—'}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(e.commReelle)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right' }}>{e.pct.toFixed(2)}%</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{e.cumulPct.toFixed(2)}%</td>
+                <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                  <span style={{ padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    background: e.dans_pareto ? 'rgba(255,105,0,0.2)' : 'rgba(100,200,200,0.2)',
+                    color: e.dans_pareto ? '#FF6900' : '#00cec9' }}>
+                    {e.dans_pareto ? '💪 Fort' : '📉 Faible'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={8} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
+            )}
+          </tbody>
+          {filtered.length > 0 && (
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.04)', fontWeight: 800 }}>
+                <td colSpan={4} style={{ padding: '10px 12px' }}><b>TOTAL — {filtered.length} PDV</b></td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(totalFiltered)}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800 }}>100%</td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
   );
 }
 
