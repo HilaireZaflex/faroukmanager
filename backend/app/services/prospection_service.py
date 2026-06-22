@@ -193,7 +193,7 @@ def create_prospect(db: Session, payload: ProspectCreate, current_user: User) ->
     """Soumission initiale par un superviseur ou un développeur."""
     _ensure_role(
         current_user,
-        [UserRole.SUPERVISEUR, UserRole.DEVELOPPEUR, UserRole.ADMIN, UserRole.MANAGER],
+        [UserRole.SUPERVISEUR, UserRole.DEVELOPPEUR, UserRole.ADMIN, UserRole.MANAGER, UserRole.RC, UserRole.GESTIONNAIRE],
         "soumettre un prospect",
     )
 

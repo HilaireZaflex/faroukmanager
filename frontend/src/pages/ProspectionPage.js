@@ -25,17 +25,25 @@ export default function ProspectionPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
 
-  const tabs = [
-    { id: 'liste',         label: '📋 Liste & Workflow' },
-    { id: 'ai',            label: '🤖 IA — Vue d\'ensemble' },
-    { id: 'carte',         label: '🗺️ Carte & Géoloc' },
-    { id: 'reporting',     label: '📊 Reporting & Analytics' },
-    { id: 'stock',         label: '📦 Stock de Puces' },
-    { id: 'postact',       label: '🎯 Suivi Post-Activation' },
-    { id: 'notifications', label: '🔔 Notifications & Comm' },
-    { id: 'gamification',  label: '🏆 Gamification' },
-    { id: 'audit',         label: '🔐 Audit & Conformité' },
+  // Seuls admin et RC voient tous les onglets
+  const isAdminOrRC = user?.role === 'admin' || user?.role === 'rc' || user?.role === 'manager';
+
+  const allTabs = [
+    { id: 'liste',         label: '📋 Liste & Workflow',       adminOnly: false },
+    { id: 'ai',            label: '🤖 IA — Vue d\'ensemble',   adminOnly: true  },
+    { id: 'carte',         label: '🗺️ Carte & Géoloc',         adminOnly: true  },
+    { id: 'reporting',     label: '📊 Reporting & Analytics',  adminOnly: true  },
+    { id: 'stock',         label: '📦 Stock de Puces',         adminOnly: true  },
+    { id: 'postact',       label: '🎯 Suivi Post-Activation',  adminOnly: true  },
+    { id: 'notifications', label: '🔔 Notifications & Comm',   adminOnly: true  },
+    { id: 'gamification',  label: '🏆 Gamification',           adminOnly: true  },
+    { id: 'audit',         label: '🔐 Audit & Conformité',     adminOnly: true  },
   ];
+
+  const tabs = allTabs.filter(t => !t.adminOnly || isAdminOrRC);
+
+  // Si l'onglet actif n'est plus visible (changement de rôle), revenir à liste
+  const safeTab = tabs.find(t => t.id === activeTab) ? activeTab : 'liste';
 
   return (
     <div className="prospection-page">
@@ -52,11 +60,11 @@ export default function ProspectionPage() {
         </div>
       </div>
 
-      {/* Onglets style OMy/Nafama */}
+      {/* Onglets filtrés selon le rôle */}
       <div className="tabs-container mb-24">
         {tabs.map((tab) => (
           <button key={tab.id}
-            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            className={`tab-btn ${safeTab === tab.id ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.id)}>
             {tab.label}
           </button>
@@ -64,22 +72,22 @@ export default function ProspectionPage() {
       </div>
 
       <div>
-        {activeTab === 'liste' && (
+        {safeTab === 'liste' && (
           <TabListe key={refreshKey}
             onOpen={(p) => setModalDetail(p)}
             currentUser={user}
           />
         )}
-        {activeTab === 'ai' && (
+        {safeTab === 'ai' && (
           <TabIA key={refreshKey} onOpen={(p) => setModalDetail(p)}/>
         )}
-        {activeTab === 'carte'         && <TabCarte key={refreshKey} onOpen={(p) => setModalDetail(p)}/>}
-        {activeTab === 'reporting'     && <TabReporting key={refreshKey}/>}
-        {activeTab === 'stock'         && <TabStock key={refreshKey}/>}
-        {activeTab === 'postact'       && <TabPostActivation key={refreshKey}/>}
-        {activeTab === 'notifications' && <TabNotifications key={refreshKey}/>}
-        {activeTab === 'gamification'  && <TabGamification key={refreshKey}/>}
-        {activeTab === 'audit'         && <TabAudit key={refreshKey}/>}
+        {safeTab === 'carte'         && <TabCarte key={refreshKey} onOpen={(p) => setModalDetail(p)}/>}
+        {safeTab === 'reporting'     && <TabReporting key={refreshKey}/>}
+        {safeTab === 'stock'         && <TabStock key={refreshKey}/>}
+        {safeTab === 'postact'       && <TabPostActivation key={refreshKey}/>}
+        {safeTab === 'notifications' && <TabNotifications key={refreshKey}/>}
+        {safeTab === 'gamification'  && <TabGamification key={refreshKey}/>}
+        {safeTab === 'audit'         && <TabAudit key={refreshKey}/>}
       </div>
 
       {modalCreate && (
