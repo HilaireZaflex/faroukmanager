@@ -1087,10 +1087,10 @@ def monthly_evolution(
         MonthlyPerformance.annee == prev_annee, MonthlyPerformance.mois == prev_mois
     ).all()}
 
-    # Filtrer par zone si demandé
+    # Filtrer par superviseur/gestionnaire/zone selon le rôle
     all_pdv_ids = set(perfs_actuel.keys()) | set(perfs_precedent.keys())
-    if zone:
-        all_pdv_ids = {pid for pid in all_pdv_ids if pdv_map.get(pid) and pdv_map[pid].zone == zone}
+    # Restreindre aux PDVs du pdv_map déjà filtré par rôle
+    all_pdv_ids = {pid for pid in all_pdv_ids if pid in pdv_map}
 
     def _mt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
     def _mca(p): return getattr(p, 'montant_ca', None) or 0
