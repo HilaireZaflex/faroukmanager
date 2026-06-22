@@ -412,13 +412,21 @@ function TabDetails({ period }) {
 
   useEffect(() => {
     setLoading(true);
-    commissionService.entries({ period_key: period, limit: 2000 }).then(r => {
-      setAllEntries(r);
-      setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
-      setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
-      setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
-      setGestionnaires([...new Set(r.map(e => e.gestionnaire).filter(Boolean))].sort());
-      setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
+    // Charger période actuelle pour les données + 3 périodes pour les filtres complets
+    commissionService.periods().then(async periods => {
+      const toLoad = periods.slice(0, 3);
+      const [curEntries, ...otherEntries] = await Promise.all([
+        commissionService.entries({ period_key: period, limit: 5000 }).catch(() => []),
+        ...toLoad.slice(1).map(p => commissionService.entries({ period_key: p, limit: 5000 }).catch(() => [])),
+      ]);
+      const allR = [curEntries, ...otherEntries].flat();
+      setAllEntries(curEntries);
+      // Filtres depuis toutes les périodes
+      setZones([...new Set(allR.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(allR.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(allR.map(e => e.quartier).filter(Boolean))].sort());
+      setGestionnaires([...new Set(allR.map(e => e.gestionnaire).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(allR.map(e => e.superviseur).filter(Boolean))].sort());
     }).finally(() => setLoading(false));
   }, [period]);
 
@@ -1004,13 +1012,18 @@ function TabTop({ period }) {
   const [quartiers, setQuartiers]   = useState([]);
   const [superviseurs, setSuperviseurs] = useState([]);
 
-  // Charger les listes dynamiques
+  // Charger les listes dynamiques depuis plusieurs périodes pour avoir toutes les sous-zones
   useEffect(() => {
-    commissionService.entries({ period_key: period, limit: 2000 }).then(r => {
-      setZones([...new Set(r.map(e => e.zone).filter(Boolean))].sort());
-      setSousZones([...new Set(r.map(e => e.sous_zone).filter(Boolean))].sort());
-      setQuartiers([...new Set(r.map(e => e.quartier).filter(Boolean))].sort());
-      setSuperviseurs([...new Set(r.map(e => e.superviseur).filter(Boolean))].sort());
+    commissionService.periods().then(async periods => {
+      const toLoad = periods.slice(0, 3);
+      const results = await Promise.all(
+        toLoad.map(p => commissionService.entries({ period_key: p, limit: 5000 }).catch(() => []))
+      );
+      const all = results.flat();
+      setZones([...new Set(all.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(all.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(all.map(e => e.quartier).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(all.map(e => e.superviseur).filter(Boolean))].sort());
     }).catch(() => {});
   }, [period]);
 
@@ -1251,7 +1264,15 @@ function TabPareto({ period }) {
 
   useEffect(() => {
     setLoading(true);
-    commissionService.entries({ period_key: period, limit: 5000 }).then(data => {
+    // Charger période actuelle pour les données Pareto + plusieurs périodes pour les filtres
+    Promise.all([
+      commissionService.entries({ period_key: period, limit: 5000 }),
+      commissionService.periods().then(async periods => {
+        const toLoad = periods.slice(0, 3);
+        const results = await Promise.all(toLoad.map(p => commissionService.entries({ period_key: p, limit: 5000 }).catch(() => [])));
+        return results.flat();
+      }),
+    ]).then(([data, allData]) => {
       const enriched = data.map(e => ({
         ...e,
         commReelle: ((e.montant_reseau || 0) + (e.gere_reversement ? 0 : (e.montant_pdv || 0))) * 0.3,
@@ -1267,10 +1288,11 @@ function TabPareto({ period }) {
       });
 
       setEntries(withCumul);
-      setZones([...new Set(data.map(e => e.zone).filter(Boolean))].sort());
-      setSousZones([...new Set(data.map(e => e.sous_zone).filter(Boolean))].sort());
-      setQuartiers([...new Set(data.map(e => e.quartier).filter(Boolean))].sort());
-      setSuperviseurs([...new Set(data.map(e => e.superviseur).filter(Boolean))].sort());
+      // Filtres chargés depuis plusieurs périodes
+      setZones([...new Set(allData.map(e => e.zone).filter(Boolean))].sort());
+      setSousZones([...new Set(allData.map(e => e.sous_zone).filter(Boolean))].sort());
+      setQuartiers([...new Set(allData.map(e => e.quartier).filter(Boolean))].sort());
+      setSuperviseurs([...new Set(allData.map(e => e.superviseur).filter(Boolean))].sort());
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [period]);
