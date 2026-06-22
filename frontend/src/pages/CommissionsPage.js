@@ -404,6 +404,7 @@ function TabDetails({ period }) {
   // Pagination
   const [page1, setPage1] = useState(1);
   const [page2, setPage2] = useState(1);
+  const [sortD, setSortD] = useState({ col: 'commPDG', dir: 'desc' });
 
   useEffect(() => {
     setLoading(true);
@@ -441,14 +442,31 @@ function TabDetails({ period }) {
 
   const PAGE_SIZE = 20;
 
-  const renderTable = (entries, page, setPage) => {
-    const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-    const paginated  = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const thD = (col, label, color) => {
+    const active = sortD.col === col;
+    return (
+      <th onClick={() => { setSortD(s => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' })); setPage1(1); setPage2(1); }}
+        style={{ padding: '10px 12px', textAlign: 'right', color: active ? color : '#8a8a9a', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+        {label} {active ? (sortD.dir === 'desc' ? '▼' : '▲') : '⇅'}
+      </th>
+    );
+  };
 
-    // Totaux sur toutes les entrées filtrées (RS/KIOSQUE : CommRev = 0)
-    const totalCommPDG    = entries.reduce((s, e) => s + (e.montant_reseau || 0), 0);
-    const totalCommRev    = entries.reduce((s, e) => s + (e.gere_reversement ? 0 : (e.montant_pdv || 0)), 0);
-    const totalCommReelle = (totalCommPDG + totalCommRev) * 0.3;
+  const renderTable = (entries, page, setPage) => {
+    const enriched = entries.map(e => ({
+      ...e,
+      commPDG:    e.montant_reseau || 0,
+      commRev:    e.gere_reversement ? 0 : (e.montant_pdv || 0),
+      commReelle: ((e.montant_reseau || 0) + (e.gere_reversement ? 0 : (e.montant_pdv || 0))) * 0.3,
+    })).sort((a, b) => sortD.dir === 'desc' ? b[sortD.col] - a[sortD.col] : a[sortD.col] - b[sortD.col]);
+
+    const totalPages = Math.max(1, Math.ceil(enriched.length / PAGE_SIZE));
+    const paginated  = enriched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    // Totaux sur toutes les entrées filtrées
+    const totalCommPDG    = enriched.reduce((s, e) => s + e.commPDG, 0);
+    const totalCommRev    = enriched.reduce((s, e) => s + e.commRev, 0);
+    const totalCommReelle = enriched.reduce((s, e) => s + e.commReelle, 0);
 
     return (
     <>
@@ -459,18 +477,14 @@ function TabDetails({ period }) {
               <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>N° PDV / Nom</th>
               <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Type</th>
               <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone / Quartier</th>
-              <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
-              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
-              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
+              {thD('commPDG',    'Commission PDG',        'var(--success)')}
+              {thD('commRev',    'Commission Revendeur',  '#8b5cf6')}
+              {thD('commReelle', 'Comm. Réelle PDG',      '#f59e0b')}
               <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Paiement</th>
             </tr>
           </thead>
           <tbody>
-            {paginated.map(e => {
-              const commPDG    = e.montant_reseau || 0;
-              const commRev    = e.gere_reversement ? 0 : (e.montant_pdv || 0);
-              const commReelle = (commPDG + commRev) * 0.3;
-              return (
+            {paginated.map(e => (
                 <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px' }}>
                     <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
@@ -482,17 +496,16 @@ function TabDetails({ period }) {
                     <div style={{ fontSize: 12 }}>{e.zone || '—'}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.quartier || '—'}</div>
                   </td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(commPDG)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(commRev)}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(e.commPDG)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(e.commRev)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(e.commReelle)}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     {e.gere_reversement
                       ? <span className="status-badge" style={{ background: '#8b5cf6', fontSize: 10 }}>🏪 PDG → PDV</span>
                       : <span className="status-badge" style={{ background: '#3b82f6', fontSize: 10 }}>🟦 Orange → PDV</span>}
                   </td>
                 </tr>
-              );
-            })}
+            ))}
             {paginated.length === 0 && (
               <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
             )}
@@ -792,6 +805,7 @@ function TabTop({ period }) {
   const [typeFilter, setTypeFilter] = useState('');
   const [n, setN]                   = useState(20);
   const [criterion, setCriterion]   = useState('commission_pdg');
+  const [sortT, setSortT]           = useState({ col: 'commPDG', dir: 'desc' });
 
   const [zone, setZone]             = useState('');
   const [sousZone, setSousZone]     = useState('');
@@ -840,6 +854,20 @@ function TabTop({ period }) {
 
   const crit = COMM_CRITERIA[criterion];
   const medalColor = i => i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--text-muted)';
+
+  const thT = (col, label, color) => {
+    const active = sortT.col === col;
+    return (
+      <th onClick={() => setSortT(s => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }))}
+        style={{ padding: '10px 12px', textAlign: 'right', color: active ? color : '#8a8a9a', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+        {label} {active ? (sortT.dir === 'desc' ? '▼' : '▲') : '⇅'}
+      </th>
+    );
+  };
+
+  const sortedData = [...data].sort((a, b) =>
+    sortT.dir === 'desc' ? b[sortT.col] - a[sortT.col] : a[sortT.col] - b[sortT.col]
+  );
 
   return (
     <>
@@ -903,13 +931,13 @@ function TabTop({ period }) {
               <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
               <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Type</th>
               <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone / Quartier</th>
-              <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
-              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Commission Revendeur</th>
-              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
+              {thT('commPDG',    'Commission PDG',        'var(--success)')}
+              {thT('commRev',    'Commission Revendeur',  '#8b5cf6')}
+              {thT('commReelle', 'Comm. Réelle PDG',      '#f59e0b')}
             </tr>
           </thead>
           <tbody>
-            {data.map((e, i) => (
+            {sortedData.map((e, i) => (
               <tr key={e.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                   <b style={{ color: medalColor(i), fontSize: 15 }}>#{i+1}</b>
@@ -929,10 +957,20 @@ function TabTop({ period }) {
                 <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(e.commReelle)}</td>
               </tr>
             ))}
-            {data.length === 0 && (
+            {sortedData.length === 0 && (
               <tr><td colSpan={7} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Aucun résultat</td></tr>
             )}
           </tbody>
+          {sortedData.length > 0 && (
+            <tfoot>
+              <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.04)', fontWeight: 800 }}>
+                <td colSpan={4} style={{ padding: '10px 12px' }}><b>TOTAL — {sortedData.length} PDV</b></td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 800 }}>{fmt(sortedData.reduce((s,e)=>s+e.commPDG,0))}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 800 }}>{fmt(sortedData.reduce((s,e)=>s+e.commRev,0))}</td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800 }}>{fmt(sortedData.reduce((s,e)=>s+e.commReelle,0))}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </>
