@@ -143,7 +143,7 @@ function TabListe({ onOpen, currentUser }) {
     <>
       {stats && <StatsBar stats={stats}/>}
       <FiltersBar filters={filters} setFilters={setFilters}/>
-      <ProspectsTable loading={loading} prospects={prospects} onOpen={onOpen}/>
+      <ProspectsTable loading={loading} prospects={prospects} onOpen={onOpen} currentUser={currentUser} onDeleted={reload}/>
     </>
   );
 }
@@ -205,12 +205,25 @@ function FiltersBar({ filters, setFilters }) {
   );
 }
 
-function ProspectsTable({ loading, prospects, onOpen }) {
+function ProspectsTable({ loading, prospects, onOpen, currentUser, onDeleted }) {
   if (loading) return <div className="loading-state">Chargement…</div>;
   if (!prospects.length) return (
     <div className="empty-state">Aucun prospect trouvé.</div>
   );
   const now = new Date();
+  const canDelete = ['admin','manager','rc'].includes(currentUser?.role);
+
+  const handleDelete = async (e, p) => {
+    e.stopPropagation();
+    if (!window.confirm(`Supprimer définitivement la demande ${p.reference} (${p.prenom} ${p.nom}) ?`)) return;
+    try {
+      await prospectService.delete(p.id);
+      onDeleted && onDeleted();
+    } catch (err) {
+      alert('Erreur suppression : ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   return (
     <div className="prospects-table">
       <table>
@@ -219,6 +232,7 @@ function ProspectsTable({ loading, prospects, onOpen }) {
             <th>Référence</th><th>Prospect</th><th>Téléphone</th>
             <th>Quartier</th><th>OM</th><th>Statut</th>
             <th>SLA</th><th>Soumis le</th>
+            {canDelete && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
@@ -243,6 +257,17 @@ function ProspectsTable({ loading, prospects, onOpen }) {
                   {late && <AlertTriangle size={12} style={{ marginLeft:4 }}/>}
                 </td>
                 <td>{new Date(p.submitted_at).toLocaleDateString('fr-FR')}</td>
+                {canDelete && (
+                  <td onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={e => handleDelete(e, p)}
+                      style={{ background:'#ef4444', color:'#fff', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:12 }}
+                      title="Supprimer définitivement"
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}

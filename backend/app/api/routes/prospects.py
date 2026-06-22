@@ -227,3 +227,32 @@ def cancel_prospect(
 ):
     """Annule un prospect à tout moment (sauf états terminaux)."""
     return svc.cancel_prospect(db, prospect_id, payload, current_user)
+
+
+@router.delete("/{prospect_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_prospect(
+    prospect_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Suppression définitive d'un prospect (admin et RC uniquement)."""
+    from app.models.user import UserRole
+    from app.models.prospect import Prospect, ProspectHistory, ProspectAttachment
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.RC]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seuls les admins, managers et RC peuvent supprimer un prospect."
+        )
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Prospect introuvable")
+    # Supprimer l'historique et les pièces jointes d'abord
+    db.query(ProspectHistory).filter(ProspectHistory.prospect_id == prospect_id).delete()
+    try:
+        from app.models.prospect import ProspectAttachment
+        db.query(ProspectAttachment).filter(ProspectAttachment.prospect_id == prospect_id).delete()
+    except Exception:
+        pass
+    db.delete(prospect)
+    db.commit()
+    return

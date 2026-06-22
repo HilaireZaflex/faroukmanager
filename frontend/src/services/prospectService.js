@@ -113,4 +113,6 @@ export const STATUS_LABELS = {
   ANNULEE:         { label: '❎ Annulée',         color: '#6b7280' },
 };
 
+prospectService.delete = (id) => api.delete(`/prospects/${id}`);
+
 export default prospectService;
