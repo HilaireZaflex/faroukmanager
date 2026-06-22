@@ -482,9 +482,13 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
   useEffect(() => {
     const role = currentUser?.role;
     if (['admin','manager','rc'].includes(role)) {
-      api.get('/auth/developers').then(r => setUsers(r.data)).catch(() => setUsers([]));
+      api.get('/auth/developers')
+        .then(r => { setUsers(Array.isArray(r.data) ? r.data : []); })
+        .catch(() => setUsers([]));
+    } else {
+      setUsers([]);
     }
-  }, [currentUser]);
+  }, [currentUser?.role]);
 
   if (loading || !p) {
     return (
