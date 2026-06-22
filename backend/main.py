@@ -587,6 +587,37 @@ async def clean_nan_pdvs():
     finally:
         db.close()
 
+@app.post("/debug-create-prospect")
+async def debug_create_prospect(request: Request):
+    """Debug endpoint: essaie de créer un prospect et retourne l'erreur complète"""
+    import traceback
+    from app.core.database import SessionLocal
+    from app.models.prospect import Prospect, ProspectStatus
+    from datetime import datetime
+    db = SessionLocal()
+    try:
+        body = await request.json()
+        p = Prospect(
+            reference=f"DEBUG-{datetime.utcnow().strftime('%H%M%S')}",
+            status=ProspectStatus.NOUVELLE,
+            nom=body.get("nom","Test"),
+            prenom=body.get("prenom","Debug"),
+            telephone_principal=body.get("telephone_principal","70000000"),
+            submitted_by_id=1,
+            submitted_at=datetime.utcnow(),
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+        return {"success": True, "id": p.id, "reference": p.reference}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e), "traceback": traceback.format_exc()}
+    finally:
+        db.close()
+
 @app.get("/migrate-prospect-columns")
 async def migrate_prospect_columns():
     """Migration: ajoute les colonnes manquantes à la table prospects"""
