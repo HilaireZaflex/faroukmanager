@@ -6,6 +6,8 @@ from app.models.pdv import PDV, PDVStatut
 from app.models.performance import MonthlyPerformance, WeeklyPerformance
 from app.ai.health_score import update_all_health_scores
 from app.ai.predictions import get_at_risk_pdvs, forecast_network_ca
+from app.api.routes.auth import get_current_user, get_pdv_filters
+from app.models.user import User
 from datetime import datetime, timedelta
 import math
 
@@ -16,16 +18,26 @@ def get_health_scores(
     db: Session = Depends(get_db),
     zone: Optional[str] = Query(None),
     min_score: float = Query(0, ge=0, le=100),
-    max_score: float = Query(100, ge=0, le=100)
+    max_score: float = Query(100, ge=0, le=100),
+    current_user: User = Depends(get_current_user),
 ):
     """GET /analytics/health-scores
     Retourne: {count, average_health, scores: [{pdv_id, nom, zone, health_score, segment, medaille}]}
     """
+    f = get_pdv_filters(current_user)
+    superviseur = f.get('superviseur')
+    gestionnaire = f.get('gestionnaire')
+    user_zone = zone or f.get('zone')
+
     query = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
-    
-    if zone:
-        query = query.filter(PDV.zone == zone)
-    
+
+    if superviseur:
+        query = query.filter(PDV.superviseur == superviseur)
+    elif gestionnaire:
+        query = query.filter(PDV.gestionnaire == gestionnaire)
+    elif user_zone:
+        query = query.filter(PDV.zone == user_zone)
+
     pdvs = query.all()
     
     health_scores = [
@@ -51,14 +63,30 @@ def get_health_scores(
     }
 
 @router.get("/analytics/segments")
-def get_segments(db: Session = Depends(get_db)):
+def get_segments(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """GET /analytics/segments
     Retourne: {
       segments: {Champion: {count, pdvs: [...]}, Stable: {...}, 'À surveiller': {...}, Déclinant: {...}, Inactif: {...}},
       total: int
     }
     """
-    pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
+    f = get_pdv_filters(current_user)
+    superviseur = f.get('superviseur')
+    gestionnaire = f.get('gestionnaire')
+    user_zone = f.get('zone')
+
+    query = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+    if superviseur:
+        query = query.filter(PDV.superviseur == superviseur)
+    elif gestionnaire:
+        query = query.filter(PDV.gestionnaire == gestionnaire)
+    elif user_zone:
+        query = query.filter(PDV.zone == user_zone)
+
+    pdvs = query.all()
     
     segments = {
         "Champion": [],
@@ -106,23 +134,40 @@ def get_segments(db: Session = Depends(get_db)):
     }
 
 @router.get("/analytics/predictions")
-def get_decline_predictions(db: Session = Depends(get_db)):
+def get_decline_predictions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """GET /analytics/predictions - avec cache global"""
     import sys
-    # Utiliser le cache global de main.py
+    f = get_pdv_filters(current_user)
+    superviseur = f.get('superviseur')
+    gestionnaire = f.get('gestionnaire')
+    user_zone = f.get('zone')
+
+    # Utiliser le cache global de main.py (seulement pour admin/manager sans filtre)
     try:
         main_module = sys.modules.get("main") or __import__("main")
         cached = main_module.get_cache("predictions")
-        if cached:
+        if cached and not superviseur and not gestionnaire and not user_zone:
             at_risk_pdvs = cached["at_risk"]
             network_forecast = cached["forecast"]
         else:
             at_risk_pdvs = get_at_risk_pdvs(db, threshold=0.3)
             network_forecast = forecast_network_ca(db, horizon_weeks=4)
-            main_module.set_cache("predictions", {"at_risk": at_risk_pdvs, "forecast": network_forecast})
+            if not superviseur and not gestionnaire and not user_zone:
+                main_module.set_cache("predictions", {"at_risk": at_risk_pdvs, "forecast": network_forecast})
     except:
         at_risk_pdvs = get_at_risk_pdvs(db, threshold=0.3)
         network_forecast = forecast_network_ca(db, horizon_weeks=4)
+
+    # Filtrer les PDVs à risque selon le rôle de l'utilisateur
+    if superviseur:
+        at_risk_pdvs = [p for p in at_risk_pdvs if p.get('superviseur') == superviseur]
+    elif gestionnaire:
+        at_risk_pdvs = [p for p in at_risk_pdvs if p.get('gestionnaire') == gestionnaire]
+    elif user_zone:
+        at_risk_pdvs = [p for p in at_risk_pdvs if p.get('zone') == user_zone]
 
     # Corriger la cohérence risk_level / probability
     for p in at_risk_pdvs:

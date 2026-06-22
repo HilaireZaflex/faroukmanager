@@ -862,7 +862,8 @@ def upsert_pdv_tracking(
 def get_recommendations(
     annee: Optional[int] = Query(None),
     semaine: Optional[int] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     GET /alerts/recommendations - 10 actions prioritaires de la semaine (Innovation 4 du CDC)
@@ -892,6 +893,19 @@ def get_recommendations(
             semaine = semaine or 1
 
     recommendations = generate_weekly_recommendations(db, annee=annee, semaine=semaine)
+
+    # Filtrer selon le rôle de l'utilisateur
+    f = get_pdv_filters(current_user)
+    superviseur = f.get('superviseur')
+    gestionnaire = f.get('gestionnaire')
+    user_zone = f.get('zone')
+
+    if superviseur:
+        recommendations = [r for r in recommendations if r.get('superviseur') == superviseur]
+    elif gestionnaire:
+        recommendations = [r for r in recommendations if r.get('gestionnaire') == gestionnaire]
+    elif user_zone:
+        recommendations = [r for r in recommendations if r.get('zone') == user_zone]
 
     return {
         "count": len(recommendations),

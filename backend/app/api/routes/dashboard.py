@@ -1598,14 +1598,27 @@ def weekly_evolution(
     annee: int = Query(...),
     semaine: int = Query(..., ge=1, le=52),
     zone: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
 ):
     """Comparaison CA semaine actuelle vs semaine précédente (jointure réelle)."""
+    f_user = get_pdv_filters(current_user)
+    _sup = f_user.get('superviseur')
+    _gest = f_user.get('gestionnaire')
+    zone = zone or f_user.get('zone')
+
     if semaine == 1:
         prev_semaine, prev_annee = 52, annee - 1
     else:
         prev_semaine, prev_annee = semaine - 1, annee
 
     pdv_map = _get_pdv_map(db)
+    # Filtrer pdv_map selon le rôle
+    if _sup:
+        pdv_map = {k: v for k, v in pdv_map.items() if (v.superviseur or '') == _sup}
+    elif _gest:
+        pdv_map = {k: v for k, v in pdv_map.items() if (v.gestionnaire or '') == _gest}
+    elif zone:
+        pdv_map = {k: v for k, v in pdv_map.items() if (v.zone or '') == zone}
 
     perfs_actuel = {p.pdv_id: p for p in db.query(WeeklyPerformance).filter(
         WeeklyPerformance.annee == annee, WeeklyPerformance.semaine == semaine
@@ -1615,8 +1628,8 @@ def weekly_evolution(
     ).all()}
 
     all_pdv_ids = set(perfs_actuel.keys()) | set(perfs_precedent.keys())
-    if zone:
-        all_pdv_ids = {pid for pid in all_pdv_ids if pdv_map.get(pid) and pdv_map[pid].zone == zone}
+    # Restreindre aux PDVs du pdv_map filtré
+    all_pdv_ids = {pid for pid in all_pdv_ids if pid in pdv_map}
 
     def _wmt(p): return getattr(p, 'montant_transaction', None) or p.ca or 0
     def _wmca(p): return getattr(p, 'montant_ca', None) or 0
