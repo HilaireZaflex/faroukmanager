@@ -198,10 +198,10 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
     commissionService.periods().then(async (list) => {
       const results = await Promise.all(
         list.map(p =>
-          commissionService.entries(p, { search: pdvNumero, limit: 5 })
+          commissionService.entries({ period_key: p, pdv_numero: pdvNumero, limit: 9999 })
             .then(d => {
-              const data = d.data || d;
-              const entry = Array.isArray(data) ? data.find(e => e.pdv_numero === pdvNumero) : null;
+              const data = Array.isArray(d) ? d : (d.data || []);
+              const entry = data.find(e => e.pdv_numero === pdvNumero);
               return entry ? { period: p, ...entry } : null;
             }).catch(() => null)
         )
@@ -316,19 +316,17 @@ function TabRapportSuperviseur({ period }) {
   const [sortCol, setSortCol] = useState('commReelle');
   const [sortDir, setSortDir] = useState('desc');
   const [selected, setSelected] = useState(null);
-  const [periods, setPeriods] = useState([]);
 
   useEffect(() => {
     commissionService.periods().then(async (list) => {
-      setPeriods(list);
       const idx = list.indexOf(period);
       const prevPeriod = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
       const [curr, prev] = await Promise.all([
-        commissionService.entries(period, { limit: 9999 }).then(d => d.data || d).catch(() => []),
-        prevPeriod ? commissionService.entries(prevPeriod, { limit: 9999 }).then(d => d.data || d).catch(() => []) : Promise.resolve([]),
+        commissionService.entries({ period_key: period, limit: 9999 }).then(d => Array.isArray(d) ? d : (d.data || [])).catch(() => []),
+        prevPeriod ? commissionService.entries({ period_key: prevPeriod, limit: 9999 }).then(d => Array.isArray(d) ? d : (d.data || [])).catch(() => []) : Promise.resolve([]),
       ]);
-      setEntries(Array.isArray(curr) ? curr : []);
-      setPrevEntries(Array.isArray(prev) ? prev : []);
+      setEntries(curr);
+      setPrevEntries(prev);
       setLoading(false);
     });
   }, [period]);
@@ -485,7 +483,7 @@ function TabPalmares({ period }) {
   useEffect(() => {
     commissionService.periods().then(async (list) => {
       const results = await Promise.all(
-        list.map(p => commissionService.entries(p, { limit: 9999 }).then(d => ({ period: p, entries: d.data || d || [] })).catch(() => ({ period: p, entries: [] })))
+        list.map(p => commissionService.entries({ period_key: p, limit: 9999 }).then(d => ({ period: p, entries: Array.isArray(d) ? d : (d.data || []) })).catch(() => ({ period: p, entries: [] })))
       );
       setAllData(results);
       setLoading(false);
@@ -631,7 +629,7 @@ function TabComparaisonZones({ period }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    commissionService.entries(period, { limit: 9999 }).then(d => {
+    commissionService.entries({ period_key: period, limit: 9999 }).then(d => {
       const data = Array.isArray(d) ? d : (d.data || []);
       setEntries(data);
       const zoneSet = [...new Set(data.map(e => e.zone).filter(Boolean))].sort();
@@ -987,9 +985,6 @@ function TabDashboard({ period }) {
         </div>
       </div>
 
-      {/* ── PROP 1 : Tableau comparatif multi-mois ── */}
-      <MultiMoisComparatif currentPeriod={period} />
-
       {/* ── Ventilation par quartier ── */}
       <div className="modal-section" style={{ background: 'var(--bg-card)' }}>
         <h3>🌍 Ventilation par quartier</h3>
@@ -1071,7 +1066,7 @@ function AccordionSection({ title, defaultOpen = true, children, badge }) {
   );
 }
 
-function TabDetails({ period }) {
+function TabDetails({ period, onOpenFiche }) {
   const [allEntries, setAllEntries] = useState([]);
   const [loading, setLoading]       = useState(false);
 
@@ -1190,7 +1185,9 @@ function TabDetails({ period }) {
             {paginated.map(e => (
                 <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px' }}>
-                    <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
+                    <span style={{cursor: onOpenFiche ? 'pointer' : 'default'}} onClick={() => onOpenFiche && onOpenFiche({numero: e.pdv_numero, nom: e.pdv_nom})}>
+                      <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
+                    </span>
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span>
@@ -1685,7 +1682,7 @@ function TabEvolution() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Onglet 4 : TOP PDV
 // ─────────────────────────────────────────────────────────────────────────────
-function TabTop({ period }) {
+function TabTop({ period, onOpenFiche }) {
   const [allData, setAllData]       = useState([]);
   const [data, setData]             = useState([]);
   const [typeFilter, setTypeFilter] = useState('');
@@ -1834,7 +1831,9 @@ function TabTop({ period }) {
                   <b style={{ color: medalColor(i), fontSize: 15 }}>#{i+1}</b>
                 </td>
                 <td style={{ padding: '10px 12px' }}>
-                  <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
+                  <span style={{cursor: onOpenFiche ? 'pointer' : 'default'}} onClick={() => onOpenFiche && onOpenFiche({numero: e.pdv_numero, nom: e.pdv_nom})}>
+                    <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
+                  </span>
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                   <span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type] }}>{e.pdv_type}</span>
