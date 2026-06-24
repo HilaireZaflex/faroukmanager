@@ -1423,6 +1423,122 @@ function TabPareto({ period }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Onglet 5 : ANALYSE IA
 // ─────────────────────────────────────────────────────────────────────────────
+// ─── Composant Tendances PDV avec tri + sous-totaux ───────────────────────────
+function TendancesPDVSection({ activeTendance, enChute, enBaisse, enHausse, stables, nouveaux, crit, getValue, thStyle, tdStyle, fmt }) {
+  const [sortKey, setSortKey] = useState({});  // { sectionKey: { col, dir } }
+
+  const allSections = [
+    { key:'chute',   list:enChute,  label:`🔴 PDV en chute libre`,  color:'var(--danger)',  bg:'rgba(239,68,68,0.06)' },
+    { key:'baisse',  list:enBaisse, label:`📉 PDV en baisse`,        color:'#f59e0b',        bg:'rgba(245,158,11,0.06)' },
+    { key:'hausse',  list:enHausse, label:`📈 PDV en hausse`,        color:'var(--success)', bg:'rgba(34,197,94,0.06)' },
+    { key:'stable',  list:stables,  label:`⚖️ PDV stables`,          color:'#8b5cf6',        bg:'rgba(139,92,246,0.06)' },
+    { key:'nouveau', list:nouveaux, label:`🆕 Nouveaux PDV`,         color:'#3b82f6',        bg:'rgba(59,130,246,0.06)' },
+  ];
+  const toShow = activeTendance ? allSections.filter(s=>s.key===activeTendance) : allSections;
+
+  const handleSort = (sKey, col) => {
+    setSortKey(prev => {
+      const cur = prev[sKey];
+      const dir = cur?.col === col ? (cur.dir === 'asc' ? 'desc' : 'asc') : 'desc';
+      return { ...prev, [sKey]: { col, dir } };
+    });
+  };
+
+  const sortIcon = (sKey, col) => {
+    const s = sortKey[sKey];
+    if (!s || s.col !== col) return <span style={{color:'rgba(255,255,255,0.2)',marginLeft:4,fontSize:10}}>⇅</span>;
+    return <span style={{marginLeft:4,fontSize:10}}>{s.dir==='asc'?'▲':'▼'}</span>;
+  };
+
+  const sortList = (list, sKey) => {
+    const s = sortKey[sKey];
+    if (!s) return list;
+    return [...list].sort((a,b) => {
+      let va, vb;
+      if (s.col==='prev')      { va=a.prev;        vb=b.prev; }
+      else if (s.col==='curr') { va=getValue(a);   vb=getValue(b); }
+      else if (s.col==='delta'){ va=a.delta??-999; vb=b.delta??-999; }
+      else                     { va=0; vb=0; }
+      return s.dir==='asc' ? va-vb : vb-va;
+    });
+  };
+
+  const thSortStyle = (sKey, col, color, align) => ({
+    padding:'10px 12px', textAlign:align||'right', color:color||'#8a8a9a',
+    cursor:'pointer', userSelect:'none', whiteSpace:'nowrap',
+    background: sortKey[sKey]?.col===col ? 'rgba(255,255,255,0.05)' : 'transparent',
+    transition:'background 0.15s',
+  });
+
+  return toShow.map(({list, label, color, bg, key}) => {
+    if (!list.length) return null;
+    const sorted = sortList(list, key);
+    const totalPrev    = list.reduce((s,e)=>s+(e.prev||0),0);
+    const totalCurr    = list.reduce((s,e)=>s+getValue(e),0);
+    const avgDelta     = list.filter(e=>e.delta!==null).reduce((s,e)=>s+(e.delta||0),0) / (list.filter(e=>e.delta!==null).length||1);
+
+    return (
+      <AccordionSection key={key} title={`${label} (${list.length})`} badge={`${list.length} PDV`} defaultOpen={true}>
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+            <colgroup>
+              <col style={{width:'20%'}}/><col style={{width:'8%'}}/><col style={{width:'18%'}}/>
+              <col style={{width:'14%'}}/><col style={{width:'15%'}}/><col style={{width:'11%'}}/><col style={{width:'14%'}}/>
+            </colgroup>
+            <thead><tr style={{borderBottom:'2px solid var(--border)'}}>
+              <th style={{...thStyle(),textAlign:'left'}}>PDV</th>
+              <th style={{...thStyle(),textAlign:'center'}}>Type</th>
+              <th style={{...thStyle(),textAlign:'left'}}>Zone / Quartier</th>
+              <th style={thSortStyle(key,'prev',null,'right')} onClick={()=>handleSort(key,'prev')}>
+                Mois préc.{sortIcon(key,'prev')}
+              </th>
+              <th style={thSortStyle(key,'curr',crit.color,'right')} onClick={()=>handleSort(key,'curr')}>
+                Actuel ({crit.label}){sortIcon(key,'curr')}
+              </th>
+              <th style={thSortStyle(key,'delta',color,'right')} onClick={()=>handleSort(key,'delta')}>
+                Variation{sortIcon(key,'delta')}
+              </th>
+              <th style={{...thStyle(),textAlign:'left'}}>Superviseur</th>
+            </tr></thead>
+            <tbody>
+              {sorted.slice(0,100).map(e=>(
+                <tr key={e.id||e.pdv_numero} style={{borderBottom:'1px solid var(--border)',background:bg}}>
+                  <td style={{...tdStyle(),textAlign:'left'}}><PDVCell numero={e.pdv_numero} nom={e.pdv_nom}/></td>
+                  <td style={{...tdStyle('center')}}><span className="status-badge" style={{background:TYPE_COLORS[e.pdv_type]}}>{e.pdv_type}</span></td>
+                  <td style={{...tdStyle(),textAlign:'left'}}>
+                    <div style={{fontSize:12}}>{e.zone||'—'}</div>
+                    <div style={{fontSize:11,color:'var(--text-secondary)'}}>{e.quartier||''}</div>
+                  </td>
+                  <td style={{...tdStyle('right','var(--text-secondary)')}}>{fmt(e.prev)}</td>
+                  <td style={{...tdStyle('right',crit.color,700)}}>{fmt(getValue(e))}</td>
+                  <td style={{...tdStyle('right',color,800)}}>{e.delta!==null ? <>{e.delta>=0?'▲':'▼'} {Math.abs(e.delta).toFixed(1)}%</> : '—'}</td>
+                  <td style={{...tdStyle(),textAlign:'left',fontSize:11,color:'var(--text-secondary)'}}>{e.superviseur||'—'}</td>
+                </tr>
+              ))}
+            </tbody>
+            {/* Sous-total */}
+            <tfoot>
+              <tr style={{borderTop:'2px solid var(--border)',background:'rgba(255,255,255,0.04)',fontWeight:800}}>
+                <td colSpan={2} style={{padding:'10px 12px',textAlign:'left',color:'var(--text-secondary)',fontSize:12}}>
+                  SOUS-TOTAL — {list.length} PDV
+                </td>
+                <td style={{padding:'10px 12px',textAlign:'left',fontSize:11,color:'var(--text-secondary)'}}></td>
+                <td style={{padding:'10px 12px',textAlign:'right',color:'var(--text-secondary)',fontWeight:700}}>{fmt(totalPrev)}</td>
+                <td style={{padding:'10px 12px',textAlign:'right',color:crit.color,fontWeight:800,fontSize:14}}>{fmt(totalCurr)}</td>
+                <td style={{padding:'10px 12px',textAlign:'right',color:color,fontWeight:800}}>
+                  {list.filter(e=>e.delta!==null).length>0 ? <>{avgDelta>=0?'▲':'▼'} {Math.abs(avgDelta).toFixed(1)}% moy.</> : '—'}
+                </td>
+                <td style={{padding:'10px 12px'}}></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </AccordionSection>
+    );
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 function TabAnalyseIA({ period }) {
   const [allEntries, setAllEntries] = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -1592,54 +1708,34 @@ function TabAnalyseIA({ period }) {
       </div>
 
       {/* Tendances */}
-      {activeSection==='tendances' && (() => {
-        const allSections = [
-          { key:'chute',   list:enChute,  label:`🔴 PDV en chute libre (${enChute.length})`,  color:'var(--danger)',  bg:'rgba(239,68,68,0.06)' },
-          { key:'baisse',  list:enBaisse, label:`📉 PDV en baisse (${enBaisse.length})`,       color:'#f59e0b',       bg:'rgba(245,158,11,0.06)' },
-          { key:'hausse',  list:enHausse, label:`📈 PDV en hausse (${enHausse.length})`,       color:'var(--success)',bg:'rgba(34,197,94,0.06)' },
-          { key:'stable',  list:stables,  label:`⚖️ PDV stables (${stables.length})`,          color:'#8b5cf6',       bg:'rgba(139,92,246,0.06)' },
-          { key:'nouveau', list:nouveaux, label:`🆕 Nouveaux PDV (${nouveaux.length})`,        color:'#3b82f6',       bg:'rgba(59,130,246,0.06)' },
-        ];
-        const toShow = activeTendance ? allSections.filter(s=>s.key===activeTendance) : allSections;
-        return toShow.map(({list,label,color,bg,key}) => list.length>0 && (
-        <AccordionSection key={label} title={label} badge={`${list.length} PDV`} defaultOpen={true}>
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr>
-                <th style={thStyle()}>PDV</th><th style={thStyle()}>Type</th><th style={thStyle()}>Zone / Quartier</th>
-                <th style={{...thStyle(),...{textAlign:'right'}}}>Mois préc.</th>
-                <th style={{...thStyle(crit.color),...{textAlign:'right'}}}>Actuel ({crit.label})</th>
-                <th style={{...thStyle(color),...{textAlign:'right'}}}>Variation</th>
-                <th style={thStyle()}>Superviseur</th>
-              </tr></thead>
-              <tbody>
-                {list.slice(0,50).map(e=>(
-                  <tr key={e.id} style={{borderBottom:'1px solid var(--border)',background:bg}}>
-                    <td style={tdStyle()}><PDVCell numero={e.pdv_numero} nom={e.pdv_nom}/></td>
-                    <td style={tdStyle('center')}><span className="status-badge" style={{background:TYPE_COLORS[e.pdv_type]}}>{e.pdv_type}</span></td>
-                    <td style={tdStyle()}><div style={{fontSize:12}}>{e.zone||'—'}</div><div style={{fontSize:11,color:'var(--text-secondary)'}}>{e.quartier||''}</div></td>
-                    <td style={tdStyle('right','var(--text-secondary)')}>{fmt(e.prev)}</td>
-                    <td style={tdStyle('right',crit.color,700)}>{fmt(getValue(e))}</td>
-                    <td style={tdStyle('right',color,800)}>{e.delta>=0?'▲':'▼'} {Math.abs(e.delta).toFixed(1)}%</td>
-                    <td style={{...tdStyle(),...{fontSize:11,color:'var(--text-secondary)'}}}>{e.superviseur||'—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </AccordionSection>
-        ));
-      })()}
+      {activeSection==='tendances' && <TendancesPDVSection
+        activeTendance={activeTendance}
+        enChute={enChute} enBaisse={enBaisse} enHausse={enHausse}
+        stables={stables} nouveaux={nouveaux}
+        crit={crit} color_crit={crit.color} getValue={getValue}
+        thStyle={thStyle} tdStyle={tdStyle} fmt={fmt}
+      />}
 
       {/* Zones & Quartiers */}
       {activeSection==='zones' && <>
         <AccordionSection title="🌍 Performance par Zone" badge={`${zonesData.length} zones`} defaultOpen={true}>
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+              <colgroup>
+                <col style={{width:'22%'}}/>
+                <col style={{width:'8%'}}/>
+                <col style={{width:'18%'}}/>
+                <col style={{width:'16%'}}/>
+                <col style={{width:'16%'}}/>
+                <col style={{width:'20%'}}/>
+              </colgroup>
               <thead><tr>
-                <th style={thStyle()}>Zone</th><th style={{...thStyle(),...{textAlign:'center'}}}>PDV</th>
-                <th style={thStyle('#f59e0b')}>Comm. Réelle PDG</th><th style={thStyle('var(--success)')}>Comm. PDG</th>
-                <th style={thStyle()}>Moy./PDV</th><th style={thStyle()}>Part</th>
+                <th style={{...thStyle(),textAlign:'left'}}>Zone</th>
+                <th style={{...thStyle(),textAlign:'center'}}>PDV</th>
+                <th style={{...thStyle('#f59e0b'),textAlign:'right'}}>Comm. Réelle PDG</th>
+                <th style={{...thStyle('var(--success)'),textAlign:'right'}}>Comm. PDG</th>
+                <th style={{...thStyle(),textAlign:'right'}}>Moy./PDV</th>
+                <th style={{...thStyle(),textAlign:'right',paddingRight:16}}>Part</th>
               </tr></thead>
               <tbody>
                 {zonesData.map((z,i)=>{
@@ -1649,17 +1745,17 @@ function TabAnalyseIA({ period }) {
                   const isFlop=i>=zonesData.length-Math.ceil(zonesData.length*0.3);
                   return (
                     <tr key={z.zone} style={{borderBottom:'1px solid var(--border)'}}>
-                      <td style={tdStyle(null,null,700)}>{z.zone}</td>
-                      <td style={tdStyle('center')}>{z.n}</td>
-                      <td style={tdStyle('right','#f59e0b',700)}>{fmt(z.commReelle)}</td>
-                      <td style={tdStyle('right','var(--success)')}>{fmt(z.commPDG)}</td>
-                      <td style={tdStyle('right','var(--text-secondary)')}>{z.n>0?fmt(z.commReelle/z.n):'—'}</td>
-                      <td style={tdStyle()}>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <div style={{flex:1,height:8,background:'rgba(255,255,255,0.1)',borderRadius:4}}>
+                      <td style={{...tdStyle(null,null,700),textAlign:'left'}}>{z.zone}</td>
+                      <td style={{...tdStyle('center')}}>{z.n}</td>
+                      <td style={{...tdStyle('right','#f59e0b',700)}}>{fmt(z.commReelle)}</td>
+                      <td style={{...tdStyle('right','var(--success)')}}>{fmt(z.commPDG)}</td>
+                      <td style={{...tdStyle('right','var(--text-secondary)')}}>{z.n>0?fmt(z.commReelle/z.n):'—'}</td>
+                      <td style={{...tdStyle('right'),paddingRight:16}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'flex-end',gap:8}}>
+                          <div style={{width:60,height:8,background:'rgba(255,255,255,0.1)',borderRadius:4,flexShrink:0}}>
                             <div style={{width:`${pct}%`,height:'100%',borderRadius:4,background:isTop?'var(--success)':isFlop?'var(--danger)':'#f59e0b'}}/>
                           </div>
-                          <span style={{fontSize:11,color:isTop?'var(--success)':isFlop?'var(--danger)':'#f59e0b',fontWeight:700}}>{pct.toFixed(1)}% {isTop?'🌟':isFlop?'⚠️':''}</span>
+                          <span style={{fontSize:11,color:isTop?'var(--success)':isFlop?'var(--danger)':'#f59e0b',fontWeight:700,minWidth:45,textAlign:'right'}}>{pct.toFixed(1)}% {isTop?'🌟':isFlop?'⚠️':''}</span>
                         </div>
                       </td>
                     </tr>
