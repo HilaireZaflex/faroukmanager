@@ -19,13 +19,18 @@ export default function CommissionsPage() {
     });
   }, []);
 
+  const [fichePDV, setFichePDV] = useState(null); // { numero, nom }
+
   const tabs = [
-    { id: 'dashboard',  label: '💰 Dashboard' },
-    { id: 'details',    label: '📋 Détail PDV' },
-    { id: 'evolution',  label: '📈 Évolution' },
-    { id: 'top',        label: '🏆 Top PDV' },
-    { id: 'pareto',     label: '📊 Rapport Pareto' },
-    { id: 'analyse',    label: '🤖 Analyse IA' },
+    { id: 'dashboard',   label: '💰 Dashboard' },
+    { id: 'details',     label: '📋 Détail PDV' },
+    { id: 'evolution',   label: '📈 Évolution' },
+    { id: 'top',         label: '🏆 Top PDV' },
+    { id: 'pareto',      label: '📊 Rapport Pareto' },
+    { id: 'analyse',     label: '🤖 Analyse IA' },
+    { id: 'superviseurs',label: '👥 Superviseurs' },
+    { id: 'palmares',    label: '🏅 Palmarès' },
+    { id: 'zones',       label: '⚔️ Zones vs Zones' },
   ];
 
   return (
@@ -58,15 +63,698 @@ export default function CommissionsPage() {
 
       {period && (
         <>
-          {activeTab === 'dashboard'   && <TabDashboard key={`d-${period}-${refreshKey}`} period={period}/>}
-          {activeTab === 'details'     && <TabDetails key={`e-${period}-${refreshKey}`} period={period}/>}
-          {activeTab === 'evolution'   && <TabEvolution key={`ev-${refreshKey}`}/>}
-          {activeTab === 'top'         && <TabTop key={`t-${period}-${refreshKey}`} period={period}/>}
-          {activeTab === 'pareto'      && <TabPareto key={`p-${period}-${refreshKey}`} period={period}/>}
-          {activeTab === 'analyse'     && <TabAnalyseIA key={`a-${period}-${refreshKey}`} period={period}/>}
+          {activeTab === 'dashboard'    && <TabDashboard key={`d-${period}-${refreshKey}`} period={period} onOpenFiche={setFichePDV}/>}
+          {activeTab === 'details'      && <TabDetails key={`e-${period}-${refreshKey}`} period={period} onOpenFiche={setFichePDV}/>}
+          {activeTab === 'evolution'    && <TabEvolution key={`ev-${refreshKey}`}/>}
+          {activeTab === 'top'          && <TabTop key={`t-${period}-${refreshKey}`} period={period} onOpenFiche={setFichePDV}/>}
+          {activeTab === 'pareto'       && <TabPareto key={`p-${period}-${refreshKey}`} period={period}/>}
+          {activeTab === 'analyse'      && <TabAnalyseIA key={`a-${period}-${refreshKey}`} period={period}/>}
+          {activeTab === 'superviseurs' && <TabRapportSuperviseur key={`s-${period}-${refreshKey}`} period={period}/>}
+          {activeTab === 'palmares'     && <TabPalmares key={`pal-${period}-${refreshKey}`} period={period}/>}
+          {activeTab === 'zones'        && <TabComparaisonZones key={`z-${period}-${refreshKey}`} period={period}/>}
         </>
       )}
+      {fichePDV && <FichePDVModal pdvNumero={fichePDV.numero} pdvNom={fichePDV.nom} onClose={() => setFichePDV(null)}/>}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROP 1 : Tableau Comparatif Multi-Mois
+// ─────────────────────────────────────────────────────────────────────────────
+function MultiMoisComparatif({ currentPeriod }) {
+  const [allData, setAllData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [periods, setPeriods] = useState([]);
+
+  useEffect(() => {
+    commissionService.periods().then(async (list) => {
+      setPeriods(list);
+      const results = await Promise.all(
+        list.map(p => commissionService.dashboard(p).then(d => ({ period: p, ...d })).catch(() => null))
+      );
+      setAllData(results.filter(Boolean).reverse()); // ordre chrono
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <div className="loading-state" style={{padding:16}}>Chargement comparatif…</div>;
+  if (!allData.length) return null;
+
+  const getCommReelle = (d) => {
+    const cr = d.commission_reelle_pdg;
+    return typeof cr === 'object' && cr !== null ? (cr.total || 0) : (cr || 0);
+  };
+
+  return (
+    <div className="modal-section" style={{ background: 'var(--bg-card)' }}>
+      <h3>📅 Comparatif Multi-Mois — {allData.length} périodes</h3>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid var(--border)' }}>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Mois</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>PDV Actifs</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>Commission PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>Comm. Revendeur</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle PDG</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Variation</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Tendance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allData.map((d, i) => {
+              const cr = getCommReelle(d);
+              const crPrev = i > 0 ? getCommReelle(allData[i - 1]) : null;
+              const variation = crPrev && crPrev > 0 ? ((cr - crPrev) / crPrev * 100) : null;
+              const isCurrent = d.period === currentPeriod;
+              const isUp = variation !== null && variation >= 0;
+              const barMax = Math.max(...allData.map(x => getCommReelle(x)));
+              const barPct = barMax > 0 ? (cr / barMax * 100) : 0;
+
+              return (
+                <tr key={d.period} style={{
+                  borderBottom: '1px solid var(--border)',
+                  background: isCurrent ? 'rgba(245,158,11,0.08)' : 'transparent',
+                  fontWeight: isCurrent ? 700 : 400,
+                }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700 }}>
+                    {isCurrent && <span style={{ color: '#f59e0b', marginRight: 6 }}>►</span>}
+                    {d.period}
+                    {isCurrent && <span style={{ marginLeft: 6, fontSize: 10, color: '#f59e0b', background: 'rgba(245,158,11,0.15)', padding: '2px 6px', borderRadius: 4 }}>EN COURS</span>}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700 }}>{d.n_pdv_total}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(d.total_reseau || 0)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(d.commission_revendeur_total || 0)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800, fontSize: 14 }}>{fmt(cr)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: variation === null ? '#8a8a9a' : isUp ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                    {variation === null ? '—' : <>{isUp ? '▲' : '▼'} {Math.abs(variation).toFixed(1)}%</>}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 100, height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 4, flexShrink: 0 }}>
+                        <div style={{ width: `${barPct}%`, height: '100%', borderRadius: 4, background: isCurrent ? '#f59e0b' : 'var(--success)', transition: 'width 0.4s' }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{barPct.toFixed(0)}%</span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.04)', fontWeight: 800 }}>
+              <td style={{ padding: '10px 12px' }}>TOTAL CUMULÉ</td>
+              <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 11 }}>moy. {Math.round(allData.reduce((s,d)=>s+d.n_pdv_total,0)/allData.length)}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 800 }}>{fmt(allData.reduce((s,d)=>s+(d.total_reseau||0),0))}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', color: '#8b5cf6', fontWeight: 800 }}>{fmt(allData.reduce((s,d)=>s+(d.commission_revendeur_total||0),0))}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800, fontSize: 14 }}>{fmt(allData.reduce((s,d)=>s+getCommReelle(d),0))}</td>
+              <td colSpan={2} style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontSize: 12 }}>
+                {allData.length >= 2 ? (() => {
+                  const first = getCommReelle(allData[0]);
+                  const last  = getCommReelle(allData[allData.length - 1]);
+                  const total_var = first > 0 ? ((last - first) / first * 100) : 0;
+                  return <span style={{ color: total_var >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                    Progression globale : {total_var >= 0 ? '▲' : '▼'} {Math.abs(total_var).toFixed(1)}%
+                  </span>;
+                })() : null}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROP 2 : Fiche PDV Individuelle avec Historique
+// ─────────────────────────────────────────────────────────────────────────────
+function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    commissionService.periods().then(async (list) => {
+      const results = await Promise.all(
+        list.map(p =>
+          commissionService.entries(p, { search: pdvNumero, limit: 5 })
+            .then(d => {
+              const data = d.data || d;
+              const entry = Array.isArray(data) ? data.find(e => e.pdv_numero === pdvNumero) : null;
+              return entry ? { period: p, ...entry } : null;
+            }).catch(() => null)
+        )
+      );
+      setHistory(results.filter(Boolean).reverse());
+      setLoading(false);
+    });
+  }, [pdvNumero]);
+
+  const maxBrut = Math.max(...history.map(h => h.montant_brut || 0), 1);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      onClick={onClose}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 24, maxWidth: 680, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18 }}>📊 Fiche PDV — {pdvNumero}</h2>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>{pdvNom}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'var(--bg-hover)', border: 'none', color: 'var(--text-primary)', fontSize: 20, width: 36, height: 36, borderRadius: 8, cursor: 'pointer' }}>×</button>
+        </div>
+
+        {loading ? <div className="loading-state">Chargement historique…</div> : history.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-secondary)' }}>Aucune donnée trouvée pour ce PDV.</div>
+        ) : (
+          <>
+            {/* Infos PDV */}
+            {history[history.length-1] && (() => {
+              const last = history[history.length-1];
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 20 }}>
+                  {[
+                    ['Type', <span className="status-badge" style={{ background: TYPE_COLORS[last.pdv_type] }}>{last.pdv_type}</span>],
+                    ['Zone', last.zone || '—'],
+                    ['Quartier', last.quartier || '—'],
+                    ['Superviseur', last.superviseur || '—'],
+                    ['Gestionnaire', last.gestionnaire || '—'],
+                    ['Mois présents', `${history.length} / 5`],
+                  ].map(([label, val]) => (
+                    <div key={label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '10px 12px' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Graphique barres */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600 }}>📈 Évolution Commission PDG</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
+                {history.map((h, i) => {
+                  const pct = maxBrut > 0 ? (h.montant_brut || 0) / maxBrut * 100 : 0;
+                  const prev = i > 0 ? history[i-1].montant_brut : null;
+                  const isUp = prev !== null ? h.montant_brut >= prev : true;
+                  return (
+                    <div key={h.period} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtM(h.montant_brut||0)}</div>
+                      <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: isUp ? 'var(--success)' : 'var(--danger)', borderRadius: '4px 4px 0 0', transition: 'height 0.4s', minHeight: 8 }} />
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>{h.period.slice(5)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Tableau détaillé */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr style={{ borderBottom: '2px solid var(--border)' }}>
+                <th style={{ padding: '8px 10px', textAlign: 'left', color: '#8a8a9a' }}>Mois</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--success)' }}>Comm. PDG</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#8b5cf6' }}>Comm. PDV</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#8a8a9a' }}>Variation</th>
+              </tr></thead>
+              <tbody>
+                {history.map((h, i) => {
+                  const prev = i > 0 ? history[i-1].montant_brut : null;
+                  const variation = prev && prev > 0 ? ((h.montant_brut - prev) / prev * 100) : null;
+                  const commReelle = (h.montant_reseau || 0) * 0.3 + (h.montant_pdv || 0) * 0.3;
+                  return (
+                    <tr key={h.period} style={{ borderBottom: '1px solid var(--border)', background: h.period === history[history.length-1].period ? 'rgba(245,158,11,0.06)' : 'transparent' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 700 }}>{h.period}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(h.montant_brut || 0)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(h.montant_pdv || 0)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: variation === null ? '#8a8a9a' : variation >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                        {variation === null ? '—' : <>{variation >= 0 ? '▲' : '▼'} {Math.abs(variation).toFixed(1)}%</>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROP 3 : Rapport Superviseur
+// ─────────────────────────────────────────────────────────────────────────────
+function TabRapportSuperviseur({ period }) {
+  const [entries, setEntries] = useState([]);
+  const [prevEntries, setPrevEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sortCol, setSortCol] = useState('commReelle');
+  const [sortDir, setSortDir] = useState('desc');
+  const [selected, setSelected] = useState(null);
+  const [periods, setPeriods] = useState([]);
+
+  useEffect(() => {
+    commissionService.periods().then(async (list) => {
+      setPeriods(list);
+      const idx = list.indexOf(period);
+      const prevPeriod = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+      const [curr, prev] = await Promise.all([
+        commissionService.entries(period, { limit: 9999 }).then(d => d.data || d).catch(() => []),
+        prevPeriod ? commissionService.entries(prevPeriod, { limit: 9999 }).then(d => d.data || d).catch(() => []) : Promise.resolve([]),
+      ]);
+      setEntries(Array.isArray(curr) ? curr : []);
+      setPrevEntries(Array.isArray(prev) ? prev : []);
+      setLoading(false);
+    });
+  }, [period]);
+
+  if (loading) return <div className="loading-state">Calcul rapport superviseurs…</div>;
+
+  // Agréger par superviseur
+  const bySuper = {};
+  entries.forEach(e => {
+    const sup = e.superviseur || '(Non assigné)';
+    if (!bySuper[sup]) bySuper[sup] = { sup, pdvs: [], commPDG: 0, commReelle: 0, hausse: 0, baisse: 0, stable: 0 };
+    bySuper[sup].pdvs.push(e.pdv_numero);
+    bySuper[sup].commPDG += e.montant_reseau || 0;
+    bySuper[sup].commReelle += (e.montant_reseau || 0) * 0.3 + (e.montant_pdv || 0) * 0.3;
+  });
+
+  // Variation par PDV vs mois précédent
+  const prevMap = {};
+  prevEntries.forEach(e => { prevMap[e.pdv_numero] = e.montant_brut || 0; });
+
+  Object.values(bySuper).forEach(s => {
+    s.pdvs.forEach(num => {
+      const curr_e = entries.find(e => e.pdv_numero === num);
+      const curr_val = curr_e ? (curr_e.montant_brut || 0) : 0;
+      const prev_val = prevMap[num] || 0;
+      if (prev_val === 0) return;
+      const delta = (curr_val - prev_val) / prev_val * 100;
+      if (delta > 5) s.hausse++;
+      else if (delta < -5) s.baisse++;
+      else s.stable++;
+    });
+    s.n_pdv = s.pdvs.length;
+    s.moy = s.n_pdv > 0 ? s.commReelle / s.n_pdv : 0;
+    const totalSuivi = s.hausse + s.baisse + s.stable;
+    s.score = totalSuivi > 0 ? Math.round((s.hausse / totalSuivi) * 100) : null;
+  });
+
+  const rows = Object.values(bySuper).sort((a, b) => {
+    const va = a[sortCol] || 0, vb = b[sortCol] || 0;
+    return sortDir === 'desc' ? vb - va : va - vb;
+  });
+
+  const thSort = (col, label, color) => (
+    <th onClick={() => { setSortCol(col); setSortDir(s => s === 'desc' ? 'asc' : 'desc'); }}
+      style={{ padding: '10px 12px', textAlign: 'right', color: sortCol === col ? (color || '#f59e0b') : '#8a8a9a', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {label} {sortCol === col ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}
+    </th>
+  );
+
+  const selectedRows = selected ? entries.filter(e => e.superviseur === selected) : [];
+
+  return (
+    <>
+      <div className="modal-section" style={{ background: 'rgba(139,92,246,0.08)', borderLeft: '4px solid #8b5cf6' }}>
+        <h3>👥 Rapport par Superviseur — {period}</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 0 }}>
+          {rows.length} superviseurs · Cliquez sur une ligne pour voir les PDVs du superviseur.
+        </p>
+      </div>
+
+      <div style={{ overflowX: 'auto', marginBottom: 20 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead><tr style={{ borderBottom: '2px solid var(--border)' }}>
+            <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+            <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>PDVs</th>
+            {thSort('commPDG', 'Comm. PDG', 'var(--success)')}
+            {thSort('commReelle', 'Comm. Réelle PDG', '#f59e0b')}
+            {thSort('moy', 'Moy./PDV', '#8a8a9a')}
+            <th style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--success)' }}>↑ Hausse</th>
+            <th style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--danger)' }}>↓ Baisse</th>
+            <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8b5cf6' }}>= Stable</th>
+            <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Score</th>
+          </tr></thead>
+          <tbody>
+            {rows.map(r => {
+              const scoreColor = r.score === null ? '#8a8a9a' : r.score >= 60 ? 'var(--success)' : r.score >= 40 ? '#f59e0b' : 'var(--danger)';
+              const scoreLabel = r.score === null ? '—' : r.score >= 60 ? '🟢 Bon' : r.score >= 40 ? '🟡 Moyen' : '🔴 Alerte';
+              const isSelected = selected === r.sup;
+              return (
+                <tr key={r.sup} onClick={() => setSelected(isSelected ? null : r.sup)}
+                  style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', background: isSelected ? 'rgba(139,92,246,0.1)' : 'transparent', transition: 'background 0.15s' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700 }}>{r.sup}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700 }}>{r.n_pdv}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(r.commPDG)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontWeight: 800, fontSize: 14 }}>{fmt(r.commReelle)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(r.moy)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--success)', fontWeight: 700 }}>{r.hausse}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--danger)', fontWeight: 700 }}>{r.baisse}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#8b5cf6' }}>{r.stable}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                    <span style={{ color: scoreColor, fontWeight: 700, fontSize: 12 }}>{scoreLabel}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr style={{ borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.04)', fontWeight: 800 }}>
+              <td style={{ padding: '10px 12px' }}>TOTAL</td>
+              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{rows.reduce((s,r)=>s+r.n_pdv,0)}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--success)' }}>{fmt(rows.reduce((s,r)=>s+r.commPDG,0))}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', color: '#f59e0b', fontSize: 14 }}>{fmt(rows.reduce((s,r)=>s+r.commReelle,0))}</td>
+              <td colSpan={5} style={{ padding: '10px 12px' }}></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* Détail PDVs du superviseur sélectionné */}
+      {selected && (
+        <div style={{ marginBottom: 20 }}>
+          <h4 style={{ marginBottom: 12 }}>📋 PDVs de {selected} ({selectedRows.length})</h4>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <th style={{ padding: '8px 10px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', color: '#8a8a9a' }}>Type</th>
+                <th style={{ padding: '8px 10px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--success)' }}>Comm. PDG</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#8a8a9a' }}>vs Préc.</th>
+              </tr></thead>
+              <tbody>
+                {[...selectedRows].sort((a,b)=>(b.montant_reseau||0)-(a.montant_reseau||0)).map(e => {
+                  const prev = prevMap[e.pdv_numero] || 0;
+                  const delta = prev > 0 ? ((e.montant_brut||0) - prev) / prev * 100 : null;
+                  return (
+                    <tr key={e.pdv_numero} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '8px 10px' }}><PDVCell numero={e.pdv_numero} nom={e.pdv_nom}/></td>
+                      <td style={{ padding: '8px 10px', textAlign: 'center' }}><span className="status-badge" style={{ background: TYPE_COLORS[e.pdv_type], fontSize: 10 }}>{e.pdv_type}</span></td>
+                      <td style={{ padding: '8px 10px', fontSize: 11, color: 'var(--text-secondary)' }}>{e.zone||'—'}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(e.montant_reseau||0)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: delta===null?'#8a8a9a':delta>=0?'var(--success)':'var(--danger)', fontWeight: 700 }}>
+                        {delta === null ? '—' : <>{delta>=0?'▲':'▼'} {Math.abs(delta).toFixed(1)}%</>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROP 6 : Palmarès PDV avec badges
+// ─────────────────────────────────────────────────────────────────────────────
+function TabPalmares({ period }) {
+  const [allData, setAllData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    commissionService.periods().then(async (list) => {
+      const results = await Promise.all(
+        list.map(p => commissionService.entries(p, { limit: 9999 }).then(d => ({ period: p, entries: d.data || d || [] })).catch(() => ({ period: p, entries: [] })))
+      );
+      setAllData(results);
+      setLoading(false);
+    });
+  }, [period]);
+
+  if (loading) return <div className="loading-state">Calcul du palmarès…</div>;
+  if (!allData) return null;
+
+  const currentData = allData.find(d => d.period === period);
+  const currentEntries = currentData ? currentData.entries : [];
+
+  // Top 3 du mois
+  const top3 = [...currentEntries].sort((a,b)=>(b.montant_brut||0)-(a.montant_brut||0)).slice(0,3);
+
+  // PDV le plus régulier (présent dans le plus de mois avec commissions positives)
+  const pdvCounts = {};
+  allData.forEach(d => d.entries.forEach(e => {
+    if ((e.montant_brut||0) > 0) {
+      pdvCounts[e.pdv_numero] = pdvCounts[e.pdv_numero] || { num: e.pdv_numero, nom: e.pdv_nom, count: 0, total: 0 };
+      pdvCounts[e.pdv_numero].count++;
+      pdvCounts[e.pdv_numero].total += e.montant_brut || 0;
+    }
+  }));
+  const regular = Object.values(pdvCounts).sort((a,b) => b.count - a.count || b.total - a.total).slice(0,5);
+
+  // Meilleure progression (actuel vs premier mois disponible)
+  const firstData = allData[allData.length-1];
+  const firstMap = {};
+  (firstData?.entries || []).forEach(e => { firstMap[e.pdv_numero] = e.montant_brut || 0; });
+  const progressions = currentEntries
+    .filter(e => firstMap[e.pdv_numero] > 50000)
+    .map(e => ({ ...e, prog: ((e.montant_brut||0) - firstMap[e.pdv_numero]) / firstMap[e.pdv_numero] * 100 }))
+    .sort((a,b) => b.prog - a.prog).slice(0,5);
+
+  // Révélation du mois (présent seulement dans les 2 derniers mois et bonne perf)
+  const prevData = allData[1];
+  const prevNums = new Set((prevData?.entries||[]).map(e=>e.pdv_numero));
+  const olderNums = new Set(allData.slice(2).flatMap(d=>d.entries.map(e=>e.pdv_numero)));
+  const revelations = currentEntries
+    .filter(e => !olderNums.has(e.pdv_numero) && prevNums.has(e.pdv_numero) && (e.montant_brut||0) > 100000)
+    .sort((a,b)=>(b.montant_brut||0)-(a.montant_brut||0)).slice(0,3);
+
+  const medals = ['🥇','🥈','🥉'];
+  const medalColors = ['#f59e0b','#9ca3af','#b45309'];
+
+  return (
+    <>
+      <div className="modal-section" style={{ background: 'rgba(245,158,11,0.08)', borderLeft: '4px solid #f59e0b' }}>
+        <h3>🏅 Palmarès — {period}</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 0 }}>Classement et récompenses des meilleurs PDVs du réseau.</p>
+      </div>
+
+      {/* Podium Top 3 */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+        {top3.map((e, i) => (
+          <div key={e.pdv_numero} style={{
+            flex: 1, minWidth: 180, background: 'var(--bg-card)', borderRadius: 12, padding: 20, textAlign: 'center',
+            border: `2px solid ${medalColors[i]}`, position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>{medals[i]}</div>
+            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>{e.pdv_nom || e.pdv_numero}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{e.pdv_numero} · {e.pdv_type}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: medalColors[i] }}>{fmtM(e.montant_brut||0)}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Commission PDG</div>
+            <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 10, background: `rgba(0,0,0,0.3)`, padding: '2px 6px', borderRadius: 4 }}>#{i+1}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Grille badges */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+
+        {/* PDV les plus réguliers */}
+        <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16 }}>
+          <h4 style={{ marginBottom: 12 }}>🏆 PDV les plus réguliers <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(présents tous les mois)</span></h4>
+          {regular.map((r, i) => (
+            <div key={r.num} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 18, width: 28 }}>{i===0?'👑':i===1?'🥈':i===2?'🥉':'🔹'}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{r.nom || r.num}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{r.num}</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 700, color: '#f59e0b', fontSize: 13 }}>{r.count}/{allData.length} mois</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtM(r.total)} total</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Meilleures progressions */}
+        <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16 }}>
+          <h4 style={{ marginBottom: 12 }}>📈 Meilleures progressions <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(vs {firstData?.period || 'début'})</span></h4>
+          {progressions.length === 0 ? <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Données insuffisantes</div> :
+            progressions.map((e, i) => (
+              <div key={e.pdv_numero} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 16, width: 28 }}>{['🚀','⚡','💪','📊','✨'][i]}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{e.pdv_nom || e.pdv_numero}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_numero}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 800, color: 'var(--success)', fontSize: 14 }}>▲ {e.prog.toFixed(1)}%</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtM(e.montant_brut||0)}</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* Révélations du mois */}
+        {revelations.length > 0 && (
+          <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16 }}>
+            <h4 style={{ marginBottom: 12 }}>🌟 Révélations du mois <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>(nouveaux performeurs)</span></h4>
+            {revelations.map((e, i) => (
+              <div key={e.pdv_numero} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 18, width: 28 }}>🌟</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{e.pdv_nom || e.pdv_numero}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_numero} · {e.pdv_type}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 800, color: '#3b82f6', fontSize: 13 }}>{fmtM(e.montant_brut||0)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROP 7 : Comparaison Zone vs Zone
+// ─────────────────────────────────────────────────────────────────────────────
+function TabComparaisonZones({ period }) {
+  const [entries, setEntries] = useState([]);
+  const [zones, setZones] = useState([]);
+  const [zone1, setZone1] = useState('');
+  const [zone2, setZone2] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    commissionService.entries(period, { limit: 9999 }).then(d => {
+      const data = Array.isArray(d) ? d : (d.data || []);
+      setEntries(data);
+      const zoneSet = [...new Set(data.map(e => e.zone).filter(Boolean))].sort();
+      setZones(zoneSet);
+      if (zoneSet.length >= 2) { setZone1(zoneSet[0]); setZone2(zoneSet[1]); }
+      setLoading(false);
+    });
+  }, [period]);
+
+  if (loading) return <div className="loading-state">Chargement zones…</div>;
+
+  const getZoneStats = (zone) => {
+    const z = entries.filter(e => e.zone === zone);
+    const commPDG = z.reduce((s,e)=>s+(e.montant_reseau||0),0);
+    const commReelle = z.reduce((s,e)=>s+(e.montant_reseau||0)*0.3+(e.montant_pdv||0)*0.3,0);
+    const types = {};
+    z.forEach(e => { types[e.pdv_type] = (types[e.pdv_type]||0)+1; });
+    const quartiers = [...new Set(z.map(e=>e.quartier).filter(Boolean))];
+    return { zone, n: z.length, commPDG, commReelle, moy: z.length > 0 ? commReelle / z.length : 0, types, quartiers, entries: z };
+  };
+
+  const s1 = zone1 ? getZoneStats(zone1) : null;
+  const s2 = zone2 ? getZoneStats(zone2) : null;
+
+  const CompareRow = ({ label, v1, v2, format = x => x, color1, color2, invert = false }) => {
+    const n1 = typeof v1 === 'number' ? v1 : 0;
+    const n2 = typeof v2 === 'number' ? v2 : 0;
+    const better1 = invert ? n1 < n2 : n1 > n2;
+    const better2 = invert ? n2 < n1 : n2 > n1;
+    return (
+      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+        <td style={{ padding: '10px 12px', textAlign: 'right', color: better1 ? 'var(--success)' : 'var(--text-primary)', fontWeight: better1 ? 800 : 400 }}>{format(v1)}{better1 ? ' 🏆' : ''}</td>
+        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontSize: 12 }}>{label}</td>
+        <td style={{ padding: '10px 12px', textAlign: 'left', color: better2 ? 'var(--success)' : 'var(--text-primary)', fontWeight: better2 ? 800 : 400 }}>{format(v2)}{better2 ? ' 🏆' : ''}</td>
+      </tr>
+    );
+  };
+
+  return (
+    <>
+      <div className="modal-section" style={{ background: 'rgba(59,130,246,0.08)', borderLeft: '4px solid #3b82f6' }}>
+        <h3>⚔️ Comparaison Zone vs Zone — {period}</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 0 }}>Sélectionnez deux zones pour les comparer côte à côte.</p>
+      </div>
+
+      {/* Sélecteurs */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#3b82f6', fontWeight: 700 }}>Zone A :</span>
+          <select value={zone1} onChange={e => setZone1(e.target.value)}
+            style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 13 }}>
+            {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+        </div>
+        <span style={{ fontSize: 20, color: 'var(--text-secondary)' }}>⚔️</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#8b5cf6', fontWeight: 700 }}>Zone B :</span>
+          <select value={zone2} onChange={e => setZone2(e.target.value)}
+            style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 13 }}>
+            {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {s1 && s2 && (
+        <>
+          {/* En-têtes zones */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, marginBottom: 16 }}>
+            <div style={{ background: 'rgba(59,130,246,0.1)', border: '2px solid #3b82f6', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: '#3b82f6' }}>{s1.zone}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s1.n} PDVs · {s1.quartiers.length} quartiers</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', fontSize: 24 }}>⚔️</div>
+            <div style={{ background: 'rgba(139,92,246,0.1)', border: '2px solid #8b5cf6', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: '#8b5cf6' }}>{s2.zone}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s2.n} PDVs · {s2.quartiers.length} quartiers</div>
+            </div>
+          </div>
+
+          {/* Tableau comparatif */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 20 }}>
+            <thead><tr style={{ borderBottom: '2px solid var(--border)' }}>
+              <th style={{ padding: '10px 12px', textAlign: 'right', color: '#3b82f6', width: '40%' }}>{s1.zone}</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', width: '20%' }}>Indicateur</th>
+              <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8b5cf6', width: '40%' }}>{s2.zone}</th>
+            </tr></thead>
+            <tbody>
+              <CompareRow label="Nbre PDVs" v1={s1.n} v2={s2.n} format={x=>x} />
+              <CompareRow label="Comm. PDG" v1={s1.commPDG} v2={s2.commPDG} format={fmt} />
+              <CompareRow label="Comm. Réelle PDG" v1={s1.commReelle} v2={s2.commReelle} format={fmt} />
+              <CompareRow label="Moy./PDV" v1={s1.moy} v2={s2.moy} format={fmt} />
+              <CompareRow label="Nbre Quartiers" v1={s1.quartiers.length} v2={s2.quartiers.length} format={x=>x} />
+              {['RNS','RSF','RS','KIOSQUE'].map(t => (
+                <CompareRow key={t} label={`PDV ${t}`} v1={s1.types[t]||0} v2={s2.types[t]||0} format={x=>x||'0'} />
+              ))}
+            </tbody>
+          </table>
+
+          {/* Barres de comparaison visuelles */}
+          <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+            <h4 style={{ marginBottom: 12 }}>📊 Comparaison visuelle — Commission Réelle PDG</h4>
+            {[s1, s2].map((s, i) => {
+              const maxComm = Math.max(s1.commReelle, s2.commReelle);
+              const pct = maxComm > 0 ? s.commReelle / maxComm * 100 : 0;
+              const color = i === 0 ? '#3b82f6' : '#8b5cf6';
+              return (
+                <div key={s.zone} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 700, color }}>{s.zone}</span>
+                    <span style={{ fontWeight: 700, color }}>{fmt(s.commReelle)}</span>
+                  </div>
+                  <div style={{ height: 24, background: 'rgba(255,255,255,0.08)', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 6, display: 'flex', alignItems: 'center', paddingLeft: 8, transition: 'width 0.5s' }}>
+                      {pct > 20 && <span style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>{pct.toFixed(1)}%</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -298,6 +986,9 @@ function TabDashboard({ period }) {
           📌 <b>Commission Réelle PDG</b> = 30% pour RNS/RSF + 30% × CommPDG pour RS/KIOSQUE.
         </div>
       </div>
+
+      {/* ── PROP 1 : Tableau comparatif multi-mois ── */}
+      <MultiMoisComparatif currentPeriod={period} />
 
       {/* ── Ventilation par quartier ── */}
       <div className="modal-section" style={{ background: 'var(--bg-card)' }}>
