@@ -1423,6 +1423,110 @@ function TabPareto({ period }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Onglet 5 : ANALYSE IA
 // ─────────────────────────────────────────────────────────────────────────────
+// ─── Composant Opportunités avec tri + données liées au critère actif ────────
+function OpportunitesTable({ opportunities, crit, getValue, thStyle, tdStyle, fmt }) {
+  const [sortCol, setSortCol] = useState('prev');
+  const [sortDir, setSortDir] = useState('desc');
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
+  };
+
+  const sortIcon = (col) => {
+    if (sortCol !== col) return <span style={{color:'rgba(255,255,255,0.2)',marginLeft:4,fontSize:10}}>⇅</span>;
+    return <span style={{marginLeft:4,fontSize:10}}>{sortDir==='asc'?'▲':'▼'}</span>;
+  };
+
+  const thSort = (col, color, align) => ({
+    padding:'10px 12px', textAlign:align||'right', color:color||'#8a8a9a',
+    cursor:'pointer', userSelect:'none', whiteSpace:'nowrap',
+    background: sortCol===col ? 'rgba(255,255,255,0.05)' : 'transparent',
+    transition:'background 0.15s',
+  });
+
+  const sorted = [...opportunities].sort((a, b) => {
+    let va, vb;
+    if (sortCol==='prev')    { va=a.prev;         vb=b.prev; }
+    else if (sortCol==='curr'){ va=getValue(a);    vb=getValue(b); }
+    else if (sortCol==='delta'){ va=Math.abs(a.delta||0); vb=Math.abs(b.delta||0); }
+    else { va=0; vb=0; }
+    return sortDir==='asc' ? va-vb : vb-va;
+  });
+
+  const totalPrev = opportunities.reduce((s,e)=>s+(e.prev||0),0);
+  const totalCurr = opportunities.reduce((s,e)=>s+getValue(e),0);
+
+  return (
+    <AccordionSection title={`🎯 PDV en baisse/chute avec fort potentiel (${opportunities.length})`} badge={`${opportunities.length} PDV`} defaultOpen={true}>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <colgroup>
+            <col style={{width:'20%'}}/><col style={{width:'7%'}}/><col style={{width:'16%'}}/>
+            <col style={{width:'14%'}}/><col style={{width:'14%'}}/><col style={{width:'10%'}}/>
+            <col style={{width:'12%'}}/><col style={{width:'7%'}}/>
+          </colgroup>
+          <thead><tr style={{borderBottom:'2px solid var(--border)'}}>
+            <th style={{...thStyle(),textAlign:'left'}}>PDV</th>
+            <th style={{...thStyle(),textAlign:'center'}}>Type</th>
+            <th style={{...thStyle(),textAlign:'left'}}>Zone / Quartier</th>
+            <th style={thSort('prev','var(--success)','right')} onClick={()=>handleSort('prev')}>
+              Potentiel (préc.){sortIcon('prev')}
+            </th>
+            <th style={thSort('curr',crit.color,'right')} onClick={()=>handleSort('curr')}>
+              Actuel ({crit.label}){sortIcon('curr')}
+            </th>
+            <th style={thSort('delta','var(--danger)','right')} onClick={()=>handleSort('delta')}>
+              Chute{sortIcon('delta')}
+            </th>
+            <th style={{...thStyle(),textAlign:'left'}}>Superviseur</th>
+            <th style={{...thStyle(),textAlign:'center'}}>Action</th>
+          </tr></thead>
+          <tbody>
+            {sorted.map(e=>(
+              <tr key={e.id||e.pdv_numero} style={{borderBottom:'1px solid var(--border)',background:'rgba(245,158,11,0.04)'}}>
+                <td style={{...tdStyle(),textAlign:'left'}}><PDVCell numero={e.pdv_numero} nom={e.pdv_nom}/></td>
+                <td style={{...tdStyle('center')}}><span className="status-badge" style={{background:TYPE_COLORS[e.pdv_type]}}>{e.pdv_type}</span></td>
+                <td style={{...tdStyle(),textAlign:'left'}}>
+                  <div style={{fontSize:12}}>{e.zone||'—'}</div>
+                  <div style={{fontSize:11,color:'var(--text-secondary)'}}>{e.quartier||''}</div>
+                </td>
+                <td style={{...tdStyle('right','var(--success)',700)}}>{fmt(e.prev)}</td>
+                <td style={{...tdStyle('right',crit.color,700)}}>{fmt(getValue(e))}</td>
+                <td style={{...tdStyle('right','var(--danger)',800)}}>▼ {Math.abs(e.delta||0).toFixed(1)}%</td>
+                <td style={{...tdStyle(),textAlign:'left',fontSize:11,color:'var(--text-secondary)'}}>{e.superviseur||'—'}</td>
+                <td style={{...tdStyle('center')}}>
+                  <span style={{fontSize:10,padding:'3px 6px',borderRadius:4,background:'rgba(245,158,11,0.2)',color:'#f59e0b',fontWeight:700,whiteSpace:'nowrap'}}>
+                    {Math.abs(e.delta||0)>=20?'🚨 Urgent':'📞 Appel'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {opportunities.length===0 && (
+              <tr><td colSpan={8} style={{padding:20,textAlign:'center',color:'var(--success)'}}>✅ Pas d'opportunités critiques — réseau en bonne santé !</td></tr>
+            )}
+          </tbody>
+          {opportunities.length > 0 && (
+          <tfoot>
+            <tr style={{borderTop:'2px solid var(--border)',background:'rgba(255,255,255,0.04)',fontWeight:800}}>
+              <td colSpan={3} style={{padding:'10px 12px',textAlign:'left',color:'var(--text-secondary)',fontSize:12}}>
+                SOUS-TOTAL — {opportunities.length} PDV à récupérer
+              </td>
+              <td style={{padding:'10px 12px',textAlign:'right',color:'var(--success)',fontWeight:700}}>{fmt(totalPrev)}</td>
+              <td style={{padding:'10px 12px',textAlign:'right',color:crit.color,fontWeight:800,fontSize:14}}>{fmt(totalCurr)}</td>
+              <td style={{padding:'10px 12px',textAlign:'right',color:'var(--danger)',fontWeight:800}}>
+                ▼ {(opportunities.filter(e=>e.delta!==null).reduce((s,e)=>s+Math.abs(e.delta||0),0)/Math.max(1,opportunities.filter(e=>e.delta!==null).length)).toFixed(1)}% moy.
+              </td>
+              <td colSpan={2} style={{padding:'10px 12px'}}></td>
+            </tr>
+          </tfoot>
+          )}
+        </table>
+      </div>
+    </AccordionSection>
+  );
+}
+
 // ─── Composant Tendances PDV avec tri + sous-totaux ───────────────────────────
 function TendancesPDVSection({ activeTendance, enChute, enBaisse, enHausse, stables, nouveaux, crit, getValue, thStyle, tdStyle, fmt }) {
   const [sortKey, setSortKey] = useState({});  // { sectionKey: { col, dir } }
@@ -1618,7 +1722,8 @@ function TabAnalyseIA({ period }) {
   const quartiersData = Object.values(byQ).sort((a,b)=>b.commReelle-a.commReelle);
   const top5Q = quartiersData.slice(0,5);
   const flop5Q = [...quartiersData].sort((a,b)=>a.commReelle-b.commReelle).slice(0,5);
-  const opportunities = [...enBaisse,...enChute].filter(e=>e.prev>50000).sort((a,b)=>b.prev-a.prev).slice(0,20);
+  // Opportunités: PDV baisse/chute avec bon potentiel — recalculé selon le critère actif
+  const opportunities = [...enBaisse,...enChute].filter(e=>e.prev>50000).sort((a,b)=>b.prev-a.prev);
 
   const sections = [
     { id:'tendances', label:'📊 Tendances PDV', color:'#3b82f6' },
@@ -1790,44 +1895,17 @@ function TabAnalyseIA({ period }) {
       {/* Opportunités */}
       {activeSection==='opportunites' && <>
         <div className="modal-section" style={{background:'rgba(245,158,11,0.08)',borderLeft:'4px solid #f59e0b'}}>
-          <h3>🎯 Opportunités identifiées</h3>
+          <h3>🎯 PDV en baisse ou en chute avec fort potentiel ({opportunities.length})</h3>
           <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:0}}>
-            PDV qui avaient un bon potentiel le mois précédent mais qui ont chuté. Une intervention ciblée peut les récupérer.
+            PDV qui généraient plus de 50 000 F le mois précédent mais dont la commission a chuté. 
+            Critère actif : <b style={{color:crit.color}}>{crit.label}</b> — une intervention ciblée peut les récupérer.
           </p>
         </div>
-        <AccordionSection title={`🎯 PDV à récupérer (${opportunities.length})`} defaultOpen={true}>
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-              <thead><tr>
-                <th style={thStyle()}>PDV</th><th style={thStyle()}>Type</th><th style={thStyle()}>Zone</th>
-                <th style={{...thStyle('var(--success)'),...{textAlign:'right'}}}>Potentiel</th>
-                <th style={{...thStyle('var(--danger)'),...{textAlign:'right'}}}>Actuel</th>
-                <th style={{...thStyle('var(--danger)'),...{textAlign:'right'}}}>Chute</th>
-                <th style={thStyle()}>Superviseur</th>
-                <th style={{...thStyle(),...{textAlign:'center'}}}>Action</th>
-              </tr></thead>
-              <tbody>
-                {opportunities.map(e=>(
-                  <tr key={e.id} style={{borderBottom:'1px solid var(--border)'}}>
-                    <td style={tdStyle()}><PDVCell numero={e.pdv_numero} nom={e.pdv_nom}/></td>
-                    <td style={tdStyle('center')}><span className="status-badge" style={{background:TYPE_COLORS[e.pdv_type]}}>{e.pdv_type}</span></td>
-                    <td style={tdStyle()}><div style={{fontSize:12}}>{e.zone||'—'}</div><div style={{fontSize:11,color:'var(--text-secondary)'}}>{e.quartier||''}</div></td>
-                    <td style={tdStyle('right','var(--success)',700)}>{fmt(e.prev)}</td>
-                    <td style={tdStyle('right','var(--danger)',700)}>{fmt(e.commReelle)}</td>
-                    <td style={tdStyle('right','var(--danger)',800)}>▼ {Math.abs(e.delta).toFixed(1)}%</td>
-                    <td style={{...tdStyle(),...{fontSize:11,color:'var(--text-secondary)'}}}>{e.superviseur||'—'}</td>
-                    <td style={tdStyle('center')}>
-                      <span style={{fontSize:10,padding:'3px 8px',borderRadius:4,background:'rgba(245,158,11,0.2)',color:'#f59e0b',fontWeight:700}}>
-                        {Math.abs(e.delta)>=20?'🚨 Visite urgente':'📞 Appel ciblé'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {opportunities.length===0&&<tr><td colSpan={8} style={{padding:20,textAlign:'center',color:'var(--success)'}}>✅ Pas d'opportunités critiques — réseau en bonne santé !</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </AccordionSection>
+        <OpportunitesTable
+          opportunities={opportunities}
+          crit={crit} getValue={getValue}
+          thStyle={thStyle} tdStyle={tdStyle} fmt={fmt}
+        />
 
         <div className="modal-section" style={{background:'var(--bg-card)'}}>
           <h3>💡 Recommandations IA</h3>
