@@ -215,9 +215,9 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
   const maxBrut = Math.max(...history.map(h => h.montant_brut || 0), 1);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
       onClick={onClose}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 24, maxWidth: 680, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
+      <div style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.6)', borderRadius: 14, padding: 28, maxWidth: 700, width: '100%', maxHeight: '88vh', overflowY: 'auto', position: 'relative' }}
         onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
@@ -1184,10 +1184,13 @@ function TabDetails({ period, onOpenFiche }) {
           </thead>
           <tbody>
             {paginated.map(e => (
-                <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 12px', cursor: onOpenFiche ? 'pointer' : 'default' }}
-                    onClick={() => onOpenFiche && onOpenFiche({numero: e.pdv_numero, nom: e.pdv_nom})}
-                    title={onOpenFiche ? 'Cliquez pour voir la fiche historique' : ''}>
+                <tr key={e.id}
+                  onClick={() => onOpenFiche && onOpenFiche({numero: e.pdv_numero, nom: e.pdv_nom})}
+                  style={{ borderBottom: '1px solid var(--border)', cursor: onOpenFiche ? 'pointer' : 'default' }}
+                  title={onOpenFiche ? 'Cliquez pour voir la fiche historique' : ''}
+                  onMouseEnter={ev => { if(onOpenFiche) ev.currentTarget.style.background='rgba(245,158,11,0.06)'; }}
+                  onMouseLeave={ev => { ev.currentTarget.style.background='transparent'; }}>
+                  <td style={{ padding: '10px 12px' }}>
                     <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -1827,13 +1830,16 @@ function TabTop({ period, onOpenFiche }) {
           </thead>
           <tbody>
             {sortedData.map((e, i) => (
-              <tr key={e.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+              <tr key={e.id}
+                onClick={() => onOpenFiche && onOpenFiche({numero: e.pdv_numero, nom: e.pdv_nom})}
+                style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)', cursor: onOpenFiche ? 'pointer' : 'default' }}
+                title={onOpenFiche ? 'Cliquez pour voir la fiche historique' : ''}
+                onMouseEnter={ev => { if(onOpenFiche) ev.currentTarget.style.background='rgba(245,158,11,0.06)'; }}
+                onMouseLeave={ev => { ev.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'; }}>
                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                   <b style={{ color: medalColor(i), fontSize: 15 }}>#{i+1}</b>
                 </td>
-                <td style={{ padding: '10px 12px', cursor: onOpenFiche ? 'pointer' : 'default' }}
-                  onClick={() => onOpenFiche && onOpenFiche({numero: e.pdv_numero, nom: e.pdv_nom})}
-                  title={onOpenFiche ? 'Cliquez pour voir la fiche historique' : ''}>
+                <td style={{ padding: '10px 12px' }}>
                   <PDVCell numero={e.pdv_numero} nom={e.pdv_nom} />
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'center' }}>
