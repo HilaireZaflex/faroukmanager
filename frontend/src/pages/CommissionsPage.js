@@ -195,32 +195,21 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // L'API retourne toutes les périodes quand on filtre par pdv_numero sans period_key
-    commissionService.entries({ pdv_numero: pdvNumero, limit: 9999 })
-      .then(d => {
-        const data = Array.isArray(d) ? d : (d.data || []);
-        // Trier par période chronologique
-        const sorted = [...data].sort((a, b) => a.period_key < b.period_key ? -1 : 1);
-        setHistory(sorted.map(e => ({ period: e.period_key, ...e })));
-        setLoading(false);
-      })
-      .catch(() => {
-        // Fallback : chercher période par période
-        commissionService.periods().then(async (list) => {
-          const results = await Promise.all(
-            list.map(p =>
-              commissionService.entries({ period_key: p, pdv_numero: pdvNumero, limit: 100 })
-                .then(d => {
-                  const data = Array.isArray(d) ? d : (d.data || []);
-                  const entry = data.find(e => String(e.pdv_numero) === String(pdvNumero));
-                  return entry ? { period: p, ...entry } : null;
-                }).catch(() => null)
-            )
-          );
-          setHistory(results.filter(Boolean).sort((a,b) => a.period < b.period ? -1 : 1));
-          setLoading(false);
-        });
-      });
+    // Charger chaque période et chercher le PDV exact dans les résultats (limit élevé)
+    commissionService.periods().then(async (list) => {
+      const results = await Promise.all(
+        list.map(p =>
+          commissionService.entries({ period_key: p, limit: 9999 })
+            .then(d => {
+              const data = Array.isArray(d) ? d : (d.data || []);
+              const entry = data.find(e => String(e.pdv_numero) === String(pdvNumero));
+              return entry ? { period: p, ...entry } : null;
+            }).catch(() => null)
+        )
+      );
+      setHistory(results.filter(Boolean).sort((a, b) => a.period < b.period ? -1 : 1));
+      setLoading(false);
+    });
   }, [pdvNumero]);
 
   const maxBrut = Math.max(...history.map(h => h.montant_brut || 0), 1);
