@@ -193,6 +193,7 @@ function MultiMoisComparatif({ currentPeriod }) {
 function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [critGraph, setCritGraph] = useState('reelle'); // 'pdg' ou 'reelle'
 
   useEffect(() => {
     // Charger chaque période et chercher le PDV exact dans les résultats (limit élevé)
@@ -255,21 +256,45 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
 
             {/* Graphique barres */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600 }}>📈 Évolution Commission PDG</div>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
-                {history.map((h, i) => {
-                  const pct = maxBrut > 0 ? (h.montant_brut || 0) / maxBrut * 100 : 0;
-                  const prev = i > 0 ? history[i-1].montant_brut : null;
-                  const isUp = prev !== null ? h.montant_brut >= prev : true;
-                  return (
-                    <div key={h.period} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtM(h.montant_brut||0)}</div>
-                      <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: isUp ? 'var(--success)' : 'var(--danger)', borderRadius: '4px 4px 0 0', transition: 'height 0.4s', minHeight: 8 }} />
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>{h.period.slice(5)}</div>
-                    </div>
-                  );
-                })}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                  📈 Évolution — {critGraph === 'reelle' ? 'Commission Réelle PDG' : 'Commission PDG'}
+                </div>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)' }}>
+                  {[['reelle','Comm. Réelle PDG','#f59e0b'],['pdg','Comm. PDG','var(--success)']].map(([val, label, color]) => (
+                    <button key={val} onClick={() => setCritGraph(val)} style={{
+                      padding: '4px 10px', fontSize: 11, border: 'none', cursor: 'pointer', fontWeight: 600,
+                      background: critGraph === val ? color : 'rgba(255,255,255,0.05)',
+                      color: critGraph === val ? '#fff' : 'var(--text-secondary)',
+                      transition: 'all 0.15s',
+                    }}>{label}</button>
+                  ))}
+                </div>
               </div>
+              {(() => {
+                const getVal = (h) => critGraph === 'reelle'
+                  ? (h.montant_reseau || 0) * 0.3 + (h.montant_pdv || 0) * 0.3
+                  : (h.montant_brut || 0);
+                const maxVal = Math.max(...history.map(h => getVal(h)), 1);
+                const barColor = critGraph === 'reelle' ? '#f59e0b' : 'var(--success)';
+                return (
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 120 }}>
+                    {history.map((h, i) => {
+                      const val = getVal(h);
+                      const pct = maxVal > 0 ? val / maxVal * 100 : 0;
+                      const prevVal = i > 0 ? getVal(history[i-1]) : null;
+                      const isUp = prevVal !== null ? val >= prevVal : true;
+                      return (
+                        <div key={h.period} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtM(val)}</div>
+                          <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: isUp ? barColor : 'var(--danger)', borderRadius: '4px 4px 0 0', transition: 'height 0.4s', minHeight: 8 }} />
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>{h.period.slice(5)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Tableau détaillé */}
