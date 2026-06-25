@@ -286,7 +286,7 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
                       const isUp = prevVal !== null ? val >= prevVal : true;
                       return (
                         <div key={h.period} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtM(val)}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmt(val)}</div>
                           <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: isUp ? barColor : 'var(--danger)', borderRadius: '4px 4px 0 0', transition: 'height 0.4s', minHeight: 8 }} />
                           <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>{h.period.slice(5)}</div>
                         </div>
