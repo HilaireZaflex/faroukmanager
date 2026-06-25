@@ -303,7 +303,7 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
                 <th style={{ padding: '8px 10px', textAlign: 'left', color: '#8a8a9a' }}>Mois</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--success)' }}>Comm. PDG</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right', color: '#f59e0b' }}>Comm. Réelle</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#8b5cf6' }}>Comm. PDV</th>
+                <th style={{ padding: '8px 10px', textAlign: 'right', color: '#8b5cf6' }}>Comm. Revendeur</th>
                 <th style={{ padding: '8px 10px', textAlign: 'right', color: '#8a8a9a' }}>Variation</th>
               </tr></thead>
               <tbody>
@@ -316,7 +316,7 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
                       <td style={{ padding: '8px 10px', fontWeight: 700 }}>{h.period}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--success)', fontWeight: 700 }}>{fmt(h.montant_brut || 0)}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', color: '#f59e0b', fontWeight: 700 }}>{fmt(commReelle)}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(h.montant_pdv || 0)}</td>
+                      <td style={{ padding: '8px 10px', textAlign: 'right', color: '#8b5cf6' }}>{fmt(['RNS','RSF'].includes(h.pdv_type) ? (h.montant_pdv || 0) : 0)}</td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', color: variation === null ? '#8a8a9a' : variation >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
                         {variation === null ? '—' : <>{variation >= 0 ? '▲' : '▼'} {Math.abs(variation).toFixed(1)}%</>}
                       </td>
