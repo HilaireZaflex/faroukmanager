@@ -302,20 +302,23 @@ def list_prospects(
     # - Admin, Manager, RC : voient toutes les demandes
     if current_user.role == UserRole.DEVELOPPEUR:
         # Le dev voit : ses propres soumissions + assigné par ID + assigné par nom dans les notes
-        # Les noms peuvent être stockés dans différents ordres : "NOM PRENOM" ou "PRENOM NOM"
+        # Les notes contiennent "[Développeur affecté: ALASSANE FANE]" (ordre variable)
         nom = (current_user.nom or '').strip()
         prenom = (current_user.prenom or '').strip()
-        dev_nom_np = f"{nom} {prenom}".strip()   # NOM PRENOM
-        dev_nom_pn = f"{prenom} {nom}".strip()   # PRENOM NOM
-        q = q.filter(or_(
+        dev_nom_np = f"{nom} {prenom}".strip()   # NOM PRENOM  ex: FANE ALASSANE
+        dev_nom_pn = f"{prenom} {nom}".strip()   # PRENOM NOM  ex: ALASSANE FANE
+        conditions = [
             Prospect.submitted_by_id == current_user.id,
             Prospect.visit_assigned_to_id == current_user.id,
             Prospect.puce_assigned_to_id == current_user.id,
-            Prospect.notes.ilike(f"%affecté: {dev_nom_np}%"),
-            Prospect.notes.ilike(f"%affecté: {dev_nom_pn}%"),
-            Prospect.notes.ilike(f"%affecte: {dev_nom_np}%"),
-            Prospect.notes.ilike(f"%affecte: {dev_nom_pn}%"),
-        ))
+            Prospect.notes.ilike(f"%{dev_nom_np}%"),
+            Prospect.notes.ilike(f"%{dev_nom_pn}%"),
+        ]
+        # Si nom et prénom sont distincts, chercher aussi chaque partie individuellement
+        if nom and prenom:
+            conditions.append(Prospect.notes.ilike(f"%affect%: %{nom}%"))
+            conditions.append(Prospect.notes.ilike(f"%affect%: %{prenom}%"))
+        q = q.filter(or_(*conditions))
     elif current_user.role in [UserRole.SUPERVISEUR, UserRole.GESTIONNAIRE]:
         q = q.filter(Prospect.submitted_by_id == current_user.id)
 
