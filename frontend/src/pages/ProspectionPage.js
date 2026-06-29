@@ -221,11 +221,12 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState([]);
-  const [workflowStep, setWorkflowStep] = useState('etape2');
 
   const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER'].includes(currentUser?.role);
   const isRC = ['rc', 'RC'].includes(currentUser?.role) || isAdmin;
   const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role) || isAdmin;
+
+  const [workflowStep, setWorkflowStep] = useState(isRC ? 'etape2' : 'etape3');
 
   const reload = useCallback(async () => {
     setLoading(true);
