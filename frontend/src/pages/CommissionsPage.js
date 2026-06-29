@@ -575,21 +575,26 @@ function TabPalmares({ period }) {
             <h3 style={{ margin: 0 }}>🏅 Palmarès — {period}</h3>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 0, marginTop: 4 }}>Classement et récompenses des meilleurs PDVs du réseau.</p>
           </div>
-          {/* Select type de commission */}
+          {/* Toggle type de commission */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>📊 Critère :</span>
-            <select
-              value={commType}
-              onChange={e => setCommType(e.target.value)}
-              style={{
-                padding: '6px 12px', background: 'var(--bg-card)', border: `1px solid ${commColor}`,
-                borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 700,
-                cursor: 'pointer', outline: 'none',
-              }}
-            >
-              <option value="pdg">💰 Commission PDG</option>
-              <option value="reelle">📈 Commission Réelle</option>
-            </select>
+            <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+              {[
+                { key: 'pdg',    label: '💰 Commission PDG',   color: 'var(--success)' },
+                { key: 'reelle', label: '📈 Commission Réelle', color: '#f59e0b' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => setCommType(opt.key)}
+                  style={{
+                    padding: '7px 16px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                    background: commType === opt.key ? opt.color : 'var(--bg-card)',
+                    color: commType === opt.key ? '#fff' : 'var(--text-secondary)',
+                    boxShadow: commType === opt.key ? `0 2px 8px ${opt.color}55` : 'none',
+                    transition: 'all 0.2s',
+                  }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
