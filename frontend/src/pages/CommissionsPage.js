@@ -560,8 +560,10 @@ function TabPalmares({ period }) {
   const prevData = allData[1];
   const prevNums = new Set((prevData?.entries||[]).map(e=>e.pdv_numero));
   const olderNums = new Set(allData.slice(2).flatMap(d=>d.entries.map(e=>e.pdv_numero)));
+  // Seuil adapté : PDG = 100 000, Réelle = 30 000 (≈ 100 000 × 0.3)
+  const revelationSeuil = commType === 'pdg' ? 100000 : 30000;
   const revelations = currentEntries
-    .filter(e => !olderNums.has(e.pdv_numero) && prevNums.has(e.pdv_numero) && getCommVal(e) > 100000)
+    .filter(e => !olderNums.has(e.pdv_numero) && prevNums.has(e.pdv_numero) && getCommVal(e) > revelationSeuil)
     .sort((a,b) => getCommVal(b) - getCommVal(a)).slice(0,3);
 
   const medals = ['🥇','🥈','🥉'];
