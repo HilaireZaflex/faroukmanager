@@ -302,13 +302,19 @@ def list_prospects(
     # - Admin, Manager, RC : voient toutes les demandes
     if current_user.role == UserRole.DEVELOPPEUR:
         # Le dev voit : ses propres soumissions + assigné par ID + assigné par nom dans les notes
-        dev_nom = f"{current_user.nom} {current_user.prenom or ''}".strip()
+        # Les noms peuvent être stockés dans différents ordres : "NOM PRENOM" ou "PRENOM NOM"
+        nom = (current_user.nom or '').strip()
+        prenom = (current_user.prenom or '').strip()
+        dev_nom_np = f"{nom} {prenom}".strip()   # NOM PRENOM
+        dev_nom_pn = f"{prenom} {nom}".strip()   # PRENOM NOM
         q = q.filter(or_(
             Prospect.submitted_by_id == current_user.id,
             Prospect.visit_assigned_to_id == current_user.id,
             Prospect.puce_assigned_to_id == current_user.id,
-            Prospect.notes.ilike(f"%Développeur affecté: {dev_nom}%"),
-            Prospect.notes.ilike(f"%Developpeur affecte: {dev_nom}%"),
+            Prospect.notes.ilike(f"%affecté: {dev_nom_np}%"),
+            Prospect.notes.ilike(f"%affecté: {dev_nom_pn}%"),
+            Prospect.notes.ilike(f"%affecte: {dev_nom_np}%"),
+            Prospect.notes.ilike(f"%affecte: {dev_nom_pn}%"),
         ))
     elif current_user.role in [UserRole.SUPERVISEUR, UserRole.GESTIONNAIRE]:
         q = q.filter(Prospect.submitted_by_id == current_user.id)
