@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Plus, RefreshCw, MapPin, User as UserIcon,
-  CheckCircle, XCircle, Clock, Send, AlertTriangle, Search,
+  CheckCircle, XCircle, Clock, Send, Search,
 } from 'lucide-react';
 import api from '../services/api';
 import prospectService, { STATUS_LABELS } from '../services/prospectService';
