@@ -301,10 +301,14 @@ def list_prospects(
     # - SUPERVISEUR, GESTIONNAIRE : voient uniquement leurs propres demandes soumises
     # - Admin, Manager, RC : voient toutes les demandes
     if current_user.role == UserRole.DEVELOPPEUR:
+        # Le dev voit : ses propres soumissions + assigné par ID + assigné par nom dans les notes
+        dev_nom = f"{current_user.nom} {current_user.prenom or ''}".strip()
         q = q.filter(or_(
             Prospect.submitted_by_id == current_user.id,
             Prospect.visit_assigned_to_id == current_user.id,
             Prospect.puce_assigned_to_id == current_user.id,
+            Prospect.notes.ilike(f"%Développeur affecté: {dev_nom}%"),
+            Prospect.notes.ilike(f"%Developpeur affecte: {dev_nom}%"),
         ))
     elif current_user.role in [UserRole.SUPERVISEUR, UserRole.GESTIONNAIRE]:
         q = q.filter(Prospect.submitted_by_id == current_user.id)
