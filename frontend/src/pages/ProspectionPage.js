@@ -275,7 +275,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
   // Filtres par étape
   const nouvelles = prospects.filter(p => p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV');
   const enVisite = prospects.filter(p => p.status === 'EN_VISITE');
-  const validesDev = prospects.filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC'].includes(p.status));
+  const validesDev = prospects.filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC', 'REFUSEE_RC'].includes(p.status));
   const approuveesRC = prospects.filter(p => p.status === 'APPROUVEE_RC');
 
   const workflowTabs = [
@@ -594,44 +594,60 @@ function Validation4Card({ prospect: p, onDone, onOpen }) {
   const devComment = p.history?.find(h => h.decision_type === 'DEV_DECISION')?.comment || '—';
 
   return (
-    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #6366f1' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-            📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.type_local || '—'}
-          </div>
-          {p.visit_assigned_to && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-              👤 Visité par : <b>{p.visit_assigned_to.nom} {p.visit_assigned_to.prenom || ''}</b>
+    <>
+      {success && (
+        <SuccessModal
+          title={success.decision === 'approve' ? '✅ Prospect approuvé !' : success.decision === 'hold' ? '⏸️ Mis en attente' : '❌ Prospect refusé'}
+          message={success.decision === 'approve'
+            ? `Le prospect ${p.reference} — ${p.prenom} ${p.nom} a été approuvé par le RC.`
+            : success.decision === 'hold'
+            ? `Le prospect ${p.reference} a été mis en attente pour examen ultérieur.`
+            : `Le prospect ${p.reference} a été refusé par le RC.`}
+          next={success.decision === 'approve'
+            ? "Attribuer ce prospect à un développeur pour l'activation de la puce (Étape 5 — Attribution activation)."
+            : "Le prospect reste disponible pour un réexamen ultérieur."}
+          onClose={() => { setSuccess(null); onDone(); }}
+        />
+      )}
+      <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #6366f1' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.type_local || '—'}
             </div>
-          )}
-          <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: 6, fontSize: 12, borderLeft: '3px solid #10b981' }}>
-            💬 <b>Avis du développeur :</b> {devComment}
+            {p.visit_assigned_to && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                👤 Visité par : <b>{p.visit_assigned_to.nom} {p.visit_assigned_to.prenom || ''}</b>
+              </div>
+            )}
+            <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: 6, fontSize: 12, borderLeft: '3px solid #10b981' }}>
+              💬 <b>Avis du développeur :</b> {devComment}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+            <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
+            <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-          <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
-          <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
+        <textarea
+          placeholder="Commentaire RC (optionnel)..."
+          value={comment} onChange={e => setComment(e.target.value)}
+          style={{ width: '100%', marginTop: 12, minHeight: 60, boxSizing: 'border-box' }}
+        />
+        <div className="action-bar" style={{ marginTop: 8 }}>
+          <button className="btn-success" disabled={busy} onClick={() => decide('approve')}>
+            <CheckCircle size={14}/> Approuver
+          </button>
+          <button className="btn-secondary" disabled={busy} onClick={() => decide('hold')}>
+            <Clock size={14}/> Mettre en attente
+          </button>
+          <button className="btn-danger" disabled={busy} onClick={() => decide('reject')}>
+            <XCircle size={14}/> Refuser
+          </button>
         </div>
       </div>
-      <textarea
-        placeholder="Commentaire RC (optionnel)..."
-        value={comment} onChange={e => setComment(e.target.value)}
-        style={{ width: '100%', marginTop: 12, minHeight: 60, boxSizing: 'border-box' }}
-      />
-      <div className="action-bar" style={{ marginTop: 8 }}>
-        <button className="btn-success" disabled={busy} onClick={() => decide('approve')}>
-          <CheckCircle size={14}/> Approuver
-        </button>
-        <button className="btn-secondary" disabled={busy} onClick={() => decide('hold')}>
-          <Clock size={14}/> Mettre en attente
-        </button>
-        <button className="btn-danger" disabled={busy} onClick={() => decide('reject')}>
-          <XCircle size={14}/> Refuser
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -661,41 +677,56 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
   const [devId, setDevId] = useState('');
   const [puceNumero, setPuceNumero] = useState('');
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const submit = async () => {
     if (!devId || !puceNumero) { alert('Veuillez sélectionner un développeur et saisir un numéro de puce.'); return; }
     setBusy(true);
     try {
-      await prospectService.assignPuce(p.id, {
-        activator_id: parseInt(devId),
-        puce_numero: puceNumero,
-      });
-      onDone();
-    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
+      let payload = { puce_numero: puceNumero };
+      if (devId.startsWith('user_')) {
+        payload.activator_id = parseInt(devId.replace('user_', ''));
+      } else {
+        const dev = developers.find(d => d.id === devId);
+        payload.activator_nom = `${dev?.nom || ''} ${dev?.prenom || ''}`.trim();
+      }
+      await prospectService.assignPuce(p.id, payload);
+      setSuccess(true);
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
   };
 
   return (
-    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #22c55e' }}>
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.reference} — {p.prenom} {p.nom}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-        📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
-      </div>
-      <div className="action-bar">
-        <input
-          placeholder="N° de puce OM"
-          value={puceNumero} onChange={e => setPuceNumero(e.target.value)}
-          style={{ flex: 1 }}
+    <>
+      {success && (
+        <SuccessModal
+          title="📦 Puce attribuée !"
+          message={`La puce N° ${puceNumero} a été attribuée au prospect ${p.reference} — ${p.prenom} ${p.nom}.`}
+          next="Le développeur assigné doit maintenant se rendre sur le terrain pour activer la puce et renseigner les informations du PDV (onglet Activation)."
+          onClose={() => { setSuccess(false); onDone(); }}
         />
-        <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
-          <option value="">— Développeur activateur —</option>
-          {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom || ''}{d.zone ? ` (${d.zone})` : ''}</option>)}
-        </select>
-        <button className="btn-primary" disabled={!devId || !puceNumero || busy} onClick={submit}>
-          <Send size={12}/> {busy ? 'Attribution…' : 'Attribuer'}
-        </button>
+      )}
+      <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #22c55e' }}>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.reference} — {p.prenom} {p.nom}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
+        </div>
+        <div className="action-bar">
+          <input
+            placeholder="N° de puce OM"
+            value={puceNumero} onChange={e => setPuceNumero(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
+            <option value="">— Développeur activateur —</option>
+            {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom || ''}{d.zone ? ` (${d.zone})` : ''}</option>)}
+          </select>
+          <button className="btn-primary" disabled={!devId || !puceNumero || busy} onClick={submit}>
+            <Send size={12}/> {busy ? 'Attribution…' : 'Attribuer'}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -756,6 +787,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     comment: '',
   });
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const submit = async () => {
@@ -775,12 +807,21 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         sous_zone: form.sous_zone || null,
         quartier_pdv: form.quartier_pdv || null,
       });
-      onDone();
+      setSuccess(true);
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
   };
 
   return (
+    <>
+      {success && (
+        <SuccessModal
+          title="⚡ Puce activée ! PDV créé !"
+          message={`La puce du prospect ${p.reference} — ${p.prenom} ${p.nom} a été activée avec succès. Le Point de Vente a été créé automatiquement.`}
+          next="✅ Fin du processus. Le nouveau PDV est maintenant visible dans le menu Points de Vente avec le gestionnaire, superviseur et zone renseignés."
+          onClose={() => { setSuccess(false); onDone(); }}
+        />
+      )}
     <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20, borderLeft: '4px solid #f97316' }}>
       {/* En-tête prospect */}
       <div style={{ marginBottom: 16 }}>
@@ -837,6 +878,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         <CheckCircle size={16}/> {busy ? 'Activation en cours…' : '⚡ Confirmer l\'activation & créer le PDV'}
       </button>
     </div>
+    </>
   );
 }
 
