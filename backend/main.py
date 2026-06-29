@@ -519,22 +519,6 @@ async def delete_membre_equipe(role: str, nom_encoded: str):
     finally:
         db.close()
 
-@app.get("/debug-prospects-dev")
-async def debug_prospects_dev():
-    """Debug: affiche les users DEVELOPPEUR et les prospects EN_VISITE avec leurs assignations"""
-    from app.core.database import SessionLocal
-    from sqlalchemy import text
-    db = SessionLocal()
-    try:
-        users = db.execute(text("SELECT id, nom, prenom, role, email FROM users WHERE role='DEVELOPPEUR'")).fetchall()
-        prospects = db.execute(text("SELECT id, reference, status, visit_assigned_to_id, notes FROM prospects WHERE status IN ('EN_VISITE','NOUVELLE','REFUSEE_DEV') LIMIT 20")).fetchall()
-        return {
-            "users_developpeur": [{"id": r[0], "nom": r[1], "prenom": r[2], "role": r[3], "email": r[4]} for r in users],
-            "prospects": [{"id": r[0], "ref": r[1], "status": r[2], "visit_assigned_to_id": r[3], "notes_start": (r[4] or '')[:100]} for r in prospects],
-        }
-    finally:
-        db.close()
-
 @app.get("/db-info")
 async def db_info():
     """Diagnostic: affiche quelle base de données est utilisée"""
