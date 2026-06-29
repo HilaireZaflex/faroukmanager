@@ -505,6 +505,7 @@ function TabRapportSuperviseur({ period }) {
 function TabPalmares({ period }) {
   const [allData, setAllData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [commType, setCommType] = useState('pdg'); // 'pdg' | 'reelle'
 
   useEffect(() => {
     commissionService.periods().then(async (list) => {
@@ -519,19 +520,29 @@ function TabPalmares({ period }) {
   if (loading) return <div className="loading-state">Calcul du palmarès…</div>;
   if (!allData) return null;
 
+  // Fonction pour obtenir la valeur selon le type de commission sélectionné
+  const getCommVal = (e) => commType === 'pdg'
+    ? (e.montant_brut || 0)
+    : ((e.montant_reseau || 0) + (e.gere_reversement ? 0 : (e.montant_pdv || 0))) * 0.3;
+
+  const isPDG = commType === 'pdg';
+  const commLabel = isPDG ? 'Commission PDG' : 'Commission Réelle';
+  const commColor = isPDG ? 'var(--success)' : '#f59e0b';
+
   const currentData = allData.find(d => d.period === period);
   const currentEntries = currentData ? currentData.entries : [];
 
   // Top 3 du mois
-  const top3 = [...currentEntries].sort((a,b)=>(b.montant_brut||0)-(a.montant_brut||0)).slice(0,3);
+  const top3 = [...currentEntries].sort((a,b) => getCommVal(b) - getCommVal(a)).slice(0,3);
 
   // PDV le plus régulier (présent dans le plus de mois avec commissions positives)
   const pdvCounts = {};
   allData.forEach(d => d.entries.forEach(e => {
-    if ((e.montant_brut||0) > 0) {
+    const val = getCommVal(e);
+    if (val > 0) {
       pdvCounts[e.pdv_numero] = pdvCounts[e.pdv_numero] || { num: e.pdv_numero, nom: e.pdv_nom, count: 0, total: 0 };
       pdvCounts[e.pdv_numero].count++;
-      pdvCounts[e.pdv_numero].total += e.montant_brut || 0;
+      pdvCounts[e.pdv_numero].total += val;
     }
   }));
   const regular = Object.values(pdvCounts).sort((a,b) => b.count - a.count || b.total - a.total).slice(0,5);
@@ -539,10 +550,10 @@ function TabPalmares({ period }) {
   // Meilleure progression (actuel vs premier mois disponible)
   const firstData = allData[allData.length-1];
   const firstMap = {};
-  (firstData?.entries || []).forEach(e => { firstMap[e.pdv_numero] = e.montant_brut || 0; });
+  (firstData?.entries || []).forEach(e => { firstMap[e.pdv_numero] = getCommVal(e); });
   const progressions = currentEntries
     .filter(e => firstMap[e.pdv_numero] > 50000)
-    .map(e => ({ ...e, prog: ((e.montant_brut||0) - firstMap[e.pdv_numero]) / firstMap[e.pdv_numero] * 100 }))
+    .map(e => ({ ...e, prog: (getCommVal(e) - firstMap[e.pdv_numero]) / firstMap[e.pdv_numero] * 100 }))
     .sort((a,b) => b.prog - a.prog).slice(0,5);
 
   // Révélation du mois (présent seulement dans les 2 derniers mois et bonne perf)
@@ -550,8 +561,8 @@ function TabPalmares({ period }) {
   const prevNums = new Set((prevData?.entries||[]).map(e=>e.pdv_numero));
   const olderNums = new Set(allData.slice(2).flatMap(d=>d.entries.map(e=>e.pdv_numero)));
   const revelations = currentEntries
-    .filter(e => !olderNums.has(e.pdv_numero) && prevNums.has(e.pdv_numero) && (e.montant_brut||0) > 100000)
-    .sort((a,b)=>(b.montant_brut||0)-(a.montant_brut||0)).slice(0,3);
+    .filter(e => !olderNums.has(e.pdv_numero) && prevNums.has(e.pdv_numero) && getCommVal(e) > 100000)
+    .sort((a,b) => getCommVal(b) - getCommVal(a)).slice(0,3);
 
   const medals = ['🥇','🥈','🥉'];
   const medalColors = ['#f59e0b','#9ca3af','#b45309'];
@@ -559,8 +570,28 @@ function TabPalmares({ period }) {
   return (
     <>
       <div className="modal-section" style={{ background: 'rgba(245,158,11,0.08)', borderLeft: '4px solid #f59e0b' }}>
-        <h3>🏅 Palmarès — {period}</h3>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 0 }}>Classement et récompenses des meilleurs PDVs du réseau.</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h3 style={{ margin: 0 }}>🏅 Palmarès — {period}</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 0, marginTop: 4 }}>Classement et récompenses des meilleurs PDVs du réseau.</p>
+          </div>
+          {/* Select type de commission */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>📊 Critère :</span>
+            <select
+              value={commType}
+              onChange={e => setCommType(e.target.value)}
+              style={{
+                padding: '6px 12px', background: 'var(--bg-card)', border: `1px solid ${commColor}`,
+                borderRadius: 8, color: 'var(--text-primary)', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', outline: 'none',
+              }}
+            >
+              <option value="pdg">💰 Commission PDG</option>
+              <option value="reelle">📈 Commission Réelle</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Podium Top 3 */}
@@ -573,8 +604,8 @@ function TabPalmares({ period }) {
             <div style={{ fontSize: 36, marginBottom: 8 }}>{medals[i]}</div>
             <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>{e.pdv_nom || e.pdv_numero}</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{e.pdv_numero} · {e.pdv_type}</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: medalColors[i] }}>{fmtM(e.montant_brut||0)}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Commission PDG</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: medalColors[i] }}>{fmtM(getCommVal(e))}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{commLabel}</div>
             <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 10, background: `rgba(0,0,0,0.3)`, padding: '2px 6px', borderRadius: 4 }}>#{i+1}</div>
           </div>
         ))}
@@ -614,7 +645,7 @@ function TabPalmares({ period }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 800, color: 'var(--success)', fontSize: 14 }}>▲ {e.prog.toFixed(1)}%</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtM(e.montant_brut||0)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtM(getCommVal(e))}</div>
                 </div>
               </div>
             ))
@@ -633,7 +664,7 @@ function TabPalmares({ period }) {
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_numero} · {e.pdv_type}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 800, color: '#3b82f6', fontSize: 13 }}>{fmtM(e.montant_brut||0)}</div>
+                  <div style={{ fontWeight: 800, color: commColor, fontSize: 13 }}>{fmtM(getCommVal(e))}</div>
                 </div>
               </div>
             ))}
