@@ -200,7 +200,7 @@ function FichePDVModal({ pdvNumero, pdvNom, onClose }) {
     commissionService.periods().then(async (list) => {
       const results = await Promise.all(
         list.map(p =>
-          commissionService.entries({ period_key: p, limit: 9999 })
+          commissionService.entries({ period_key: p, limit: 200 })
             .then(d => {
               const data = Array.isArray(d) ? d : (d.data || []);
               const entry = data.find(e => String(e.pdv_numero) === String(pdvNumero));
@@ -348,8 +348,8 @@ function TabRapportSuperviseur({ period }) {
       const idx = list.indexOf(period);
       const prevPeriod = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
       const [curr, prev] = await Promise.all([
-        commissionService.entries({ period_key: period, limit: 9999 }).then(d => Array.isArray(d) ? d : (d.data || [])).catch(() => []),
-        prevPeriod ? commissionService.entries({ period_key: prevPeriod, limit: 9999 }).then(d => Array.isArray(d) ? d : (d.data || [])).catch(() => []) : Promise.resolve([]),
+        commissionService.entries({ period_key: period, limit: 200 }).then(d => Array.isArray(d) ? d : (d.data || [])).catch(() => []),
+        prevPeriod ? commissionService.entries({ period_key: prevPeriod, limit: 200 }).then(d => Array.isArray(d) ? d : (d.data || [])).catch(() => []) : Promise.resolve([]),
       ]);
       setEntries(curr);
       setPrevEntries(prev);
@@ -510,7 +510,7 @@ function TabPalmares({ period }) {
   useEffect(() => {
     commissionService.periods().then(async (list) => {
       const results = await Promise.all(
-        list.map(p => commissionService.entries({ period_key: p, limit: 9999 }).then(d => ({ period: p, entries: Array.isArray(d) ? d : (d.data || []) })).catch(() => ({ period: p, entries: [] })))
+        list.map(p => commissionService.entries({ period_key: p, limit: 200 }).then(d => ({ period: p, entries: Array.isArray(d) ? d : (d.data || []) })).catch(() => ({ period: p, entries: [] })))
       );
       setAllData(results);
       setLoading(false);
@@ -693,7 +693,7 @@ function TabComparaisonZones({ period }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    commissionService.entries({ period_key: period, limit: 9999 }).then(d => {
+    commissionService.entries({ period_key: period, limit: 200 }).then(d => {
       const data = Array.isArray(d) ? d : (d.data || []);
       setEntries(data);
       const zoneSet = [...new Set(data.map(e => e.zone).filter(Boolean))].sort();
@@ -2430,8 +2430,8 @@ function TabAnalyseIA({ period }) {
     const prevPeriod = `${prevYr.toString().padStart(4,'0')}-${prevMn.toString().padStart(2,'0')}`;
 
     Promise.all([
-      commissionService.entries({ period_key: period, limit: 2000 }),
-      commissionService.entries({ period_key: prevPeriod, limit: 2000 }),
+      commissionService.entries({ period_key: period, limit: 200 }),
+      commissionService.entries({ period_key: prevPeriod, limit: 200 }),
     ]).then(([entries, prev]) => {
       setAllEntries(entries);
       setPrevEntries(prev);

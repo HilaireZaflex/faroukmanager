@@ -231,7 +231,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
     setLoading(true);
     try {
       const [list, devs] = await Promise.all([
-        prospectService.list({ limit: 9999 }),
+        prospectService.list({ limit: 200 }),
         api.get('/auth/users').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
       ]);
       setProspects(list);
@@ -621,7 +621,7 @@ function TabActivation({ currentUser, onRefresh }) {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await prospectService.list({ status: 'PUCE_ATTRIBUEE', limit: 9999 });
+      const list = await prospectService.list({ status: 'PUCE_ATTRIBUEE', limit: 200 });
       setProspects(list);
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setLoading(false); }
