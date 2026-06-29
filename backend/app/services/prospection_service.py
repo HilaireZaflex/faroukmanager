@@ -297,11 +297,17 @@ def list_prospects(
     q = db.query(Prospect)
 
     # Filtrage automatique par rôle :
-    # Superviseur, Développeur et Gestionnaire ne voient que leurs propres demandes
-    restricted_roles = [UserRole.SUPERVISEUR, UserRole.DEVELOPPEUR, UserRole.GESTIONNAIRE]
-    if current_user.role in restricted_roles:
+    # - DEVELOPPEUR : voit ses propres demandes soumises + celles qui lui sont assignées pour visite ou activation
+    # - SUPERVISEUR, GESTIONNAIRE : voient uniquement leurs propres demandes soumises
+    # - Admin, Manager, RC : voient toutes les demandes
+    if current_user.role == UserRole.DEVELOPPEUR:
+        q = q.filter(or_(
+            Prospect.submitted_by_id == current_user.id,
+            Prospect.visit_assigned_to_id == current_user.id,
+            Prospect.puce_assigned_to_id == current_user.id,
+        ))
+    elif current_user.role in [UserRole.SUPERVISEUR, UserRole.GESTIONNAIRE]:
         q = q.filter(Prospect.submitted_by_id == current_user.id)
-    # Admin, Manager, RC voient toutes les demandes
 
     if status_filter:
         q = q.filter(Prospect.status == status_filter)
