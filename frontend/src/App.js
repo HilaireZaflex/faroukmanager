@@ -88,7 +88,7 @@ const MenuRoute = ({ menuId, children }) => {
 function App() {
   // Keep-alive: ping backend toutes les 10 min pour eviter le cold start
   useEffect(() => {
-    const ping = () => fetch(`${process.env.REACT_APP_API_BASE_URL || "https://aroukmanager-backend.onrender.com/api"}/health`).catch(() => {});
+    const ping = () => fetch(`${(process.env.REACT_APP_API_BASE_URL || "https://faroukmanager-backend-production-feb9.up.railway.app/api").replace(/\/api$/, '')}/health`).catch(() => {});
     ping();
     const interval = setInterval(ping, 10 * 60 * 1000);
     return () => clearInterval(interval);
