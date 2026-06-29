@@ -403,19 +403,10 @@ function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
 // ── Étape 3 : Développeurs valident ou rejettent après visite ─────────────────
 function Etape3DecisionDev({ prospects, currentUser, onDone, onOpen }) {
   const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER'].includes(currentUser?.role);
-  const currentNom = `${currentUser?.nom || ''} ${currentUser?.prenom || ''}`.trim().toLowerCase();
 
-  // Un dev voit ses prospects : assigné par ID (user) OU par nom dans les notes (réseau)
-  const enAttente = prospects.filter(p => {
-    if (isAdmin) return true;
-    if (p.visit_assigned_to?.id === currentUser?.id) return true;
-    // Cas réseau : le nom est stocké dans les notes [Développeur affecté: Nom Prenom]
-    if (p.notes && currentNom) {
-      const notesLower = p.notes.toLowerCase();
-      return notesLower.includes('[développeur affecté:') && notesLower.includes(currentNom);
-    }
-    return false;
-  });
+  // Le backend filtre déjà les prospects selon le rôle - on affiche tout ce qu'on reçoit
+  // Seuls les prospects EN_VISITE sont pertinents pour l'étape 3
+  const enAttente = prospects.filter(p => p.status === 'EN_VISITE');
 
   return (
     <>
