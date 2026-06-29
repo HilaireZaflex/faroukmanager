@@ -115,7 +115,8 @@ class ProspectUpdate(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class AssignVisitRequest(BaseModel):
-    developer_id: int = Field(..., description="ID du développeur affecté à la visite")
+    developer_id: Optional[int] = Field(None, description="ID user du développeur affecté à la visite")
+    developer_nom: Optional[str] = Field(None, description="Nom du développeur réseau (equipe_reseau)")
     comment: Optional[str] = None
 
 

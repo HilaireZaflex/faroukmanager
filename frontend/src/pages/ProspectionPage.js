@@ -232,7 +232,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
     try {
       const [list, devs] = await Promise.all([
         prospectService.list({ limit: 200 }),
-        api.get('/auth/users').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+        api.get('/auth/developers').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
       ]);
       setProspects(list);
       setUsers(devs);
@@ -242,7 +242,8 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  const developers = users.filter(u => u.role === 'developpeur' || u.role === 'DEVELOPPEUR');
+  // /auth/developers retourne déjà uniquement les devs {id:"user_X"|"reseau_X", nom, prenom, zone, source}
+  const developers = users;
 
   // Filtres par étape
   const nouvelles = prospects.filter(p => p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV');
@@ -278,6 +279,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
               prospects={nouvelles}
               developers={developers}
               onDone={reload}
+              onOpen={onOpen}
             />
           )}
           {workflowStep === 'etape3' && (
@@ -309,7 +311,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
 }
 
 // ── Étape 2 : RC affecte les demandes NOUVELLES aux développeurs ──────────────
-function Etape2Attribution({ prospects, developers, onDone }) {
+function Etape2Attribution({ prospects, developers, onDone, onOpen }) {
   return (
     <>
       <StepLegend
@@ -323,14 +325,14 @@ function Etape2Attribution({ prospects, developers, onDone }) {
         <div className="empty-state">✅ Aucune demande en attente d'attribution.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {prospects.map(p => <Attribution2Card key={p.id} prospect={p} developers={developers} onDone={onDone}/>)}
+          {prospects.map(p => <Attribution2Card key={p.id} prospect={p} developers={developers} onDone={onDone} onOpen={onOpen}/>)}
         </div>
       )}
     </>
   );
 }
 
-function Attribution2Card({ prospect: p, developers, onDone }) {
+function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
   const [devId, setDevId] = useState('');
   const [busy, setBusy] = useState(false);
   const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
@@ -339,30 +341,54 @@ function Attribution2Card({ prospect: p, developers, onDone }) {
     if (!devId) return;
     setBusy(true);
     try {
-      await prospectService.assignVisit(p.id, { developer_id: parseInt(devId) });
+      // id peut être "user_X" ou "reseau_X"
+      let payload;
+      if (devId.startsWith('user_')) {
+        payload = { developer_id: parseInt(devId.replace('user_', '')) };
+      } else {
+        const dev = developers.find(d => d.id === devId);
+        payload = { developer_nom: `${dev?.nom || ''} ${dev?.prenom || ''}`.trim() };
+      }
+      await prospectService.assignVisit(p.id, payload);
       onDone();
-    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
   };
 
   return (
     <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #f59e0b' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
             📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.fait_om ? '✅ OM avant' : '🆕 Nouveau'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
             Soumis le {new Date(p.submitted_at).toLocaleDateString('fr-FR')}
+            {p.type_local && ` · ${p.type_local}`}
           </div>
+          {p.notes && (
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, fontStyle: 'italic' }}>
+              📝 {p.notes.substring(0, 120)}{p.notes.length > 120 ? '…' : ''}
+            </div>
+          )}
         </div>
-        <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+          <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
+          <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>
+            🔍 Voir détails
+          </button>
+        </div>
       </div>
       <div className="action-bar" style={{ marginTop: 12 }}>
         <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
           <option value="">— Choisir un développeur —</option>
-          {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom || ''}{d.zone ? ` (${d.zone})` : ''}</option>)}
+          {developers.length === 0 && <option disabled>Aucun développeur disponible</option>}
+          {developers.map(d => (
+            <option key={d.id} value={d.id}>
+              {d.nom} {d.prenom || ''}{d.zone ? ` · ${d.zone}` : ''}{d.source === 'reseau' ? ' (Réseau)' : ''}
+            </option>
+          ))}
         </select>
         <button className="btn-primary" disabled={!devId || busy} onClick={submit}>
           <Send size={12}/> {busy ? 'Attribution…' : 'Affecter pour visite'}
