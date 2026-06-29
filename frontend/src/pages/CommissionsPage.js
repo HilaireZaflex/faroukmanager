@@ -609,7 +609,7 @@ function TabPalmares({ period }) {
             <div style={{ fontSize: 36, marginBottom: 8 }}>{medals[i]}</div>
             <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>{e.pdv_nom || e.pdv_numero}</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{e.pdv_numero} · {e.pdv_type}</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: medalColors[i] }}>{fmtM(getCommVal(e))}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: medalColors[i] }}>{fmt(getCommVal(e))}</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{commLabel}</div>
             <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 10, background: `rgba(0,0,0,0.3)`, padding: '2px 6px', borderRadius: 4 }}>#{i+1}</div>
           </div>
@@ -631,7 +631,7 @@ function TabPalmares({ period }) {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 700, color: '#f59e0b', fontSize: 13 }}>{r.count}/{allData.length} mois</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtM(r.total)} total</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmt(r.total)} total</div>
               </div>
             </div>
           ))}
@@ -650,7 +650,7 @@ function TabPalmares({ period }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontWeight: 800, color: 'var(--success)', fontSize: 14 }}>▲ {e.prog.toFixed(1)}%</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtM(getCommVal(e))}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmt(getCommVal(e))}</div>
                 </div>
               </div>
             ))
@@ -669,7 +669,7 @@ function TabPalmares({ period }) {
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{e.pdv_numero} · {e.pdv_type}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 800, color: commColor, fontSize: 13 }}>{fmtM(getCommVal(e))}</div>
+                  <div style={{ fontWeight: 800, color: commColor, fontSize: 13 }}>{fmt(getCommVal(e))}</div>
                 </div>
               </div>
             ))}
