@@ -8,6 +8,17 @@ import prospectService, { STATUS_LABELS } from '../services/prospectService';
 import useAuthStore from '../store/authStore';
 import './ProspectionPage.css';
 
+// Utilitaire d'extraction d'erreur robuste
+const errMsg = (e) => {
+  if (!e) return 'Erreur inconnue';
+  const d = e.response?.data;
+  if (typeof d === 'string') return d;
+  if (d?.detail) return typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail);
+  if (d?.message) return d.message;
+  if (e.message) return e.message;
+  return JSON.stringify(e);
+};
+
 // =============================================================================
 // PAGE PRINCIPALE
 // =============================================================================
@@ -101,7 +112,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       ]);
       setProspects(list); setStats(st);
     } catch (e) {
-      alert('Erreur : ' + (e.response?.data?.detail || e.message));
+      alert('Erreur : ' + (errMsg(e)));
     } finally { setLoading(false); }
   }, [filters]);
 
@@ -113,7 +124,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     e.stopPropagation();
     if (!window.confirm(`Supprimer définitivement la demande ${p.reference} (${p.prenom} ${p.nom}) ?`)) return;
     try { await prospectService.delete(p.id); reload(); }
-    catch (err) { alert('Erreur suppression : ' + (err.response?.data?.detail || err.message)); }
+    catch (err) { alert('Erreur suppression : ' + errMsg(err)); }
   };
 
   return (
@@ -221,17 +232,17 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
     try {
       const [list, devs] = await Promise.all([
         prospectService.list({ limit: 9999 }),
-        api.get('/auth/developers').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+        api.get('/auth/users').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
       ]);
       setProspects(list);
       setUsers(devs);
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
 
-  const developers = users.filter(u => u.role === 'developpeur');
+  const developers = users.filter(u => u.role === 'developpeur' || u.role === 'DEVELOPPEUR');
 
   // Filtres par étape
   const nouvelles = prospects.filter(p => p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV');
@@ -330,7 +341,7 @@ function Attribution2Card({ prospect: p, developers, onDone }) {
     try {
       await prospectService.assignVisit(p.id, { developer_id: parseInt(devId) });
       onDone();
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
   };
 
@@ -408,7 +419,7 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
         longitude: p.longitude,
       });
       onDone();
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
   };
 
@@ -486,7 +497,7 @@ function Validation4Card({ prospect: p, onDone, onOpen }) {
     try {
       await prospectService.rcDecision(p.id, { decision, comment });
       onDone();
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
   };
 
@@ -571,7 +582,7 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
         puce_numero: puceNumero,
       });
       onDone();
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
   };
 
@@ -612,7 +623,7 @@ function TabActivation({ currentUser, onRefresh }) {
     try {
       const list = await prospectService.list({ status: 'PUCE_ATTRIBUEE', limit: 9999 });
       setProspects(list);
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setLoading(false); }
   }, []);
 
@@ -676,7 +687,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         quartier_pdv: form.quartier_pdv || null,
       });
       onDone();
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
   };
 
@@ -831,7 +842,7 @@ function CreateProspectModal({ onClose, onSaved }) {
       await prospectService.create(payload);
       onSaved();
     } catch (err) {
-      alert('Erreur : ' + (err.response?.data?.detail || err.message));
+      alert('Erreur : ' + errMsg(err));
     } finally { setBusy(false); }
   };
 
@@ -947,7 +958,7 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
   const reload = useCallback(async () => {
     setLoading(true);
     try { setP(await prospectService.get(prospectId)); }
-    catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setLoading(false); }
   }, [prospectId]);
 
