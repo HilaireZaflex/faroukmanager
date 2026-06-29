@@ -230,13 +230,14 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [list, devs] = await Promise.all([
-        prospectService.list({ limit: 200 }),
-        api.get('/auth/developers').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
-      ]);
+      const list = await prospectService.list({ limit: 200 });
       setProspects(list);
-      setUsers(devs);
-    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
+      // /auth/developers est réservé au RC/admin — silencieux si 403
+      try {
+        const r = await api.get('/auth/developers');
+        setUsers(Array.isArray(r.data) ? r.data : []);
+      } catch (_) { setUsers([]); }
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setLoading(false); }
   }, []);
 
