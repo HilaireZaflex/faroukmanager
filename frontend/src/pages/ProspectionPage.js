@@ -19,6 +19,31 @@ const errMsg = (e) => {
   return JSON.stringify(e);
 };
 
+// Popup de succès entre étapes
+function SuccessModal({ title, message, next, onClose }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 480, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 64, marginBottom: 12 }}>✅</div>
+        <h2 style={{ color: 'var(--success)', marginBottom: 8 }}>{title}</h2>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>{message}</p>
+        {next && (
+          <div style={{
+            background: 'rgba(16,185,129,0.08)', borderLeft: '4px solid var(--success)',
+            borderRadius: 8, padding: '12px 16px', marginBottom: 20, textAlign: 'left',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)', marginBottom: 4 }}>➡️ Prochaine étape</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{next}</div>
+          </div>
+        )}
+        <button className="btn-primary" onClick={onClose} style={{ width: '100%', justifyContent: 'center' }}>
+          Compris !
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // =============================================================================
 // PAGE PRINCIPALE
 // =============================================================================
@@ -337,13 +362,13 @@ function Etape2Attribution({ prospects, developers, onDone, onOpen }) {
 function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
   const [devId, setDevId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
   const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
 
   const submit = async () => {
     if (!devId) return;
     setBusy(true);
     try {
-      // id peut être "user_X" ou "reseau_X"
       let payload;
       if (devId.startsWith('user_')) {
         payload = { developer_id: parseInt(devId.replace('user_', '')) };
@@ -352,51 +377,61 @@ function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
         payload = { developer_nom: `${dev?.nom || ''} ${dev?.prenom || ''}`.trim() };
       }
       await prospectService.assignVisit(p.id, payload);
-      onDone();
+      setSuccess(true);
     } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
   };
 
   return (
-    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #f59e0b' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-            📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.fait_om ? '✅ OM avant' : '🆕 Nouveau'}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-            Soumis le {new Date(p.submitted_at).toLocaleDateString('fr-FR')}
-            {p.type_local && ` · ${p.type_local}`}
-          </div>
-          {p.notes && (
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, fontStyle: 'italic' }}>
-              📝 {p.notes.substring(0, 120)}{p.notes.length > 120 ? '…' : ''}
+    <>
+      {success && (
+        <SuccessModal
+          title="Développeur affecté !"
+          message={`Le prospect ${p.reference} — ${p.prenom} ${p.nom} a bien été assigné pour visite terrain.`}
+          next="Le développeur doit maintenant effectuer la visite et donner sa décision (Étape 3 — Décision Dev)."
+          onClose={() => { setSuccess(false); onDone(); }}
+        />
+      )}
+      <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #f59e0b' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.fait_om ? '✅ OM avant' : '🆕 Nouveau'}
             </div>
-          )}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              Soumis le {new Date(p.submitted_at).toLocaleDateString('fr-FR')}
+              {p.type_local && ` · ${p.type_local}`}
+            </div>
+            {p.notes && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, fontStyle: 'italic' }}>
+                📝 {p.notes.substring(0, 120)}{p.notes.length > 120 ? '…' : ''}
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+            <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
+            <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>
+              🔍 Voir détails
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-          <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
-          <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>
-            🔍 Voir détails
+        <div className="action-bar" style={{ marginTop: 12 }}>
+          <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
+            <option value="">— Choisir un développeur —</option>
+            {developers.length === 0 && <option disabled>Aucun développeur disponible</option>}
+            {developers.map(d => (
+              <option key={d.id} value={d.id}>
+                {d.nom} {d.prenom || ''}{d.zone ? ` · ${d.zone}` : ''}{d.source === 'reseau' ? ' (Réseau)' : ''}
+              </option>
+            ))}
+          </select>
+          <button className="btn-primary" disabled={!devId || busy} onClick={submit}>
+            <Send size={12}/> {busy ? 'Attribution…' : 'Affecter pour visite'}
           </button>
         </div>
       </div>
-      <div className="action-bar" style={{ marginTop: 12 }}>
-        <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
-          <option value="">— Choisir un développeur —</option>
-          {developers.length === 0 && <option disabled>Aucun développeur disponible</option>}
-          {developers.map(d => (
-            <option key={d.id} value={d.id}>
-              {d.nom} {d.prenom || ''}{d.zone ? ` · ${d.zone}` : ''}{d.source === 'reseau' ? ' (Réseau)' : ''}
-            </option>
-          ))}
-        </select>
-        <button className="btn-primary" disabled={!devId || busy} onClick={submit}>
-          <Send size={12}/> {busy ? 'Attribution…' : 'Affecter pour visite'}
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -445,6 +480,8 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
     // Si le backend lui a déjà retourné ce prospect, c'est qu'il est assigné
     ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role);
 
+  const [success, setSuccess] = useState(null); // {approved: bool}
+
   const decide = async (approved) => {
     if (comment.trim().length < 3) { alert('Veuillez saisir un commentaire (min 3 caractères).'); return; }
     setBusy(true);
@@ -455,50 +492,64 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
         latitude: p.latitude,
         longitude: p.longitude,
       });
-      onDone();
+      setSuccess({ approved });
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
   };
 
   return (
-    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #0ea5e9' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-            📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
-          </div>
-          {p.visit_assigned_to && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-              👤 Assigné à : <b>{p.visit_assigned_to.nom} {p.visit_assigned_to.prenom || ''}</b>
+    <>
+      {success && (
+        <SuccessModal
+          title={success.approved ? '✅ Prospect validé !' : '❌ Prospect rejeté'}
+          message={success.approved
+            ? `Le prospect ${p.reference} — ${p.prenom} ${p.nom} a été validé après visite terrain.`
+            : `Le prospect ${p.reference} — ${p.prenom} ${p.nom} a été rejeté. Le motif a été enregistré.`}
+          next={success.approved
+            ? "Le Responsable Commercial va examiner ce prospect et donner sa validation finale (Étape 4 — Validation RC)."
+            : "Le Responsable Commercial sera notifié du rejet avec votre justification."}
+          onClose={() => { setSuccess(null); onDone(); }}
+        />
+      )}
+      <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #0ea5e9' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
             </div>
-          )}
-        </div>
-        <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
-      </div>
-      {canDecide && (
-        <>
-          <textarea
-            placeholder="Justification obligatoire (ex: lieu accessible, bon emplacement, zone concurrentielle…)"
-            value={comment} onChange={e => setComment(e.target.value)}
-            style={{ width: '100%', marginTop: 12, minHeight: 70, boxSizing: 'border-box' }}
-          />
-          <div className="action-bar" style={{ marginTop: 8 }}>
-            <button className="btn-success" disabled={busy || comment.trim().length < 3} onClick={() => decide(true)}>
-              <CheckCircle size={14}/> Valider le prospect
-            </button>
-            <button className="btn-danger" disabled={busy || comment.trim().length < 3} onClick={() => decide(false)}>
-              <XCircle size={14}/> Rejeter le prospect
-            </button>
+            {p.visit_assigned_to && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                👤 Assigné à : <b>{p.visit_assigned_to.nom} {p.visit_assigned_to.prenom || ''}</b>
+              </div>
+            )}
           </div>
-        </>
-      )}
-      {!canDecide && (
-        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          En attente de décision du développeur assigné.
+          <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
         </div>
-      )}
-    </div>
+        {canDecide && (
+          <>
+            <textarea
+              placeholder="Justification obligatoire (ex: lieu accessible, bon emplacement, zone concurrentielle…)"
+              value={comment} onChange={e => setComment(e.target.value)}
+              style={{ width: '100%', marginTop: 12, minHeight: 70, boxSizing: 'border-box' }}
+            />
+            <div className="action-bar" style={{ marginTop: 8 }}>
+              <button className="btn-success" disabled={busy || comment.trim().length < 3} onClick={() => decide(true)}>
+                <CheckCircle size={14}/> Valider le prospect
+              </button>
+              <button className="btn-danger" disabled={busy || comment.trim().length < 3} onClick={() => decide(false)}>
+                <XCircle size={14}/> Rejeter le prospect
+              </button>
+            </div>
+          </>
+        )}
+        {!canDecide && (
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            En attente de décision du développeur assigné.
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -527,14 +578,15 @@ function Etape4ValidationRC({ prospects, onDone, onOpen }) {
 function Validation4Card({ prospect: p, onDone, onOpen }) {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(null);
   const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
 
   const decide = async (decision) => {
     setBusy(true);
     try {
       await prospectService.rcDecision(p.id, { decision, comment });
-      onDone();
-    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
+      setSuccess({ decision });
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
   };
 

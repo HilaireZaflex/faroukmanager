@@ -437,11 +437,20 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Décision impossible : statut courant {p.status.value}",
         )
-    if current_user.role != UserRole.ADMIN and p.visit_assigned_to_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seul le développeur affecté peut décider de cette visite.",
+    if current_user.role != UserRole.ADMIN:
+        # Vérifier assignation par ID ou par nom dans les notes
+        nom = (current_user.nom or '').strip()
+        prenom = (current_user.prenom or '').strip()
+        assigned_by_id = p.visit_assigned_to_id == current_user.id
+        assigned_by_name = p.notes and (
+            f"{prenom} {nom}".upper() in (p.notes or '').upper() or
+            f"{nom} {prenom}".upper() in (p.notes or '').upper()
         )
+        if not assigned_by_id and not assigned_by_name:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Seul le développeur affecté peut décider de cette visite.",
+            )
 
     # Mise à jour GPS si fournis
     if payload.latitude is not None:
