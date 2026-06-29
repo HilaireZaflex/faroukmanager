@@ -1,56 +1,41 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Plus, RefreshCw, MapPin, Phone, User as UserIcon,
+  Plus, RefreshCw, MapPin, User as UserIcon,
   CheckCircle, XCircle, Clock, Send, AlertTriangle, Search,
-  List, Brain, ThumbsUp, TrendingUp, Copy,
-  Map, BarChart3, Package, Activity, Bell, Trophy, Shield
 } from 'lucide-react';
 import api from '../services/api';
 import prospectService, { STATUS_LABELS } from '../services/prospectService';
 import useAuthStore from '../store/authStore';
-import {
-  TabCarte, TabReporting, TabStock, TabPostActivation,
-  TabNotifications, TabGamification, TabAudit,
-} from './ProspectionTabs';
 import './ProspectionPage.css';
 
 // =============================================================================
-// PAGE PRINCIPALE - Module Prospection (puces Orange Money)
+// PAGE PRINCIPALE
 // =============================================================================
 export default function ProspectionPage() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('liste');
+  const [activeTab, setActiveTab] = useState('demandes');
   const [modalCreate, setModalCreate] = useState(false);
   const [modalDetail, setModalDetail] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
 
-  // Seuls admin et RC voient tous les onglets
-  const isAdminOrRC = user?.role === 'admin' || user?.role === 'rc' || user?.role === 'manager';
+  const isAdminOrRC = ['admin', 'rc', 'manager'].includes(user?.role);
+  const isDev = user?.role === 'developpeur' || isAdminOrRC;
 
   const allTabs = [
-    { id: 'liste',         label: '📋 Liste & Workflow',       adminOnly: false },
-    { id: 'ai',            label: '🤖 IA — Vue d\'ensemble',   adminOnly: true  },
-    { id: 'carte',         label: '🗺️ Carte & Géoloc',         adminOnly: true  },
-    { id: 'reporting',     label: '📊 Reporting & Analytics',  adminOnly: true  },
-    { id: 'stock',         label: '📦 Stock de Puces',         adminOnly: true  },
-    { id: 'postact',       label: '🎯 Suivi Post-Activation',  adminOnly: true  },
-    { id: 'notifications', label: '🔔 Notifications & Comm',   adminOnly: true  },
-    { id: 'gamification',  label: '🏆 Gamification',           adminOnly: true  },
-    { id: 'audit',         label: '🔐 Audit & Conformité',     adminOnly: true  },
+    { id: 'demandes',   label: '📋 Demandes',           show: true },
+    { id: 'workflow',   label: '🔄 Workflow',            show: isAdminOrRC || isDev },
+    { id: 'activation', label: '⚡ Activation',          show: true },
   ];
-
-  const tabs = allTabs.filter(t => !t.adminOnly || isAdminOrRC);
-
-  // Si l'onglet actif n'est plus visible (changement de rôle), revenir à liste
-  const safeTab = tabs.find(t => t.id === activeTab) ? activeTab : 'liste';
+  const tabs = allTabs.filter(t => t.show);
+  const safeTab = tabs.find(t => t.id === activeTab) ? activeTab : 'demandes';
 
   return (
     <div className="prospection-page">
       <div className="prospection-header">
         <h1>
-          <span>📋 Prospection — Demandes de puce OM</span>
-          <small>Workflow collaboratif Superviseur → Dev → RC → Activation · IA intégrée</small>
+          <span>📋 Prospection — Demandes de puce Orange Money</span>
+          <small>Workflow collaboratif en 6 étapes · Superviseur → Dev → RC → Activation</small>
         </h1>
         <div className="header-actions">
           <button className="btn-secondary" onClick={refresh}><RefreshCw size={14}/> Actualiser</button>
@@ -60,9 +45,9 @@ export default function ProspectionPage() {
         </div>
       </div>
 
-      {/* Onglets filtrés selon le rôle */}
+      {/* Onglets */}
       <div className="tabs-container mb-24">
-        {tabs.map((tab) => (
+        {tabs.map(tab => (
           <button key={tab.id}
             className={`tab-btn ${safeTab === tab.id ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.id)}>
@@ -72,22 +57,9 @@ export default function ProspectionPage() {
       </div>
 
       <div>
-        {safeTab === 'liste' && (
-          <TabListe key={refreshKey}
-            onOpen={(p) => setModalDetail(p)}
-            currentUser={user}
-          />
-        )}
-        {safeTab === 'ai' && (
-          <TabIA key={refreshKey} onOpen={(p) => setModalDetail(p)}/>
-        )}
-        {safeTab === 'carte'         && <TabCarte key={refreshKey} onOpen={(p) => setModalDetail(p)}/>}
-        {safeTab === 'reporting'     && <TabReporting key={refreshKey}/>}
-        {safeTab === 'stock'         && <TabStock key={refreshKey}/>}
-        {safeTab === 'postact'       && <TabPostActivation key={refreshKey}/>}
-        {safeTab === 'notifications' && <TabNotifications key={refreshKey}/>}
-        {safeTab === 'gamification'  && <TabGamification key={refreshKey}/>}
-        {safeTab === 'audit'         && <TabAudit key={refreshKey}/>}
+        {safeTab === 'demandes'   && <TabDemandes key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
+        {safeTab === 'workflow'   && <TabWorkflow key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
+        {safeTab === 'activation' && <TabActivation key={refreshKey} currentUser={user} onRefresh={refresh}/>}
       </div>
 
       {modalCreate && (
@@ -101,7 +73,7 @@ export default function ProspectionPage() {
           prospectId={modalDetail.id}
           currentUser={user}
           onClose={() => setModalDetail(null)}
-          onChanged={() => { refresh(); }}
+          onChanged={refresh}
         />
       )}
     </div>
@@ -109,15 +81,13 @@ export default function ProspectionPage() {
 }
 
 // =============================================================================
-// ONGLET 1 : Liste & Workflow (extrait du code initial)
+// ONGLET 1 : DEMANDES — Liste complète de toutes les demandes
 // =============================================================================
-function TabListe({ onOpen, currentUser }) {
+function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [prospects, setProspects] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({
-    status: '', search: '', assigned_to_me: false, submitted_by_me: false,
-  });
+  const [filters, setFilters] = useState({ status: '', search: '' });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -125,48 +95,682 @@ function TabListe({ onOpen, currentUser }) {
       const params = {};
       if (filters.status) params.status = filters.status;
       if (filters.search) params.search = filters.search;
-      if (filters.assigned_to_me) params.assigned_to_me = true;
-      if (filters.submitted_by_me) params.submitted_by_me = true;
       const [list, st] = await Promise.all([
         prospectService.list(params),
         prospectService.stats(),
       ]);
       setProspects(list); setStats(st);
     } catch (e) {
-      alert('Erreur de chargement : ' + (e.response?.data?.detail || e.message));
+      alert('Erreur : ' + (e.response?.data?.detail || e.message));
     } finally { setLoading(false); }
   }, [filters]);
 
   useEffect(() => { reload(); }, [reload]);
 
+  const canDelete = ['admin', 'manager', 'rc'].includes(currentUser?.role);
+
+  const handleDelete = async (e, p) => {
+    e.stopPropagation();
+    if (!window.confirm(`Supprimer définitivement la demande ${p.reference} (${p.prenom} ${p.nom}) ?`)) return;
+    try { await prospectService.delete(p.id); reload(); }
+    catch (err) { alert('Erreur suppression : ' + (err.response?.data?.detail || err.message)); }
+  };
+
   return (
     <>
-      {stats && <StatsBar stats={stats}/>}
-      <FiltersBar filters={filters} setFilters={setFilters}/>
-      <ProspectsTable loading={loading} prospects={prospects} onOpen={onOpen} currentUser={currentUser} onDeleted={reload}/>
+      {/* Légende étape */}
+      <StepLegend
+        step={1}
+        title="Saisie des demandes"
+        desc="Les superviseurs et développeurs soumettent les fiches de prospection. Le RC affectera ensuite chaque demande à un développeur pour visite terrain."
+        next="➡️ Prochaine étape : Le RC affecte les demandes aux développeurs (onglet Workflow)"
+        color="#0ea5e9"
+      />
+
+      {/* Stats */}
+      {stats && (
+        <div className="stats-grid" style={{ marginBottom: 16 }}>
+          <Stat label="Total" value={stats.total}/>
+          <Stat label="🆕 Nouvelles" value={stats.nouvelles}/>
+          <Stat label="🔍 En visite" value={stats.en_visite}/>
+          <Stat label="✅ Validées Dev" value={stats.en_attente_rc}/>
+          <Stat label="🟢 Approuvées RC" value={stats.puce_attribuees}/>
+          <Stat label="⚡ Activées" value={stats.activees} variant="ok"/>
+          <Stat label="🚫 Refusées" value={stats.refusees}/>
+          <Stat label="⚠️ SLA en retard" value={stats.sla_en_retard} variant="warn"/>
+          <Stat label="Taux activation" value={`${stats.taux_activation || 0}%`} variant="ok"/>
+        </div>
+      )}
+
+      {/* Filtres */}
+      <div className="filters">
+        <Search size={14} color="var(--text-muted)"/>
+        <input
+          placeholder="Rechercher (réf, nom, téléphone, quartier)..."
+          value={filters.search}
+          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+        />
+        <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
+          <option value="">— Tous statuts —</option>
+          {Object.entries(STATUS_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Table */}
+      {loading ? <div className="loading-state">Chargement…</div> : (
+        <div className="prospects-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Référence</th><th>Prospect</th><th>Téléphone</th>
+                <th>Quartier</th><th>OM avant</th><th>Statut</th>
+                <th>Soumis le</th>
+                {canDelete && <th>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {prospects.length === 0 ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>Aucune demande trouvée.</td></tr>
+              ) : prospects.map(p => {
+                const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
+                return (
+                  <tr key={p.id} onClick={() => onOpen(p)}>
+                    <td><b>{p.reference}</b></td>
+                    <td>{p.prenom} {p.nom}</td>
+                    <td>{p.telephone_principal}</td>
+                    <td>{p.quartier || '—'}</td>
+                    <td>{p.fait_om ? '✅ Oui' : '➖ Non'}</td>
+                    <td><span className="status-badge" style={{ background: st.color }}>{st.label}</span></td>
+                    <td>{new Date(p.submitted_at).toLocaleDateString('fr-FR')}</td>
+                    {canDelete && (
+                      <td onClick={e => e.stopPropagation()}>
+                        <button onClick={e => handleDelete(e, p)}
+                          style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>
+                          🗑️
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }
 
 // =============================================================================
-// SOUS-COMPOSANTS
+// ONGLET 2 : WORKFLOW — Étapes 2 → 3 → 4 → 5
 // =============================================================================
-function StatsBar({ stats }) {
+function TabWorkflow({ onOpen, currentUser, onRefresh }) {
+  const [prospects, setProspects] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [workflowStep, setWorkflowStep] = useState('etape2');
+
+  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
+  const isRC = currentUser?.role === 'rc' || isAdmin;
+  const isDev = currentUser?.role === 'developpeur' || isAdmin;
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [list, devs] = await Promise.all([
+        prospectService.list({ limit: 9999 }),
+        api.get('/auth/developers').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+      ]);
+      setProspects(list);
+      setUsers(devs);
+    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const developers = users.filter(u => u.role === 'developpeur');
+
+  // Filtres par étape
+  const nouvelles = prospects.filter(p => p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV');
+  const enVisite = prospects.filter(p => p.status === 'EN_VISITE');
+  const validesDev = prospects.filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC'].includes(p.status));
+  const approuveesRC = prospects.filter(p => p.status === 'APPROUVEE_RC');
+
+  const workflowTabs = [
+    { id: 'etape2', label: '📤 Étape 2 — Attribution visite', count: nouvelles.length, show: isRC },
+    { id: 'etape3', label: '🔍 Étape 3 — Décision Dev', count: enVisite.length, show: isDev },
+    { id: 'etape4', label: '👔 Étape 4 — Validation RC', count: validesDev.length, show: isRC },
+    { id: 'etape5', label: '📦 Étape 5 — Attribution activation', count: approuveesRC.length, show: isRC },
+  ].filter(t => t.show);
+
   return (
-    <div className="stats-grid">
-      <Stat label="Total" value={stats.total}/>
-      <Stat label="🆕 Nouvelles" value={stats.nouvelles}/>
-      <Stat label="🔍 En visite" value={stats.en_visite}/>
-      <Stat label="⏳ En attente RC" value={stats.en_attente_rc}/>
-      <Stat label="📦 Puce attribuée" value={stats.puce_attribuees}/>
-      <Stat label="⚡ Activées" value={stats.activees} variant="ok"/>
-      <Stat label="🚫 Refusées" value={stats.refusees}/>
-      <Stat label="⚠️ SLA en retard" value={stats.sla_en_retard} variant="warn"/>
-      <Stat label="Taux activation" value={`${stats.taux_activation || 0}%`} variant="ok"/>
-      <Stat label="Délai moyen" value={stats.delai_moyen_activation_h ? `${stats.delai_moyen_activation_h} h` : '—'}/>
+    <>
+      {/* Sous-menu étapes */}
+      <div className="subtabs-container mb-24">
+        {workflowTabs.map(t => (
+          <button key={t.id}
+            className={`subtab-btn ${workflowStep === t.id ? 'active' : ''}`}
+            onClick={() => setWorkflowStep(t.id)}>
+            {t.label}
+            {t.count > 0 && <span style={{ marginLeft: 6, background: 'var(--primary)', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>{t.count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {loading ? <div className="loading-state">Chargement…</div> : (
+        <>
+          {workflowStep === 'etape2' && (
+            <Etape2Attribution
+              prospects={nouvelles}
+              developers={developers}
+              onDone={reload}
+            />
+          )}
+          {workflowStep === 'etape3' && (
+            <Etape3DecisionDev
+              prospects={enVisite}
+              currentUser={currentUser}
+              onDone={reload}
+              onOpen={onOpen}
+            />
+          )}
+          {workflowStep === 'etape4' && (
+            <Etape4ValidationRC
+              prospects={validesDev}
+              onDone={reload}
+              onOpen={onOpen}
+            />
+          )}
+          {workflowStep === 'etape5' && (
+            <Etape5AttributionActivation
+              prospects={approuveesRC}
+              developers={developers}
+              onDone={reload}
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+// ── Étape 2 : RC affecte les demandes NOUVELLES aux développeurs ──────────────
+function Etape2Attribution({ prospects, developers, onDone }) {
+  return (
+    <>
+      <StepLegend
+        step={2}
+        title="Attribution aux développeurs pour visite terrain"
+        desc="Le Responsable Commercial affecte chaque nouvelle demande à un développeur qui devra se rendre sur le terrain pour valider ou rejeter le lieu."
+        next="➡️ Après attribution : le développeur effectue la visite et donne sa décision (Étape 3)"
+        color="#f59e0b"
+      />
+      {prospects.length === 0 ? (
+        <div className="empty-state">✅ Aucune demande en attente d'attribution.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {prospects.map(p => <Attribution2Card key={p.id} prospect={p} developers={developers} onDone={onDone}/>)}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Attribution2Card({ prospect: p, developers, onDone }) {
+  const [devId, setDevId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
+
+  const submit = async () => {
+    if (!devId) return;
+    setBusy(true);
+    try {
+      await prospectService.assignVisit(p.id, { developer_id: parseInt(devId) });
+      onDone();
+    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #f59e0b' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.fait_om ? '✅ OM avant' : '🆕 Nouveau'}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            Soumis le {new Date(p.submitted_at).toLocaleDateString('fr-FR')}
+          </div>
+        </div>
+        <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
+      </div>
+      <div className="action-bar" style={{ marginTop: 12 }}>
+        <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
+          <option value="">— Choisir un développeur —</option>
+          {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom || ''}{d.zone ? ` (${d.zone})` : ''}</option>)}
+        </select>
+        <button className="btn-primary" disabled={!devId || busy} onClick={submit}>
+          <Send size={12}/> {busy ? 'Attribution…' : 'Affecter pour visite'}
+        </button>
+      </div>
     </div>
   );
 }
+
+// ── Étape 3 : Développeurs valident ou rejettent après visite ─────────────────
+function Etape3DecisionDev({ prospects, currentUser, onDone, onOpen }) {
+  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
+
+  // Séparer les validées et refusées (historique) des en attente
+  const enAttente = prospects.filter(p =>
+    isAdmin || p.visit_assigned_to?.id === currentUser?.id
+  );
+
+  return (
+    <>
+      <StepLegend
+        step={3}
+        title="Décision du développeur après visite terrain"
+        desc="Le développeur visite le lieu et valide ou rejette la demande avec une justification obligatoire. Les décisions sont visibles par le RC."
+        next="➡️ Après décision : le RC reçoit la liste des prospects validés pour sa propre validation (Étape 4)"
+        color="#10b981"
+      />
+      {enAttente.length === 0 ? (
+        <div className="empty-state">✅ Aucune visite en attente de décision.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {enAttente.map(p => <Decision3Card key={p.id} prospect={p} currentUser={currentUser} onDone={onDone} onOpen={onOpen}/>)}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
+  const isAssigned = p.visit_assigned_to?.id === currentUser?.id;
+  const canDecide = isAdmin || isAssigned;
+
+  const decide = async (approved) => {
+    if (comment.trim().length < 3) { alert('Veuillez saisir un commentaire (min 3 caractères).'); return; }
+    setBusy(true);
+    try {
+      await prospectService.devDecision(p.id, {
+        approved,
+        comment,
+        latitude: p.latitude,
+        longitude: p.longitude,
+      });
+      onDone();
+    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #0ea5e9' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
+          </div>
+          {p.visit_assigned_to && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              👤 Assigné à : <b>{p.visit_assigned_to.nom} {p.visit_assigned_to.prenom || ''}</b>
+            </div>
+          )}
+        </div>
+        <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
+      </div>
+      {canDecide && (
+        <>
+          <textarea
+            placeholder="Justification obligatoire (ex: lieu accessible, bon emplacement, zone concurrentielle…)"
+            value={comment} onChange={e => setComment(e.target.value)}
+            style={{ width: '100%', marginTop: 12, minHeight: 70, boxSizing: 'border-box' }}
+          />
+          <div className="action-bar" style={{ marginTop: 8 }}>
+            <button className="btn-success" disabled={busy || comment.trim().length < 3} onClick={() => decide(true)}>
+              <CheckCircle size={14}/> Valider le prospect
+            </button>
+            <button className="btn-danger" disabled={busy || comment.trim().length < 3} onClick={() => decide(false)}>
+              <XCircle size={14}/> Rejeter le prospect
+            </button>
+          </div>
+        </>
+      )}
+      {!canDecide && (
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          En attente de décision du développeur assigné.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Étape 4 : RC valide ou refuse les prospects validés par les devs ──────────
+function Etape4ValidationRC({ prospects, onDone, onOpen }) {
+  return (
+    <>
+      <StepLegend
+        step={4}
+        title="Validation finale par le Responsable Commercial"
+        desc="Le RC examine les prospects validés par les développeurs et sélectionne les meilleurs pour activation. Seuls les prospects approuvés ici passeront à l'étape d'activation."
+        next="➡️ Après validation RC : les prospects approuvés sont affectés pour activation (Étape 5)"
+        color="#6366f1"
+      />
+      {prospects.length === 0 ? (
+        <div className="empty-state">✅ Aucun prospect en attente de validation RC.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {prospects.map(p => <Validation4Card key={p.id} prospect={p} onDone={onDone} onOpen={onOpen}/>)}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Validation4Card({ prospect: p, onDone, onOpen }) {
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState(false);
+  const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
+
+  const decide = async (decision) => {
+    setBusy(true);
+    try {
+      await prospectService.rcDecision(p.id, { decision, comment });
+      onDone();
+    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    finally { setBusy(false); }
+  };
+
+  // Récupérer la dernière décision du dev depuis l'historique
+  const devComment = p.history?.find(h => h.decision_type === 'DEV_DECISION')?.comment || '—';
+
+  return (
+    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #6366f1' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.type_local || '—'}
+          </div>
+          {p.visit_assigned_to && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              👤 Visité par : <b>{p.visit_assigned_to.nom} {p.visit_assigned_to.prenom || ''}</b>
+            </div>
+          )}
+          <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: 6, fontSize: 12, borderLeft: '3px solid #10b981' }}>
+            💬 <b>Avis du développeur :</b> {devComment}
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+          <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
+          <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
+        </div>
+      </div>
+      <textarea
+        placeholder="Commentaire RC (optionnel)..."
+        value={comment} onChange={e => setComment(e.target.value)}
+        style={{ width: '100%', marginTop: 12, minHeight: 60, boxSizing: 'border-box' }}
+      />
+      <div className="action-bar" style={{ marginTop: 8 }}>
+        <button className="btn-success" disabled={busy} onClick={() => decide('approve')}>
+          <CheckCircle size={14}/> Approuver
+        </button>
+        <button className="btn-secondary" disabled={busy} onClick={() => decide('hold')}>
+          <Clock size={14}/> Mettre en attente
+        </button>
+        <button className="btn-danger" disabled={busy} onClick={() => decide('reject')}>
+          <XCircle size={14}/> Refuser
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Étape 5 : RC affecte les prospects approuvés à des devs pour activation ───
+function Etape5AttributionActivation({ prospects, developers, onDone }) {
+  return (
+    <>
+      <StepLegend
+        step={5}
+        title="Attribution des prospects approuvés pour activation"
+        desc="Le RC affecte chaque prospect approuvé à un développeur qui ira activer la puce sur le terrain. Un numéro de puce doit être attribué."
+        next="➡️ Prochaine étape : Le développeur active la puce et renseigne les informations du PDV (onglet Activation)"
+        color="#22c55e"
+      />
+      {prospects.length === 0 ? (
+        <div className="empty-state">✅ Aucun prospect approuvé en attente d'attribution d'activation.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {prospects.map(p => <Attribution5Card key={p.id} prospect={p} developers={developers} onDone={onDone}/>)}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Attribution5Card({ prospect: p, developers, onDone }) {
+  const [devId, setDevId] = useState('');
+  const [puceNumero, setPuceNumero] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!devId || !puceNumero) { alert('Veuillez sélectionner un développeur et saisir un numéro de puce.'); return; }
+    setBusy(true);
+    try {
+      await prospectService.assignPuce(p.id, {
+        activator_id: parseInt(devId),
+        puce_numero: puceNumero,
+      });
+      onDone();
+    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #22c55e' }}>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.reference} — {p.prenom} {p.nom}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+        📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
+      </div>
+      <div className="action-bar">
+        <input
+          placeholder="N° de puce OM"
+          value={puceNumero} onChange={e => setPuceNumero(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
+          <option value="">— Développeur activateur —</option>
+          {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom || ''}{d.zone ? ` (${d.zone})` : ''}</option>)}
+        </select>
+        <button className="btn-primary" disabled={!devId || !puceNumero || busy} onClick={submit}>
+          <Send size={12}/> {busy ? 'Attribution…' : 'Attribuer'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// ONGLET 3 : ACTIVATION — Étape 6
+// =============================================================================
+function TabActivation({ currentUser, onRefresh }) {
+  const [prospects, setProspects] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await prospectService.list({ status: 'PUCE_ATTRIBUEE', limit: 9999 });
+      setProspects(list);
+    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  // Filtrer selon le rôle
+  const visible = isAdmin
+    ? prospects
+    : prospects.filter(p => p.puce_assigned_to?.id === currentUser?.id);
+
+  return (
+    <>
+      <StepLegend
+        step={6}
+        title="Activation de la puce & création automatique du PDV"
+        desc="Le développeur se rend sur le terrain, active la puce et renseigne toutes les informations du point de vente : gestionnaire, superviseur, téléconseillère, zone, sous-zone et quartier. Le PDV est créé automatiquement dans le menu Points de Vente."
+        next="✅ Fin du processus : le PDV est créé et visible dans le menu Points de Vente."
+        color="#f97316"
+      />
+      {loading ? <div className="loading-state">Chargement…</div> :
+        visible.length === 0 ? (
+          <div className="empty-state">✅ Aucune puce en attente d'activation.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {visible.map(p => <ActivationCard key={p.id} prospect={p} currentUser={currentUser} onDone={reload}/>)}
+          </div>
+        )
+      }
+    </>
+  );
+}
+
+function ActivationCard({ prospect: p, currentUser, onDone }) {
+  const [form, setForm] = useState({
+    gestionnaire: '',
+    superviseur: '',
+    teleconseillere: '',
+    zone: '',
+    sous_zone: '',
+    quartier_pdv: p.quartier || '',
+    comment: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = async () => {
+    if (!form.gestionnaire || !form.superviseur || !form.zone) {
+      alert('Veuillez renseigner au minimum le gestionnaire, le superviseur et la zone.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await prospectService.activate(p.id, {
+        create_pdv: true,
+        comment: form.comment || 'Puce activée sur le terrain',
+        gestionnaire: form.gestionnaire,
+        superviseur: form.superviseur,
+        teleconseillere: form.teleconseillere || null,
+        zone: form.zone,
+        sous_zone: form.sous_zone || null,
+        quartier_pdv: form.quartier_pdv || null,
+      });
+      onDone();
+    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20, borderLeft: '4px solid #f97316' }}>
+      {/* En-tête prospect */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 16 }}>{p.reference} — {p.prenom} {p.nom}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+          📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · 🔑 Puce : <b>{p.puce_numero}</b>
+        </div>
+        {p.puce_assigned_to && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            👤 Dev activateur : <b>{p.puce_assigned_to.nom} {p.puce_assigned_to.prenom || ''}</b>
+          </div>
+        )}
+      </div>
+
+      {/* Formulaire attribution PDV */}
+      <div style={{ background: 'rgba(249,115,22,0.06)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#f97316', marginBottom: 10 }}>
+          📋 Informations du Point de Vente (obligatoires pour créer le PDV)
+        </div>
+        <div className="form-grid">
+          <label>Gestionnaire *
+            <input value={form.gestionnaire} onChange={e => set('gestionnaire', e.target.value)}
+              placeholder="Nom du gestionnaire"/>
+          </label>
+          <label>Superviseur *
+            <input value={form.superviseur} onChange={e => set('superviseur', e.target.value)}
+              placeholder="Nom du superviseur"/>
+          </label>
+          <label>Téléconseillère
+            <input value={form.teleconseillere} onChange={e => set('teleconseillere', e.target.value)}
+              placeholder="Nom de la téléconseillère"/>
+          </label>
+          <label>Zone *
+            <input value={form.zone} onChange={e => set('zone', e.target.value)}
+              placeholder="Ex: Zone Nord"/>
+          </label>
+          <label>Sous-zone
+            <input value={form.sous_zone} onChange={e => set('sous_zone', e.target.value)}
+              placeholder="Ex: Sous-zone Banconi"/>
+          </label>
+          <label>Quartier PDV
+            <input value={form.quartier_pdv} onChange={e => set('quartier_pdv', e.target.value)}
+              placeholder="Quartier du PDV"/>
+          </label>
+          <label className="full">Commentaire d'activation
+            <input value={form.comment} onChange={e => set('comment', e.target.value)}
+              placeholder="Observation terrain (optionnel)"/>
+          </label>
+        </div>
+      </div>
+
+      <button className="btn-primary" disabled={busy} onClick={submit}
+        style={{ width: '100%', justifyContent: 'center', padding: '10px 0', fontSize: 14, fontWeight: 700 }}>
+        <CheckCircle size={16}/> {busy ? 'Activation en cours…' : '⚡ Confirmer l\'activation & créer le PDV'}
+      </button>
+    </div>
+  );
+}
+
+// =============================================================================
+// COMPOSANTS PARTAGÉS
+// =============================================================================
+
+function StepLegend({ step, title, desc, next, color }) {
+  return (
+    <div style={{
+      background: `rgba(${hexToRgb(color)}, 0.07)`,
+      borderLeft: `4px solid ${color}`,
+      borderRadius: 8, padding: '14px 18px', marginBottom: 20,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <span style={{
+          background: color, color: '#fff', borderRadius: '50%',
+          width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontWeight: 800, fontSize: 13, flexShrink: 0,
+        }}>{step}</span>
+        <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>{title}</span>
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>{desc}</div>
+      <div style={{ fontSize: 12, color, fontWeight: 600 }}>{next}</div>
+    </div>
+  );
+}
+
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return '100,100,100';
+  return `${parseInt(result[1], 16)},${parseInt(result[2], 16)},${parseInt(result[3], 16)}`;
+}
+
 function Stat({ label, value, variant }) {
   return (
     <div className={`stat-card ${variant || ''}`}>
@@ -174,114 +778,6 @@ function Stat({ label, value, variant }) {
       <div className="stat-value">{value}</div>
     </div>
   );
-}
-
-function FiltersBar({ filters, setFilters }) {
-  return (
-    <div className="filters">
-      <Search size={14} color="var(--text-muted)"/>
-      <input
-        placeholder="Rechercher (réf, nom, téléphone, quartier)..."
-        value={filters.search}
-        onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-      />
-      <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-        <option value="">— Tous statuts —</option>
-        {Object.entries(STATUS_LABELS).map(([k, v]) => (
-          <option key={k} value={k}>{v.label}</option>
-        ))}
-      </select>
-      <label>
-        <input type="checkbox" checked={filters.assigned_to_me}
-          onChange={e => setFilters(f => ({ ...f, assigned_to_me: e.target.checked }))}/>
-        Affectés à moi
-      </label>
-      <label>
-        <input type="checkbox" checked={filters.submitted_by_me}
-          onChange={e => setFilters(f => ({ ...f, submitted_by_me: e.target.checked }))}/>
-        Mes soumissions
-      </label>
-    </div>
-  );
-}
-
-function ProspectsTable({ loading, prospects, onOpen, currentUser, onDeleted }) {
-  if (loading) return <div className="loading-state">Chargement…</div>;
-  if (!prospects.length) return (
-    <div className="empty-state">Aucun prospect trouvé.</div>
-  );
-  const now = new Date();
-  const canDelete = ['admin','manager','rc'].includes(currentUser?.role);
-
-  const handleDelete = async (e, p) => {
-    e.stopPropagation();
-    if (!window.confirm(`Supprimer définitivement la demande ${p.reference} (${p.prenom} ${p.nom}) ?`)) return;
-    try {
-      await prospectService.delete(p.id);
-      onDeleted && onDeleted();
-    } catch (err) {
-      alert('Erreur suppression : ' + (err.response?.data?.detail || err.message));
-    }
-  };
-
-  return (
-    <div className="prospects-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Référence</th><th>Prospect</th><th>Téléphone</th>
-            <th>Quartier</th><th>OM</th><th>Statut</th>
-            <th>SLA</th><th>Soumis le</th>
-            {canDelete && <th>Actions</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {prospects.map(p => {
-            const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
-            const sla = nextSLA(p);
-            const late = sla && new Date(sla) < now;
-            return (
-              <tr key={p.id} onClick={() => onOpen(p)}>
-                <td><b>{p.reference}</b></td>
-                <td>{p.prenom} {p.nom}</td>
-                <td>{p.telephone_principal}</td>
-                <td>{p.quartier || '—'}</td>
-                <td>{p.fait_om ? '✅ Oui' : '➖ Non'}</td>
-                <td>
-                  <span className="status-badge" style={{ background: st.color }}>
-                    {st.label}
-                  </span>
-                </td>
-                <td className={late ? 'sla-warn' : ''}>
-                  {sla ? new Date(sla).toLocaleString('fr-FR', { dateStyle:'short', timeStyle:'short' }) : '—'}
-                  {late && <AlertTriangle size={12} style={{ marginLeft:4 }}/>}
-                </td>
-                <td>{new Date(p.submitted_at).toLocaleDateString('fr-FR')}</td>
-                {canDelete && (
-                  <td onClick={e => e.stopPropagation()}>
-                    <button
-                      onClick={e => handleDelete(e, p)}
-                      style={{ background:'#ef4444', color:'#fff', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:12 }}
-                      title="Supprimer définitivement"
-                    >
-                      🗑️
-                    </button>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function nextSLA(p) {
-  if (p.status === 'EN_VISITE') return p.sla_visit_due_at;
-  if (['VALIDEE_DEV','EN_ATTENTE_RC'].includes(p.status)) return p.sla_rc_due_at;
-  if (p.status === 'PUCE_ATTRIBUEE') return p.sla_activation_due_at;
-  return null;
 }
 
 // =============================================================================
@@ -303,7 +799,6 @@ function CreateProspectModal({ onClose, onSaved }) {
     notes: '',
   });
   const [busy, setBusy] = useState(false);
-
   const set = (k, v) => setData(d => ({ ...d, [k]: v }));
 
   const captureGPS = () => {
@@ -320,7 +815,6 @@ function CreateProspectModal({ onClose, onSaved }) {
     setBusy(true);
     try {
       const payload = { ...data };
-      // nettoyer les vides / convertir nombres
       ['om_commission_mensuelle','om_ca_mensuel','capital_demarrage','latitude','longitude'].forEach(k => {
         payload[k] = payload[k] === '' ? null : parseFloat(payload[k]);
       });
@@ -334,7 +828,6 @@ function CreateProspectModal({ onClose, onSaved }) {
       if (typeof payload.concurrents === 'string' && payload.concurrents.trim()) {
         payload.concurrents = payload.concurrents.split(',').map(s => s.trim()).filter(Boolean);
       } else payload.concurrents = null;
-
       await prospectService.create(payload);
       onSaved();
     } catch (err) {
@@ -347,7 +840,6 @@ function CreateProspectModal({ onClose, onSaved }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h2>🆕 Nouvelle demande de puce Orange Money</h2>
         <form onSubmit={submit}>
-
           <div className="modal-section">
             <h3><UserIcon size={12}/> Informations personnelles</h3>
             <div className="form-grid">
@@ -395,17 +887,12 @@ function CreateProspectModal({ onClose, onSaved }) {
           <div className="modal-section">
             <h3><MapPin size={12}/> Localisation du futur PDV</h3>
             <div className="form-grid">
-              <label>Latitude
-                <input type="number" step="any" value={data.latitude} onChange={e => set('latitude', e.target.value)}/>
-              </label>
-              <label>Longitude
-                <input type="number" step="any" value={data.longitude} onChange={e => set('longitude', e.target.value)}/>
-              </label>
+              <label>Latitude<input type="number" step="any" value={data.latitude} onChange={e => set('latitude', e.target.value)}/></label>
+              <label>Longitude<input type="number" step="any" value={data.longitude} onChange={e => set('longitude', e.target.value)}/></label>
               <div className="full">
                 <button type="button" className="btn-secondary" onClick={captureGPS}>
                   <MapPin size={12}/> Capturer ma position GPS
                 </button>
-                <small style={{ marginLeft:8, color:'var(--text-muted)' }}>(Obligatoire pour valider la fiche)</small>
               </div>
               <label>Nom du lieu<input value={data.pdv_nom_lieu} onChange={e => set('pdv_nom_lieu', e.target.value)}/></label>
               <label>Adresse précise<input value={data.pdv_adresse} onChange={e => set('pdv_adresse', e.target.value)}/></label>
@@ -451,60 +938,30 @@ function CreateProspectModal({ onClose, onSaved }) {
 }
 
 // =============================================================================
-// MODAL : Détail + actions workflow
+// MODAL : Détail prospect
 // =============================================================================
 function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
   const [p, setP] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState([]);
-  const [aiReco, setAiReco] = useState(null);
-  const [aiForecast, setAiForecast] = useState(null);
-  const [aiDups, setAiDups] = useState([]);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    try {
-      const data = await prospectService.get(prospectId);
-      setP(data);
-      // Charger les insights IA en parallèle (best-effort)
-      Promise.all([
-        prospectService.aiRecommendation(prospectId).catch(() => null),
-        prospectService.aiForecast(prospectId).catch(() => null),
-        prospectService.aiDuplicates(prospectId).catch(() => []),
-      ]).then(([r, f, d]) => { setAiReco(r); setAiForecast(f); setAiDups(d); });
-    } catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
+    try { setP(await prospectService.get(prospectId)); }
+    catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
     finally { setLoading(false); }
   }, [prospectId]);
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Charger la liste des développeurs dès l'ouverture du modal
-  useEffect(() => {
-    api.get('/auth/developers')
-      .then(r => { setUsers(Array.isArray(r.data) ? r.data : []); })
-      .catch(() => setUsers([]));
-  }, [prospectId]);
-
-  if (loading || !p) {
-    return (
-      <div className="modal-backdrop" onClick={onClose}>
-        <div className="modal" onClick={e => e.stopPropagation()}>
-          <div className="loading-state" style={{ background:'transparent', border:'none' }}>Chargement…</div>
-        </div>
+  if (loading || !p) return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="loading-state">Chargement…</div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  const status = p.status;
-  const role = currentUser?.role;
-  const developers = users.filter(u => u.role === 'developpeur');
-  const isAdmin = ['admin','manager'].includes(role);
-  const isRC = role === 'rc' || isAdmin;
-  const isSup = role === 'superviseur' || isAdmin;
-  const isDev = role === 'developpeur' || isAdmin;
-  const st = STATUS_LABELS[status] || { label: status, color:'#94a3b8' };
-
-  const refresh = () => { reload(); onChanged?.(); };
+  const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -517,118 +974,21 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
         <div className="modal-section">
           <h3>👤 Informations</h3>
           <div className="form-grid">
-            <div><b>Téléphone</b>📞 {p.telephone_principal} {p.telephone_secondaire && `/ ${p.telephone_secondaire}`}</div>
-            <div><b>Quartier</b>{p.quartier || '—'}</div>
-            <div><b>OM avant</b>{p.fait_om ? `Oui (CA ${p.om_ca_mensuel || '?'} F)` : `Non (Capital ${p.capital_demarrage || '?'} F)`}</div>
-            <div><b>GPS</b>{p.latitude ? `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}` : <span style={{ color:'var(--danger)' }}>⚠ manquant</span>}</div>
-            <div><b>Soumis par</b>{p.submitted_by ? `${p.submitted_by.nom} ${p.submitted_by.prenom||''}` : '—'}</div>
-            <div><b>Tentatives visite</b>{p.visit_attempts}</div>
-            <div className="full"><b>Type local / Fréquentation</b>
-              {p.type_local || '—'} · {p.frequentation || '—'}
-              {p.concurrents?.length ? ` · Concurrents: ${p.concurrents.join(', ')}` : ''}
-            </div>
+            <div><b>Téléphone</b> {p.telephone_principal} {p.telephone_secondaire && `/ ${p.telephone_secondaire}`}</div>
+            <div><b>Quartier</b> {p.quartier || '—'}</div>
+            <div><b>OM avant</b> {p.fait_om ? `Oui (CA ${p.om_ca_mensuel || '?'} F)` : `Non (Capital ${p.capital_demarrage || '?'} F)`}</div>
+            <div><b>GPS</b> {p.latitude ? `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}` : <span style={{ color:'var(--danger)' }}>⚠ manquant</span>}</div>
+            <div><b>Soumis par</b> {p.submitted_by ? `${p.submitted_by.nom} ${p.submitted_by.prenom||''}` : '—'}</div>
+            <div><b>Tentatives visite</b> {p.visit_attempts}</div>
+            <div className="full"><b>Type local / Fréquentation</b> {p.type_local || '—'} · {p.frequentation || '—'}</div>
           </div>
         </div>
 
-        {/* ── Insights IA ──────────────────────────────────────────── */}
-        {aiReco && (
-          <div className="modal-section" style={{ borderLeft:`3px solid ${aiReco.color}` }}>
-            <h3>🤖 Insights IA</h3>
-            <div style={{ display:'flex', gap:14, alignItems:'center', marginBottom:10 }}>
-              <div style={{
-                width:70, height:70, borderRadius:'50%',
-                background:`conic-gradient(${aiReco.color} ${aiReco.score * 3.6}deg, rgba(255,255,255,0.06) 0)`,
-                display:'flex', alignItems:'center', justifyContent:'center',
-              }}>
-                <div style={{
-                  width:54, height:54, borderRadius:'50%', background:'#14141f',
-                  display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                }}>
-                  <div style={{ fontSize:18, fontWeight:800, color:aiReco.color }}>{aiReco.score}</div>
-                  <div style={{ fontSize:9, color:'var(--text-muted)' }}>/100</div>
-                </div>
-              </div>
-              <div style={{ flex:1 }}>
-                <span className="status-badge" style={{ background: aiReco.color }}>
-                  {aiReco.decision === 'GO' ? '🟢 GO recommandé' :
-                   aiReco.decision === 'NO_GO' ? '🔴 NO-GO recommandé' :
-                   '🟡 Investigation nécessaire'}
-                </span>
-                <div style={{ fontSize:13, color:'var(--text-secondary)', marginTop:6 }}>{aiReco.message}</div>
-              </div>
-            </div>
-
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-              <div>
-                <b style={{ fontSize:11, color:'var(--text-muted)', textTransform:'uppercase' }}>✨ Forces</b>
-                {aiReco.strengths.map((f, i) => (
-                  <div key={i} style={{ fontSize:12, color:'var(--text-primary)', marginTop:4 }}>
-                    • {f.reason} <span style={{ color:'var(--success)' }}>(+{f.points}/{f.max})</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <b style={{ fontSize:11, color:'var(--text-muted)', textTransform:'uppercase' }}>⚠️ Faiblesses</b>
-                {aiReco.weaknesses.map((f, i) => (
-                  <div key={i} style={{ fontSize:12, color:'var(--text-primary)', marginTop:4 }}>
-                    • {f.reason} <span style={{ color:'var(--warning)' }}>({f.points}/{f.max})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {aiForecast && (
-              <div style={{ marginTop:12, paddingTop:10, borderTop:'1px solid var(--border)' }}>
-                <b style={{ fontSize:11, color:'var(--text-muted)', textTransform:'uppercase' }}>📈 Projection CA 3 mois</b>
-                <div style={{ display:'flex', gap:8, marginTop:6 }}>
-                  {aiForecast.forecast.map(f => (
-                    <div key={f.month} style={{ flex:1, padding:8, background:'rgba(255,255,255,0.03)', borderRadius:6, textAlign:'center' }}>
-                      <div style={{ fontSize:10, color:'var(--text-muted)' }}>Mois {f.month}</div>
-                      <div style={{ fontSize:14, fontWeight:700, color:'var(--success)' }}>
-                        {(f.ca / 1000).toLocaleString('en-US').replace(/,/g, ' ')} kF
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:6 }}>
-                  Total 3M projeté : <b style={{ color:'var(--success)' }}>{aiForecast.ca_total_3m.toLocaleString('en-US').replace(/,/g, ' ')} F</b> · Confiance : {aiForecast.confidence}
-                </div>
-              </div>
-            )}
-
-            {aiDups.length > 0 && (
-              <div style={{ marginTop:12, paddingTop:10, borderTop:'1px solid var(--border)' }}>
-                <b style={{ fontSize:11, color:'var(--danger)', textTransform:'uppercase' }}>
-                  ⚠ {aiDups.length} doublon(s) potentiel(s) détecté(s)
-                </b>
-                {aiDups.slice(0, 3).map(m => (
-                  <div key={m.id} style={{ fontSize:12, color:'var(--text-primary)', marginTop:4 }}>
-                    • <b>{m.prenom} {m.nom}</b> ({m.reference}) — {m.match_score}% — {m.reasons[0]}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Actions selon statut + rôle ──────────────────────────── */}
-        <div className="modal-section">
-          <h3>⚙️ Actions disponibles</h3>
-          <ActionPanel
-            prospect={p}
-            developers={developers}
-            isAdmin={isAdmin} isRC={isRC} isSup={isSup} isDev={isDev}
-            currentUser={currentUser}
-            onDone={refresh}
-          />
-        </div>
-
-        {/* ── Historique ─────────────────────────────────────────── */}
         <div className="modal-section">
           <h3>📜 Historique ({p.history?.length || 0})</h3>
           {(p.history || []).map(h => (
             <div key={h.id} className="history-item">
-              <div className="when">{new Date(h.created_at).toLocaleString('en-US').replace(/,/g, ' ')}</div>
+              <div className="when">{new Date(h.created_at).toLocaleString('fr-FR')}</div>
               <div className="what">{h.decision_type} · {h.from_status || '—'} → {h.to_status || '—'}</div>
               {h.comment && <div style={{ fontSize:13, color:'var(--text-secondary)', marginTop:4, fontStyle:'italic' }}>« {h.comment} »</div>}
               <div className="who">par {h.user ? `${h.user.nom} ${h.user.prenom||''}` : 'système'}</div>
@@ -641,501 +1001,5 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function ActionPanel({ prospect: p, developers, isAdmin, isRC, isSup, isDev, currentUser, onDone }) {
-  const [busy, setBusy] = useState(false);
-  const wrap = async (fn) => {
-    setBusy(true);
-    try { await fn(); onDone(); }
-    catch (e) { alert('Erreur : ' + (e.response?.data?.detail || e.message)); }
-    finally { setBusy(false); }
-  };
-
-  // ── ASSIGN VISIT (RC et Admin uniquement — pas les superviseurs ni développeurs) ───────
-  const [devId, setDevId] = useState('');
-  const canAssign = (p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV') && (isRC || isAdmin);
-
-  // ── DEV DECISION ─────────────────────
-  const [devApproved, setDevApproved] = useState(true);
-  const [devComment, setDevComment] = useState('');
-  const canDevDecide = p.status === 'EN_VISITE' && isDev &&
-    (currentUser?.role === 'admin' || p.visit_assigned_to?.id === currentUser?.id);
-
-  const captureAndDecide = (approved) => {
-    if (approved && (!p.latitude || !p.longitude)) {
-      // Forcer la capture GPS lors de la validation
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          await wrap(() => prospectService.devDecision(p.id, {
-            approved, comment: devComment || (approved ? 'Validé après visite' : 'Refusé'),
-            latitude: pos.coords.latitude, longitude: pos.coords.longitude,
-          }));
-        },
-        () => alert('Géolocalisation obligatoire pour valider.')
-      );
-    } else {
-      wrap(() => prospectService.devDecision(p.id, {
-        approved, comment: devComment || (approved ? 'Validé après visite' : 'Refusé'),
-      }));
-    }
-  };
-
-  // ── RC DECISION ─────────────────────
-  const [rcComment, setRcComment] = useState('');
-  const canRC = ['VALIDEE_DEV','EN_ATTENTE_RC'].includes(p.status) && isRC;
-
-  // ── ASSIGN PUCE ─────────────────────
-  const [activatorId, setActivatorId] = useState('');
-  const [puceNumero, setPuceNumero] = useState('');
-  const canAssignPuce = p.status === 'APPROUVEE_RC' && isRC;
-
-  // ── ACTIVATE ──────────────────────
-  const canActivate = p.status === 'PUCE_ATTRIBUEE' && isDev &&
-    (currentUser?.role === 'admin' || p.puce_assigned_to?.id === currentUser?.id);
-
-  // ── CANCEL ──────────────────────
-  const canCancel = !['PUCE_ACTIVEE','REFUSEE_RC','ANNULEE'].includes(p.status);
-
-  return (
-    <div>
-      {canAssign && (
-        <div style={{ marginBottom:14 }}>
-          <b style={{ color:'var(--text-primary)', fontSize:13 }}>📤 Affecter à un développeur :</b>
-          <div className="action-bar">
-            <select value={devId} onChange={e => setDevId(e.target.value)}>
-              <option value="">— choisir un développeur —</option>
-              {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom||''}{d.zone ? ` (${d.zone})` : ''}</option>)}
-            </select>
-            <button className="btn-primary" disabled={!devId || busy}
-              onClick={() => {
-                const payload = devId.toString().startsWith('reseau_')
-                  ? { developer_nom: developers.find(d => d.id === devId)?.nom + ' ' + (developers.find(d => d.id === devId)?.prenom || '') }
-                  : { developer_id: parseInt(devId) };
-                wrap(() => prospectService.assignVisit(p.id, payload));
-              }}>
-              <Send size={12}/> Affecter
-            </button>
-          </div>
-        </div>
-      )}
-
-      {canDevDecide && (
-        <div style={{ marginBottom:14 }}>
-          <b style={{ color:'var(--text-primary)', fontSize:13 }}>🔍 Ma décision après visite :</b>
-          <textarea placeholder="Commentaire obligatoire (justification)…"
-            value={devComment} onChange={e => setDevComment(e.target.value)}
-            style={{ width:'100%', marginTop:6, minHeight:60 }}/>
-          <div className="action-bar">
-            <button className="btn-success" disabled={busy || devComment.length < 3}
-              onClick={() => captureAndDecide(true)}>
-              <CheckCircle size={14}/> Valider
-            </button>
-            <button className="btn-danger" disabled={busy || devComment.length < 3}
-              onClick={() => captureAndDecide(false)}>
-              <XCircle size={14}/> Refuser
-            </button>
-          </div>
-        </div>
-      )}
-
-      {canRC && (
-        <div style={{ marginBottom:14 }}>
-          <b style={{ color:'var(--text-primary)', fontSize:13 }}>👔 Décision RC :</b>
-          <textarea placeholder="Commentaire (optionnel)…" value={rcComment}
-            onChange={e => setRcComment(e.target.value)}
-            style={{ width:'100%', marginTop:6, minHeight:60 }}/>
-          <div className="action-bar">
-            <button className="btn-success" disabled={busy}
-              onClick={() => wrap(() => prospectService.rcDecision(p.id, { decision: 'approve', comment: rcComment }))}>
-              <CheckCircle size={14}/> Approuver
-            </button>
-            <button className="btn-secondary" disabled={busy}
-              onClick={() => wrap(() => prospectService.rcDecision(p.id, { decision: 'hold', comment: rcComment }))}>
-              <Clock size={14}/> Mettre en attente
-            </button>
-            <button className="btn-danger" disabled={busy}
-              onClick={() => wrap(() => prospectService.rcDecision(p.id, { decision: 'reject', comment: rcComment }))}>
-              <XCircle size={14}/> Refuser
-            </button>
-          </div>
-        </div>
-      )}
-
-      {canAssignPuce && (
-        <div style={{ marginBottom:14 }}>
-          <b style={{ color:'var(--text-primary)', fontSize:13 }}>📦 Attribuer une puce :</b>
-          <div className="action-bar">
-            <input placeholder="N° de puce" value={puceNumero}
-              onChange={e => setPuceNumero(e.target.value)}/>
-            <select value={activatorId} onChange={e => setActivatorId(e.target.value)}>
-              <option value="">— développeur activateur —</option>
-              {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom||''}</option>)}
-            </select>
-            <button className="btn-primary" disabled={!activatorId || !puceNumero || busy}
-              onClick={() => wrap(() => prospectService.assignPuce(p.id, {
-                activator_id: parseInt(activatorId), puce_numero: puceNumero,
-              }))}>
-              <Send size={12}/> Attribuer
-            </button>
-          </div>
-        </div>
-      )}
-
-      {canActivate && (
-        <div style={{ marginBottom:14 }}>
-          <b style={{ color:'var(--text-primary)', fontSize:13 }}>⚡ Activer la puce {p.puce_numero}</b>
-          <div className="action-bar">
-            <button className="btn-success" disabled={busy}
-              onClick={() => wrap(() => prospectService.activate(p.id, { create_pdv: true }))}>
-              <CheckCircle size={14}/> Confirmer activation (créer PDV)
-            </button>
-          </div>
-        </div>
-      )}
-
-      {canCancel && (
-        <div style={{ marginTop:14, paddingTop:10, borderTop:'1px solid var(--border)' }}>
-          <button className="btn-secondary" disabled={busy}
-            onClick={() => {
-              const reason = window.prompt('Raison de l\'annulation ?');
-              if (reason && reason.length >= 3) {
-                wrap(() => prospectService.cancel(p.id, { comment: reason }));
-              }
-            }}>
-            ❎ Annuler le prospect
-          </button>
-        </div>
-      )}
-
-      {!canAssign && !canDevDecide && !canRC && !canAssignPuce && !canActivate && !canCancel && (
-        <div style={{ color:'var(--text-muted)', fontStyle:'italic', fontSize:13 }}>Aucune action disponible à cet état pour votre rôle.</div>
-      )}
-    </div>
-  );
-}
-
-// =============================================================================
-// ONGLET 2 : IA — Conteneur principal avec sous-menu
-// =============================================================================
-function TabIA({ onOpen }) {
-  const [aiTab, setAiTab] = useState('overview');
-
-  const subtabs = [
-    { id: 'overview', label: '📊 Vue d\'ensemble' },
-    { id: 'go-nogo',  label: '🎯 Recommandations Go/NoGo' },
-    { id: 'forecast', label: '📈 Prédictions CA' },
-    { id: 'doublons', label: '🔁 Doublons détectés' },
-  ];
-
-  return (
-    <>
-      {/* Sub-menu IA (style cohérent avec design system) */}
-      <div className="subtabs-container mb-24">
-        {subtabs.map(t => (
-          <button key={t.id}
-            className={`subtab-btn ${aiTab === t.id ? 'active' : ''}`}
-            onClick={() => setAiTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {aiTab === 'overview' && <TabAIOverview onOpen={onOpen}/>}
-      {aiTab === 'go-nogo'  && <TabAIGoNoGo onOpen={onOpen}/>}
-      {aiTab === 'forecast' && <TabAIForecast onOpen={onOpen}/>}
-      {aiTab === 'doublons' && <TabAIDoublons onOpen={onOpen}/>}
-    </>
-  );
-}
-
-// =============================================================================
-// SOUS-ONGLET IA : Vue d'ensemble (distribution Go/NoGo, top 5)
-// =============================================================================
-function TabAIOverview({ onOpen }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    prospectService.aiOverview()
-      .then(setData)
-      .catch(e => alert('Erreur IA : ' + (e.response?.data?.detail || e.message)))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="loading-state">Calcul des scores IA en cours…</div>;
-  if (!data || !data.total_evalues) return <div className="empty-state">Aucun prospect actif à évaluer.</div>;
-
-  const { distribution, score_moyen, total_evalues, top_go, top_nogo } = data;
-  const pct = (n) => total_evalues ? Math.round(n / total_evalues * 100) : 0;
-
-  return (
-    <>
-      {/* Stats IA */}
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-label">Prospects évalués</div><div className="stat-value">{total_evalues}</div></div>
-        <div className="stat-card ok"><div className="stat-label">Score moyen IA</div><div className="stat-value">{score_moyen}/100</div></div>
-        <div className="stat-card ok"><div className="stat-label">🟢 GO recommandés</div><div className="stat-value">{distribution.GO}</div><small style={{ color:'var(--text-muted)' }}>{pct(distribution.GO)}%</small></div>
-        <div className="stat-card warn"><div className="stat-label">🟡 Conditionnels</div><div className="stat-value">{distribution.CONDITIONAL}</div><small style={{ color:'var(--text-muted)' }}>{pct(distribution.CONDITIONAL)}%</small></div>
-        <div className="stat-card" style={{ borderLeftColor:'var(--danger)' }}><div className="stat-label">🔴 NO-GO</div><div className="stat-value" style={{ color:'var(--danger)' }}>{distribution.NO_GO}</div><small style={{ color:'var(--text-muted)' }}>{pct(distribution.NO_GO)}%</small></div>
-      </div>
-
-      {/* Distribution graphique simple */}
-      <div className="modal-section" style={{ background:'var(--bg-card)', marginBottom:16 }}>
-        <h3>📊 Distribution des recommandations</h3>
-        <div style={{ display:'flex', height:24, borderRadius:6, overflow:'hidden', marginTop:10 }}>
-          <div style={{ width:`${pct(distribution.GO)}%`, background:'var(--success)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:600, color:'#fff' }}>
-            {distribution.GO > 0 && `${pct(distribution.GO)}%`}
-          </div>
-          <div style={{ width:`${pct(distribution.CONDITIONAL)}%`, background:'var(--warning)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:600, color:'#000' }}>
-            {distribution.CONDITIONAL > 0 && `${pct(distribution.CONDITIONAL)}%`}
-          </div>
-          <div style={{ width:`${pct(distribution.NO_GO)}%`, background:'var(--danger)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:600, color:'#fff' }}>
-            {distribution.NO_GO > 0 && `${pct(distribution.NO_GO)}%`}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-        <div className="modal-section" style={{ background:'var(--bg-card)', margin:0 }}>
-          <h3>🏆 Top 5 — Meilleurs prospects (GO)</h3>
-          <RankedList items={top_go} onOpen={onOpen} color="var(--success)"/>
-        </div>
-        <div className="modal-section" style={{ background:'var(--bg-card)', margin:0 }}>
-          <h3>⚠️ Top 5 — Plus risqués (NO-GO)</h3>
-          <RankedList items={top_nogo} onOpen={onOpen} color="var(--danger)" empty="Aucun NO-GO 🎉"/>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function RankedList({ items, onOpen, color, empty='Aucun prospect.' }) {
-  if (!items || !items.length) return <div style={{ color:'var(--text-muted)', fontStyle:'italic', padding:8 }}>{empty}</div>;
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:6, marginTop:8 }}>
-      {items.map((s, i) => (
-        <div key={s.id} onClick={() => onOpen(s)} style={{
-          display:'flex', justifyContent:'space-between', alignItems:'center',
-          padding:'8px 10px', background:'rgba(255,255,255,0.03)', borderRadius:6, cursor:'pointer',
-          borderLeft:`3px solid ${color}`,
-        }}>
-          <div>
-            <div style={{ fontWeight:600 }}>{i+1}. {s.prenom} {s.nom}</div>
-            <div style={{ fontSize:11, color:'var(--text-muted)' }}>{s.reference} · {s.quartier || '—'}</div>
-          </div>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:18, fontWeight:700, color }}>{s.score}</div>
-            <div style={{ fontSize:10, color:'var(--text-muted)' }}>{s.label}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// =============================================================================
-// ONGLET 3 : Recommandations Go / Conditional / NoGo (table triable)
-// =============================================================================
-function TabAIGoNoGo({ onOpen }) {
-  const [data, setData] = useState(null);
-  const [filter, setFilter] = useState('all');
-  useEffect(() => { prospectService.aiOverview().then(setData); }, []);
-  if (!data) return <div className="loading-state">Calcul…</div>;
-  const all = data.all || [];
-  const filtered = filter === 'all' ? all : all.filter(x => x.decision === filter);
-
-  const colors = { GO: 'var(--success)', CONDITIONAL: 'var(--warning)', NO_GO: 'var(--danger)' };
-  const labels = { GO: '🟢 GO', CONDITIONAL: '🟡 Conditional', NO_GO: '🔴 NO-GO' };
-
-  return (
-    <>
-      <div className="filters">
-        <span style={{ color:'var(--text-secondary)', fontSize:13 }}>Filtrer :</span>
-        {['all','GO','CONDITIONAL','NO_GO'].map(k => (
-          <button key={k} onClick={() => setFilter(k)}
-            className={filter === k ? 'btn-primary' : 'btn-secondary'}>
-            {k === 'all' ? `Tous (${all.length})` : `${labels[k]} (${data.distribution[k]})`}
-          </button>
-        ))}
-      </div>
-
-      <div className="prospects-table">
-        <table>
-          <thead>
-            <tr><th>Référence</th><th>Prospect</th><th>Quartier</th><th>Statut</th><th>Score IA</th><th>Recommandation</th></tr>
-          </thead>
-          <tbody>
-            {filtered.map(s => (
-              <tr key={s.id} onClick={() => onOpen(s)}>
-                <td><b>{s.reference}</b></td>
-                <td>{s.prenom} {s.nom}</td>
-                <td>{s.quartier || '—'}</td>
-                <td><span className="status-badge" style={{ background: STATUS_LABELS[s.status]?.color || '#94a3b8' }}>{STATUS_LABELS[s.status]?.label || s.status}</span></td>
-                <td>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <div style={{ flex:1, height:6, background:'rgba(255,255,255,0.06)', borderRadius:3, overflow:'hidden' }}>
-                      <div style={{ width:`${s.score}%`, height:'100%', background: colors[s.decision] }}/>
-                    </div>
-                    <b style={{ color: colors[s.decision], minWidth:36 }}>{s.score}</b>
-                  </div>
-                </td>
-                <td><span className="status-badge" style={{ background: colors[s.decision] }}>{labels[s.decision]}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-// =============================================================================
-// ONGLET 4 : Prédictions CA (3 mois)
-// =============================================================================
-function TabAIForecast({ onOpen }) {
-  const [list, setList] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const overview = await prospectService.aiOverview();
-        // Charger le forecast en parallèle pour le top 30 par score
-        const top = (overview.all || []).slice(0, 30);
-        const forecasts = await Promise.all(top.map(s =>
-          prospectService.aiForecast(s.id).then(f => ({ ...s, ...f })).catch(() => null)
-        ));
-        if (mounted) setList(forecasts.filter(Boolean));
-      } finally { if (mounted) setLoading(false); }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  if (loading) return <div className="loading-state">Chargement des prédictions IA…</div>;
-  if (!list.length) return <div className="empty-state">Aucune prédiction disponible.</div>;
-
-  const totalProj = list.reduce((s, x) => s + x.ca_total_3m, 0);
-  const fmt = (n) => `${(n / 1000).toLocaleString('en-US').replace(/,/g, ' ')} k F`;
-
-  return (
-    <>
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-label">Prospects projetés</div><div className="stat-value">{list.length}</div></div>
-        <div className="stat-card ok"><div className="stat-label">CA total 3M projeté</div><div className="stat-value">{fmt(totalProj)}</div></div>
-        <div className="stat-card"><div className="stat-label">CA moyen / prospect</div><div className="stat-value">{fmt(totalProj / list.length)}</div></div>
-        <div className="stat-card"><div className="stat-label">Confiance haute</div><div className="stat-value">{list.filter(x => x.confidence === 'HIGH').length}</div></div>
-      </div>
-
-      <div className="prospects-table">
-        <table>
-          <thead>
-            <tr><th>Prospect</th><th>Score</th><th>Mois 1</th><th>Mois 2</th><th>Mois 3</th><th>Total 3M</th><th>Confiance</th></tr>
-          </thead>
-          <tbody>
-            {list.map(s => (
-              <tr key={s.id} onClick={() => onOpen(s)}>
-                <td>
-                  <b>{s.prenom} {s.nom}</b>
-                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{s.reference} · {s.quartier || '—'}</div>
-                </td>
-                <td><b>{s.score}</b></td>
-                <td>{fmt(s.forecast[0].ca)}</td>
-                <td>{fmt(s.forecast[1].ca)}</td>
-                <td>{fmt(s.forecast[2].ca)}</td>
-                <td><b style={{ color:'var(--success)' }}>{fmt(s.ca_total_3m)}</b></td>
-                <td>
-                  <span className="status-badge" style={{
-                    background: s.confidence === 'HIGH' ? 'var(--success)' :
-                                s.confidence === 'MEDIUM' ? 'var(--warning)' : 'var(--danger)'
-                  }}>{s.confidence}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-// =============================================================================
-// ONGLET 5 : Détection des doublons
-// =============================================================================
-function TabAIDoublons({ onOpen }) {
-  const [duplicates, setDuplicates] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const all = await prospectService.list({ limit: 200 });
-        const found = [];
-        for (const p of all) {
-          const dups = await prospectService.aiDuplicates(p.id);
-          if (dups.length > 0) {
-            found.push({ source: p, matches: dups });
-          }
-        }
-        if (mounted) setDuplicates(found);
-      } catch (e) {
-        alert('Erreur : ' + (e.response?.data?.detail || e.message));
-      } finally { if (mounted) setLoading(false); }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  if (loading) return <div className="loading-state">Recherche de doublons en cours…</div>;
-  if (!duplicates.length) return (
-    <div className="empty-state">
-      ✅ Aucun doublon suspect détecté parmi les prospects actuels.
-    </div>
-  );
-
-  return (
-    <>
-      <div className="stats-grid">
-        <div className="stat-card warn"><div className="stat-label">⚠️ Cas de doublons détectés</div><div className="stat-value">{duplicates.length}</div></div>
-        <div className="stat-card"><div className="stat-label">Total fiches concernées</div><div className="stat-value">{duplicates.reduce((s,d) => s + d.matches.length, 0) + duplicates.length}</div></div>
-      </div>
-
-      {duplicates.map((d, i) => (
-        <div key={i} className="modal-section" style={{ background:'var(--bg-card)' }}>
-          <h3>🔁 Cas #{i + 1} — Source : <span style={{ color:'var(--primary)' }}>{d.source.reference}</span></h3>
-          <div onClick={() => onOpen(d.source)} style={{
-            padding:10, background:'rgba(255,105,0,0.08)', borderRadius:6, marginBottom:8,
-            cursor:'pointer', borderLeft:'3px solid var(--primary)',
-          }}>
-            <b>{d.source.prenom} {d.source.nom}</b> · 📞 {d.source.telephone_principal} · {d.source.quartier || '—'}
-            <div style={{ fontSize:11, color:'var(--text-muted)' }}>Soumis le {new Date(d.source.submitted_at).toLocaleDateString('fr-FR')}</div>
-          </div>
-          <div style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:6 }}>
-            <b>Doublons potentiels ({d.matches.length}) :</b>
-          </div>
-          {d.matches.map(m => (
-            <div key={m.id} onClick={() => onOpen(m)} style={{
-              display:'flex', justifyContent:'space-between', alignItems:'center',
-              padding:'8px 10px', background:'rgba(239,68,68,0.06)', borderRadius:6, marginBottom:4,
-              cursor:'pointer', borderLeft:'3px solid var(--danger)',
-            }}>
-              <div>
-                <b>{m.prenom} {m.nom}</b> · {m.reference}
-                <div style={{ fontSize:11, color:'var(--text-muted)' }}>
-                  📞 {m.telephone} · {m.quartier || '—'} · {m.reasons.join(' · ')}
-                </div>
-              </div>
-              <div style={{ textAlign:'right' }}>
-                <div style={{ fontSize:18, fontWeight:700, color:'var(--danger)' }}>{m.match_score}%</div>
-                <div style={{ fontSize:10, color:'var(--text-muted)' }}>match</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ))}
-    </>
   );
 }

@@ -600,7 +600,7 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             numero_pdv=p.puce_numero,                    # n° puce comme identifiant
             nom=f"{p.nom} {p.prenom}".strip(),
             telephone=p.telephone_principal,
-            quartier=p.quartier,
+            quartier=payload.quartier_pdv or p.quartier,
             adresse=p.pdv_adresse or p.adresse,
             latitude=p.latitude,
             longitude=p.longitude,
@@ -609,6 +609,11 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             nom_gerant=f"{p.prenom} {p.nom}".strip(),
             nouvelle_creation=True,
             notes=f"Créé via prospection {p.reference}",
+            gestionnaire=payload.gestionnaire,
+            superviseur=payload.superviseur,
+            teleconseillere=payload.teleconseillere,
+            zone=payload.zone,
+            sous_zone=payload.sous_zone,
         )
         db.add(new_pdv)
         db.flush()

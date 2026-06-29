@@ -151,10 +151,14 @@ class PuceAssignRequest(BaseModel):
 class PuceActivateRequest(BaseModel):
     """Le développeur confirme l'activation."""
     comment: Optional[str] = None
-    create_pdv: bool = Field(
-        default=True,
-        description="Créer automatiquement la fiche PDV à partir du prospect"
-    )
+    create_pdv: bool = Field(default=True, description="Créer automatiquement la fiche PDV à partir du prospect")
+    # Champs PDV à remplir lors de l'activation
+    gestionnaire: Optional[str] = None
+    superviseur: Optional[str] = None
+    teleconseillere: Optional[str] = None
+    zone: Optional[str] = None
+    sous_zone: Optional[str] = None
+    quartier_pdv: Optional[str] = None
 
 
 class CancelRequest(BaseModel):
