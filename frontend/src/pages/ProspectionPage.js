@@ -30,8 +30,8 @@ export default function ProspectionPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
 
-  const isAdminOrRC = ['admin', 'rc', 'manager'].includes(user?.role);
-  const isDev = user?.role === 'developpeur' || isAdminOrRC;
+  const isAdminOrRC = ['admin', 'rc', 'manager', 'ADMIN', 'RC', 'MANAGER'].includes(user?.role);
+  const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(user?.role) || isAdminOrRC;
 
   const allTabs = [
     { id: 'demandes',   label: '📋 Demandes',           show: true },
@@ -223,9 +223,9 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
   const [users, setUsers] = useState([]);
   const [workflowStep, setWorkflowStep] = useState('etape2');
 
-  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
-  const isRC = currentUser?.role === 'rc' || isAdmin;
-  const isDev = currentUser?.role === 'developpeur' || isAdmin;
+  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER'].includes(currentUser?.role);
+  const isRC = ['rc', 'RC'].includes(currentUser?.role) || isAdmin;
+  const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role) || isAdmin;
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -401,12 +401,20 @@ function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
 
 // ── Étape 3 : Développeurs valident ou rejettent après visite ─────────────────
 function Etape3DecisionDev({ prospects, currentUser, onDone, onOpen }) {
-  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER'].includes(currentUser?.role);
+  const currentNom = `${currentUser?.nom || ''} ${currentUser?.prenom || ''}`.trim().toLowerCase();
 
-  // Séparer les validées et refusées (historique) des en attente
-  const enAttente = prospects.filter(p =>
-    isAdmin || p.visit_assigned_to?.id === currentUser?.id
-  );
+  // Un dev voit ses prospects : assigné par ID (user) OU par nom dans les notes (réseau)
+  const enAttente = prospects.filter(p => {
+    if (isAdmin) return true;
+    if (p.visit_assigned_to?.id === currentUser?.id) return true;
+    // Cas réseau : le nom est stocké dans les notes [Développeur affecté: Nom Prenom]
+    if (p.notes && currentNom) {
+      const notesLower = p.notes.toLowerCase();
+      return notesLower.includes('[développeur affecté:') && notesLower.includes(currentNom);
+    }
+    return false;
+  });
 
   return (
     <>
@@ -643,7 +651,7 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
 function TabActivation({ currentUser, onRefresh }) {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(false);
-  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC'].includes(currentUser?.role);
 
   const reload = useCallback(async () => {
     setLoading(true);
