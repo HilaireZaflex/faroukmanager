@@ -431,9 +431,19 @@ function Etape3DecisionDev({ prospects, currentUser, onDone, onOpen }) {
 function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
-  const isAdmin = ['admin', 'manager'].includes(currentUser?.role);
-  const isAssigned = p.visit_assigned_to?.id === currentUser?.id;
-  const canDecide = isAdmin || isAssigned;
+  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC'].includes(currentUser?.role);
+  const isAssignedById = p.visit_assigned_to?.id === currentUser?.id;
+  // Vérifier aussi par nom dans les notes (cas dev réseau sans visit_assigned_to_id)
+  const currentNomFull = `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim().toUpperCase();
+  const currentNomInv = `${currentUser?.nom || ''} ${currentUser?.prenom || ''}`.trim().toUpperCase();
+  const isAssignedByName = p.notes && (
+    p.notes.toUpperCase().includes(currentNomFull) ||
+    p.notes.toUpperCase().includes(currentNomInv)
+  );
+  // Le dev peut décider s'il est assigné (par ID ou par nom) ou s'il est admin/RC
+  const canDecide = isAdmin || isAssignedById || isAssignedByName ||
+    // Si le backend lui a déjà retourné ce prospect, c'est qu'il est assigné
+    ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role);
 
   const decide = async (approved) => {
     if (comment.trim().length < 3) { alert('Veuillez saisir un commentaire (min 3 caractères).'); return; }
