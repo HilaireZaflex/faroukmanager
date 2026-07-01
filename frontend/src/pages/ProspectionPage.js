@@ -606,7 +606,9 @@ function Validation4Card({ prospect: p, onDone, onOpen }) {
   };
 
   // Récupérer la dernière décision du dev depuis l'historique
-  const devComment = p.history?.find(h => h.decision_type === 'DEV_DECISION')?.comment || '—';
+  const devHistory = p.history?.find(h => ['DEV_VALIDATE', 'DEV_REJECT'].includes(h.decision_type));
+  const devComment = devHistory?.comment || '—';
+  const devDecision = devHistory?.decision_type === 'DEV_VALIDATE' ? '✅ Validé' : devHistory?.decision_type === 'DEV_REJECT' ? '❌ Rejeté' : '';
 
   return (
     <>
@@ -637,7 +639,7 @@ function Validation4Card({ prospect: p, onDone, onOpen }) {
               </div>
             )}
             <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: 6, fontSize: 12, borderLeft: '3px solid #10b981' }}>
-              💬 <b>Avis du développeur :</b> {devComment}
+              💬 <b>Avis du développeur {devDecision} :</b> {devComment}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
