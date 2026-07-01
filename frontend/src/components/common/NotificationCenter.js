@@ -22,18 +22,52 @@ export default function NotificationCenter() {
   const { notifications, markRead, markAllRead } = useNotifStore();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [dismissed, setDismissed] = useState(null); // id de la notif ignorée temporairement
+  const [lastDismissed, setLastDismissed] = useState(null); // timestamp du dernier ignore
 
   const unread = notifications.filter(n => !n.lu);
   const count = unread.length;
 
+  // Notif à afficher dans le popup : la première non lue, sauf si ignorée depuis moins de 30s
+  const now = Date.now();
+  const popupNotif = unread.find(n => {
+    if (n.id !== dismissed) return true;
+    // Revient après 30 secondes
+    return lastDismissed && (now - lastDismissed) >= 30000;
+  });
+
+  const handleDismiss = () => {
+    if (popupNotif) {
+      setDismissed(popupNotif.id);
+      setLastDismissed(Date.now());
+    }
+  };
+
+  const handleView = () => {
+    setOpen(true);
+    if (popupNotif) markRead(popupNotif.id);
+    setDismissed(null);
+    setLastDismissed(null);
+  };
+
+  // Timer pour réafficher le popup toutes les 30s après "Ignorer"
+  React.useEffect(() => {
+    if (!dismissed) return;
+    const timer = setTimeout(() => {
+      setDismissed(null);
+      setLastDismissed(null);
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [dismissed, lastDismissed]);
+
   return (
     <>
-      {/* Popup automatique pour la première notif non lue */}
-      {unread.length > 0 && !open && (
+      {/* Popup automatique : réapparaît toutes les 30s si non lu */}
+      {popupNotif && !open && (
         <NotifPopup
-          notif={unread[0]}
-          onClose={() => markRead(unread[0].id)}
-          onView={() => { setOpen(true); markRead(unread[0].id); }}
+          notif={popupNotif}
+          onClose={handleDismiss}
+          onView={handleView}
         />
       )}
 
