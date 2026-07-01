@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Plus, RefreshCw, MapPin, User as UserIcon,
   CheckCircle, XCircle, Clock, Send, Search,
@@ -49,11 +50,20 @@ function SuccessModal({ title, message, next, onClose }) {
 // =============================================================================
 export default function ProspectionPage() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('demandes');
+  const [searchParams] = useSearchParams();
+  // Lecture des query params depuis les notifications (?tab=workflow&step=etape3)
+  const tabFromUrl = searchParams.get('tab') || 'demandes';
+  const stepFromUrl = searchParams.get('step') || null;
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [modalCreate, setModalCreate] = useState(false);
   const [modalDetail, setModalDetail] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
+
+  // Quand l'URL change (navigation depuis notif), mettre à jour l'onglet
+  useEffect(() => {
+    setActiveTab(tabFromUrl);
+  }, [tabFromUrl]);
 
   const isAdminOrRC = ['admin', 'rc', 'manager', 'ADMIN', 'RC', 'MANAGER'].includes(user?.role);
   const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(user?.role) || isAdminOrRC;
@@ -94,7 +104,7 @@ export default function ProspectionPage() {
 
       <div>
         {safeTab === 'demandes'   && <TabDemandes key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
-        {safeTab === 'workflow'   && <TabWorkflow key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
+        {safeTab === 'workflow'   && <TabWorkflow key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh} initialStep={stepFromUrl}/>}
         {safeTab === 'activation' && <TabActivation key={refreshKey} currentUser={user} onRefresh={refresh}/>}
       </div>
 
@@ -242,7 +252,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 // =============================================================================
 // ONGLET 2 : WORKFLOW — Étapes 2 → 3 → 4 → 5
 // =============================================================================
-function TabWorkflow({ onOpen, currentUser, onRefresh }) {
+function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState([]);
@@ -251,7 +261,9 @@ function TabWorkflow({ onOpen, currentUser, onRefresh }) {
   const isRC = ['rc', 'RC'].includes(currentUser?.role) || isAdmin;
   const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role) || isAdmin;
 
-  const [workflowStep, setWorkflowStep] = useState(isRC ? 'etape2' : 'etape3');
+  // Si navigation depuis notification, utiliser l'étape indiquée
+  const defaultStep = initialStep || (isRC ? 'etape2' : 'etape3');
+  const [workflowStep, setWorkflowStep] = useState(defaultStep);
 
   const reload = useCallback(async () => {
     setLoading(true);

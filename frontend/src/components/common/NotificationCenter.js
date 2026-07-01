@@ -1,6 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, X, CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import useNotifStore from '../../store/notifStore';
+
+// Retourne l'URL de redirection selon l'étape de la notification
+const getRedirectUrl = (notif) => {
+  const etape = notif?.etape;
+  if (!etape) return '/prospection';
+  if (etape === 3) return '/prospection?tab=workflow&step=etape3'; // Dev → décision visite
+  if (etape === 4) return '/prospection?tab=workflow&step=etape4'; // RC → validation
+  if (etape === 5) return '/prospection?tab=workflow&step=etape5'; // RC → attribution activation
+  if (etape === 6) return '/prospection?tab=activation';           // Dev → activation
+  return '/prospection';
+};
 
 // Couleur par défaut basée sur le titre (qui contient l'emoji)
 const getColor = (titre = '') => {
@@ -25,8 +37,9 @@ export default function NotificationCenter() {
   const { notifications, markRead, markAllRead } = useNotifStore();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(null);
-  const [showPopup, setShowPopup] = useState(true); // contrôle l'affichage du popup
+  const [showPopup, setShowPopup] = useState(true);
   const timerRef = useRef(null);
+  const navigate = useNavigate();
 
   const unread = notifications.filter(n => !n.lu);
   const count = unread.length;
@@ -44,13 +57,22 @@ export default function NotificationCenter() {
     timerRef.current = setTimeout(() => setShowPopup(true), 30000);
   };
 
-  const handleView = () => {
-    // Ne marque PAS comme lu — juste cache le popup 30s et ouvre la liste
-    // La notif sera supprimée uniquement quand l'action est effectuée dans le workflow
-    setOpen(true);
+  const handleView = (notif) => {
+    // Ne marque PAS comme lu — redirige directement vers l'onglet concerné
+    setShowPopup(false);
+    setOpen(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setShowPopup(true), 30000);
+    navigate(getRedirectUrl(notif));
+  };
+
+  const handleNotifClick = (notif) => {
+    // Clic sur une notif dans la liste → redirige vers l'onglet concerné
+    setOpen(false);
     setShowPopup(false);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setShowPopup(true), 30000);
+    navigate(getRedirectUrl(notif));
   };
 
   // Nettoyage timer
@@ -66,6 +88,7 @@ export default function NotificationCenter() {
           onView={() => handleView(popupNotif)}
         />
       )}
+
 
       {/* Cloche flottante */}
       <div style={{
@@ -126,7 +149,7 @@ export default function NotificationCenter() {
                 const icon = getIcon(n.titre);
                 return (
                   <div key={n.id}
-                    onClick={() => setExpanded(expanded === n.id ? null : n.id)}
+                    onClick={() => handleNotifClick(n)}
                     style={{
                       padding: '12px 16px',
                       borderBottom: '1px solid rgba(255,255,255,0.06)',
