@@ -29,4 +29,3 @@ class User(Base):
     last_login = Column(DateTime, nullable=True)
 
     actions = relationship("TerrainAction", back_populates="user")
-    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")

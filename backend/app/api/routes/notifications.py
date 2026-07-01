@@ -9,6 +9,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.user import User
+from app.models.prospect_extras import NotifStatus
 from app.services.notification_service import (
     get_pending_notifications,
     mark_as_read,
@@ -28,14 +29,14 @@ def pending_notifications(
     return [
         {
             "id": n.id,
-            "type": n.type,
-            "titre": n.titre,
+            "type": (n.payload or {}).get("type", "IN_APP"),
+            "titre": n.title,
             "message": n.message,
-            "action_requise": n.action_requise,
-            "etape": n.etape,
-            "prospect_reference": n.prospect_reference,
-            "prospect_nom": n.prospect_nom,
-            "lu": n.lu,
+            "action_requise": (n.payload or {}).get("action", ""),
+            "etape": (n.payload or {}).get("etape"),
+            "prospect_reference": (n.payload or {}).get("prospect_reference"),
+            "prospect_nom": (n.payload or {}).get("prospect_nom"),
+            "lu": n.status == NotifStatus.READ,
             "created_at": n.created_at.isoformat() if n.created_at else None,
         }
         for n in notifs
