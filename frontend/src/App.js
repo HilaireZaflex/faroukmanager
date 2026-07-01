@@ -1,6 +1,8 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import useAuthStore, { MENU_ROUTES, DEFAULT_MENUS } from './store/authStore';
+import useNotifStore from './store/notifStore';
+import NotificationCenter from './components/common/NotificationCenter';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -86,6 +88,9 @@ const MenuRoute = ({ menuId, children }) => {
 };
 
 function App() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { fetchNotifications, reset: resetNotifs } = useNotifStore();
+
   // Keep-alive: ping backend toutes les 10 min pour eviter le cold start
   useEffect(() => {
     const ping = () => fetch(`${(process.env.REACT_APP_API_BASE_URL || "https://faroukmanager-backend-production-feb9.up.railway.app/api").replace(/\/api$/, '')}/health`).catch(() => {});
@@ -93,6 +98,14 @@ function App() {
     const interval = setInterval(ping, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Polling notifications toutes les 60 secondes (uniquement si connecté)
+  useEffect(() => {
+    if (!isAuthenticated) { resetNotifs(); return; }
+    fetchNotifications(); // fetch immédiat à la connexion
+    const interval = setInterval(fetchNotifications, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchNotifications, resetNotifs]);
 
   return (
     <Routes>
@@ -105,6 +118,7 @@ function App() {
         element={
           <ProtectedRoute>
             <Layout>
+              <NotificationCenter />
               <Routes>
                 {/* ── Routes libres (toujours accessibles) ── */}
                 <Route path="/accueil" element={<AccueilPage />} />

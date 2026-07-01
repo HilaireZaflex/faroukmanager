@@ -18,7 +18,7 @@ def set_cache(key, value):
     _APP_CACHE_TIME[key] = time.time()
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions
+from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications
 import app.models  # noqa - ensures all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -53,6 +53,7 @@ app.include_router(auth.router, prefix="/api", tags=["Authentification"])
 app.include_router(pdv.router, prefix="/api", tags=["PDV"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(alerts.router, prefix="/api", tags=["Alertes"])
+app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
 app.include_router(analytics.router, prefix="/api", tags=["Analytics IA"])
 app.include_router(reports.router, prefix="/api", tags=["Rapports"])
 app.include_router(performance.router, prefix="/api", tags=["Performances"])

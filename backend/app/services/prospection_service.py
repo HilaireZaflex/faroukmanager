@@ -417,6 +417,15 @@ def assign_visit(db: Session, prospect_id: int, payload: AssignVisitRequest, cur
     # 🔔 Notif au développeur affecté (seulement si user)
     if target:
         _notify(db, template="visit_assigned", prospect=p, to_user=target)
+    # 🔔 Notification DB : informer le développeur (si compte user)
+    if target:
+        try:
+            from app.services.notification_service import notif_visite_assignee
+            assigned_by = f"{current_user.nom} {current_user.prenom or ''}".strip()
+            notif_visite_assignee(db, developer_id=target.id, prospect_ref=p.reference,
+                                  prospect_nom=f"{p.prenom} {p.nom}".strip(), assigned_by=assigned_by)
+        except Exception:
+            pass
     return p
 
 
@@ -491,6 +500,17 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
             sup = db.query(User).get(p.submitted_by_id)
             if sup:
                 _notify(db, template="dev_rejected", prospect=p, to_user=sup)
+    # 🔔 Notification DB : informer les RC de la décision du développeur
+    try:
+        from app.services.notification_service import notif_decision_dev, get_rc_user_ids
+        rc_ids = get_rc_user_ids(db)
+        dev_nom = f"{current_user.nom} {current_user.prenom or ''}".strip()
+        notif_decision_dev(db, rc_ids=rc_ids, prospect_ref=p.reference,
+                           prospect_nom=f"{p.prenom} {p.nom}".strip(),
+                           approved=payload.approved, dev_nom=dev_nom,
+                           comment=payload.comment or "")
+    except Exception:
+        pass
     return p
 
 
@@ -536,6 +556,15 @@ def rc_decision(db: Session, prospect_id: int, payload: RCDecisionRequest, curre
         _notify(db, template="rc_approved", prospect=p, to_phone=p.telephone_principal)
     elif target_status == ProspectStatus.REFUSEE_RC:
         _notify(db, template="rc_rejected", prospect=p, to_phone=p.telephone_principal)
+    # 🔔 Notification DB : rappel RC pour attribution activation
+    if target_status == ProspectStatus.APPROUVEE_RC:
+        try:
+            from app.services.notification_service import notif_rc_approuve, get_rc_user_ids
+            rc_ids = get_rc_user_ids(db)
+            notif_rc_approuve(db, rc_ids=rc_ids, prospect_ref=p.reference,
+                              prospect_nom=f"{p.prenom} {p.nom}".strip())
+        except Exception:
+            pass
     return p
 
 
@@ -585,6 +614,15 @@ def assign_puce(db: Session, prospect_id: int, payload: PuceAssignRequest, curre
     db.refresh(p)
     # 🔔 Notif au développeur activateur + sortie du stock si présent
     _notify(db, template="puce_assigned", prospect=p, to_user=activator)
+    # 🔔 Notification DB : informer le développeur activateur
+    try:
+        from app.services.notification_service import notif_activation_assignee
+        assigned_by = f"{current_user.nom} {current_user.prenom or ''}".strip()
+        notif_activation_assignee(db, developer_id=activator.id, prospect_ref=p.reference,
+                                  prospect_nom=f"{p.prenom} {p.nom}".strip(),
+                                  puce_numero=payload.puce_numero, assigned_by=assigned_by)
+    except Exception:
+        pass
     try:
         from app.services import prospect_stock_service as _stock
         _stock.reserve(db, payload.puce_numero, p.id)
@@ -660,6 +698,15 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
     db.refresh(p)
     # 🔔 Notif WhatsApp au prospect + sortie définitive du stock
     _notify(db, template="puce_activated", prospect=p, to_phone=p.telephone_principal)
+    # 🔔 Notification DB : informer les RC que le PDV a été créé
+    try:
+        from app.services.notification_service import notif_activation_confirmee, get_rc_user_ids
+        rc_ids = get_rc_user_ids(db)
+        dev_nom = f"{current_user.nom} {current_user.prenom or ''}".strip()
+        notif_activation_confirmee(db, rc_ids=rc_ids, prospect_ref=p.reference,
+                                   prospect_nom=f"{p.prenom} {p.nom}".strip(), dev_nom=dev_nom)
+    except Exception:
+        pass
     try:
         from app.services import prospect_stock_service as _stock
         _stock.mark_activated(db, p.puce_numero)
