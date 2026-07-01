@@ -60,10 +60,13 @@ export default function ProspectionPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
 
-  // Quand l'URL change (navigation depuis notif), mettre à jour l'onglet
+  // Quand l'URL change (navigation depuis notif), mettre à jour l'onglet ET le step
   useEffect(() => {
-    setActiveTab(tabFromUrl);
+    if (tabFromUrl) setActiveTab(tabFromUrl);
   }, [tabFromUrl]);
+
+  // Passer stepFromUrl au workflow via context si nécessaire
+  const currentStepFromUrl = stepFromUrl;
 
   const isAdminOrRC = ['admin', 'rc', 'manager', 'ADMIN', 'RC', 'MANAGER'].includes(user?.role);
   const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(user?.role) || isAdminOrRC;
@@ -104,7 +107,7 @@ export default function ProspectionPage() {
 
       <div>
         {safeTab === 'demandes'   && <TabDemandes key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
-        {safeTab === 'workflow'   && <TabWorkflow key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh} initialStep={stepFromUrl}/>}
+        {safeTab === 'workflow'   && <TabWorkflow key={`${refreshKey}-${stepFromUrl}`} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh} initialStep={stepFromUrl}/>}
         {safeTab === 'activation' && <TabActivation key={refreshKey} currentUser={user} onRefresh={refresh}/>}
       </div>
 

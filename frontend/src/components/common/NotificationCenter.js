@@ -57,23 +57,19 @@ export default function NotificationCenter() {
     timerRef.current = setTimeout(() => setShowPopup(true), 30000);
   };
 
-  const handleView = (notif) => {
-    // Ne marque PAS comme lu — redirige directement vers l'onglet concerné
+  const goToNotif = (notif) => {
+    // Ne marque PAS comme lu — redirige vers l'onglet concerné
+    // Utilise replace:false pour forcer le rechargement même si déjà sur /prospection
     setShowPopup(false);
     setOpen(false);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setShowPopup(true), 30000);
-    navigate(getRedirectUrl(notif));
+    const url = getRedirectUrl(notif);
+    navigate(url, { replace: false });
   };
 
-  const handleNotifClick = (notif) => {
-    // Clic sur une notif dans la liste → redirige vers l'onglet concerné
-    setOpen(false);
-    setShowPopup(false);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setShowPopup(true), 30000);
-    navigate(getRedirectUrl(notif));
-  };
+  const handleView = (notif) => goToNotif(notif);
+  const handleNotifClick = (notif) => goToNotif(notif);
 
   // Nettoyage timer
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
