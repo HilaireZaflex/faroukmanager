@@ -211,39 +211,40 @@ function NotifPopup({ notif, onClose, onView }) {
   return (
     <div style={{
       position: 'fixed', bottom: 90, right: 24, zIndex: 3000,
-      width: 360, background: 'var(--bg-card)',
+      width: 370, background: '#1e2433',
       border: `2px solid ${color}`,
       borderRadius: 14, padding: 0, overflow: 'hidden',
-      boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px ${color}33`,
+      boxShadow: `0 12px 40px rgba(0,0,0,0.8), 0 0 0 1px ${color}55`,
       animation: 'notif-slide-in 0.3s ease-out',
     }}>
       {/* Barre colorée */}
       <div style={{ height: 4, background: color, width: '100%' }}/>
 
-      <div style={{ padding: '14px 16px' }}>
+      <div style={{ padding: '16px 18px' }}>
         {/* En-tête */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 22 }}>{icon}</span>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 24, flexShrink: 0 }}>{icon}</span>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--text-primary)' }}>{notif.titre}</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: '#ffffff', lineHeight: 1.3 }}>{notif.titre}</div>
               {notif.prospect_reference && (
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  {notif.prospect_reference} · {notif.prospect_nom}
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                  📋 {notif.prospect_reference} · {notif.prospect_nom}
                 </div>
               )}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', cursor: 'pointer', color: '#fff', borderRadius: 6, padding: 4, flexShrink: 0 }}>
             <X size={16}/>
           </button>
         </div>
 
         {/* Message résumé */}
         <div style={{
-          fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5,
-          background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 10px',
-          marginBottom: 10, whiteSpace: 'pre-line', maxHeight: 80, overflow: 'hidden',
+          fontSize: 13, color: '#cbd5e1', lineHeight: 1.6,
+          background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '10px 12px',
+          marginBottom: 12, whiteSpace: 'pre-line', maxHeight: 90, overflow: 'hidden',
+          border: '1px solid rgba(255,255,255,0.08)',
         }}>
           {notif.message.split('\n').slice(0, 3).join('\n')}…
         </div>
@@ -251,25 +252,27 @@ function NotifPopup({ notif, onClose, onView }) {
         {/* Action requise */}
         {notif.action_requise && notif.action_requise !== 'Aucune — pour information' && (
           <div style={{
-            fontSize: 12, fontWeight: 700, color, marginBottom: 10,
-            padding: '6px 10px', background: `${color}15`, borderRadius: 6,
-            borderLeft: `3px solid ${color}`,
+            fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 12,
+            padding: '8px 12px', background: `${color}30`, borderRadius: 8,
+            borderLeft: `3px solid ${color}`, lineHeight: 1.4,
           }}>
-            ✅ Action requise : {notif.action_requise}
+            ✅ Action requise : <span style={{ color }}>{notif.action_requise}</span>
           </div>
         )}
 
         {/* Boutons */}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={onView} style={{
-            flex: 1, padding: '8px 0', background: color, color: '#fff',
-            border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+            flex: 1, padding: '9px 0', background: color, color: '#fff',
+            border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer',
+            boxShadow: `0 2px 8px ${color}55`,
           }}>
             Voir les détails
           </button>
           <button onClick={onClose} style={{
-            padding: '8px 14px', background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
-            border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+            padding: '9px 16px', background: 'rgba(255,255,255,0.08)', color: '#cbd5e1',
+            border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, fontSize: 13, cursor: 'pointer',
+            fontWeight: 600,
           }}>
             Ignorer
           </button>
