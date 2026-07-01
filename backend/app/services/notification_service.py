@@ -158,6 +158,17 @@ def mark_all_as_read(db: Session, user_id: int):
     db.commit()
 
 
+def mark_read_by_type(db: Session, user_id: int, prospect_id: int, notif_types: list):
+    """Marque comme lues les notifications d'un type donné pour un prospect."""
+    from app.models.prospect_extras import NotifStatus
+    db.query(Notification).filter(
+        Notification.recipient_user_id == user_id,
+        Notification.related_prospect_id == prospect_id,
+        Notification.status != NotifStatus.READ,
+    ).update({"status": NotifStatus.READ, "read_at": datetime.utcnow()})
+    db.commit()
+
+
 def get_rc_user_ids(db: Session) -> List[int]:
     from app.models.user import UserRole
     users = db.query(User.id).filter(

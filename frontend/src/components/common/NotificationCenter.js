@@ -44,11 +44,13 @@ export default function NotificationCenter() {
     timerRef.current = setTimeout(() => setShowPopup(true), 30000);
   };
 
-  const handleView = (notif) => {
+  const handleView = () => {
+    // Ne marque PAS comme lu — juste cache le popup 30s et ouvre la liste
+    // La notif sera supprimée uniquement quand l'action est effectuée dans le workflow
     setOpen(true);
     setShowPopup(false);
-    markRead(notif.id);
     if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setShowPopup(true), 30000);
   };
 
   // Nettoyage timer
@@ -205,7 +207,7 @@ export default function NotificationCenter() {
 
         {/* Bouton cloche */}
         <button
-          onClick={() => { setOpen(o => !o); setShowPopup(false); }}
+          onClick={() => { setOpen(o => !o); setShowPopup(false); if (timerRef.current) clearTimeout(timerRef.current); timerRef.current = setTimeout(() => setShowPopup(true), 30000); }}
           style={{
             width: 54, height: 54, borderRadius: '50%',
             background: count > 0 ? '#ef4444' : '#ff6900',

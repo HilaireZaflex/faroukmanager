@@ -423,7 +423,8 @@ def assign_visit(db: Session, prospect_id: int, payload: AssignVisitRequest, cur
             from app.services.notification_service import notif_visite_assignee
             assigned_by = f"{current_user.nom} {current_user.prenom or ''}".strip()
             notif_visite_assignee(db, developer_id=target.id, prospect_ref=p.reference,
-                                  prospect_nom=f"{p.prenom} {p.nom}".strip(), assigned_by=assigned_by)
+                                  prospect_nom=f"{p.prenom} {p.nom}".strip(),
+                                  assigned_by=assigned_by, prospect_id=p.id)
         except Exception:
             pass
     return p
@@ -500,15 +501,17 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
             sup = db.query(User).get(p.submitted_by_id)
             if sup:
                 _notify(db, template="dev_rejected", prospect=p, to_user=sup)
-    # 🔔 Notification DB : informer les RC de la décision du développeur
+    # 🔔 Notification DB : informer les RC + marquer notifs du dev comme lues
     try:
-        from app.services.notification_service import notif_decision_dev, get_rc_user_ids
+        from app.services.notification_service import notif_decision_dev, get_rc_user_ids, mark_read_by_type
         rc_ids = get_rc_user_ids(db)
         dev_nom = f"{current_user.nom} {current_user.prenom or ''}".strip()
         notif_decision_dev(db, rc_ids=rc_ids, prospect_ref=p.reference,
                            prospect_nom=f"{p.prenom} {p.nom}".strip(),
                            approved=payload.approved, dev_nom=dev_nom,
-                           comment=payload.comment or "")
+                           comment=payload.comment or "", prospect_id=p.id)
+        # ✅ Le dev a effectué son action → ses notifs pour ce prospect sont lues
+        mark_read_by_type(db, current_user.id, p.id, [])
     except Exception:
         pass
     return p
@@ -556,13 +559,15 @@ def rc_decision(db: Session, prospect_id: int, payload: RCDecisionRequest, curre
         _notify(db, template="rc_approved", prospect=p, to_phone=p.telephone_principal)
     elif target_status == ProspectStatus.REFUSEE_RC:
         _notify(db, template="rc_rejected", prospect=p, to_phone=p.telephone_principal)
-    # 🔔 Notification DB : rappel RC pour attribution activation
+    # 🔔 Notification DB : rappel RC pour attribution activation + marquer notifs RC comme lues
     if target_status == ProspectStatus.APPROUVEE_RC:
         try:
-            from app.services.notification_service import notif_rc_approuve, get_rc_user_ids
+            from app.services.notification_service import notif_rc_approuve, get_rc_user_ids, mark_read_by_type
             rc_ids = get_rc_user_ids(db)
+            # ✅ RC a agi → marquer ses notifs DECISION_DEV_RECUE comme lues
+            mark_read_by_type(db, current_user.id, p.id, [])
             notif_rc_approuve(db, rc_ids=rc_ids, prospect_ref=p.reference,
-                              prospect_nom=f"{p.prenom} {p.nom}".strip())
+                              prospect_nom=f"{p.prenom} {p.nom}".strip(), prospect_id=p.id)
         except Exception:
             pass
     return p
@@ -614,13 +619,16 @@ def assign_puce(db: Session, prospect_id: int, payload: PuceAssignRequest, curre
     db.refresh(p)
     # 🔔 Notif au développeur activateur + sortie du stock si présent
     _notify(db, template="puce_assigned", prospect=p, to_user=activator)
-    # 🔔 Notification DB : informer le développeur activateur
+    # 🔔 Notification DB : informer le développeur + marquer notifs RC comme lues
     try:
-        from app.services.notification_service import notif_activation_assignee
+        from app.services.notification_service import notif_activation_assignee, mark_read_by_type
         assigned_by = f"{current_user.nom} {current_user.prenom or ''}".strip()
+        # ✅ RC a assigné activation → ses notifs APPROBATION_RC_PENDING sont lues
+        mark_read_by_type(db, current_user.id, p.id, [])
         notif_activation_assignee(db, developer_id=activator.id, prospect_ref=p.reference,
                                   prospect_nom=f"{p.prenom} {p.nom}".strip(),
-                                  puce_numero=payload.puce_numero, assigned_by=assigned_by)
+                                  puce_numero=payload.puce_numero, assigned_by=assigned_by,
+                                  prospect_id=p.id)
     except Exception:
         pass
     try:
@@ -698,13 +706,16 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
     db.refresh(p)
     # 🔔 Notif WhatsApp au prospect + sortie définitive du stock
     _notify(db, template="puce_activated", prospect=p, to_phone=p.telephone_principal)
-    # 🔔 Notification DB : informer les RC que le PDV a été créé
+    # 🔔 Notification DB : informer les RC + marquer notifs du dev comme lues
     try:
-        from app.services.notification_service import notif_activation_confirmee, get_rc_user_ids
+        from app.services.notification_service import notif_activation_confirmee, get_rc_user_ids, mark_read_by_type
         rc_ids = get_rc_user_ids(db)
         dev_nom = f"{current_user.nom} {current_user.prenom or ''}".strip()
+        # ✅ Dev a activé → ses notifs ACTIVATION_ASSIGNEE sont lues
+        mark_read_by_type(db, current_user.id, p.id, [])
         notif_activation_confirmee(db, rc_ids=rc_ids, prospect_ref=p.reference,
-                                   prospect_nom=f"{p.prenom} {p.nom}".strip(), dev_nom=dev_nom)
+                                   prospect_nom=f"{p.prenom} {p.nom}".strip(),
+                                   dev_nom=dev_nom, prospect_id=p.id)
     except Exception:
         pass
     try:
