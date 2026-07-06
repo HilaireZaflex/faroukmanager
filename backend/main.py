@@ -520,26 +520,6 @@ async def delete_membre_equipe(role: str, nom_encoded: str):
     finally:
         db.close()
 
-@app.delete("/api/performance/monthly/delete-period")
-async def delete_monthly_period(annee: int, mois: int):
-    """Supprime toutes les performances mensuelles pour une période donnée."""
-    from app.core.database import SessionLocal
-    from app.models.performance import MonthlyPerformance
-    db = SessionLocal()
-    try:
-        count = db.query(MonthlyPerformance).filter(
-            MonthlyPerformance.annee == annee,
-            MonthlyPerformance.mois == mois
-        ).count()
-        db.query(MonthlyPerformance).filter(
-            MonthlyPerformance.annee == annee,
-            MonthlyPerformance.mois == mois
-        ).delete()
-        db.commit()
-        return {"deleted": count, "annee": annee, "mois": mois}
-    finally:
-        db.close()
-
 @app.get("/db-info")
 async def db_info():
     """Diagnostic: affiche quelle base de données est utilisée"""
