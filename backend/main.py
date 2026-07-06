@@ -520,6 +520,20 @@ async def delete_membre_equipe(role: str, nom_encoded: str):
     finally:
         db.close()
 
+@app.delete("/api/commissions/delete-period")
+async def delete_commission_period(period_key: str):
+    """Supprime toutes les entrées de commission pour une période donnée."""
+    from app.core.database import SessionLocal
+    from app.models.commission import CommissionEntry
+    db = SessionLocal()
+    try:
+        count = db.query(CommissionEntry).filter(CommissionEntry.period_key == period_key).count()
+        db.query(CommissionEntry).filter(CommissionEntry.period_key == period_key).delete()
+        db.commit()
+        return {"deleted": count, "period_key": period_key}
+    finally:
+        db.close()
+
 @app.get("/db-info")
 async def db_info():
     """Diagnostic: affiche quelle base de données est utilisée"""
