@@ -255,8 +255,9 @@
 
 /* Modal large */
 .rl-modal-large {
-  width: 1200px; max-width: 97vw; max-height: 92vh;
+  width: 94vw; max-width: 1400px; min-height: 75vh; max-height: 94vh;
   display: flex; flex-direction: column;
+  padding: 28px 32px;
 }
 .rl-modal-header {
   display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
