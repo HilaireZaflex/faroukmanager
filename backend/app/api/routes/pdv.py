@@ -144,7 +144,7 @@ def export_pdvs(
         "Médaille": p.medaille.value if p.medaille else "",
         "SIM Coupée": "Oui" if p.sim_coupee else "Non",
         "Numéro Flotte": "Oui" if p.numero_flotte else "Non",
-        "Nouvelle Création": "Oui" if p.nouvelle_creation else "Non",
+        "Nouvelle Attribution": "Oui" if p.nouvelle_creation else "Non",
         "Latitude": p.latitude or "",
         "Longitude": p.longitude or "",
         "Notes": p.notes or "",

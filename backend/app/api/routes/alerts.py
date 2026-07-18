@@ -560,7 +560,7 @@ def get_recovery_liste(
             exclusions_detail["activation_recente"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
-        # ── EXCLUSION 3 : nouvelle création (flag explicite)
+        # ── EXCLUSION 3 : nouvelle attribution (flag explicite)
         if pdv.nouvelle_creation:
             exclusions["nouvelle_creation"] += 1
             exclusions_detail["nouvelle_creation"].append(pdv_mini(pdv, mt_p, mt_c))

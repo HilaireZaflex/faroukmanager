@@ -209,7 +209,7 @@ function TabInformations({ pdv }) {
             <InfoRow label="Numéro flotte" value={pdv?.numero_flotte ? '✅ Oui' : '❌ Non'} />
             <InfoRow label="SIM au bureau" value={pdv?.sim_au_bureau ? '✅ Oui' : '❌ Non'} />
             <InfoRow label="SIM coupée" value={pdv?.sim_coupee ? '⚠️ Oui' : '✅ Non'} />
-            <InfoRow label="Nouvelle création" value={pdv?.nouvelle_creation ? '✅ Oui' : '❌ Non'} />
+            <InfoRow label="Nouvelle attribution" value={pdv?.nouvelle_creation ? '✅ Oui' : '❌ Non'} />
             <InfoRow label="Segment IA" value={pdv?.segment_ia} />
             <InfoRow label="Score risque" value={`${pdv?.score_risque || 0}/100`} />
             <InfoRow

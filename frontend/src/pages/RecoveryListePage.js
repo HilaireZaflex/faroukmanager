@@ -277,7 +277,7 @@ export default function RecoveryListePage() {
       'Déjà en Récup.': p.deja_en_recuperation ? 'Oui' : 'Non',
       'Mois Récup. Précédent': p.mois_recuperation_precedent || '—',
       'N° Flotte': p.numero_flotte ? 'Oui' : 'Non',
-      'Nouvelle Création': p.nouvelle_creation ? 'Oui' : 'Non',
+      'Nouvelle Attribution': p.nouvelle_creation ? 'Oui' : 'Non',
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -389,7 +389,7 @@ export default function RecoveryListePage() {
           {[
             { key: 'au_bureau',         label: '🏢 AU BUREAU',             cls: 'excl-bureau' },
             { key: 'activation_recente',label: '📅 Activation < 1 mois',   cls: 'excl-recent' },
-            { key: 'nouvelle_creation', label: '✨ Nouvelles créations',    cls: 'excl-new'    },
+            { key: 'nouvelle_creation', label: '✨ Nouvelles attributions',  cls: 'excl-new'    },
             { key: 'inactif_zero_ops',  label: '💤 Inactifs 0 opérations', cls: 'excl-inactif'},
             { key: 'flotte',            label: '🚗 Numéros Flotte (15)',    cls: 'excl-flotte' },
           ].map(({ key, label, cls }) => (
@@ -559,7 +559,7 @@ export default function RecoveryListePage() {
                           </span>
                         )}
                         {pdv.nouvelle_creation && (
-                          <span className="flag flag-new" title="Nouvelle Création">
+                          <span className="flag flag-new" title="Nouvelle Attribution">
                             <Sparkles size={9} /> Nouveau
                           </span>
                         )}
