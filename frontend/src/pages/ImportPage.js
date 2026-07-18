@@ -167,13 +167,15 @@ function ImportSection({ icon: Icon, title, description, endpoint, label, templa
           <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{title}</h3>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{description}</p>
         </div>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={() => downloadTemplate(templateType)}
-          style={{ flexShrink: 0 }}
-        >
-          <Download size={13}/> Template
-        </button>
+        {templateType && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => downloadTemplate(templateType)}
+            style={{ flexShrink: 0 }}
+          >
+            <Download size={13}/> Template
+          </button>
+        )}
       </div>
 
       <UploadZone onFile={handleFile} />
@@ -371,6 +373,25 @@ export default function ImportPage() {
           </ol>
         </div>
       </div>
+
+      {/* Section 0 : Exclusions Récupération */}
+      <div style={{ margin: '0 0 16px', borderBottom: '1px solid rgba(255,71,87,0.3)', paddingBottom: 12 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#ff4757' }}>⚙️ Exclusions Automatiques Récupération</h2>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+          Importez le fichier <strong>A EXCLURE.xlsx</strong> pour exclure automatiquement les PDVs
+          (Activation &lt; 1 mois et Nouvelles Attributions) de la liste à récupérer.
+        </p>
+      </div>
+      <ImportSection
+        icon={Store}
+        title="🚫 Import PDVs à Exclure (A EXCLURE.xlsx)"
+        description="Importez le fichier A EXCLURE.xlsx : colonne gauche = Activation < 1 mois, colonne droite = Nouvelles Attributions. Ces PDVs seront automatiquement exclus de la liste de récupération."
+        endpoint="/pdvs/import-exclusions"
+        label="Exclusions"
+        templateType={null}
+        color="#ff4757"
+        queryClient={queryClient}
+      />
 
       {/* Section 1 : PDVs */}
       <ImportSection

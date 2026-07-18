@@ -516,6 +516,43 @@ def get_recovery_liste(
     from app.models.action import TerrainAction
     date_limite_activation = today - timedelta(days=31)
 
+    # ── LISTES D'EXCLUSION FIXES (depuis fichier A EXCLURE.xlsx) ─────────────
+    # Activation < 1 mois
+    PDV_ACTIVATION_RECENTE = {
+        '76450513', '77393487', '77981121', '77989316', '77991963',
+        '78018603', '78080037', '78186945', '78417424', '78438627',
+        '82124177', '82237875', '82630573', '82690054', '82946157',
+        '82948613', '82979646', '83359465', '83385689', '94496303',
+        '94508485', '94975504', '94990296', '94998771',
+    }
+    # Nouvelles attributions
+    PDV_NOUVELLE_ATTRIBUTION = {
+        '70003425', '70024606', '76218327', '76450513', '76543262',
+        '76939062', '77137106', '77199360', '77393487', '77930213',
+        '77933795', '77937418', '77956579', '77957957', '77961814',
+        '77962194', '77962497', '77963241', '77965670', '77968100',
+        '77968543', '77968683', '77968781', '77970225', '77975436',
+        '77976387', '77977238', '77978002', '77980231', '77980517',
+        '77980578', '77981121', '77988566', '77989316', '77991963',
+        '77997314', '78001538', '78005571', '78008964', '78009777',
+        '78010894', '78011018', '78016164', '78017048', '78018603',
+        '78020537', '78021017', '78022091', '78022742', '78025377',
+        '78025634', '78028143', '78034890', '78038327', '78043534',
+        '78050325', '78055389', '78065583', '78070393', '78080037',
+        '78082009', '78096558', '78110048', '78114078', '78116543',
+        '78117350', '78120867', '78121406', '78130174', '78131019',
+        '78133218', '78168984', '78186945', '78189476', '78196985',
+        '78207371', '78217617', '78229534', '78240826', '78280668',
+        '78325922', '78417424', '78438627', '82124177', '82144586',
+        '82237875', '82330688', '82468744', '82541444', '82600700',
+        '82634253', '82650447', '82687000', '82690054', '82946157',
+        '82948613', '82979646', '83359465', '83385689', '83386198',
+        '83388387', '94321545', '94433602', '94496303', '94508485',
+        '94974042', '94975504', '94975868', '94990296', '94993297',
+        '94998771',
+    }
+    # ─────────────────────────────────────────────────────────────────────────
+
     # PDVs actifs (non désactivés)
     pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
 
@@ -554,14 +591,15 @@ def get_recovery_liste(
             exclusions_detail["au_bureau"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
-        # ── EXCLUSION 2 : activation récente (< 1 mois)
-        if pdv.date_activation and pdv.date_activation.date() >= date_limite_activation:
+        # ── EXCLUSION 2 : activation récente (< 1 mois) — liste fixe A EXCLURE.xlsx
+        if pdv.numero_pdv in PDV_ACTIVATION_RECENTE or \
+           (pdv.date_activation and pdv.date_activation.date() >= date_limite_activation):
             exclusions["activation_recente"] += 1
             exclusions_detail["activation_recente"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
-        # ── EXCLUSION 3 : nouvelle attribution (flag explicite)
-        if pdv.nouvelle_creation:
+        # ── EXCLUSION 3 : nouvelle attribution — liste fixe A EXCLURE.xlsx
+        if pdv.numero_pdv in PDV_NOUVELLE_ATTRIBUTION or pdv.nouvelle_creation:
             exclusions["nouvelle_creation"] += 1
             exclusions_detail["nouvelle_creation"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
