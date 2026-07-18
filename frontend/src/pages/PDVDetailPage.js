@@ -207,11 +207,16 @@ function TabInformations({ pdv }) {
             <InfoRow label="Statut" value={pdv?.statut} badge />
             <InfoRow label="Date activation" value={formatDate(pdv?.date_activation)} />
             <InfoRow label="Numéro flotte" value={pdv?.numero_flotte ? '✅ Oui' : '❌ Non'} />
-            <InfoRow label="SIM au bureau" value={pdv?.sim_bureau ? '✅ Oui' : '❌ Non'} />
+            <InfoRow label="SIM au bureau" value={pdv?.sim_au_bureau ? '✅ Oui' : '❌ Non'} />
             <InfoRow label="SIM coupée" value={pdv?.sim_coupee ? '⚠️ Oui' : '✅ Non'} />
             <InfoRow label="Nouvelle création" value={pdv?.nouvelle_creation ? '✅ Oui' : '❌ Non'} />
             <InfoRow label="Segment IA" value={pdv?.segment_ia} />
             <InfoRow label="Score risque" value={`${pdv?.score_risque || 0}/100`} />
+            <InfoRow
+              label="🗓️ Date mise à jour"
+              value={pdv?.date_mise_a_jour || '—'}
+              style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', fontWeight: 600, color: 'var(--primary)' }}
+            />
           </div>
         </div>
       </div>
@@ -219,9 +224,9 @@ function TabInformations({ pdv }) {
   );
 }
 
-function InfoRow({ label, value, badge }) {
+function InfoRow({ label, value, badge, style }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.02)', ...style }}>
       <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
       {badge ? (
         <span
