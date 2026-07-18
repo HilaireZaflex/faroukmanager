@@ -393,20 +393,18 @@ export default function RecoveryListePage() {
             { key: 'inactif_zero_ops',  label: '💤 Inactifs 0 opérations', cls: 'excl-inactif'},
             { key: 'flotte',            label: '🚗 Numéros Flotte (15)',    cls: 'excl-flotte' },
           ].map(({ key, label, cls }) => (
-            data.exclusions[key] > 0 && (
-              <button
-                key={key}
-                className={`rl-excl-item ${cls} rl-excl-btn`}
-                onClick={() => setExclusionModal({
-                  key, label,
-                  liste: data.exclusions_detail?.[key] || []
-                })}
-                title="Cliquer pour voir les PDV concernés"
-              >
-                {label} : <strong>{data.exclusions[key]}</strong>
-                <span className="rl-excl-eye">👁</span>
-              </button>
-            )
+            <button
+              key={key}
+              className={`rl-excl-item ${cls} rl-excl-btn ${data.exclusions[key] === 0 ? 'excl-zero' : ''}`}
+              onClick={() => setExclusionModal({
+                key, label,
+                liste: data.exclusions_detail?.[key] || []
+              })}
+              title={data.exclusions[key] === 0 ? 'Aucun PDV exclu pour ce critère' : 'Cliquer pour voir les PDV concernés'}
+            >
+              {label} : <strong>{data.exclusions[key] ?? 0}</strong>
+              {data.exclusions[key] > 0 && <span className="rl-excl-eye">👁</span>}
+            </button>
           ))}
         </div>
       )}
