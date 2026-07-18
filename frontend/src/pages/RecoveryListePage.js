@@ -169,9 +169,9 @@ function TypeBadge({ type }) {
 }
 
 export default function RecoveryListePage() {
-  // Mois par défaut = Avril 2026 (dernier mois disponible en base)
-  const [mois, setMois]     = useState(4);
-  const [annee, setAnnee]   = useState(2026);
+  // Mois par défaut = null → le backend retourne le dernier mois avec données
+  const [mois, setMois]     = useState(null);
+  const [annee, setAnnee]   = useState(null);
   const [seuil, setSeuil]   = useState(5_000_000);
   const [seuilInput, setSeuilInput] = useState('5000000');
   const [showModal, setShowModal]           = useState(false);
@@ -188,13 +188,28 @@ export default function RecoveryListePage() {
 
   const { data, isLoading, refetch, isFetching } = useQuery(
     ['recovery-liste', mois, annee, seuil],
-    () => api.get(`/alerts/recovery/liste?mois=${mois}&annee=${annee}&seuil=${seuil}`).then(r => r.data),
+    () => {
+      const params = new URLSearchParams({ seuil });
+      if (mois)  params.append('mois',  mois);
+      if (annee) params.append('annee', annee);
+      return api.get(`/alerts/recovery/liste?${params}`).then(r => {
+        // Synchroniser le sélecteur avec le mois retourné par le backend
+        if (!mois  && r.data?.mois_courant)  setMois(r.data.mois_courant);
+        if (!annee && r.data?.annee_courante) setAnnee(r.data.annee_courante);
+        return r.data;
+      });
+    },
     { staleTime: 60_000 }
   );
 
   const { data: trackingData, refetch: refetchTracking } = useQuery(
     ['recovery-tracking', mois, annee],
-    () => api.get(`/alerts/recovery/tracking?mois=${mois}&annee=${annee}`).then(r => r.data),
+    () => {
+      const params = new URLSearchParams();
+      if (mois)  params.append('mois',  mois);
+      if (annee) params.append('annee', annee);
+      return api.get(`/alerts/recovery/tracking?${params}`).then(r => r.data);
+    },
     { staleTime: 30_000 }
   );
 
@@ -335,12 +350,14 @@ export default function RecoveryListePage() {
       <div className="rl-period-bar">
         <Calendar size={14} />
         <span>Mois de traitement :</span>
-        <select value={mois} onChange={e => setMois(Number(e.target.value))} className="rl-select">
+        <select value={mois ?? ''} onChange={e => setMois(Number(e.target.value))} className="rl-select">
+          {!mois && <option value="">— chargement —</option>}
           {Object.entries(MOIS_NOMS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <select value={annee} onChange={e => setAnnee(Number(e.target.value))} className="rl-select">
+        <select value={annee ?? ''} onChange={e => setAnnee(Number(e.target.value))} className="rl-select">
+          {!annee && <option value="">—</option>}
           {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
         </select>
         {data && (
