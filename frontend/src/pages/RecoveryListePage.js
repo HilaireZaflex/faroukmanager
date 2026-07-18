@@ -387,7 +387,7 @@ export default function RecoveryListePage() {
         <div className="rl-exclusions-bar">
           <span className="rl-excl-title">⚙️ Exclusions automatiques :</span>
           {[
-            { key: 'au_bureau',         label: '🏢 Superviseur AU BUREAU', cls: 'excl-bureau' },
+            { key: 'au_bureau',         label: '🏢 AU BUREAU',             cls: 'excl-bureau' },
             { key: 'activation_recente',label: '📅 Activation < 1 mois',   cls: 'excl-recent' },
             { key: 'nouvelle_creation', label: '✨ Nouvelles créations',    cls: 'excl-new'    },
             { key: 'inactif_zero_ops',  label: '💤 Inactifs 0 opérations', cls: 'excl-inactif'},

@@ -547,8 +547,9 @@ def get_recovery_liste(
         mt_c = pc.montant_transaction if pc else 0.0
         mt_p = pp.montant_transaction if pp else 0.0
 
-        # ── EXCLUSION 1 : superviseur AU BUREAU
-        if pdv.superviseur and 'AU BUREAU' in pdv.superviseur.upper():
+        # ── EXCLUSION 1 : zone OU superviseur AU BUREAU
+        if (pdv.zone and 'AU BUREAU' in pdv.zone.upper()) or \
+           (pdv.superviseur and 'AU BUREAU' in pdv.superviseur.upper()):
             exclusions["au_bureau"] += 1
             exclusions_detail["au_bureau"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
