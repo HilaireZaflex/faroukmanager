@@ -261,14 +261,19 @@ export default function RecoveryPage() {
   const tsStats = trackingData?.stats || {};
   const tsTotal = trackingData?.total || 0;
 
-  // KPIs depuis vraies données
+  // KPIs depuis vraies données (basés sur la liste à récupérer)
+  const nbZero    = listeRecup.filter(p => p.ca_total === 0).length;
+  const nbDeja    = listeRecup.filter(p => p.deja_en_recuperation).length;
+  const totalExclus = recoveryData?.exclusions
+    ? Object.values(recoveryData.exclusions).reduce((a,b)=>a+b,0) : 0;
+
   const kpis = [
-    { label: 'Identifiés',     value: tsStats.IDENTIFIE ?? recoveryData?.total ?? '—', icon: '🔍', color: '#8a8a9a', desc: `PDV détectés — ${recoveryData?.mois_courant_nom || ''}` },
-    { label: 'Contactés',      value: tsStats.CONTACTE ?? 0,      icon: '📞', color: '#ffa502', desc: 'Gestionnaire a contacté' },
-    { label: 'SIM Récupérées', value: tsStats.SIM_RECUPEREE ?? 0, icon: '💳', color: '#a29bfe', desc: 'SIM physiquement récupérée' },
-    { label: 'Redéployés',     value: tsStats.REDEPLOYE ?? 0,     icon: '✅', color: '#00b894', desc: 'PDV redéployés avec succès' },
-    { label: 'N° Flotte',      value: nbFlotte,                   icon: '🚗', color: '#FF6900', desc: 'numéros flotte Orange' },
-    { label: 'CA Moyen/PDV',   value: formatCA(listeRecup.length > 0 ? caTotal / listeRecup.length : 0), icon: '💰', color: '#ff6b81', desc: 'CA cumulé sur 2 mois' },
+    { label: 'PDV à récupérer',  value: recoveryData?.total ?? '—',   icon: '🔍', color: '#ff6b81', desc: `${recoveryData?.mois_courant_nom || ''} ${recoveryData?.annee_courante || ''}` },
+    { label: 'CA quasi nul',     value: nbZero,                        icon: '💤', color: '#8a8a9a', desc: 'aucune transaction 2 mois' },
+    { label: 'Déjà en récup.',   value: nbDeja,                        icon: '🔁', color: '#ffa502', desc: 'récidivistes mois précédent' },
+    { label: 'N° Flotte',        value: nbFlotte,                      icon: '🚗', color: '#FF6900', desc: 'lignes Flotte Orange' },
+    { label: 'PDV exclus auto',  value: totalExclus,                   icon: '⚙️', color: '#a29bfe', desc: 'filtrés automatiquement' },
+    { label: 'CA Moyen/PDV',     value: formatCA(listeRecup.length > 0 ? caTotal / listeRecup.length : 0), icon: '💰', color: '#00b894', desc: 'CA cumulé sur 2 mois' },
   ];
 
   const redeployes = filteredList.filter(r => getStatut(r) === 'REDEPLOYE').length;

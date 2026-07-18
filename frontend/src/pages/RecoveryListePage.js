@@ -275,29 +275,119 @@ export default function RecoveryListePage() {
     : sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />;
 
   const handleExport = () => {
+    const wb = XLSX.utils.book_new();
+    const moisNom  = data?.mois_courant_nom  || '';
+    const moisPrec = data?.mois_precedent_nom || '';
+    const anneeVal = annee || '';
+    const totalExclus = data?.exclusions ? Object.values(data.exclusions).reduce((a,b)=>a+b,0) : 0;
+
+    // ── FEUILLE 1 : LISTE PRINCIPALE ─────────────────────────────────────
     const rows = filtered.map((p, i) => ({
       '#': i + 1,
       'N° PDV': p.numero_pdv,
-      'Nom / Prénom': p.nom,
-      'Type': p.type_pdv,
-      'Zone': p.zone,
-      'Sous Zone': p.sous_zone,
-      'Superviseur': p.superviseur,
-      'Gestionnaire': p.gestionnaire,
-      'Téléphone': p.telephone,
+      'Nom / Prénom': p.nom || '—',
+      'Type PDV': p.type_pdv || '—',
+      'Zone': p.zone || '—',
+      'Sous-Zone': p.sous_zone || '—',
+      'Superviseur': p.superviseur || '—',
+      'Gestionnaire': p.gestionnaire || '—',
+      'Téléphone': p.telephone || '—',
       'Date Activation': fmtDate(p.date_activation),
-      [`CA ${data?.mois_precedent_nom} (FCFA)`]: p.ca_mois_precedent,
-      [`CA ${data?.mois_courant_nom} (FCFA)`]: p.ca_mois_courant,
-      'CA Total 2 mois (FCFA)': p.ca_total,
-      'Déjà en Récup.': p.deja_en_recuperation ? 'Oui' : 'Non',
+      [`Trans. ${moisPrec} (FCFA)`]: p.ca_mois_precedent || 0,
+      [`Trans. ${moisNom} (FCFA)`]: p.ca_mois_courant || 0,
+      'Total 2 mois (FCFA)': p.ca_total || 0,
+      'Déjà en Récup.': p.deja_en_recuperation ? 'OUI ⚠️' : 'Non',
       'Mois Récup. Précédent': p.mois_recuperation_precedent || '—',
-      'N° Flotte': p.numero_flotte ? 'Oui' : 'Non',
-      'Nouvelle Attribution': p.nouvelle_creation ? 'Oui' : 'Non',
+      'N° Flotte': p.numero_flotte ? 'OUI 🚗' : 'Non',
+      'Nouvelle Attribution': p.nouvelle_creation ? 'OUI ✨' : 'Non',
+      'Statut Suivi': '[ À COMPLÉTER ]',
+      'Actions Terrain': '',
     }));
-    const wb = XLSX.utils.book_new();
+
     const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, 'Récupération');
-    XLSX.writeFile(wb, `Liste_Recuperation_${data?.mois_courant_nom}_${annee}.xlsx`);
+
+    // Largeurs colonnes
+    ws['!cols'] = [
+      {wch:4},{wch:10},{wch:28},{wch:12},{wch:18},{wch:16},
+      {wch:28},{wch:28},{wch:14},{wch:14},
+      {wch:18},{wch:18},{wch:18},
+      {wch:14},{wch:20},{wch:12},{wch:18},
+      {wch:18},{wch:24}
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, `Liste Récupération ${moisNom}`);
+
+    // ── FEUILLE 2 : LÉGENDE & CONTEXTE ────────────────────────────────────
+    const legende = [
+      ['📋 RAPPORT DE RÉCUPÉRATION PDV — ORANGE MALI', '', '', ''],
+      ['', '', '', ''],
+      ['Période analysée :', `${moisPrec} + ${moisNom} ${anneeVal}`, '', ''],
+      ['Date de génération :', new Date().toLocaleDateString('fr-FR', {day:'2-digit',month:'long',year:'numeric'}), '', ''],
+      ['Seuil de récupération :', `${Math.round(seuil).toLocaleString('fr-FR')} FCFA (montant total 2 mois)`, '', ''],
+      ['', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['📊 RÉSUMÉ DES CHIFFRES CLÉS', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['', '', '', ''],
+      ['Total PDV à récupérer :', data?.total ?? filtered.length, '(PDVs dont le CA cumulé 2 mois est en dessous du seuil)', ''],
+      ['PDVs avec CA quasi nul :', filtered.filter(p => p.ca_total === 0).length, '(aucune transaction sur les 2 mois)', ''],
+      ['PDVs déjà en récupération :', filtered.filter(p => p.deja_en_recuperation).length, '(récidivistes — déjà signalés le mois précédent)', ''],
+      ['PDVs avec N° Flotte :', filtered.filter(p => p.numero_flotte).length, '(lignes Flotte Orange — traitement prioritaire)', ''],
+      ['', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['⚙️  EXCLUSIONS AUTOMATIQUES APPLIQUÉES (mois de ' + moisNom + ')', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['', '', '', ''],
+      ['Ces PDVs ont été EXCLUS de la liste car ils ne sont pas éligibles à la récupération ce mois-ci :', '', '', ''],
+      ['', '', '', ''],
+      ['Critère d\'exclusion', 'Nombre de PDVs exclus', 'Explication', ''],
+      ['🏢 AU BUREAU', data?.exclusions?.au_bureau ?? 0, 'PDVs dont la zone OU le superviseur est marqué "AU BUREAU" — pas de PDV terrain à récupérer', ''],
+      ['📅 Activation < 1 mois', data?.exclusions?.activation_recente ?? 0, 'PDVs activés il y a moins d\'1 mois — trop récents pour être en récupération', ''],
+      ['✨ Nouvelles attributions', data?.exclusions?.nouvelle_creation ?? 0, 'PDVs nouvellement attribués à un nouveau gérant — période de démarrage, exclusion normale', ''],
+      ['💤 Inactifs 0 opérations', data?.exclusions?.inactif_zero_ops ?? 0, 'PDVs sans aucune opération sur 2 mois complets — traités séparément (fermeture / réaffectation)', ''],
+      ['🚗 Numéros Flotte', data?.exclusions?.flotte ?? 0, 'Lignes Flotte Orange incluses dans le réseau — gérées par le département Flotte, pas la récupération standard', ''],
+      ['', '', '', ''],
+      ['TOTAL PDVs exclus :', totalExclus, '', ''],
+      ['', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['📖 GUIDE DE LECTURE DU TABLEAU', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['', '', '', ''],
+      ['Colonne', 'Signification', '', ''],
+      ['N° PDV', 'Numéro unique d\'identification du point de vente dans le système Orange Mali', '', ''],
+      ['Nom / Prénom', 'Nom du gérant / titulaire du PDV', '', ''],
+      ['Type PDV', 'RNS (Réseau Non Structuré) ou autre catégorie Orange', '', ''],
+      ['Zone / Sous-Zone', 'Zone géographique et subdivision du PDV', '', ''],
+      ['Superviseur', 'Superviseur Orange responsable de la zone du PDV', '', ''],
+      ['Gestionnaire', 'Gestionnaire de compte affecté au PDV', '', ''],
+      [`Trans. ${moisPrec} (FCFA)`, `Montant total des transactions réalisées par le PDV en ${moisPrec} ${anneeVal}`, '', ''],
+      [`Trans. ${moisNom} (FCFA)`, `Montant total des transactions réalisées par le PDV en ${moisNom} ${anneeVal}`, '', ''],
+      ['Total 2 mois (FCFA)', `Somme des transactions sur ${moisPrec} + ${moisNom} — doit être < ${Math.round(seuil).toLocaleString('fr-FR')} FCFA pour figurer dans la liste`, '', ''],
+      ['Déjà en Récup.', '"OUI" = ce PDV était déjà dans la liste de récupération le mois précédent (récidiviste — priorité haute)', '', ''],
+      ['N° Flotte', '"OUI" = ce PDV utilise une ligne Flotte Orange — à coordonner avec le département Flotte', '', ''],
+      ['Nouvelle Attribution', '"OUI" = PDV récemment attribué à un nouveau gérant, mais inclus tout de même dans la liste', '', ''],
+      ['Statut Suivi', 'À compléter par les superviseurs terrain : Identifié / Contacté / SIM Récupérée / Redéployé', '', ''],
+      ['Actions Terrain', 'Notes libres sur les actions menées (appel, visite, commentaire...)', '', ''],
+      ['', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['⚡ PROCESSUS DE RÉCUPÉRATION', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['', '', '', ''],
+      ['Étape', 'Statut', 'Description', 'Responsable'],
+      ['1', '🔍 IDENTIFIÉ', 'Le PDV est détecté comme inactif et enregistré dans le programme. Aucune action terrain encore effectuée.', 'Système automatique'],
+      ['2', '📞 CONTACTÉ', 'Le superviseur ou la téléconseillère a contacté le gérant du PDV (appel ou visite). Dialogue en cours.', 'Superviseur / Téléconseillère'],
+      ['3', '💳 SIM RÉCUPÉRÉE', 'La carte SIM Orange du PDV a été physiquement récupérée au bureau. L\'ancienne ligne est désactivée.', 'Superviseur'],
+      ['4', '✅ REDÉPLOYÉ', 'Le PDV est de retour en activité avec une nouvelle SIM ou un nouveau gérant. Processus terminé avec succès.', 'Manager / Superviseur'],
+      ['', '', '', ''],
+      ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '', '', ''],
+      ['Document généré automatiquement par FaroukManager — Confidentiel Orange Mali', '', '', ''],
+    ];
+
+    const wsLeg = XLSX.utils.aoa_to_sheet(legende);
+    wsLeg['!cols'] = [{wch:32},{wch:22},{wch:80},{wch:30}];
+    XLSX.utils.book_append_sheet(wb, wsLeg, 'Légende & Contexte');
+
+    XLSX.writeFile(wb, `Liste_Recuperation_${moisNom}_${anneeVal}.xlsx`);
   };
 
   const applySeuil = () => {
@@ -552,15 +642,15 @@ export default function RecoveryListePage() {
                       {fmtDate(pdv.date_activation)}
                     </td>
                     <td className={`td-right ca-cell ${caClass(pdv.ca_mois_precedent, seuil/2)}`}>
-                      {fmt(pdv.ca_mois_precedent)}
+                      {fmtFull(pdv.ca_mois_precedent)}
                     </td>
                     <td className={`td-right ca-cell ${caClass(pdv.ca_mois_courant, seuil/2)}`}>
-                      {fmt(pdv.ca_mois_courant)}
+                      {fmtFull(pdv.ca_mois_courant)}
                     </td>
                     <td className="td-right">
                       <div className={`ca-total-cell ${caClass(pdv.ca_total, seuil)}`}>
                         <TrendingDown size={12} />
-                        {fmt(pdv.ca_total)}
+                        {fmtFull(pdv.ca_total)}
                       </div>
                     </td>
                     <td className="td-center">
@@ -700,9 +790,9 @@ export default function RecoveryListePage() {
                       <td style={{ fontSize: 12, color: '#bbb' }}>{pdv.gestionnaire || '—'}</td>
                       <td style={{ fontSize: 11, color: '#777' }}>{pdv.telephone || '—'}</td>
                       <td style={{ fontSize: 11, color: '#777', whiteSpace: 'nowrap' }}>{fmtDate(pdv.date_activation)}</td>
-                      <td className="td-right ca-cell" style={{ color: '#888' }}>{fmt(pdv.ca_mois_precedent)}</td>
-                      <td className="td-right ca-cell" style={{ color: '#888' }}>{fmt(pdv.ca_mois_courant)}</td>
-                      <td className="td-right ca-cell" style={{ color: '#aaa', fontWeight: 700 }}>{fmt(pdv.ca_total)}</td>
+                      <td className="td-right ca-cell" style={{ color: '#888' }}>{fmtFull(pdv.ca_mois_precedent)}</td>
+                      <td className="td-right ca-cell" style={{ color: '#888' }}>{fmtFull(pdv.ca_mois_courant)}</td>
+                      <td className="td-right ca-cell" style={{ color: '#aaa', fontWeight: 700 }}>{fmtFull(pdv.ca_total)}</td>
                     </tr>
                   ))}
                 </tbody>
