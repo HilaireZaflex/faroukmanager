@@ -291,7 +291,8 @@ export default function RecoveryListePage() {
       'Sous-Zone': p.sous_zone || '—',
       'Superviseur': p.superviseur || '—',
       'Gestionnaire': p.gestionnaire || '—',
-      'Téléphone': p.telephone || '—',
+      'Téléphone PDV': p.telephone || '—',
+      'N° Personnel Gérant': p.numero_personnel || '—',
       'Date Activation': fmtDate(p.date_activation),
       [`Trans. ${moisPrec} (FCFA)`]: p.ca_mois_precedent || 0,
       [`Trans. ${moisNom} (FCFA)`]: p.ca_mois_courant || 0,
@@ -309,7 +310,7 @@ export default function RecoveryListePage() {
     // Largeurs colonnes
     ws['!cols'] = [
       {wch:4},{wch:10},{wch:28},{wch:12},{wch:18},{wch:16},
-      {wch:28},{wch:28},{wch:14},{wch:14},
+      {wch:28},{wch:28},{wch:16},{wch:18},{wch:14},
       {wch:18},{wch:18},{wch:18},
       {wch:14},{wch:20},{wch:12},{wch:18},
       {wch:18},{wch:24}
@@ -629,6 +630,11 @@ export default function RecoveryListePage() {
                       <div>{pdv.nom || '—'}</div>
                       {pdv.telephone && (
                         <div className="td-sub">📞 {pdv.telephone}</div>
+                      )}
+                      {pdv.numero_personnel && (
+                        <div className="td-sub" style={{ color:'#FF6900', fontWeight:600 }}>
+                          📱 {pdv.numero_personnel}
+                        </div>
                       )}
                     </td>
                     <td><TypeBadge type={pdv.type_pdv} /></td>

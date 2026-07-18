@@ -653,6 +653,7 @@ def get_recovery_liste(
                 "type_pdv": pdv.type_pdv.value if pdv.type_pdv else None,
                 "statut": pdv.statut.value if pdv.statut else None,
                 "telephone": pdv.telephone,
+                "numero_personnel": pdv.numero_personnel,
                 "date_activation": pdv.date_activation.isoformat() if pdv.date_activation else None,
                 "numero_flotte": pdv.numero_flotte,
                 "nouvelle_creation": pdv.nouvelle_creation,
