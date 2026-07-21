@@ -1008,15 +1008,6 @@ function CreateProspectModal({ onClose, onSaved }) {
               <label>Téléphone secondaire<input value={data.telephone_secondaire} onChange={e => set('telephone_secondaire', e.target.value)}/></label>
               <label>Quartier<input value={data.quartier} onChange={e => set('quartier', e.target.value)}/></label>
               <label>Adresse<input value={data.adresse} onChange={e => set('adresse', e.target.value)}/></label>
-              <label>Type pièce
-                <select value={data.piece_identite_type} onChange={e => set('piece_identite_type', e.target.value)}>
-                  <option value="">—</option>
-                  <option value="CNI">CNI</option><option value="NINA">NINA</option>
-                  <option value="PASSEPORT">Passeport</option><option value="PERMIS">Permis</option>
-                  <option value="AUTRE">Autre</option>
-                </select>
-              </label>
-              <label>N° pièce<input value={data.piece_identite_numero} onChange={e => set('piece_identite_numero', e.target.value)}/></label>
             </div>
           </div>
 
@@ -1053,8 +1044,6 @@ function CreateProspectModal({ onClose, onSaved }) {
                   <MapPin size={12}/> Capturer ma position GPS
                 </button>
               </div>
-              <label>Nom du lieu<input value={data.pdv_nom_lieu} onChange={e => set('pdv_nom_lieu', e.target.value)}/></label>
-              <label>Adresse précise<input value={data.pdv_adresse} onChange={e => set('pdv_adresse', e.target.value)}/></label>
               <label>Type de local
                 <select value={data.type_local} onChange={e => set('type_local', e.target.value)}>
                   <option value="BOUTIQUE_FIXE">Boutique fixe</option>

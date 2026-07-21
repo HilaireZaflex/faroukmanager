@@ -254,6 +254,32 @@ def create_prospect(db: Session, payload: ProspectCreate, current_user: User) ->
     )
     db.commit()
     db.refresh(prospect)
+
+    # 🔔 Notification DB : informer tous les RC qu'une nouvelle demande vient d'être soumise
+    try:
+        from app.services.notification_service import get_rc_user_ids, create_notif
+        rc_ids = get_rc_user_ids(db)
+        soumis_par = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
+        role_label = current_user.role.value.capitalize()
+        prospect_nom = f"{prospect.prenom} {prospect.nom}".strip()
+        for rc_id in rc_ids:
+            create_notif(db,
+                user_id=rc_id,
+                title=f"🆕 Nouvelle demande — {prospect.reference}",
+                message=(
+                    f"{role_label} {soumis_par} vient de soumettre une nouvelle demande de puce Orange Money.\n\n"
+                    f"Prospect : {prospect.reference} — {prospect_nom}\n"
+                    f"Téléphone : {prospect.telephone_principal}\n"
+                    f"Quartier : {prospect.quartier or '—'}\n\n"
+                    f"Rendez-vous dans Workflow → Étape 2 pour attribuer un développeur pour la visite terrain."
+                ),
+                prospect_id=prospect.id,
+                payload={"etape": 2, "action": "Attribuer un développeur pour la visite (Étape 2)", "prospect_reference": prospect.reference, "prospect_nom": prospect_nom},
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"notif nouvelle demande failed: {e}")
+
     return prospect
 
 
