@@ -9,6 +9,102 @@ import prospectService, { STATUS_LABELS } from '../services/prospectService';
 import useAuthStore from '../store/authStore';
 import './ProspectionPage.css';
 
+// ─── Modale de confirmation personnalisée ────────────────────────────────────
+function ConfirmDeleteModal({ prospect, onConfirm, onCancel }) {
+  const st = STATUS_LABELS[prospect.status];
+  const enCours = !['NOUVELLE', 'REFUSE', 'ACTIVE'].includes(prospect.status);
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 9999, backdropFilter: 'blur(4px)',
+    }}>
+      <div style={{
+        background: '#1e1e2e', border: '1px solid #3f3f5a',
+        borderRadius: 16, padding: '32px 36px', maxWidth: 480, width: '90%',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+        animation: 'fadeInScale 0.18s ease',
+      }}>
+        {/* Icône */}
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 64, height: 64, borderRadius: '50%',
+            background: enCours ? 'rgba(251,191,36,0.15)' : 'rgba(239,68,68,0.15)',
+            fontSize: 28,
+          }}>
+            {enCours ? '⚠️' : '🗑️'}
+          </div>
+        </div>
+
+        {/* Titre */}
+        <h3 style={{
+          textAlign: 'center', margin: '0 0 8px',
+          color: enCours ? '#fbbf24' : '#ef4444',
+          fontSize: 18, fontWeight: 700,
+        }}>
+          {enCours ? 'Suppression forcée' : 'Supprimer la demande'}
+        </h3>
+
+        {/* Référence prospect */}
+        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, margin: '0 0 20px' }}>
+          <b style={{ color: '#e2e8f0' }}>{prospect.reference}</b> — {prospect.prenom} {prospect.nom}
+        </p>
+
+        {/* Avertissement si en cours */}
+        {enCours && (
+          <div style={{
+            background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)',
+            borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: 13,
+          }}>
+            <div style={{ color: '#fbbf24', fontWeight: 600, marginBottom: 6 }}>
+              Demande en cours : <span style={{ color: '#fff' }}>{st?.label || prospect.status}</span>
+            </div>
+            <div style={{ color: '#94a3b8', lineHeight: 1.6 }}>
+              Cette demande est actuellement dans le workflow. La supprimer effacera
+              <b style={{ color: '#e2e8f0' }}> toutes les notifications associées</b> chez tous les utilisateurs.
+            </div>
+          </div>
+        )}
+
+        {/* Message simple si pas en cours */}
+        {!enCours && (
+          <div style={{
+            background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)',
+            borderRadius: 10, padding: '12px 16px', marginBottom: 20,
+            color: '#94a3b8', fontSize: 13, lineHeight: 1.6,
+          }}>
+            Cette action est <b style={{ color: '#ef4444' }}>irréversible</b>. La demande et toutes ses données seront définitivement supprimées.
+          </div>
+        )}
+
+        {/* Boutons */}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button onClick={onCancel} style={{
+            flex: 1, padding: '11px 0', borderRadius: 10, border: '1px solid #3f3f5a',
+            background: 'transparent', color: '#94a3b8', fontWeight: 600,
+            fontSize: 14, cursor: 'pointer', transition: 'all 0.15s',
+          }}
+            onMouseOver={e => { e.target.style.background='#2a2a3e'; e.target.style.color='#e2e8f0'; }}
+            onMouseOut={e => { e.target.style.background='transparent'; e.target.style.color='#94a3b8'; }}>
+            Annuler
+          </button>
+          <button onClick={onConfirm} style={{
+            flex: 1, padding: '11px 0', borderRadius: 10, border: 'none',
+            background: enCours ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : '#ef4444',
+            color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(239,68,68,0.35)', transition: 'opacity 0.15s',
+          }}
+            onMouseOver={e => e.target.style.opacity='0.85'}
+            onMouseOut={e => e.target.style.opacity='1'}>
+            {enCours ? '🗑️ Supprimer quand même' : '🗑️ Supprimer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Utilitaire d'extraction d'erreur robuste
 const errMsg = (e) => {
   if (!e) return 'Erreur inconnue';
@@ -137,6 +233,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: '', search: '' });
+  const [confirmDelete, setConfirmDelete] = useState(null); // prospect à supprimer
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -158,14 +255,14 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   const canDelete = ['admin', 'manager', 'rc'].includes(currentUser?.role);
 
-  const handleDelete = async (e, p) => {
+  const handleDelete = (e, p) => {
     e.stopPropagation();
-    const st = STATUS_LABELS[p.status];
-    const enCours = !['NOUVELLE', 'REFUSE', 'ACTIVE'].includes(p.status);
-    const warning = enCours
-      ? `⚠️ Cette demande est actuellement "${st?.label || p.status}" (en cours de workflow).\n\nLa supprimer effacera aussi toutes les notifications associées chez tous les utilisateurs.\n\nConfirmer la suppression forcée ?`
-      : `Supprimer définitivement la demande ${p.reference} (${p.prenom} ${p.nom}) ?\n\nCette action est irréversible.`;
-    if (!window.confirm(warning)) return;
+    setConfirmDelete(p);
+  };
+
+  const doDelete = async () => {
+    const p = confirmDelete;
+    setConfirmDelete(null);
     try {
       await prospectService.delete(p.id);
       reload();
@@ -176,6 +273,15 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   return (
     <>
+      {/* Modale confirmation suppression */}
+      {confirmDelete && (
+        <ConfirmDeleteModal
+          prospect={confirmDelete}
+          onConfirm={doDelete}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
       {/* Légende étape */}
       <StepLegend
         step={1}
