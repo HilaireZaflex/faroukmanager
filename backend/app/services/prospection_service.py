@@ -615,22 +615,24 @@ def assign_puce(db: Session, prospect_id: int, payload: PuceAssignRequest, curre
             detail="L'activateur doit être un DEVELOPPEUR.",
         )
 
-    # Unicité du n° de puce
-    used = db.query(Prospect).filter(
-        Prospect.puce_numero == payload.puce_numero,
-        Prospect.id != p.id,
-    ).first()
-    if used:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Numéro de puce déjà utilisé (réf: {used.reference})",
-        )
+    # Unicité du n° de puce (seulement si renseigné)
+    if payload.puce_numero:
+        used = db.query(Prospect).filter(
+            Prospect.puce_numero == payload.puce_numero,
+            Prospect.id != p.id,
+        ).first()
+        if used:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Numéro de puce déjà utilisé (réf: {used.reference})",
+            )
 
     from_status = p.status
     p.status = ProspectStatus.PUCE_ATTRIBUEE
     p.puce_assigned_to_id = activator.id
     p.puce_assigned_at = datetime.utcnow()
-    p.puce_numero = payload.puce_numero
+    if payload.puce_numero:
+        p.puce_numero = payload.puce_numero
     p.sla_activation_due_at = datetime.utcnow() + timedelta(hours=SLA_ACTIVATION_HOURS)
 
     _log_history(
@@ -638,7 +640,7 @@ def assign_puce(db: Session, prospect_id: int, payload: PuceAssignRequest, curre
         decision_type=DecisionType.PUCE_ASSIGN,
         from_status=from_status,
         to_status=ProspectStatus.PUCE_ATTRIBUEE,
-        comment=payload.comment or f"Puce {payload.puce_numero} attribuée à {activator.nom}",
+        comment=payload.comment or f"Développeur {activator.nom} assigné pour activation",
         extra={"puce_numero": payload.puce_numero, "activator_id": activator.id},
     )
     db.commit()
@@ -653,7 +655,7 @@ def assign_puce(db: Session, prospect_id: int, payload: PuceAssignRequest, curre
         mark_read_by_type(db, current_user.id, p.id, [])
         notif_activation_assignee(db, developer_id=activator.id, prospect_ref=p.reference,
                                   prospect_nom=f"{p.prenom} {p.nom}".strip(),
-                                  puce_numero=payload.puce_numero, assigned_by=assigned_by,
+                                  puce_numero=payload.puce_numero or "À renseigner sur le terrain", assigned_by=assigned_by,
                                   prospect_id=p.id)
     except Exception:
         pass

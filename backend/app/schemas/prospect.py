@@ -143,9 +143,9 @@ class RCDecisionRequest(BaseModel):
 
 
 class PuceAssignRequest(BaseModel):
-    """Le RC attribue une puce à un développeur activateur."""
+    """Le RC attribue un développeur activateur (le numéro de puce est saisi par le dev lors de l'activation)."""
     activator_id: int = Field(..., description="ID du développeur qui activera")
-    puce_numero: str = Field(..., min_length=3)
+    puce_numero: Optional[str] = Field(None, description="N° de puce — optionnel, peut être saisi lors de l'activation terrain")
     comment: Optional[str] = None
 
 
