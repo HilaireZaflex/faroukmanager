@@ -6,7 +6,7 @@ import useNotifStore from '../../store/notifStore';
 // Retourne l'URL de redirection selon l'étape de la notification
 const getRedirectUrl = (notif) => {
   const etape = notif?.etape;
-  if (!etape) return '/prospection';
+  if (etape === 2) return '/prospection?tab=workflow&step=etape2'; // RC → attribution visite
   if (etape === 3) return '/prospection?tab=workflow&step=etape3'; // Dev → décision visite
   if (etape === 4) return '/prospection?tab=workflow&step=etape4'; // RC → validation
   if (etape === 5) return '/prospection?tab=workflow&step=etape5'; // RC → attribution activation
