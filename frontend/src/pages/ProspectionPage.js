@@ -814,16 +814,15 @@ function Etape5AttributionActivation({ prospects, developers, onDone }) {
 
 function Attribution5Card({ prospect: p, developers, onDone }) {
   const [devId, setDevId] = useState('');
-  const [puceNumero, setPuceNumero] = useState('');
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const { fetchNotifications } = useNotifStore();
 
   const submit = async () => {
-    if (!devId || !puceNumero) { alert('Veuillez sélectionner un développeur et saisir un numéro de puce.'); return; }
+    if (!devId) { alert('Veuillez sélectionner un développeur.'); return; }
     setBusy(true);
     try {
-      let payload = { puce_numero: puceNumero };
+      let payload = {};
       if (devId.startsWith('user_')) {
         payload.activator_id = parseInt(devId.replace('user_', ''));
       } else {
@@ -831,7 +830,7 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
         payload.activator_nom = `${dev?.nom || ''} ${dev?.prenom || ''}`.trim();
       }
       await prospectService.assignPuce(p.id, payload);
-      fetchNotifications(); // fetch immédiat après action
+      fetchNotifications();
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
@@ -841,8 +840,8 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
     <>
       {success && (
         <SuccessModal
-          title="📦 Puce attribuée !"
-          message={`La puce N° ${puceNumero} a été attribuée au prospect ${p.reference} — ${p.prenom} ${p.nom}.`}
+          title="📦 Développeur assigné !"
+          message={`Le développeur a été affecté pour l'activation du prospect ${p.reference} — ${p.prenom} ${p.nom}.`}
           next="Le développeur assigné doit maintenant se rendre sur le terrain pour activer la puce et renseigner les informations du PDV (onglet Activation)."
           onClose={() => { setSuccess(false); onDone(); }}
         />
@@ -853,16 +852,11 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
           📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
         </div>
         <div className="action-bar">
-          <input
-            placeholder="N° de puce OM"
-            value={puceNumero} onChange={e => setPuceNumero(e.target.value)}
-            style={{ flex: 1 }}
-          />
           <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
-            <option value="">— Développeur activateur —</option>
+            <option value="">— Choisir un développeur activateur —</option>
             {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom || ''}{d.zone ? ` (${d.zone})` : ''}</option>)}
           </select>
-          <button className="btn-primary" disabled={!devId || !puceNumero || busy} onClick={submit}>
+          <button className="btn-primary" disabled={!devId || busy} onClick={submit}>
             <Send size={12}/> {busy ? 'Attribution…' : 'Attribuer'}
           </button>
         </div>
