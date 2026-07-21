@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useQuery } from 'react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
   Plus, RefreshCw, MapPin, User as UserIcon,
@@ -911,23 +912,99 @@ function TabActivation({ currentUser, onRefresh }) {
   );
 }
 
+// Composants formulaire identiques à NouveauPDVModal (PDVsPage)
+const AFL = ({ label, required, children }) => (
+  <div style={{ marginBottom: 4 }}>
+    <label style={{ fontSize: 10, color: '#FF6900', display:'block', marginBottom: 3, fontWeight: 700, textTransform:'uppercase', letterSpacing:'0.5px' }}>
+      {label}{required && <span style={{ color:'#ff4757' }}> *</span>}
+    </label>
+    {children}
+  </div>
+);
+const AFI = ({ placeholder, value, onChange, type='text', required }) => (
+  <input type={type} placeholder={placeholder} value={value} onChange={onChange} required={required}
+    style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)',
+      background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+);
+const AFS = ({ value, onChange, children }) => (
+  <select value={value} onChange={onChange}
+    style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)',
+      background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' }}>
+    {children}
+  </select>
+);
+const ASection = ({ title, icon, children, cols=2 }) => (
+  <div style={{ marginBottom: 20 }}>
+    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'1px solid rgba(255,105,0,0.2)' }}>
+      <span style={{ fontSize:16 }}>{icon}</span>
+      <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>{title}</span>
+    </div>
+    <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:10 }}>
+      {children}
+    </div>
+  </div>
+);
+
 function ActivationCard({ prospect: p, currentUser, onDone }) {
   const [form, setForm] = useState({
-    gestionnaire: '',
-    superviseur: '',
-    teleconseillere: '',
-    zone: '',
-    sous_zone: '',
-    quartier_pdv: p.quartier || '',
+    // Gérant (pré-rempli depuis prospect)
+    prenom: p.prenom || '', nom: p.nom || '',
+    nationalite: '', date_naissance: '',
+    type_piece: '', numero_piece: '', date_delivrance: '',
+    domicile: '',
+    telephone: p.telephone_principal || '',
+    numero_personnel: p.telephone_secondaire || '',
+    // PDV
+    numero_pdv: p.puce_numero || '',
+    type_pdv: 'RS', type_activite: '',
+    adresse_pdv: p.adresse || '', date_activation: new Date().toISOString().split('T')[0],
+    montant_activation: '',
+    // Localisation
+    zone: '', sous_zone: '', quartier: p.quartier || '',
+    // Garant
+    nom_garant: '', tel_garant: '',
+    // Équipe
+    developpeur: p.puce_assigned_to ? `${p.puce_assigned_to.nom} ${p.puce_assigned_to.prenom||''}`.trim() : '',
+    tel_developpeur: '',
+    gestionnaire: '', tel_gestionnaire: '',
+    superviseur: '', tel_superviseur: '',
+    teleconseillere: '', tel_teleconseillere: '',
+    // Formations
+    kaabu: false, nafama: false, omy: false, lbft: false,
     comment: '',
   });
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const submit = async () => {
-    if (!form.gestionnaire || !form.superviseur || !form.zone) {
-      alert('Veuillez renseigner au minimum le gestionnaire, le superviseur et la zone.');
+  // Charger équipe réseau (comme NouveauPDVModal)
+  const { data: equipe } = useQuery('equipe-reseau-activation',
+    () => api.get('/reseau/equipe').then(r => r.data).catch(() => ({ superviseurs:[], gestionnaires:[], developpeurs:[], teleconseilleres:[] })),
+    { staleTime: 300000 }
+  );
+  const { data: zonesData } = useQuery('zones-activation',
+    () => api.get('/pdvs/zones').then(r => r.data).catch(() => []),
+    { staleTime: 300000 }
+  );
+  const zones = zonesData || [];
+
+  const ATeamSelect = ({ label, nameKey, telKey, options=[] }) => (
+    <AFL label={label}>
+      <AFS value={form[nameKey]} onChange={e => {
+        const nom = e.target.value;
+        const found = options.find(o => o.nom === nom);
+        setForm(f => ({ ...f, [nameKey]: nom, [telKey]: found?.telephone || '' }));
+      }}>
+        <option value="">-- Sélectionner --</option>
+        {options.map(o => <option key={o.nom} value={o.nom}>{o.nom}</option>)}
+      </AFS>
+    </AFL>
+  );
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.numero_pdv || !form.zone) {
+      alert('Numéro de puce (Flotte) et Zone sont obligatoires.');
       return;
     }
     setBusy(true);
@@ -940,7 +1017,18 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         teleconseillere: form.teleconseillere || null,
         zone: form.zone,
         sous_zone: form.sous_zone || null,
-        quartier_pdv: form.quartier_pdv || null,
+        quartier_pdv: form.quartier || null,
+        puce_numero: form.numero_pdv || null,
+        // Données complètes gérant pour le PDV
+        nom_gerant: `${form.prenom} ${form.nom}`.trim(),
+        telephone: form.telephone,
+        numero_personnel: form.numero_personnel,
+        type_pdv: form.type_pdv,
+        adresse: form.adresse_pdv,
+        date_activation: form.date_activation || null,
+        developpeur: form.developpeur,
+        nom_garant: form.nom_garant,
+        tel_garant: form.tel_garant,
       });
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
@@ -953,66 +1041,143 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         <SuccessModal
           title="⚡ Puce activée ! PDV créé !"
           message={`La puce du prospect ${p.reference} — ${p.prenom} ${p.nom} a été activée avec succès. Le Point de Vente a été créé automatiquement.`}
-          next="✅ Fin du processus. Le nouveau PDV est maintenant visible dans le menu Points de Vente avec le gestionnaire, superviseur et zone renseignés."
+          next="✅ Fin du processus. Le nouveau PDV est maintenant visible dans le menu Points de Vente."
           onClose={() => { setSuccess(false); onDone(); }}
         />
       )}
-    <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20, borderLeft: '4px solid #f97316' }}>
-      {/* En-tête prospect */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontWeight: 800, fontSize: 16 }}>{p.reference} — {p.prenom} {p.nom}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-          📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · 🔑 Puce : <b>{p.puce_numero}</b>
-        </div>
-        {p.puce_assigned_to && (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-            👤 Dev activateur : <b>{p.puce_assigned_to.nom} {p.puce_assigned_to.prenom || ''}</b>
+      <div style={{
+        background: 'linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%)',
+        border: '1px solid rgba(255,105,0,0.3)',
+        borderRadius: 16, padding: '24px 28px',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        marginBottom: 4,
+      }}>
+        {/* Header prospect */}
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24, paddingBottom:16, borderBottom:'1px solid rgba(255,105,0,0.2)' }}>
+          <div style={{ width:42, height:42, borderRadius:12, background:'linear-gradient(135deg,#FF6900,#ff9500)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>📋</div>
+          <div>
+            <div style={{ fontSize:15, fontWeight:800, color:'#fff' }}>FICHE DE RENSEIGNEMENTS</div>
+            <div style={{ fontSize:11, color:'#FF6900', fontWeight:600, letterSpacing:'1px' }}>
+              {p.reference} — {p.prenom} {p.nom} · 📞 {p.telephone_principal}
+            </div>
           </div>
-        )}
-      </div>
-
-      {/* Formulaire attribution PDV */}
-      <div style={{ background: 'rgba(249,115,22,0.06)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#f97316', marginBottom: 10 }}>
-          📋 Informations du Point de Vente (obligatoires pour créer le PDV)
         </div>
-        <div className="form-grid">
-          <label>Gestionnaire *
-            <input value={form.gestionnaire} onChange={e => set('gestionnaire', e.target.value)}
-              placeholder="Nom du gestionnaire"/>
-          </label>
-          <label>Superviseur *
-            <input value={form.superviseur} onChange={e => set('superviseur', e.target.value)}
-              placeholder="Nom du superviseur"/>
-          </label>
-          <label>Téléconseillère
-            <input value={form.teleconseillere} onChange={e => set('teleconseillere', e.target.value)}
-              placeholder="Nom de la téléconseillère"/>
-          </label>
-          <label>Zone *
-            <input value={form.zone} onChange={e => set('zone', e.target.value)}
-              placeholder="Ex: Zone Nord"/>
-          </label>
-          <label>Sous-zone
-            <input value={form.sous_zone} onChange={e => set('sous_zone', e.target.value)}
-              placeholder="Ex: Sous-zone Banconi"/>
-          </label>
-          <label>Quartier PDV
-            <input value={form.quartier_pdv} onChange={e => set('quartier_pdv', e.target.value)}
-              placeholder="Quartier du PDV"/>
-          </label>
-          <label className="full">Commentaire d'activation
-            <input value={form.comment} onChange={e => set('comment', e.target.value)}
-              placeholder="Observation terrain (optionnel)"/>
-          </label>
-        </div>
-      </div>
 
-      <button className="btn-primary" disabled={busy} onClick={submit}
-        style={{ width: '100%', justifyContent: 'center', padding: '10px 0', fontSize: 14, fontWeight: 700 }}>
-        <CheckCircle size={16}/> {busy ? 'Activation en cours…' : '⚡ Confirmer l\'activation & créer le PDV'}
-      </button>
-    </div>
+        <form onSubmit={submit}>
+
+          {/* SECTION 1 — Informations Gérant */}
+          <ASection title="Informations du Gérant" icon="👤" cols={3}>
+            <AFL label="Prénom"><AFI placeholder="Prénom" value={form.prenom} onChange={e=>set('prenom',e.target.value)} /></AFL>
+            <AFL label="Nom"><AFI placeholder="Nom" value={form.nom} onChange={e=>set('nom',e.target.value)} /></AFL>
+            <AFL label="Nationalité"><AFI placeholder="Nationalité" value={form.nationalite} onChange={e=>set('nationalite',e.target.value)} /></AFL>
+            <AFL label="Date de naissance"><AFI type="date" value={form.date_naissance} onChange={e=>set('date_naissance',e.target.value)} /></AFL>
+            <AFL label="Type de pièce">
+              <AFS value={form.type_piece} onChange={e=>set('type_piece',e.target.value)}>
+                <option value="">Sélectionner</option>
+                <option value="CNI">CNI</option>
+                <option value="Passeport">Passeport</option>
+                <option value="Permis">Permis de conduire</option>
+                <option value="Autre">Autre</option>
+              </AFS>
+            </AFL>
+            <AFL label="Numéro de pièce"><AFI placeholder="N° pièce d'identité" value={form.numero_piece} onChange={e=>set('numero_piece',e.target.value)} /></AFL>
+            <AFL label="Date de délivrance"><AFI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></AFL>
+            <AFL label="Domicile"><AFI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></AFL>
+            <AFL label="Téléphone"><AFI placeholder="Tél. du gérant" value={form.telephone} onChange={e=>set('telephone',e.target.value)} /></AFL>
+          </ASection>
+
+          {/* SECTION 2 — Informations PDV */}
+          <ASection title="Informations du PDV" icon="🏪" cols={3}>
+            <AFL label="Numéro Flotte (Puce) *" required><AFI placeholder="N° Flotte / Puce OM" value={form.numero_pdv} onChange={e=>set('numero_pdv',e.target.value)} required /></AFL>
+            <AFL label="N° Personnel"><AFI placeholder="N° Personnel gérant" value={form.numero_personnel} onChange={e=>set('numero_personnel',e.target.value)} /></AFL>
+            <AFL label="Type de réseau">
+              <AFS value={form.type_pdv} onChange={e=>set('type_pdv',e.target.value)}>
+                <option value="RS">RS (Revendeur Spécial)</option>
+                <option value="RSF">RSF</option>
+                <option value="RNS">RNS</option>
+                <option value="KIOSQUE">Kiosque</option>
+                <option value="DEALER">Dealer</option>
+              </AFS>
+            </AFL>
+            <AFL label="Type d'activité"><AFI placeholder="Ex: Commerce, Boutique..." value={form.type_activite} onChange={e=>set('type_activite',e.target.value)} /></AFL>
+            <AFL label="Zone *" required>
+              <AFS value={form.zone} onChange={e=>set('zone',e.target.value)} required>
+                <option value="">Sélectionner une zone</option>
+                {zones.map(z => <option key={z} value={z}>{z}</option>)}
+              </AFS>
+            </AFL>
+            <AFL label="Quartier"><AFI placeholder="Quartier / Commune" value={form.quartier} onChange={e=>set('quartier',e.target.value)} /></AFL>
+            <AFL label="Adresse PDV"><AFI placeholder="Adresse complète du PDV" value={form.adresse_pdv} onChange={e=>set('adresse_pdv',e.target.value)} /></AFL>
+            <AFL label="Date d'activation"><AFI type="date" value={form.date_activation} onChange={e=>set('date_activation',e.target.value)} /></AFL>
+            <AFL label="Montant d'activation (FCFA)"><AFI type="number" placeholder="0" value={form.montant_activation} onChange={e=>set('montant_activation',e.target.value)} /></AFL>
+          </ASection>
+
+          {/* SECTION 3 — Le Garant */}
+          <ASection title="Le Garant" icon="🤝" cols={2}>
+            <AFL label="Nom du Garant"><AFI placeholder="Nom complet du garant" value={form.nom_garant} onChange={e=>set('nom_garant',e.target.value)} /></AFL>
+            <AFL label="Téléphone du Garant"><AFI placeholder="+223 XX XX XX XX" value={form.tel_garant} onChange={e=>set('tel_garant',e.target.value)} /></AFL>
+          </ASection>
+
+          {/* SECTION 4 — Équipe Réseau */}
+          <ASection title="Équipe Réseau" icon="👥" cols={2}>
+            <ATeamSelect label="Développeur" nameKey="developpeur" telKey="tel_developpeur" options={equipe?.developpeurs || []} />
+            <AFL label="Tél. Développeur"><AFI placeholder="Auto-rempli ou saisir" value={form.tel_developpeur} onChange={e=>set('tel_developpeur',e.target.value)} /></AFL>
+            <ATeamSelect label="Gestionnaire" nameKey="gestionnaire" telKey="tel_gestionnaire" options={equipe?.gestionnaires || []} />
+            <AFL label="Tél. Gestionnaire"><AFI placeholder="Auto-rempli ou saisir" value={form.tel_gestionnaire} onChange={e=>set('tel_gestionnaire',e.target.value)} /></AFL>
+            <ATeamSelect label="Superviseur" nameKey="superviseur" telKey="tel_superviseur" options={equipe?.superviseurs || []} />
+            <AFL label="Tél. Superviseur"><AFI placeholder="Auto-rempli ou saisir" value={form.tel_superviseur} onChange={e=>set('tel_superviseur',e.target.value)} /></AFL>
+            <ATeamSelect label="Téléconseillère" nameKey="teleconseillere" telKey="tel_teleconseillere" options={equipe?.teleconseilleres || []} />
+            <AFL label="Tél. Téléconseillère"><AFI placeholder="Auto-rempli ou saisir" value={form.tel_teleconseillere} onChange={e=>set('tel_teleconseillere',e.target.value)} /></AFL>
+          </ASection>
+
+          {/* SECTION 5 — Formations */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'1px solid rgba(255,105,0,0.2)' }}>
+              <span style={{ fontSize:16 }}>🎓</span>
+              <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>Formations Suivies</span>
+            </div>
+            <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+              {[
+                { key:'kaabu', label:'KAABU', color:'#00d68f', desc:'Formation Kaabu' },
+                { key:'nafama', label:'NAFAMA', color:'#a29bfe', desc:'Formation Nafama' },
+                { key:'omy', label:'OMY/ARNAQUE', color:'#FF6900', desc:'Formation OMY' },
+                { key:'lbft', label:'LBFT', color:'#fd79a8', desc:'Formation LBFT' },
+              ].map(s => (
+                <div key={s.key} onClick={() => set(s.key, !form[s.key])}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 20px', borderRadius:10, cursor:'pointer',
+                    border:`2px solid ${form[s.key] ? s.color : 'rgba(255,255,255,0.08)'}`,
+                    background: form[s.key] ? `${s.color}20` : 'rgba(255,255,255,0.03)',
+                    transition:'all 0.2s', userSelect:'none' }}>
+                  <div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${s.color}`,
+                    background: form[s.key] ? s.color : 'transparent', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    {form[s.key] && <span style={{ color:'#fff', fontSize:12, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:800, color: form[s.key] ? s.color : '#aaa' }}>{s.label}</div>
+                    <div style={{ fontSize:10, color:'#666' }}>{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Commentaire + Bouton */}
+          <AFL label="Commentaire d'activation">
+            <AFI placeholder="Observation terrain (optionnel)" value={form.comment} onChange={e=>set('comment',e.target.value)} />
+          </AFL>
+
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', paddingTop:16, marginTop:12, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+            <button type="submit" disabled={busy}
+              style={{ padding:'12px 32px', borderRadius:10, border:'none',
+                background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff',
+                fontSize:14, cursor:'pointer', fontWeight:700, opacity: busy ? 0.7 : 1,
+                boxShadow:'0 4px 16px rgba(255,105,0,0.35)' }}>
+              {busy ? '⏳ Activation en cours…' : '⚡ Confirmer l\'activation & créer le PDV'}
+            </button>
+          </div>
+
+        </form>
+      </div>
     </>
   );
 }
