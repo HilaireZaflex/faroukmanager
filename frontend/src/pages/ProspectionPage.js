@@ -1212,6 +1212,32 @@ function CreateProspectModal({ onClose, onSaved }) {
 // =============================================================================
 // MODAL : Détail prospect
 // =============================================================================
+function InfoChip({ icon, label, value, accent }) {
+  if (!value && value !== 0) return null;
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 3,
+      background: accent ? `${accent}12` : 'rgba(255,255,255,0.04)',
+      border: `1px solid ${accent ? `${accent}30` : 'rgba(255,255,255,0.08)'}`,
+      borderRadius: 10, padding: '10px 14px',
+    }}>
+      <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {icon} {label}
+      </div>
+      <div style={{ fontSize: 13, color: accent || '#e2e8f0', fontWeight: 600, lineHeight: 1.4 }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+const DECISION_ICONS = {
+  SUBMIT: '📤', ASSIGN_VISIT: '🔍', REASSIGN: '🔄',
+  DEV_VALIDATE: '✅', DEV_REJECT: '❌', RC_APPROVE: '🟢',
+  RC_HOLD: '⏸️', RC_REJECT: '🔴', PUCE_ASSIGN: '📦',
+  PUCE_ACTIVATE: '⚡', CANCEL: '🚫',
+};
+
 function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
   const [p, setP] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1234,42 +1260,188 @@ function ProspectDetailModal({ prospectId, currentUser, onClose, onChanged }) {
   );
 
   const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
+  const gpsOk = p.latitude && p.longitude;
+  const gpsUrl = gpsOk ? `https://maps.google.com/?q=${p.latitude},${p.longitude}` : null;
+  const devNomFromNotes = (p.notes?.match(/\[Développeur affecté: (.+?)\]/) || [])[1];
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <div className="detail-header">
-          <h2>{p.reference} — {p.prenom} {p.nom}</h2>
-          <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
-        </div>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{
+        maxWidth: 680, width: '96vw', maxHeight: '92vh',
+        overflowY: 'auto', background: '#0f172a',
+        borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
+        padding: 0,
+      }}>
 
-        <div className="modal-section">
-          <h3>👤 Informations</h3>
-          <div className="form-grid">
-            <div><b>Téléphone</b> {p.telephone_principal} {p.telephone_secondaire && `/ ${p.telephone_secondaire}`}</div>
-            <div><b>Quartier</b> {p.quartier || '—'}</div>
-            <div><b>OM avant</b> {p.fait_om ? `Oui (CA ${p.om_ca_mensuel || '?'} F)` : `Non (Capital ${p.capital_demarrage || '?'} F)`}</div>
-            <div><b>GPS</b> {p.latitude ? `${p.latitude.toFixed(5)}, ${p.longitude.toFixed(5)}` : <span style={{ color:'var(--danger)' }}>⚠ manquant</span>}</div>
-            <div><b>Soumis par</b> {p.submitted_by ? `${p.submitted_by.nom} ${p.submitted_by.prenom||''}` : '—'}</div>
-            <div><b>Tentatives visite</b> {p.visit_attempts}</div>
-            <div className="full"><b>Type local / Fréquentation</b> {p.type_local || '—'} · {p.frequentation || '—'}</div>
+        {/* HEADER */}
+        <div style={{
+          background: `linear-gradient(135deg, ${st.color}22, ${st.color}08)`,
+          borderBottom: `1px solid ${st.color}33`,
+          padding: '24px 28px 20px',
+          position: 'relative',
+        }}>
+          <button onClick={onClose} style={{
+            position: 'absolute', top: 16, right: 16,
+            background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8',
+            fontSize: 14, fontWeight: 700,
+          }}>✕</button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+            <span style={{
+              background: `${st.color}22`, border: `1px solid ${st.color}55`,
+              color: st.color, borderRadius: 8, padding: '4px 12px',
+              fontSize: 12, fontWeight: 800, letterSpacing: 0.5,
+            }}>{st.label}</span>
+            <span style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>
+              Soumis le {new Date(p.submitted_at).toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' })}
+            </span>
+            {p.visit_attempts > 0 && (
+              <span style={{ fontSize: 11, color: '#fbbf24', background: 'rgba(251,191,36,0.12)', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>
+                {p.visit_attempts} visite{p.visit_attempts > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#f1f5f9', letterSpacing: -0.3 }}>
+            {p.prenom} {p.nom}
+          </div>
+          <div style={{ fontSize: 13, color: st.color, fontWeight: 700, marginTop: 2 }}>
+            {p.reference}
           </div>
         </div>
 
-        <div className="modal-section">
-          <h3>📜 Historique ({p.history?.length || 0})</h3>
-          {(p.history || []).map(h => (
-            <div key={h.id} className="history-item">
-              <div className="when">{new Date(h.created_at).toLocaleString('fr-FR')}</div>
-              <div className="what">{h.decision_type} · {h.from_status || '—'} → {h.to_status || '—'}</div>
-              {h.comment && <div style={{ fontSize:13, color:'var(--text-secondary)', marginTop:4, fontStyle:'italic' }}>« {h.comment} »</div>}
-              <div className="who">par {h.user ? `${h.user.nom} ${h.user.prenom||''}` : 'système'}</div>
-            </div>
-          ))}
-        </div>
+        <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        <div className="modal-footer">
-          <button className="btn-secondary" onClick={onClose}>Fermer</button>
+          {/* SECTION LABEL */}
+          {[
+            { key: 'contact', label: 'Contact', icon: '📞' },
+          ].map(() => null)}
+
+          {/* CONTACT */}
+          <div>
+            <div style={{ fontSize: 11, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              📞 Contact — Localisation
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+              <InfoChip icon="📱" label="Tel. principal" value={p.telephone_principal} accent="#0ea5e9"/>
+              {p.telephone_secondaire && <InfoChip icon="📱" label="Tel. secondaire" value={p.telephone_secondaire}/>}
+              <InfoChip icon="📍" label="Quartier" value={p.quartier}/>
+              <InfoChip icon="🏘️" label="Adresse" value={p.adresse}/>
+              {gpsOk ? (
+                <div style={{
+                  background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)',
+                  borderRadius: 10, padding: '10px 14px', cursor: 'pointer',
+                }} onClick={() => window.open(gpsUrl, '_blank')}>
+                  <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>📡 GPS</div>
+                  <div style={{ fontSize: 12, color: '#10b981', fontWeight: 600, marginTop: 3 }}>
+                    {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#10b981', marginTop: 2, opacity: 0.7 }}>Ouvrir Maps →</div>
+                </div>
+              ) : (
+                <InfoChip icon="📡" label="GPS" value="Non renseigne" accent="#ef4444"/>
+              )}
+            </div>
+          </div>
+
+          {/* PROFIL COMMERCIAL */}
+          <div>
+            <div style={{ fontSize: 11, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              💰 Profil Commercial
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+              <InfoChip icon="🟠" label="Experience OM" value={p.fait_om ? 'A deja fait OM' : 'Nouveau client'} accent={p.fait_om ? '#10b981' : '#0ea5e9'}/>
+              {p.fait_om && <InfoChip icon="📊" label="CA mensuel OM" value={p.om_ca_mensuel ? `${Number(p.om_ca_mensuel).toLocaleString('fr-FR')} FCFA` : '—'} accent="#f59e0b"/>}
+              {!p.fait_om && <InfoChip icon="💵" label="Capital demarrage" value={p.capital_demarrage ? `${Number(p.capital_demarrage).toLocaleString('fr-FR')} FCFA` : '—'} accent="#a78bfa"/>}
+              <InfoChip icon="🏪" label="Type de local" value={p.type_local}/>
+              <InfoChip icon="👥" label="Frequentation" value={p.frequentation}/>
+              <InfoChip icon="📈" label="Potentiel" value={p.potentiel}/>
+            </div>
+          </div>
+
+          {/* WORKFLOW */}
+          <div>
+            <div style={{ fontSize: 11, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              Suivi Workflow
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+              <InfoChip icon="👤" label="Soumis par" value={p.submitted_by ? `${p.submitted_by.nom} ${p.submitted_by.prenom||''}` : '—'}/>
+              <InfoChip icon="🔍" label="Dev assigne" value={p.visit_assigned_to ? `${p.visit_assigned_to.nom} ${p.visit_assigned_to.prenom||''}` : devNomFromNotes || '—'}/>
+              {p.dev_decision_comment && <InfoChip icon="💬" label="Decision dev" value={p.dev_decision_comment} accent="#f59e0b"/>}
+              {p.rc_decision_comment && <InfoChip icon="📋" label="Decision RC" value={p.rc_decision_comment} accent={st.color}/>}
+              {p.puce_numero && <InfoChip icon="📦" label="N Puce OM" value={p.puce_numero} accent="#FF6900"/>}
+              {p.notes && !p.notes.startsWith('[Développeur') && <InfoChip icon="📝" label="Notes" value={p.notes.substring(0, 100) + (p.notes.length > 100 ? '…' : '')}/>}
+            </div>
+          </div>
+
+          {/* HISTORIQUE */}
+          {p.history && p.history.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: '#475569', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                Historique ({p.history.length} etapes)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                <div style={{
+                  position: 'absolute', left: 19, top: 20, bottom: 20,
+                  width: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1,
+                }}/>
+                {p.history.map(h => (
+                  <div key={h.id} style={{ display: 'flex', gap: 14, alignItems: 'flex-start', paddingBottom: 14, position: 'relative' }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                      background: '#1e293b', border: '2px solid rgba(255,255,255,0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16, zIndex: 1,
+                    }}>
+                      {DECISION_ICONS[h.decision_type] || '•'}
+                    </div>
+                    <div style={{
+                      flex: 1, background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.07)',
+                      borderRadius: 10, padding: '10px 14px',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
+                          {h.decision_type?.replace(/_/g, ' ')}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#475569' }}>
+                          {new Date(h.created_at).toLocaleString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                        {h.from_status ? `${h.from_status} → ` : ''}{h.to_status}
+                        {h.user && <span style={{ marginLeft: 8 }}>· par <b style={{ color: '#94a3b8' }}>{h.user.nom} {h.user.prenom||''}</b></span>}
+                      </div>
+                      {h.comment && (
+                        <div style={{
+                          marginTop: 6, fontSize: 12, color: '#94a3b8',
+                          fontStyle: 'italic', lineHeight: 1.5,
+                          borderLeft: '2px solid rgba(255,105,0,0.4)', paddingLeft: 8,
+                        }}>
+                          « {h.comment} »
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* FOOTER */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+            <button onClick={onClose} style={{
+              padding: '10px 24px', borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'rgba(255,255,255,0.06)', color: '#94a3b8',
+              fontWeight: 600, fontSize: 14, cursor: 'pointer',
+            }}>
+              Fermer
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
