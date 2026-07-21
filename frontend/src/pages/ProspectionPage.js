@@ -921,15 +921,21 @@ const AFL = ({ label, required, children }) => (
     {children}
   </div>
 );
+const INPUT_STYLE = {
+  width:'100%', padding:'8px 12px', borderRadius:8,
+  border:'1px solid rgba(255,255,255,0.12)',
+  background:'rgba(255,255,255,0.06)', color:'#fff',
+  fontSize:13, outline:'none', boxSizing:'border-box',
+  height:38, fontFamily:'inherit',
+  appearance:'none', WebkitAppearance:'none',
+};
 const AFI = ({ placeholder, value, onChange, type='text', required }) => (
   <input type={type} placeholder={placeholder} value={value} onChange={onChange} required={required}
-    style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)',
-      background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+    style={INPUT_STYLE} />
 );
 const AFS = ({ value, onChange, children }) => (
   <select value={value} onChange={onChange}
-    style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)',
-      background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' }}>
+    style={{ ...INPUT_STYLE, cursor:'pointer' }}>
     {children}
   </select>
 );
