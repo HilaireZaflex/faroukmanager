@@ -7,6 +7,7 @@ import {
 import api from '../services/api';
 import prospectService, { STATUS_LABELS } from '../services/prospectService';
 import useAuthStore from '../store/authStore';
+import useNotifStore from '../store/notifStore';
 import './ProspectionPage.css';
 
 // ─── Modale de confirmation personnalisée ────────────────────────────────────
@@ -494,6 +495,7 @@ function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
+  const { fetchNotifications } = useNotifStore();
 
   const submit = async () => {
     if (!devId) return;
@@ -507,6 +509,7 @@ function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
         payload = { developer_nom: `${dev?.nom || ''} ${dev?.prenom || ''}`.trim() };
       }
       await prospectService.assignVisit(p.id, payload);
+      fetchNotifications(); // fetch immédiat après action
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
@@ -611,6 +614,7 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
     ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role);
 
   const [success, setSuccess] = useState(null); // {approved: bool}
+  const { fetchNotifications } = useNotifStore();
 
   const decide = async (approved) => {
     if (comment.trim().length < 3) { alert('Veuillez saisir un commentaire (min 3 caractères).'); return; }
@@ -622,6 +626,7 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
         latitude: p.latitude,
         longitude: p.longitude,
       });
+      fetchNotifications(); // fetch immédiat après action
       setSuccess({ approved });
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
@@ -710,11 +715,13 @@ function Validation4Card({ prospect: p, onDone, onOpen }) {
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(null);
   const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
+  const { fetchNotifications } = useNotifStore();
 
   const decide = async (decision) => {
     setBusy(true);
     try {
       await prospectService.rcDecision(p.id, { decision, comment });
+      fetchNotifications(); // fetch immédiat après action
       setSuccess({ decision });
     } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
@@ -810,6 +817,7 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
   const [puceNumero, setPuceNumero] = useState('');
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
+  const { fetchNotifications } = useNotifStore();
 
   const submit = async () => {
     if (!devId || !puceNumero) { alert('Veuillez sélectionner un développeur et saisir un numéro de puce.'); return; }
@@ -823,6 +831,7 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
         payload.activator_nom = `${dev?.nom || ''} ${dev?.prenom || ''}`.trim();
       }
       await prospectService.assignPuce(p.id, payload);
+      fetchNotifications(); // fetch immédiat après action
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }

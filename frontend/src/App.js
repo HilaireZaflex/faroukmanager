@@ -99,11 +99,11 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Polling notifications toutes les 60 secondes (uniquement si connecté)
+  // Polling notifications toutes les 5 secondes (quasi temps-réel)
   useEffect(() => {
     if (!isAuthenticated) { resetNotifs(); return; }
     fetchNotifications(); // fetch immédiat à la connexion
-    const interval = setInterval(fetchNotifications, 60 * 1000);
+    const interval = setInterval(fetchNotifications, 5 * 1000);
     return () => clearInterval(interval);
   }, [isAuthenticated, fetchNotifications, resetNotifs]);
 
