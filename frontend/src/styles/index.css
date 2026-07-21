@@ -113,9 +113,9 @@ select, input[type="text"], input[type="email"], input[type="password"], input[t
   /* ── Tableaux : scroll horizontal ── */
   table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
 
-  /* ── KPI grids ── */
+  /* ── KPI grids : 1 par ligne sur mobile pour lisibilité maximale ── */
   .kpi-grid, .stats-grid, .kpis-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: 1fr !important;
     gap: 10px !important;
   }
 
