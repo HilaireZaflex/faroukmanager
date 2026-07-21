@@ -951,6 +951,97 @@ const ASection = ({ title, icon, children, cols=2 }) => (
   </div>
 );
 
+// ── Autocomplete PDV (Numéro Flotte) ────────────────────────────────────────
+function PDVSearchInput({ value, onChange }) {
+  const [query, setQuery] = useState(value || '');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const ref = useRef(null);
+  const timer = useRef(null);
+
+  // Fermer si clic extérieur
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const search = (q) => {
+    setQuery(q);
+    clearTimeout(timer.current);
+    if (!q || q.length < 2) { setResults([]); setOpen(false); return; }
+    timer.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await api.get(`/pdvs?search=${encodeURIComponent(q)}&limit=20`);
+        const data = Array.isArray(res.data) ? res.data : [];
+        setResults(data);
+        setOpen(data.length > 0);
+      } catch (e) { setResults([]); }
+      finally { setLoading(false); }
+    }, 300);
+  };
+
+  const select = (pdv) => {
+    setQuery(pdv.numero_pdv);
+    onChange(pdv.numero_pdv, pdv);
+    setOpen(false);
+    setResults([]);
+  };
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          placeholder="Taper le N° PDV ou nom pour rechercher..."
+          value={query}
+          onChange={e => search(e.target.value)}
+          style={{ ...INPUT_STYLE, paddingRight: 36 }}
+        />
+        {loading && (
+          <div style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color:'#FF6900' }}>⏳</div>
+        )}
+        {!loading && query && (
+          <div onClick={() => { setQuery(''); onChange('', null); setResults([]); setOpen(false); }}
+            style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', cursor:'pointer', color:'#64748b', fontSize:16 }}>✕</div>
+        )}
+      </div>
+      {open && results.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
+          background: '#1e293b', border: '1px solid rgba(255,105,0,0.3)',
+          borderRadius: 10, marginTop: 4, maxHeight: 260, overflowY: 'auto',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        }}>
+          {results.map(pdv => (
+            <div key={pdv.id} onClick={() => select(pdv)}
+              style={{
+                padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                transition: 'background 0.15s',
+              }}
+              onMouseOver={e => e.currentTarget.style.background='rgba(255,105,0,0.12)'}
+              onMouseOut={e => e.currentTarget.style.background='transparent'}
+            >
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:13, fontWeight:700, color:'#FF6900' }}>{pdv.numero_pdv}</span>
+                <span style={{ fontSize:10, color:'#64748b', background:'rgba(255,255,255,0.06)', borderRadius:4, padding:'2px 6px' }}>
+                  {pdv.type_pdv}
+                </span>
+              </div>
+              <div style={{ fontSize:12, color:'#e2e8f0', marginTop:2 }}>{pdv.nom}</div>
+              <div style={{ fontSize:11, color:'#64748b', marginTop:1 }}>
+                {pdv.zone || '—'} {pdv.sous_zone ? `· ${pdv.sous_zone}` : ''} {pdv.quartier ? `· ${pdv.quartier}` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ActivationCard({ prospect: p, currentUser, onDone }) {
   const [form, setForm] = useState({
     // Gérant (pré-rempli depuis prospect)
@@ -1094,7 +1185,27 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 
           {/* SECTION 2 — Informations PDV */}
           <ASection title="Informations du PDV" icon="🏪" cols={3}>
-            <AFL label="Numéro Flotte (Puce) *" required><AFI placeholder="N° Flotte / Puce OM" value={form.numero_pdv} onChange={e=>set('numero_pdv',e.target.value)} required /></AFL>
+            <AFL label="Numéro Flotte (PDV) *" required>
+              <PDVSearchInput
+                value={form.numero_pdv}
+                onChange={(num, pdv) => {
+                  setForm(f => ({
+                    ...f,
+                    numero_pdv: num,
+                    // Auto-remplir zone, quartier, type si PDV trouvé
+                    zone: pdv?.zone || f.zone,
+                    sous_zone: pdv?.sous_zone || f.sous_zone,
+                    quartier: pdv?.quartier || f.quartier,
+                    type_pdv: pdv?.type_pdv || f.type_pdv,
+                    gestionnaire: pdv?.gestionnaire || f.gestionnaire,
+                    superviseur: pdv?.superviseur || f.superviseur,
+                    teleconseillere: pdv?.teleconseillere || f.teleconseillere,
+                    nom: pdv?.nom_gerant || f.nom,
+                    telephone: pdv?.telephone || f.telephone,
+                  }));
+                }}
+              />
+            </AFL>
             <AFL label="N° Personnel"><AFI placeholder="N° Personnel gérant" value={form.numero_personnel} onChange={e=>set('numero_personnel',e.target.value)} /></AFL>
             <AFL label="Type de réseau">
               <AFS value={form.type_pdv} onChange={e=>set('type_pdv',e.target.value)}>
