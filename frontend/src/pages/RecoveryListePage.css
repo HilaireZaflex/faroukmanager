@@ -413,3 +413,22 @@
   transition: opacity 0.2s;
 }
 .rl-btn-apply:hover { opacity: 0.88; }
+
+/* ── RESPONSIVE MOBILE ─────────────────────────────── */
+@media (max-width: 768px) {
+  .rl-page { padding: 12px !important; }
+  .rl-kpis { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+  .rl-header { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
+  .rl-header-actions { flex-wrap: wrap; gap: 6px; }
+  .rl-header-actions > * { flex: 1; min-width: 0; }
+  .rl-filters { flex-direction: column !important; gap: 8px !important; }
+  .rl-filters input, .rl-filters select { width: 100% !important; min-width: 0 !important; }
+  .rl-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); }
+  .rl-table { min-width: 700px; }
+  .rl-modal-large { width: 98vw !important; max-width: 98vw !important; padding: 14px !important; min-height: 60vh !important; }
+  .rl-excl-table { font-size: 11px; }
+  .rl-badge-row { flex-wrap: wrap; gap: 6px !important; }
+  .rl-exclusion-badge { font-size: 11px !important; padding: 6px 10px !important; }
+  .rl-tabs { overflow-x: auto; flex-wrap: nowrap !important; scrollbar-width: none; }
+  .rl-tabs::-webkit-scrollbar { display: none; }
+}
