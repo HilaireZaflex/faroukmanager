@@ -160,8 +160,17 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   const handleDelete = async (e, p) => {
     e.stopPropagation();
-    if (!window.confirm(`Supprimer définitivement la demande ${p.reference} (${p.prenom} ${p.nom}) ?`)) return;
-    try { await prospectService.delete(p.id); reload(); }
+    const st = STATUS_LABELS[p.status];
+    const enCours = !['NOUVELLE', 'REFUSE', 'ACTIVE'].includes(p.status);
+    const warning = enCours
+      ? `⚠️ Cette demande est actuellement "${st?.label || p.status}" (en cours de workflow).\n\nLa supprimer effacera aussi toutes les notifications associées chez tous les utilisateurs.\n\nConfirmer la suppression forcée ?`
+      : `Supprimer définitivement la demande ${p.reference} (${p.prenom} ${p.nom}) ?\n\nCette action est irréversible.`;
+    if (!window.confirm(warning)) return;
+    try {
+      await prospectService.delete(p.id);
+      reload();
+      onRefresh && onRefresh();
+    }
     catch (err) { alert('Erreur suppression : ' + errMsg(err)); }
   };
 
