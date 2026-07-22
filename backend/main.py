@@ -774,6 +774,34 @@ async def migrate_prospect_columns():
                 results.append({"sql": sql[:60], "status": str(e)[:80]})
     return {"migrations": results}
 
+@app.get("/apply-fix-pdv-history/{hist_id}")
+async def apply_fix_pdv_history(hist_id: int):
+    """Injecter manuellement l'ancien gérant dans l'historique PDV."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        db.execute(text("""
+            UPDATE pdv_history SET
+                ancien_nom_gerant = 'OUMAR TANGARA',
+                ancien_telephone = '71551558',
+                ancien_superviseur = 'MAMADOU OUATTARA',
+                ancien_gestionnaire = 'SEKOU DEMBELE',
+                ancien_zone = 'GRAND MARCHE',
+                ancien_sous_zone = 'GRAND MARCHE COMATEX',
+                ancien_type_pdv = 'RS',
+                ancien_statut = 'ACTIF',
+                ancien_date_activation = '2026-06-30',
+                event_type = 'ACTIVATION'
+            WHERE id = :id
+        """), {"id": hist_id})
+        db.commit()
+        return {"status": "ok", "message": f"Historique {hist_id} mis à jour avec l'ancien gérant OUMAR TANGARA"}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
+
 @app.get("/fix-pdv-history/{numero_pdv}")
 async def fix_pdv_history(numero_pdv: str):
     """Diagnostic historique PDV."""
