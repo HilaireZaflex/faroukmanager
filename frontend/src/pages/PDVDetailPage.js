@@ -675,7 +675,7 @@ const WORKFLOW_LABELS = {
   CANCEL:        { label: 'Annulé',                   icon: '🚫', color: '#ef4444' },
 };
 
-function InfoRow({ label, old, nw }) {
+function HistInfoRow({ label, old, nw }) {
   if (!old && !nw) return null;
   const changed = old !== nw;
   return (
@@ -770,25 +770,25 @@ function TabHistorique({ pdv }) {
                     {/* Ancien */}
                     <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '12px 14px' }}>
                       <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 700, marginBottom: 8 }}>❌ Ancien Gérant</div>
-                      <InfoRow label="Nom" old={null} nw={h.ancien.nom_gerant}/>
-                      <InfoRow label="Téléphone" old={null} nw={h.ancien.telephone}/>
-                      <InfoRow label="Zone" old={null} nw={h.ancien.zone}/>
-                      <InfoRow label="Gestionnaire" old={null} nw={h.ancien.gestionnaire}/>
-                      <InfoRow label="Superviseur" old={null} nw={h.ancien.superviseur}/>
-                      <InfoRow label="Type PDV" old={null} nw={h.ancien.type_pdv}/>
+                      <HistInfoRow label="Nom" old={null} nw={h.ancien.nom_gerant}/>
+                      <HistInfoRow label="Téléphone" old={null} nw={h.ancien.telephone}/>
+                      <HistInfoRow label="Zone" old={null} nw={h.ancien.zone}/>
+                      <HistInfoRow label="Gestionnaire" old={null} nw={h.ancien.gestionnaire}/>
+                      <HistInfoRow label="Superviseur" old={null} nw={h.ancien.superviseur}/>
+                      <HistInfoRow label="Type PDV" old={null} nw={h.ancien.type_pdv}/>
                       {h.ancien.date_activation && (
-                        <InfoRow label="Activé le" old={null} nw={new Date(h.ancien.date_activation).toLocaleDateString('fr-FR')}/>
+                        <HistInfoRow label="Activé le" old={null} nw={new Date(h.ancien.date_activation).toLocaleDateString('fr-FR')}/>
                       )}
                     </div>
                     {/* Nouveau */}
                     <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px 14px' }}>
                       <div style={{ fontSize: 11, color: '#10b981', fontWeight: 700, marginBottom: 8 }}>✅ Nouveau Gérant</div>
-                      <InfoRow label="Nom" old={null} nw={h.nouveau.nom_gerant}/>
-                      <InfoRow label="Téléphone" old={null} nw={h.nouveau.telephone}/>
-                      <InfoRow label="Zone" old={null} nw={h.nouveau.zone}/>
-                      <InfoRow label="Gestionnaire" old={null} nw={h.nouveau.gestionnaire}/>
-                      <InfoRow label="Superviseur" old={null} nw={h.nouveau.superviseur}/>
-                      <InfoRow label="Développeur" old={null} nw={h.nouveau.developpeur}/>
+                      <HistInfoRow label="Nom" old={null} nw={h.nouveau.nom_gerant}/>
+                      <HistInfoRow label="Téléphone" old={null} nw={h.nouveau.telephone}/>
+                      <HistInfoRow label="Zone" old={null} nw={h.nouveau.zone}/>
+                      <HistInfoRow label="Gestionnaire" old={null} nw={h.nouveau.gestionnaire}/>
+                      <HistInfoRow label="Superviseur" old={null} nw={h.nouveau.superviseur}/>
+                      <HistInfoRow label="Développeur" old={null} nw={h.nouveau.developpeur}/>
                     </div>
                   </div>
                 </div>
