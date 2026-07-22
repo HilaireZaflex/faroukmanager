@@ -759,14 +759,14 @@ function TabHistorique({ pdv }) {
           {expanded === idx && (
             <div style={{ padding: '16px 18px' }}>
 
-              {/* Comparaison Ancien → Nouveau gérant */}
-              {h.ancien?.nom_gerant && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
-                    👥 Changement de Gérant
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    {/* Ancien */}
+              {/* Infos gérant (ancien + nouveau ou juste nouveau si première activation) */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                  👥 {h.ancien?.nom_gerant ? 'Changement de Gérant' : 'Informations du Nouveau Gérant'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: h.ancien?.nom_gerant ? '1fr 1fr' : '1fr', gap: 12 }}>
+                  {/* Ancien gérant — seulement si disponible */}
+                  {h.ancien?.nom_gerant && (
                     <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '12px 14px' }}>
                       <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 700, marginBottom: 8 }}>❌ Ancien Gérant</div>
                       <HistInfoRow label="Nom" old={null} nw={h.ancien.nom_gerant}/>
@@ -779,19 +779,26 @@ function TabHistorique({ pdv }) {
                         <HistInfoRow label="Activé le" old={null} nw={new Date(h.ancien.date_activation).toLocaleDateString('fr-FR')}/>
                       )}
                     </div>
-                    {/* Nouveau */}
+                  )}
+                  {/* Nouveau gérant — toujours affiché */}
+                  {h.nouveau && (
                     <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px 14px' }}>
-                      <div style={{ fontSize: 11, color: '#10b981', fontWeight: 700, marginBottom: 8 }}>✅ Nouveau Gérant</div>
+                      <div style={{ fontSize: 11, color: '#10b981', fontWeight: 700, marginBottom: 8 }}>
+                        {h.ancien?.nom_gerant ? '✅ Nouveau Gérant' : '✨ Gérant activé'}
+                      </div>
                       <HistInfoRow label="Nom" old={null} nw={h.nouveau.nom_gerant}/>
                       <HistInfoRow label="Téléphone" old={null} nw={h.nouveau.telephone}/>
                       <HistInfoRow label="Zone" old={null} nw={h.nouveau.zone}/>
+                      <HistInfoRow label="Sous-Zone" old={null} nw={h.nouveau.sous_zone}/>
+                      <HistInfoRow label="Quartier" old={null} nw={h.nouveau.quartier}/>
                       <HistInfoRow label="Gestionnaire" old={null} nw={h.nouveau.gestionnaire}/>
                       <HistInfoRow label="Superviseur" old={null} nw={h.nouveau.superviseur}/>
+                      <HistInfoRow label="Téléconseillère" old={null} nw={h.nouveau.teleconseillere}/>
                       <HistInfoRow label="Développeur" old={null} nw={h.nouveau.developpeur}/>
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Timeline workflow prospection */}
               {h.workflow_steps && h.workflow_steps.length > 0 && (
