@@ -1429,22 +1429,32 @@ function CreateProspectModal({ onClose, onSaved }) {
     setBusy(true);
     try {
       const payload = { ...data };
+      // Convertir les champs numériques
       ['om_commission_mensuelle','om_ca_mensuel','capital_demarrage','latitude','longitude'].forEach(k => {
-        payload[k] = payload[k] === '' ? null : parseFloat(payload[k]);
+        payload[k] = payload[k] === '' || payload[k] === null ? null : parseFloat(payload[k]);
       });
+      // Mettre les champs optionnels vides à null
       ['telephone_secondaire','quartier','adresse','piece_identite_numero',
        'om_ancienne_puce','om_raison_changement','source_financement',
        'frequentation','notes'].forEach(k => {
         if (payload[k] === '') payload[k] = null;
       });
+      // Champs optionnels non envoyés si vides
       if (!payload.piece_identite_type) payload.piece_identite_type = null;
       if (!payload.frequentation) payload.frequentation = null;
+      if (!payload.type_local) payload.type_local = 'BOUTIQUE_FIXE';
+      // Concurrents : convertir string → array ou null
       if (typeof payload.concurrents === 'string' && payload.concurrents.trim()) {
         payload.concurrents = payload.concurrents.split(',').map(s => s.trim()).filter(Boolean);
-      } else payload.concurrents = null;
+      } else { payload.concurrents = null; }
+      // Supprimer les champs non reconnus par le backend
+      delete payload.pdv_adresse;
+      delete payload.pdv_nom_lieu;
+      console.log('Payload envoyé:', payload); // Debug temporaire
       await prospectService.create(payload);
       onSaved();
     } catch (err) {
+      console.error('Erreur create prospect:', err?.response?.data || err?.message || err);
       alert('Erreur : ' + errMsg(err));
     } finally { setBusy(false); }
   };
