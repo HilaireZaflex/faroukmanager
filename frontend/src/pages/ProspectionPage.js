@@ -925,7 +925,8 @@ const INPUT_STYLE = {
   width:'100%', padding:'8px 12px', borderRadius:8,
   border:'1px solid rgba(255,255,255,0.12)',
   background:'rgba(255,255,255,0.06)', color:'#fff',
-  fontSize:13, outline:'none', boxSizing:'border-box',
+  fontSize:'16px', /* 16px empêche le zoom auto sur iOS/Safari */
+  outline:'none', boxSizing:'border-box',
   height:38, fontFamily:'inherit',
   appearance:'none', WebkitAppearance:'none',
 };
@@ -1069,6 +1070,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     // Formations
     kaabu: false, nafama: false, omy: false, lbft: false,
     comment: '',
+    piece_fichier: null,
   });
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -1084,6 +1086,13 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     { staleTime: 300000 }
   );
   const zones = zonesData || [];
+
+  // Sous-zones filtrées selon la zone sélectionnée
+  const { data: sousZonesData } = useQuery(
+    ['sous-zones-activation', form.zone],
+    () => api.get(`/pdvs/sous-zones${form.zone ? `?zone=${encodeURIComponent(form.zone)}` : ''}`).then(r => r.data).catch(() => []),
+    { staleTime: 60000, enabled: true }
+  );
 
   const ATeamSelect = ({ label, nameKey, telKey, options=[] }) => (
     <AFL label={label}>
@@ -1180,7 +1189,39 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
             <AFL label="Numéro de pièce"><AFI placeholder="N° pièce d'identité" value={form.numero_piece} onChange={e=>set('numero_piece',e.target.value)} /></AFL>
             <AFL label="Date de délivrance"><AFI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></AFL>
             <AFL label="Domicile"><AFI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></AFL>
-            <AFL label="Téléphone"><AFI placeholder="Tél. du gérant" value={form.telephone} onChange={e=>set('telephone',e.target.value)} /></AFL>
+            {/* Upload pièce d'identité */}
+            <AFL label={`Photo / Scan ${form.type_piece || 'Pièce'} d'identité`}>
+              <div style={{
+                border: '2px dashed rgba(255,105,0,0.3)', borderRadius: 8,
+                padding: '10px 12px', cursor: 'pointer', textAlign: 'center',
+                background: form.piece_fichier ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)',
+                transition: 'all 0.2s',
+              }}
+                onClick={() => document.getElementById('piece-upload').click()}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='#FF6900'; }}
+                onDragLeave={e => { e.currentTarget.style.borderColor='rgba(255,105,0,0.3)'; }}
+                onDrop={e => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file) set('piece_fichier', file);
+                }}>
+                <input id="piece-upload" type="file" accept="image/*,.pdf" style={{ display:'none' }}
+                  onChange={e => { if (e.target.files[0]) set('piece_fichier', e.target.files[0]); }} />
+                {form.piece_fichier ? (
+                  <div style={{ fontSize:12, color:'#10b981', fontWeight:600 }}>
+                    ✅ {form.piece_fichier.name}
+                    <span style={{ color:'#64748b', marginLeft:8, fontWeight:400 }}>
+                      ({(form.piece_fichier.size/1024).toFixed(0)} Ko)
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize:11, color:'#64748b' }}>
+                    📎 Cliquer ou glisser le fichier ici<br/>
+                    <span style={{ fontSize:10 }}>JPG, PNG, PDF acceptés</span>
+                  </div>
+                )}
+              </div>
+            </AFL>
           </ASection>
 
           {/* SECTION 2 — Informations PDV */}
@@ -1192,10 +1233,10 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
                   setForm(f => ({
                     ...f,
                     numero_pdv: num,
-                    // Auto-remplir zone, quartier, type si PDV trouvé
                     zone: pdv?.zone || f.zone,
                     sous_zone: pdv?.sous_zone || f.sous_zone,
-                    quartier: pdv?.quartier || f.quartier,
+                    // Quartier : priorité au quartier du prospect (p.quartier), sinon PDV
+                    quartier: p.quartier || pdv?.quartier || f.quartier,
                     type_pdv: pdv?.type_pdv || f.type_pdv,
                     gestionnaire: pdv?.gestionnaire || f.gestionnaire,
                     superviseur: pdv?.superviseur || f.superviseur,
@@ -1218,12 +1259,27 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
             </AFL>
             <AFL label="Type d'activité"><AFI placeholder="Ex: Commerce, Boutique..." value={form.type_activite} onChange={e=>set('type_activite',e.target.value)} /></AFL>
             <AFL label="Zone *" required>
-              <AFS value={form.zone} onChange={e=>set('zone',e.target.value)} required>
+              <AFS value={form.zone} onChange={e=>{ set('zone',e.target.value); set('sous_zone',''); }} required>
                 <option value="">Sélectionner une zone</option>
                 {zones.map(z => <option key={z} value={z}>{z}</option>)}
               </AFS>
             </AFL>
-            <AFL label="Quartier"><AFI placeholder="Quartier / Commune" value={form.quartier} onChange={e=>set('quartier',e.target.value)} /></AFL>
+            <AFL label="Sous-Zone">
+              <AFS value={form.sous_zone} onChange={e=>set('sous_zone',e.target.value)}>
+                <option value="">Sélectionner une sous-zone</option>
+                {(sousZonesData || []).map(sz => <option key={sz} value={sz}>{sz}</option>)}
+              </AFS>
+            </AFL>
+            <AFL label="Quartier">
+              <AFI
+                placeholder="Quartier / Commune"
+                value={form.quartier}
+                onChange={e=>set('quartier',e.target.value)}
+              />
+              {p.quartier && form.quartier === p.quartier && (
+                <div style={{ fontSize:10, color:'#10b981', marginTop:3 }}>✅ Pré-rempli depuis la demande</div>
+              )}
+            </AFL>
             <AFL label="Adresse PDV"><AFI placeholder="Adresse complète du PDV" value={form.adresse_pdv} onChange={e=>set('adresse_pdv',e.target.value)} /></AFL>
             <AFL label="Date d'activation"><AFI type="date" value={form.date_activation} onChange={e=>set('date_activation',e.target.value)} /></AFL>
             <AFL label="Montant d'activation (FCFA)"><AFI type="number" placeholder="0" value={form.montant_activation} onChange={e=>set('montant_activation',e.target.value)} /></AFL>

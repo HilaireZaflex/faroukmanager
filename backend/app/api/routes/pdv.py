@@ -277,6 +277,112 @@ def import_pdvs(
 
 
 # ─── LISTE PDVs avec filtres ──────────────────────────────────────────────────
+@router.post("/pdvs/import-exclusions")
+def import_exclusions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    file: UploadFile = File(None),
+):
+    """
+    Import du fichier A EXCLURE.xlsx :
+    - Colonne 0 : PDVs Activation < 1 mois → date_activation = aujourd'hui - 15 jours
+    - Colonne 4 : Nouvelles Attributions   → nouvelle_creation = True + date_activation = date attribution
+    """
+    if current_user.role not in [UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
+    if not file:
+        raise HTTPException(status_code=422, detail="Fichier requis")
+
+    import openpyxl
+    from datetime import timedelta, datetime
+    contents = file.file.read()
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents), read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Fichier invalide: {str(e)}")
+
+    activation_pdvs = {}   # num -> date (ou None)
+    attribution_pdvs = {}  # num -> date attribution
+
+    for row in rows[2:]:  # sauter 2 lignes d'entête
+        # Colonne 0 : Activation < 1 mois
+        v0 = row[0] if len(row) > 0 else None
+        if v0:
+            try:
+                num = str(int(float(str(v0).strip())))
+                activation_pdvs[num] = None
+            except: pass
+
+        # Colonne 4 : Nouvelles Attributions, Colonne 6 : DATE D'ATTRIBUTION
+        v4 = row[4] if len(row) > 4 else None
+        v6 = row[6] if len(row) > 6 else None
+        if v4:
+            try:
+                num = str(int(float(str(v4).strip())))
+                date_attr = v6 if isinstance(v6, datetime) else None
+                attribution_pdvs[num] = date_attr
+            except: pass
+
+    maj_activ = 0
+    maj_attr = 0
+    non_trouves = []
+
+    # Marquer activation récente : date_activation = aujourd'hui - 15 jours
+    date_recente = datetime.now() - timedelta(days=15)
+    for num, _ in activation_pdvs.items():
+        pdv = db.query(PDV).filter(PDV.numero_pdv == num).first()
+        if pdv:
+            pdv.date_activation = date_recente
+            pdv.nouvelle_creation = False
+            pdv.updated_at = datetime.utcnow()
+            maj_activ += 1
+        else:
+            non_trouves.append(num)
+
+    # Marquer nouvelles attributions
+    for num, date_attr in attribution_pdvs.items():
+        pdv = db.query(PDV).filter(PDV.numero_pdv == num).first()
+        if pdv:
+            pdv.nouvelle_creation = True
+            if date_attr:
+                pdv.date_activation = date_attr
+            elif not pdv.date_activation:
+                pdv.date_activation = date_recente
+            pdv.updated_at = datetime.utcnow()
+            maj_attr += 1
+        else:
+            if num not in non_trouves:
+                non_trouves.append(num)
+
+    db.commit()
+
+    return {
+        "message": "Import exclusions terminé",
+        "activation_recente_mis_a_jour": maj_activ,
+        "nouvelle_attribution_mis_a_jour": maj_attr,
+        "non_trouves": len(non_trouves),
+        "total_exclusions": maj_activ + maj_attr,
+    }
+
+
+@router.get("/pdvs/zones")
+def get_zones(db: Session = Depends(get_db)):
+    """Liste des zones distinctes du réseau"""
+    zones = sorted(set(r[0] for r in db.query(PDV.zone).filter(PDV.zone != None, PDV.zone != '').distinct().all()))
+    return zones
+
+@router.get("/pdvs/sous-zones")
+def get_sous_zones(zone: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    """Liste des sous-zones, filtrée par zone si précisée"""
+    q = db.query(PDV.sous_zone).filter(PDV.sous_zone != None, PDV.sous_zone != '')
+    if zone:
+        q = q.filter(PDV.zone == zone)
+    sous_zones = sorted(set(r[0] for r in q.distinct().all()))
+    return sous_zones
+
 @router.get("/pdvs", response_model=List[PDVOut])
 def list_pdvs(
     db: Session = Depends(get_db),
