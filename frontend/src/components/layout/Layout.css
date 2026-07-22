@@ -15,7 +15,7 @@
 }
 
 /* Quand la sidebar est collapsée, le main-content s'adapte */
-.layout:has(.sidebar.collapsed) .main-content {
+.layout.sidebar-collapsed .main-content {
   margin-left: var(--sidebar-collapsed);
   width: calc(100% - var(--sidebar-collapsed));
 }
