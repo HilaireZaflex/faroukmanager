@@ -4,7 +4,6 @@ import './Layout.css';
 
 export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Fermer le drawer quand on change de page
   useEffect(() => {
@@ -12,12 +11,12 @@ export default function Layout({ children }) {
   }, [children]);
 
   return (
-    <div className={`layout${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className="layout">
       {/* Overlay mobile */}
       {mobileOpen && (
         <div className="mobile-overlay" onClick={() => setMobileOpen(false)}/>
       )}
-      <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} onCollapse={setSidebarCollapsed}/>
+      <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)}/>
       <main className="main-content">
         {children}
       </main>

@@ -19,9 +19,8 @@ const ROLE_LABELS = {
   teleconseillere: '🟣 Téléconseillère',
 };
 
-export default function Sidebar({ mobileOpen, onMobileClose, onCollapse }) {
+export default function Sidebar({ mobileOpen, onMobileClose }) {
   const [collapsed, setCollapsed] = useState(false);
-  const toggleCollapse = (v) => { setCollapsed(v); onCollapse && onCollapse(v); };
   const [iaOpen, setIaOpen] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [omyOpen, setOmyOpen] = useState(false);
@@ -60,7 +59,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, onCollapse }) {
             <span className="logo-sub">Orange Mali</span>
           </div>
         )}
-        <button className="collapse-btn" onClick={() => toggleCollapse(!collapsed)}>
+        <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
           {collapsed ? <ChevronRight size={15}/> : <ChevronLeft size={15}/>}
         </button>
       </div>
