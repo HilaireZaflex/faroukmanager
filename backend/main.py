@@ -774,6 +774,47 @@ async def migrate_prospect_columns():
                 results.append({"sql": sql[:60], "status": str(e)[:80]})
     return {"migrations": results}
 
+@app.get("/migrate-pdv-history")
+async def migrate_pdv_history():
+    """Migration: crée la table pdv_history si elle n'existe pas encore."""
+    from app.core.database import engine
+    from sqlalchemy import text, inspect
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    if 'pdv_history' in tables:
+        return {"status": "ok", "message": "Table pdv_history existe déjà"}
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pdv_history (
+                id SERIAL PRIMARY KEY,
+                pdv_id INTEGER REFERENCES pdvs(id) ON DELETE CASCADE,
+                numero_pdv VARCHAR,
+                event_type VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                created_by VARCHAR,
+                prospect_reference VARCHAR,
+                prospect_id INTEGER,
+                ancien_nom_gerant VARCHAR, ancien_telephone VARCHAR,
+                ancien_superviseur VARCHAR, ancien_gestionnaire VARCHAR,
+                ancien_teleconseillere VARCHAR, ancien_developpeur VARCHAR,
+                ancien_zone VARCHAR, ancien_sous_zone VARCHAR,
+                ancien_quartier VARCHAR, ancien_adresse VARCHAR,
+                ancien_statut VARCHAR, ancien_type_pdv VARCHAR,
+                ancien_date_activation TIMESTAMP,
+                nouveau_nom_gerant VARCHAR, nouveau_telephone VARCHAR,
+                nouveau_superviseur VARCHAR, nouveau_gestionnaire VARCHAR,
+                nouveau_teleconseillere VARCHAR, nouveau_developpeur VARCHAR,
+                nouveau_zone VARCHAR, nouveau_sous_zone VARCHAR,
+                nouveau_quartier VARCHAR, nouveau_adresse VARCHAR,
+                nouveau_type_pdv VARCHAR,
+                workflow_steps JSONB,
+                comment TEXT,
+                extra JSONB
+            )
+        """))
+        conn.commit()
+    return {"status": "ok", "message": "Table pdv_history créée avec succès"}
+
 @app.get("/migrate-pdv-columns")
 async def migrate_pdv_columns():
     """Migration temporaire: ajoute les colonnes manquantes à la table pdvs"""

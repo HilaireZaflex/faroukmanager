@@ -699,12 +699,11 @@ function TabHistorique({ pdv }) {
   React.useEffect(() => {
     if (!pdv?.id) return;
     setLoading(true);
-    fetch(`/api/pdvs/${pdv.id}/history`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    })
-      .then(r => r.json())
-      .then(data => { setHistory(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
+    import('../services/api').then(({ default: api }) => {
+      api.get(`/pdvs/${pdv.id}/history`)
+        .then(r => { setHistory(Array.isArray(r.data) ? r.data : []); setLoading(false); })
+        .catch(() => setLoading(false));
+    });
   }, [pdv?.id]);
 
   if (loading) return (
