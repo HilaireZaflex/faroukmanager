@@ -289,19 +289,17 @@
 
 @media (max-width: 768px) {
   .modal-backdrop {
-    padding: 0;
+    padding: 10px;
     align-items: flex-start;
-    padding-top: 16px;
-    padding-bottom: 80px; /* espace pour la bottom nav */
+    padding-top: 20px;
   }
   .modal {
-    width: calc(100vw - 24px) !important;
-    max-width: calc(100vw - 24px) !important;
+    width: 100% !important;
+    max-width: 100% !important;
     padding: 16px !important;
     border-radius: 12px !important;
-    margin: 0 12px;
+    margin: 0 auto;
     box-sizing: border-box;
-    overflow-x: hidden;
   }
   .form-grid {
     grid-template-columns: 1fr !important;
