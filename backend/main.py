@@ -774,6 +774,48 @@ async def migrate_prospect_columns():
                 results.append({"sql": sql[:60], "status": str(e)[:80]})
     return {"migrations": results}
 
+@app.get("/fix-pdv-history/{numero_pdv}")
+async def fix_pdv_history(numero_pdv: str):
+    """Correction manuelle de l'historique PDV — récupère les données depuis les performances et commissions."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        # Chercher le PDV
+        pdv = db.execute(text("SELECT * FROM pdvs WHERE numero_pdv = :n"), {"n": numero_pdv}).fetchone()
+        if not pdv:
+            return {"error": f"PDV {numero_pdv} introuvable"}
+
+        # Chercher l'historique existant
+        hist = db.execute(text("SELECT * FROM pdv_history WHERE numero_pdv = :n ORDER BY created_at DESC LIMIT 1"), {"n": numero_pdv}).fetchone()
+        if not hist:
+            return {"error": "Aucun historique trouvé"}
+
+        # Chercher les infos de l'ancien gérant depuis les performances (contient nom_gerant)
+        old_perf = db.execute(text("""
+            SELECT DISTINCT nom_gerant, telephone, gestionnaire, superviseur, zone, sous_zone
+            FROM monthly_performances
+            WHERE numero_pdv = :n AND nom_gerant IS NOT NULL
+            ORDER BY mois DESC LIMIT 1
+        """), {"n": numero_pdv}).fetchone()
+
+        # Chercher aussi dans commissions
+        old_comm = db.execute(text("""
+            SELECT DISTINCT nom_pdv, gestionnaire, zone
+            FROM commission_entries
+            WHERE numero_pdv = :n AND nom_pdv IS NOT NULL
+            ORDER BY created_at DESC LIMIT 5
+        """), {"n": numero_pdv}).fetchall()
+
+        return {
+            "pdv_actuel": dict(pdv._mapping),
+            "historique": dict(hist._mapping),
+            "ancien_gerant_from_perf": dict(old_perf._mapping) if old_perf else None,
+            "ancien_gerant_from_comm": [dict(r._mapping) for r in old_comm] if old_comm else [],
+        }
+    finally:
+        db.close()
+
 @app.get("/migrate-pdv-history")
 async def migrate_pdv_history():
     """Migration: crée la table pdv_history si elle n'existe pas encore."""
