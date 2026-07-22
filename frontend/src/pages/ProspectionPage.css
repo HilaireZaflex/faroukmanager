@@ -470,23 +470,10 @@
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .form-grid { grid-template-columns: 1fr; }
-  .form-grid .full { grid-column: 1; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filters input { min-width: 100%; }
-  .filters { flex-direction: column; gap: 8px; }
-  .filters select { width: 100%; }
-  .prospection-header { flex-direction: column; align-items: stretch; gap: 10px; }
-  .modal { padding: 14px; border-radius: var(--radius); width: 98vw !important; max-width: 98vw !important; }
-  .prospects-table { overflow-x: auto; }
-  .prospects-table table { min-width: 560px; }
-  .action-bar { flex-direction: column; gap: 8px; }
-  .action-bar > * { width: 100%; }
-  .tabs-container { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
-  .tabs-container::-webkit-scrollbar { display: none; }
-  .subtabs-container { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
-  .subtabs-container::-webkit-scrollbar { display: none; }
-  /* Activation form sections : 1 col sur mobile */
-  .form-grid[style], [style*="grid-template-columns: repeat(3"] { grid-template-columns: 1fr !important; }
+  .prospection-header { flex-direction: column; align-items: stretch; }
+  .modal { padding: 16px; border-radius: var(--radius); }
 }
 
 /* ── Sub-tabs (sous-menu d'un onglet principal) ─────────────────────────── */

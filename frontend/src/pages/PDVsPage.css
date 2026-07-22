@@ -60,14 +60,6 @@
 }
 
 @media (max-width: 768px) {
-  .pdvs-page { padding: 12px !important; }
-  .pdv-stats-bar { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
-  .pdv-filters { flex-direction: column !important; gap: 8px !important; }
-  .pdv-filters input, .pdv-filters select { width: 100% !important; min-width: 0 !important; }
-  .pdv-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .pdv-table-wrap table { min-width: 600px; }
-  .modal-overlay > div { width: 98vw !important; max-width: 98vw !important; padding: 16px !important; }
-
   .pdv-mini-stats { grid-template-columns: repeat(2, 1fr); }
   .pdv-filters { flex-direction: column; }
   .filter-selects { width: 100%; }

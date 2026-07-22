@@ -19,7 +19,7 @@ const ROLE_LABELS = {
   teleconseillere: '🟣 Téléconseillère',
 };
 
-export default function Sidebar({ mobileOpen, onMobileClose }) {
+export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [iaOpen, setIaOpen] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -50,7 +50,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   );
 
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-logo">
         <div className="logo-icon">🟠</div>
         {!collapsed && (
