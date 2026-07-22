@@ -19,3 +19,92 @@
   margin-left: var(--sidebar-collapsed);
   width: calc(100% - var(--sidebar-collapsed));
 }
+
+/* ── Overlay mobile ─────────────────────────────────────────────────────── */
+.mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 99;
+  backdrop-filter: blur(3px);
+}
+
+/* ── Bottom Navigation Bar ─────────────────────────────────────────────── */
+.mobile-bottom-bar {
+  display: none;
+}
+
+/* ── RESPONSIVE MOBILE ─────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding-bottom: 70px; /* espace pour la bottom bar */
+    min-height: calc(100vh - 70px);
+  }
+
+  .mobile-overlay {
+    display: block;
+  }
+
+  /* Bottom Navigation Bar */
+  .mobile-bottom-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 62px;
+    background: linear-gradient(180deg, #0f0f1e 0%, #0a0a14 100%);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    z-index: 200;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+    justify-content: space-around;
+    align-items: stretch;
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .mbb-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    flex: 1;
+    text-decoration: none;
+    color: #64748b;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 2px;
+    border-radius: 12px;
+    transition: all 0.2s;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mbb-item.mbb-active {
+    color: #FF6900;
+  }
+
+  .mbb-item.mbb-menu {
+    color: #94a3b8;
+  }
+
+  .mbb-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .mbb-label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+
+  .mbb-item.mbb-active .mbb-icon {
+    filter: drop-shadow(0 0 6px rgba(255,105,0,0.6));
+  }
+}

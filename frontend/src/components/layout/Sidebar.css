@@ -11,12 +11,47 @@
   border-right: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: fixed;
   left: 0; top: 0; bottom: 0;
   z-index: 100;
   overflow: hidden;
   box-shadow: 6px 0 32px rgba(0, 0, 0, 0.5);
+}
+
+/* ── MOBILE : sidebar cachée par défaut, drawer quand mobile-open ── */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px !important;
+    z-index: 200;
+    overflow-y: auto;
+    bottom: 0;
+  }
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .sidebar.collapsed {
+    width: 280px !important;
+  }
+  /* Cacher le bouton collapse sur mobile */
+  .collapse-btn { display: none !important; }
+  /* Afficher les labels même si collapsed sur mobile */
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .nav-section-label,
+  .sidebar.collapsed .nav-submenu,
+  .sidebar.collapsed .user-details,
+  .sidebar.collapsed .logo-text { display: flex !important; }
+  .sidebar.collapsed .nav-item {
+    justify-content: flex-start !important;
+    padding: 10px 14px !important;
+    width: auto !important;
+    gap: 10px !important;
+  }
+  .sidebar.collapsed .sidebar-nav { padding: 10px 10px; align-items: stretch; }
+  .sidebar.collapsed .sidebar-footer { align-items: stretch; padding: 8px 10px 80px; }
+  .sidebar.collapsed .user-info { justify-content: flex-start; width: auto; padding: 10px 14px; }
+  .sidebar.collapsed .logout-btn { justify-content: flex-start; width: auto; padding: 10px 14px; }
 }
 
 .sidebar.collapsed { width: var(--sidebar-collapsed); }
