@@ -368,6 +368,57 @@ def import_exclusions(
     }
 
 
+@router.get("/pdvs/{pdv_id}/history")
+def get_pdv_history(pdv_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """Retourne l'historique complet des modifications d'un PDV."""
+    from app.models.pdv_history import PDVHistory
+    history = db.query(PDVHistory).filter(
+        PDVHistory.pdv_id == pdv_id
+    ).order_by(PDVHistory.created_at.desc()).all()
+    result = []
+    for h in history:
+        result.append({
+            "id": h.id,
+            "event_type": h.event_type,
+            "created_at": h.created_at.isoformat() if h.created_at else None,
+            "created_by": h.created_by,
+            "prospect_reference": h.prospect_reference,
+            "prospect_id": h.prospect_id,
+            # Ancien gérant
+            "ancien": {
+                "nom_gerant": h.ancien_nom_gerant,
+                "telephone": h.ancien_telephone,
+                "superviseur": h.ancien_superviseur,
+                "gestionnaire": h.ancien_gestionnaire,
+                "teleconseillere": h.ancien_teleconseillere,
+                "developpeur": h.ancien_developpeur,
+                "zone": h.ancien_zone,
+                "sous_zone": h.ancien_sous_zone,
+                "quartier": h.ancien_quartier,
+                "adresse": h.ancien_adresse,
+                "statut": h.ancien_statut,
+                "type_pdv": h.ancien_type_pdv,
+                "date_activation": h.ancien_date_activation.isoformat() if h.ancien_date_activation else None,
+            },
+            # Nouveau gérant
+            "nouveau": {
+                "nom_gerant": h.nouveau_nom_gerant,
+                "telephone": h.nouveau_telephone,
+                "superviseur": h.nouveau_superviseur,
+                "gestionnaire": h.nouveau_gestionnaire,
+                "teleconseillere": h.nouveau_teleconseillere,
+                "developpeur": h.nouveau_developpeur,
+                "zone": h.nouveau_zone,
+                "sous_zone": h.nouveau_sous_zone,
+                "quartier": h.nouveau_quartier,
+                "adresse": h.nouveau_adresse,
+                "type_pdv": h.nouveau_type_pdv,
+            },
+            "workflow_steps": h.workflow_steps or [],
+            "comment": h.comment,
+        })
+    return result
+
 @router.get("/pdvs/zones")
 def get_zones(db: Session = Depends(get_db)):
     """Liste des zones distinctes du réseau"""

@@ -702,32 +702,144 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
     p.status = ProspectStatus.PUCE_ACTIVEE
     p.activated_at = datetime.utcnow()
 
-    # Création automatique de la fiche PDV (option par défaut)
+    # Mise à jour du PDV existant OU création si introuvable
     pdv_id = None
-    if payload.create_pdv:
-        new_pdv = PDV(
-            numero_pdv=p.puce_numero,                    # n° puce comme identifiant
-            nom=f"{p.nom} {p.prenom}".strip(),
-            telephone=p.telephone_principal,
-            quartier=payload.quartier_pdv or p.quartier,
-            adresse=p.pdv_adresse or p.adresse,
-            latitude=p.latitude,
-            longitude=p.longitude,
-            statut=PDVStatut.ACTIF,
-            date_activation=datetime.utcnow(),
-            nom_gerant=f"{p.prenom} {p.nom}".strip(),
-            nouvelle_creation=True,
-            notes=f"Créé via prospection {p.reference}",
-            gestionnaire=payload.gestionnaire,
-            superviseur=payload.superviseur,
-            teleconseillere=payload.teleconseillere,
-            zone=payload.zone,
-            sous_zone=payload.sous_zone,
-        )
-        db.add(new_pdv)
-        db.flush()
-        p.activated_pdv_id = new_pdv.id
-        pdv_id = new_pdv.id
+    if payload.create_pdv and p.puce_numero:
+        from app.models.pdv_history import PDVHistory
+        from app.models.prospect import ProspectHistory
+
+        # Récupérer le workflow complet du prospect pour l'historique
+        prospect_history = db.query(ProspectHistory).filter(
+            ProspectHistory.prospect_id == p.id
+        ).order_by(ProspectHistory.created_at.asc()).all()
+
+        workflow_steps = []
+        for h in prospect_history:
+            step_user = f"{h.user.nom} {h.user.prenom or ''}".strip() if h.user else "système"
+            workflow_steps.append({
+                "decision_type": h.decision_type.value if hasattr(h.decision_type, 'value') else str(h.decision_type),
+                "from_status": h.from_status.value if h.from_status and hasattr(h.from_status, 'value') else str(h.from_status or ''),
+                "to_status": h.to_status.value if h.to_status and hasattr(h.to_status, 'value') else str(h.to_status or ''),
+                "date": h.created_at.isoformat() if h.created_at else None,
+                "par": step_user,
+                "comment": h.comment or '',
+            })
+
+        # Chercher le PDV existant par numéro
+        existing_pdv = db.query(PDV).filter(PDV.numero_pdv == p.puce_numero).first()
+        activated_by = f"{current_user.nom} {current_user.prenom or ''}".strip()
+
+        if existing_pdv:
+            # ── Sauvegarder le snapshot ANCIEN gérant dans l'historique ──
+            hist = PDVHistory(
+                pdv_id=existing_pdv.id,
+                numero_pdv=existing_pdv.numero_pdv,
+                event_type="ACTIVATION",
+                created_by=activated_by,
+                prospect_reference=p.reference,
+                prospect_id=p.id,
+                # Ancien gérant
+                ancien_nom_gerant=existing_pdv.nom_gerant,
+                ancien_telephone=existing_pdv.telephone,
+                ancien_superviseur=existing_pdv.superviseur,
+                ancien_gestionnaire=existing_pdv.gestionnaire,
+                ancien_teleconseillere=existing_pdv.teleconseillere,
+                ancien_developpeur=existing_pdv.developpeur,
+                ancien_zone=existing_pdv.zone,
+                ancien_sous_zone=existing_pdv.sous_zone,
+                ancien_quartier=existing_pdv.quartier,
+                ancien_adresse=existing_pdv.adresse,
+                ancien_statut=existing_pdv.statut.value if existing_pdv.statut else None,
+                ancien_type_pdv=existing_pdv.type_pdv.value if existing_pdv.type_pdv else None,
+                ancien_date_activation=existing_pdv.date_activation,
+                # Nouveau gérant
+                nouveau_nom_gerant=f"{p.prenom} {p.nom}".strip(),
+                nouveau_telephone=p.telephone_principal,
+                nouveau_superviseur=payload.superviseur,
+                nouveau_gestionnaire=payload.gestionnaire,
+                nouveau_teleconseillere=payload.teleconseillere,
+                nouveau_developpeur=activated_by,
+                nouveau_zone=payload.zone or existing_pdv.zone,
+                nouveau_sous_zone=payload.sous_zone or existing_pdv.sous_zone,
+                nouveau_quartier=payload.quartier_pdv or p.quartier or existing_pdv.quartier,
+                nouveau_adresse=p.pdv_adresse or p.adresse or existing_pdv.adresse,
+                nouveau_type_pdv=getattr(payload, 'type_pdv', None) or (existing_pdv.type_pdv.value if existing_pdv.type_pdv else None),
+                # Workflow complet
+                workflow_steps=workflow_steps,
+                comment=payload.comment or f"Réactivation via prospection {p.reference}",
+                extra={"puce_numero": p.puce_numero},
+            )
+            db.add(hist)
+
+            # ── Mettre à jour le PDV existant avec les nouvelles infos ──
+            existing_pdv.nom = f"{p.nom} {p.prenom}".strip()
+            existing_pdv.nom_gerant = f"{p.prenom} {p.nom}".strip()
+            existing_pdv.telephone = p.telephone_principal
+            existing_pdv.quartier = payload.quartier_pdv or p.quartier or existing_pdv.quartier
+            existing_pdv.adresse = p.pdv_adresse or p.adresse or existing_pdv.adresse
+            existing_pdv.latitude = p.latitude or existing_pdv.latitude
+            existing_pdv.longitude = p.longitude or existing_pdv.longitude
+            existing_pdv.statut = PDVStatut.ACTIF
+            existing_pdv.date_activation = datetime.utcnow()
+            existing_pdv.gestionnaire = payload.gestionnaire or existing_pdv.gestionnaire
+            existing_pdv.superviseur = payload.superviseur or existing_pdv.superviseur
+            existing_pdv.teleconseillere = payload.teleconseillere or existing_pdv.teleconseillere
+            existing_pdv.zone = payload.zone or existing_pdv.zone
+            existing_pdv.sous_zone = payload.sous_zone or existing_pdv.sous_zone
+            existing_pdv.notes = f"Mis à jour via prospection {p.reference}\n" + (existing_pdv.notes or '')
+            existing_pdv.updated_at = datetime.utcnow()
+            db.flush()
+            p.activated_pdv_id = existing_pdv.id
+            pdv_id = existing_pdv.id
+
+        else:
+            # ── PDV introuvable → créer un nouveau PDV ──
+            new_pdv = PDV(
+                numero_pdv=p.puce_numero,
+                nom=f"{p.nom} {p.prenom}".strip(),
+                telephone=p.telephone_principal,
+                quartier=payload.quartier_pdv or p.quartier,
+                adresse=p.pdv_adresse or p.adresse,
+                latitude=p.latitude,
+                longitude=p.longitude,
+                statut=PDVStatut.ACTIF,
+                date_activation=datetime.utcnow(),
+                nom_gerant=f"{p.prenom} {p.nom}".strip(),
+                nouvelle_creation=True,
+                notes=f"Créé via prospection {p.reference}",
+                gestionnaire=payload.gestionnaire,
+                superviseur=payload.superviseur,
+                teleconseillere=payload.teleconseillere,
+                zone=payload.zone,
+                sous_zone=payload.sous_zone,
+            )
+            db.add(new_pdv)
+            db.flush()
+
+            # Sauvegarder dans l'historique aussi pour les nouveaux PDVs
+            hist = PDVHistory(
+                pdv_id=new_pdv.id,
+                numero_pdv=new_pdv.numero_pdv,
+                event_type="CREATION",
+                created_by=activated_by,
+                prospect_reference=p.reference,
+                prospect_id=p.id,
+                nouveau_nom_gerant=f"{p.prenom} {p.nom}".strip(),
+                nouveau_telephone=p.telephone_principal,
+                nouveau_superviseur=payload.superviseur,
+                nouveau_gestionnaire=payload.gestionnaire,
+                nouveau_teleconseillere=payload.teleconseillere,
+                nouveau_developpeur=activated_by,
+                nouveau_zone=payload.zone,
+                nouveau_sous_zone=payload.sous_zone,
+                nouveau_quartier=payload.quartier_pdv or p.quartier,
+                workflow_steps=workflow_steps,
+                comment=payload.comment or f"Nouveau PDV créé via prospection {p.reference}",
+                extra={"puce_numero": p.puce_numero},
+            )
+            db.add(hist)
+            p.activated_pdv_id = new_pdv.id
+            pdv_id = new_pdv.id
 
     _log_history(
         db, p, current_user,

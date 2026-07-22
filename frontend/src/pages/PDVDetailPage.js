@@ -582,6 +582,7 @@ export default function PDVDetailPage() {
   };
 
   const tabs = [
+    { id: 'historique', label: '📜 Historique du PDV' },
     { id: 'infos', label: 'ℹ️ Informations' },
     { id: 'performances', label: '📊 Performances' },
     { id: 'courbes', label: '📈 Courbes' },
@@ -638,6 +639,7 @@ export default function PDVDetailPage() {
 
       {/* Tab Content */}
       <div>
+        {activeTab === 'historique' && <TabHistorique pdv={pdv} />}
         {activeTab === 'infos' && <TabInformations pdv={pdv} />}
         {activeTab === 'performances' && <TabPerformances pdv={pdv} />}
         {activeTab === 'courbes' && <TabCourbes pdv={pdv} />}
@@ -654,6 +656,200 @@ export default function PDVDetailPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Onglet Historique du PDV ────────────────────────────────────────────────
+const WORKFLOW_LABELS = {
+  SUBMIT:        { label: 'Demande soumise',          icon: '📤', color: '#64748b' },
+  ASSIGN_VISIT:  { label: 'Visite attribuée',         icon: '🔍', color: '#0ea5e9' },
+  REASSIGN:      { label: 'Réattribution',            icon: '🔄', color: '#f59e0b' },
+  DEV_VALIDATE:  { label: 'Visite validée',           icon: '✅', color: '#10b981' },
+  DEV_REJECT:    { label: 'Visite rejetée',           icon: '❌', color: '#ef4444' },
+  RC_APPROVE:    { label: 'Approuvé par RC',          icon: '🟢', color: '#22c55e' },
+  RC_HOLD:       { label: 'Mis en attente',           icon: '⏸️', color: '#f59e0b' },
+  RC_REJECT:     { label: 'Refusé par RC',            icon: '🔴', color: '#ef4444' },
+  PUCE_ASSIGN:   { label: 'Puce attribuée',           icon: '📦', color: '#a78bfa' },
+  PUCE_ACTIVATE: { label: 'Puce activée (terrain)',   icon: '⚡', color: '#FF6900' },
+  CANCEL:        { label: 'Annulé',                   icon: '🚫', color: '#ef4444' },
+};
+
+function InfoRow({ label, old, nw }) {
+  if (!old && !nw) return null;
+  const changed = old !== nw;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {old && <span style={{ fontSize: 12, color: '#ef4444', textDecoration: changed ? 'line-through' : 'none', opacity: 0.8 }}>{old}</span>}
+        {changed && old && nw && <span style={{ color: '#475569', fontSize: 10 }}>→</span>}
+        {nw && <span style={{ fontSize: 13, color: changed ? '#10b981' : '#e2e8f0', fontWeight: changed ? 700 : 400 }}>{nw}</span>}
+        {!old && nw && <span style={{ fontSize: 13, color: '#e2e8f0' }}>{nw}</span>}
+      </div>
+    </div>
+  );
+}
+
+function TabHistorique({ pdv }) {
+  const [history, setHistory] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [expanded, setExpanded] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!pdv?.id) return;
+    setLoading(true);
+    fetch(`/api/pdvs/${pdv.id}/history`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+      .then(r => r.json())
+      .then(data => { setHistory(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [pdv?.id]);
+
+  if (loading) return (
+    <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>⏳ Chargement de l'historique…</div>
+  );
+
+  if (history.length === 0) return (
+    <div style={{ textAlign: 'center', padding: 60 }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>📜</div>
+      <div style={{ fontSize: 15, color: '#64748b', fontWeight: 600 }}>Aucun historique disponible</div>
+      <div style={{ fontSize: 12, color: '#475569', marginTop: 6 }}>L'historique sera créé lors de la prochaine activation via le workflow de prospection.</div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0' }}>
+      {history.map((h, idx) => (
+        <div key={h.id} style={{
+          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 14, overflow: 'hidden',
+        }}>
+          {/* Header événement */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 18px', cursor: 'pointer',
+            background: expanded === idx ? 'rgba(255,105,0,0.08)' : 'transparent',
+            borderBottom: expanded === idx ? '1px solid rgba(255,105,0,0.2)' : 'none',
+          }} onClick={() => setExpanded(expanded === idx ? null : idx)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: h.event_type === 'ACTIVATION' ? 'rgba(255,105,0,0.15)' : 'rgba(34,197,94,0.12)',
+                border: `2px solid ${h.event_type === 'ACTIVATION' ? '#FF6900' : '#22c55e'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+              }}>
+                {h.event_type === 'ACTIVATION' ? '🔄' : '✨'}
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#f1f5f9' }}>
+                  {h.event_type === 'ACTIVATION' ? '🔄 Changement de gérant' : '✨ Première activation'}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  {h.prospect_reference && <span style={{ color: '#FF6900', fontWeight: 700, marginRight: 8 }}>{h.prospect_reference}</span>}
+                  {new Date(h.created_at).toLocaleString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {h.created_by && <span style={{ marginLeft: 8 }}>· par <b style={{ color: '#94a3b8' }}>{h.created_by}</b></span>}
+                </div>
+              </div>
+            </div>
+            <div style={{ color: '#475569', fontSize: 18, transition: 'transform 0.2s', transform: expanded === idx ? 'rotate(180deg)' : 'none' }}>▾</div>
+          </div>
+
+          {/* Contenu expandé */}
+          {expanded === idx && (
+            <div style={{ padding: '16px 18px' }}>
+
+              {/* Comparaison Ancien → Nouveau gérant */}
+              {h.ancien?.nom_gerant && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+                    👥 Changement de Gérant
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {/* Ancien */}
+                    <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 700, marginBottom: 8 }}>❌ Ancien Gérant</div>
+                      <InfoRow label="Nom" old={null} nw={h.ancien.nom_gerant}/>
+                      <InfoRow label="Téléphone" old={null} nw={h.ancien.telephone}/>
+                      <InfoRow label="Zone" old={null} nw={h.ancien.zone}/>
+                      <InfoRow label="Gestionnaire" old={null} nw={h.ancien.gestionnaire}/>
+                      <InfoRow label="Superviseur" old={null} nw={h.ancien.superviseur}/>
+                      <InfoRow label="Type PDV" old={null} nw={h.ancien.type_pdv}/>
+                      {h.ancien.date_activation && (
+                        <InfoRow label="Activé le" old={null} nw={new Date(h.ancien.date_activation).toLocaleDateString('fr-FR')}/>
+                      )}
+                    </div>
+                    {/* Nouveau */}
+                    <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ fontSize: 11, color: '#10b981', fontWeight: 700, marginBottom: 8 }}>✅ Nouveau Gérant</div>
+                      <InfoRow label="Nom" old={null} nw={h.nouveau.nom_gerant}/>
+                      <InfoRow label="Téléphone" old={null} nw={h.nouveau.telephone}/>
+                      <InfoRow label="Zone" old={null} nw={h.nouveau.zone}/>
+                      <InfoRow label="Gestionnaire" old={null} nw={h.nouveau.gestionnaire}/>
+                      <InfoRow label="Superviseur" old={null} nw={h.nouveau.superviseur}/>
+                      <InfoRow label="Développeur" old={null} nw={h.nouveau.developpeur}/>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Timeline workflow prospection */}
+              {h.workflow_steps && h.workflow_steps.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                    ⚙️ Processus de Prospection — {h.workflow_steps.length} étapes
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'absolute', left: 19, top: 20, bottom: 20, width: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 1 }}/>
+                    {h.workflow_steps.map((step, si) => {
+                      const wl = WORKFLOW_LABELS[step.decision_type] || { label: step.decision_type, icon: '•', color: '#64748b' };
+                      return (
+                        <div key={si} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', paddingBottom: 12, position: 'relative' }}>
+                          <div style={{
+                            width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                            background: '#1e293b', border: `2px solid ${wl.color}40`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 15, zIndex: 1,
+                          }}>{wl.icon}</div>
+                          <div style={{
+                            flex: 1, background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: 8, padding: '8px 12px',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: wl.color }}>{wl.label}</span>
+                              {step.date && (
+                                <span style={{ fontSize: 10, color: '#475569' }}>
+                                  {new Date(step.date).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                            {step.par && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>par <b style={{ color: '#94a3b8' }}>{step.par}</b></div>}
+                            {step.comment && (
+                              <div style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic', marginTop: 4, borderLeft: '2px solid rgba(255,105,0,0.3)', paddingLeft: 6 }}>
+                                « {step.comment} »
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Commentaire général */}
+              {h.comment && (
+                <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, borderLeft: '3px solid #FF6900' }}>
+                  <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 700, marginBottom: 4 }}>💬 Commentaire</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>« {h.comment} »</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
