@@ -153,6 +153,8 @@ class PuceActivateRequest(BaseModel):
     """Le développeur confirme l'activation."""
     comment: Optional[str] = None
     create_pdv: bool = Field(default=True, description="Créer automatiquement la fiche PDV à partir du prospect")
+    # Numéro de puce saisi lors de l'activation terrain
+    puce_numero: Optional[str] = Field(None, description="N° Flotte / Puce OM saisi sur le terrain")
     # Champs PDV à remplir lors de l'activation
     gestionnaire: Optional[str] = None
     superviseur: Optional[str] = None
@@ -160,6 +162,16 @@ class PuceActivateRequest(BaseModel):
     zone: Optional[str] = None
     sous_zone: Optional[str] = None
     quartier_pdv: Optional[str] = None
+    # Infos gérant complètes
+    nom_gerant: Optional[str] = None
+    telephone: Optional[str] = None
+    numero_personnel: Optional[str] = None
+    type_pdv: Optional[str] = None
+    adresse: Optional[str] = None
+    date_activation: Optional[str] = None
+    developpeur: Optional[str] = None
+    nom_garant: Optional[str] = None
+    tel_garant: Optional[str] = None
 
 
 class CancelRequest(BaseModel):

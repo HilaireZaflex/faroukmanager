@@ -702,9 +702,16 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
     p.status = ProspectStatus.PUCE_ACTIVEE
     p.activated_at = datetime.utcnow()
 
+    # Si le dev saisit le numéro de puce dans le formulaire d'activation, on le sauvegarde
+    if payload.puce_numero and not p.puce_numero:
+        p.puce_numero = payload.puce_numero
+
     # Mise à jour du PDV existant OU création si introuvable
+    # On utilise payload.puce_numero OU p.puce_numero (assigné à l'étape 5 ou maintenant)
+    numero_pdv_cible = payload.puce_numero or p.puce_numero
     pdv_id = None
-    if payload.create_pdv and p.puce_numero:
+    if payload.create_pdv and numero_pdv_cible:
+        p.puce_numero = numero_pdv_cible  # S'assurer que p.puce_numero est bien renseigné
         from app.models.pdv_history import PDVHistory
         from app.models.prospect import ProspectHistory
 
@@ -726,7 +733,7 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             })
 
         # Chercher le PDV existant par numéro
-        existing_pdv = db.query(PDV).filter(PDV.numero_pdv == p.puce_numero).first()
+        existing_pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv_cible).first()
         activated_by = f"{current_user.nom} {current_user.prenom or ''}".strip()
 
         if existing_pdv:
@@ -772,11 +779,13 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             db.add(hist)
 
             # ── Mettre à jour le PDV existant avec les nouvelles infos ──
-            existing_pdv.nom = f"{p.nom} {p.prenom}".strip()
-            existing_pdv.nom_gerant = f"{p.prenom} {p.nom}".strip()
-            existing_pdv.telephone = p.telephone_principal
+            nom_gerant = payload.nom_gerant or f"{p.prenom} {p.nom}".strip()
+            existing_pdv.nom = nom_gerant
+            existing_pdv.nom_gerant = nom_gerant
+            existing_pdv.telephone = payload.telephone or p.telephone_principal
+            existing_pdv.numero_personnel = payload.numero_personnel or existing_pdv.numero_personnel
             existing_pdv.quartier = payload.quartier_pdv or p.quartier or existing_pdv.quartier
-            existing_pdv.adresse = p.pdv_adresse or p.adresse or existing_pdv.adresse
+            existing_pdv.adresse = payload.adresse or p.pdv_adresse or p.adresse or existing_pdv.adresse
             existing_pdv.latitude = p.latitude or existing_pdv.latitude
             existing_pdv.longitude = p.longitude or existing_pdv.longitude
             existing_pdv.statut = PDVStatut.ACTIF
@@ -784,8 +793,15 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             existing_pdv.gestionnaire = payload.gestionnaire or existing_pdv.gestionnaire
             existing_pdv.superviseur = payload.superviseur or existing_pdv.superviseur
             existing_pdv.teleconseillere = payload.teleconseillere or existing_pdv.teleconseillere
+            existing_pdv.developpeur = payload.developpeur or existing_pdv.developpeur
             existing_pdv.zone = payload.zone or existing_pdv.zone
             existing_pdv.sous_zone = payload.sous_zone or existing_pdv.sous_zone
+            if payload.type_pdv:
+                try:
+                    from app.models.pdv import TypePDV
+                    existing_pdv.type_pdv = TypePDV(payload.type_pdv)
+                except Exception:
+                    pass
             existing_pdv.notes = f"Mis à jour via prospection {p.reference}\n" + (existing_pdv.notes or '')
             existing_pdv.updated_at = datetime.utcnow()
             db.flush()
