@@ -776,43 +776,51 @@ async def migrate_prospect_columns():
 
 @app.get("/fix-pdv-history/{numero_pdv}")
 async def fix_pdv_history(numero_pdv: str):
-    """Correction manuelle de l'historique PDV — récupère les données depuis les performances et commissions."""
+    """Diagnostic historique PDV."""
     from app.core.database import SessionLocal
     from sqlalchemy import text
     db = SessionLocal()
     try:
         # Chercher le PDV
-        pdv = db.execute(text("SELECT * FROM pdvs WHERE numero_pdv = :n"), {"n": numero_pdv}).fetchone()
-        if not pdv:
+        pdv_row = db.execute(text("SELECT id, numero_pdv, nom_gerant, telephone, gestionnaire, superviseur, zone, sous_zone, statut FROM pdvs WHERE numero_pdv = :n"), {"n": numero_pdv}).fetchone()
+        if not pdv_row:
             return {"error": f"PDV {numero_pdv} introuvable"}
 
+        pdv_dict = {
+            "id": pdv_row[0], "numero_pdv": pdv_row[1], "nom_gerant": pdv_row[2],
+            "telephone": pdv_row[3], "gestionnaire": pdv_row[4], "superviseur": pdv_row[5],
+            "zone": pdv_row[6], "sous_zone": pdv_row[7], "statut": pdv_row[8],
+        }
+
         # Chercher l'historique existant
-        hist = db.execute(text("SELECT * FROM pdv_history WHERE numero_pdv = :n ORDER BY created_at DESC LIMIT 1"), {"n": numero_pdv}).fetchone()
-        if not hist:
-            return {"error": "Aucun historique trouvé"}
+        hist_row = db.execute(text(
+            "SELECT id, event_type, ancien_nom_gerant, nouveau_nom_gerant, created_at FROM pdv_history WHERE numero_pdv = :n ORDER BY created_at DESC LIMIT 1"
+        ), {"n": numero_pdv}).fetchone()
 
-        # Chercher les infos de l'ancien gérant depuis les performances (contient nom_gerant)
-        old_perf = db.execute(text("""
-            SELECT DISTINCT nom_gerant, telephone, gestionnaire, superviseur, zone, sous_zone
-            FROM monthly_performances
-            WHERE numero_pdv = :n AND nom_gerant IS NOT NULL
-            ORDER BY mois DESC LIMIT 1
-        """), {"n": numero_pdv}).fetchone()
+        hist_dict = None
+        if hist_row:
+            hist_dict = {
+                "id": hist_row[0], "event_type": hist_row[1],
+                "ancien_nom_gerant": hist_row[2], "nouveau_nom_gerant": hist_row[3],
+                "created_at": str(hist_row[4]),
+            }
 
-        # Chercher aussi dans commissions
-        old_comm = db.execute(text("""
-            SELECT DISTINCT nom_pdv, gestionnaire, zone
-            FROM commission_entries
-            WHERE numero_pdv = :n AND nom_pdv IS NOT NULL
-            ORDER BY created_at DESC LIMIT 5
-        """), {"n": numero_pdv}).fetchall()
+        # Chercher dans monthly_performances
+        try:
+            perf_row = db.execute(text(
+                "SELECT nom_gerant, gestionnaire, superviseur, zone FROM monthly_performances WHERE numero_pdv = :n AND nom_gerant IS NOT NULL ORDER BY mois DESC LIMIT 1"
+            ), {"n": numero_pdv}).fetchone()
+            perf_dict = {"nom_gerant": perf_row[0], "gestionnaire": perf_row[1], "superviseur": perf_row[2], "zone": perf_row[3]} if perf_row else None
+        except Exception as e:
+            perf_dict = {"error": str(e)}
 
         return {
-            "pdv_actuel": dict(pdv._mapping),
-            "historique": dict(hist._mapping),
-            "ancien_gerant_from_perf": dict(old_perf._mapping) if old_perf else None,
-            "ancien_gerant_from_comm": [dict(r._mapping) for r in old_comm] if old_comm else [],
+            "pdv_actuel": pdv_dict,
+            "historique": hist_dict,
+            "donnees_depuis_performances": perf_dict,
         }
+    except Exception as e:
+        return {"error": str(e)}
     finally:
         db.close()
 
