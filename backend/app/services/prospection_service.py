@@ -116,22 +116,29 @@ def _ensure_transition(current: ProspectStatus, target: ProspectStatus):
 
 
 def _generate_reference(db: Session) -> str:
-    """Génère une référence unique au format PROS-AAAA-NNNNNN. Compatible SQLite + PostgreSQL."""
+    """Génère une référence unique au format PROS-AAAA-NNNNNN.
+    Utilise MAX sur les références existantes pour éviter les doublons après suppression."""
+    import re
     year = datetime.utcnow().year
-    try:
-        # PostgreSQL
-        count = db.query(func.count(Prospect.id)).filter(
-            func.extract('year', Prospect.created_at) == year
-        ).scalar() or 0
-    except Exception:
+    prefix = f"PROS-{year}-"
+    # Récupère la référence la plus haute de l'année
+    last = db.query(Prospect.reference).filter(
+        Prospect.reference.like(f"{prefix}%")
+    ).order_by(Prospect.reference.desc()).first()
+    if last:
         try:
-            # SQLite fallback
-            count = db.query(func.count(Prospect.id)).filter(
-                func.strftime("%Y", Prospect.created_at) == str(year)
-            ).scalar() or 0
+            last_num = int(re.search(r'(\d+)$', last[0]).group(1))
         except Exception:
-            count = db.query(func.count(Prospect.id)).scalar() or 0
-    return f"PROS-{year}-{(count + 1):06d}"
+            last_num = 0
+    else:
+        last_num = 0
+    # Boucle pour garantir l'unicité même en cas de concurrence
+    for attempt in range(20):
+        candidate = f"{prefix}{last_num + 1 + attempt:06d}"
+        exists = db.query(Prospect.id).filter(Prospect.reference == candidate).first()
+        if not exists:
+            return candidate
+    raise HTTPException(status_code=500, detail="Impossible de générer une référence unique")
 
 
 def _log_history(
