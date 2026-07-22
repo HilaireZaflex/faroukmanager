@@ -582,11 +582,11 @@ export default function PDVDetailPage() {
   };
 
   const tabs = [
-    { id: 'historique', label: '📜 Historique du PDV' },
     { id: 'infos', label: 'ℹ️ Informations' },
     { id: 'performances', label: '📊 Performances' },
     { id: 'courbes', label: '📈 Courbes' },
     { id: 'actions', label: '🎯 Actions Terrain' },
+    { id: 'historique', label: '📜 Historique du PDV' },
   ];
 
   return (
