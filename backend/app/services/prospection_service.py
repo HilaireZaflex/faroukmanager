@@ -732,8 +732,17 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
                 "comment": h.comment or '',
             })
 
-        # Chercher le PDV existant par numéro
-        existing_pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv_cible).first()
+        # Chercher le PDV existant par numéro (trim + insensible à la casse)
+        from sqlalchemy import func as sqlfunc
+        numero_clean = numero_pdv_cible.strip() if numero_pdv_cible else numero_pdv_cible
+        existing_pdv = db.query(PDV).filter(
+            sqlfunc.trim(sqlfunc.lower(PDV.numero_pdv)) == sqlfunc.lower(numero_clean)
+        ).first()
+        # Fallback : cherche aussi par correspondance partielle si toujours pas trouvé
+        if not existing_pdv and numero_clean:
+            existing_pdv = db.query(PDV).filter(
+                PDV.numero_pdv.ilike(f"%{numero_clean}%")
+            ).first()
         activated_by = f"{current_user.nom} {current_user.prenom or ''}".strip()
 
         if existing_pdv:
