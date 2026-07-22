@@ -1448,8 +1448,7 @@ function CreateProspectModal({ onClose, onSaved }) {
         payload.concurrents = payload.concurrents.split(',').map(s => s.trim()).filter(Boolean);
       } else { payload.concurrents = null; }
       // Supprimer les champs non reconnus par le backend
-      delete payload.pdv_adresse;
-      delete payload.pdv_nom_lieu;
+      delete payload.piece_fichier;
       console.log('Payload envoyé:', payload); // Debug temporaire
       await prospectService.create(payload);
       onSaved();
