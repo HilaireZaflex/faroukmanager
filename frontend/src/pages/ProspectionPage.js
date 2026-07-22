@@ -1408,7 +1408,6 @@ function CreateProspectModal({ onClose, onSaved }) {
     om_ancienne_puce: '', om_raison_changement: '',
     capital_demarrage: '', source_financement: '',
     latitude: '', longitude: '',
-    pdv_adresse: '', pdv_nom_lieu: '',
     type_local: 'BOUTIQUE_FIXE',
     frequentation: '', concurrents: '',
     notes: '',
@@ -1435,7 +1434,7 @@ function CreateProspectModal({ onClose, onSaved }) {
       });
       ['telephone_secondaire','quartier','adresse','piece_identite_numero',
        'om_ancienne_puce','om_raison_changement','source_financement',
-       'pdv_adresse','pdv_nom_lieu','frequentation','notes'].forEach(k => {
+       'frequentation','notes'].forEach(k => {
         if (payload[k] === '') payload[k] = null;
       });
       if (!payload.piece_identite_type) payload.piece_identite_type = null;
@@ -1451,87 +1450,136 @@ function CreateProspectModal({ onClose, onSaved }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>🆕 Nouvelle demande de puce Orange Money</h2>
-        <form onSubmit={submit}>
-          <div className="modal-section">
-            <h3><UserIcon size={12}/> Informations personnelles</h3>
-            <div className="form-grid">
-              <label>Nom *<input required value={data.nom} onChange={e => set('nom', e.target.value)}/></label>
-              <label>Prénom *<input required value={data.prenom} onChange={e => set('prenom', e.target.value)}/></label>
-              <label>Téléphone principal *<input required value={data.telephone_principal} onChange={e => set('telephone_principal', e.target.value)}/></label>
-              <label>Téléphone secondaire<input value={data.telephone_secondaire} onChange={e => set('telephone_secondaire', e.target.value)}/></label>
-              <label>Quartier<input value={data.quartier} onChange={e => set('quartier', e.target.value)}/></label>
-              <label>Adresse<input value={data.adresse} onChange={e => set('adresse', e.target.value)}/></label>
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      zIndex: 1000, overflowY: 'auto', padding: '16px',
+    }} onClick={onClose}>
+      <div style={{
+        background: 'linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%)',
+        border: '1px solid rgba(255,105,0,0.3)',
+        borderRadius: 16, width: '100%', maxWidth: 820,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+        margin: '0 auto 80px auto',
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px 16px', borderBottom: '1px solid rgba(255,105,0,0.2)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#FF6900,#ff9500)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🆕</div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>Nouvelle demande de puce Orange Money</div>
+              <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 600 }}>Remplissez les informations du prospect</div>
             </div>
           </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8', fontSize: 14, fontWeight: 700 }}>✕</button>
+        </div>
 
-          <div className="modal-section">
-            <h3>💰 Historique Orange Money</h3>
-            <label style={{ display:'flex', flexDirection:'row', gap:8, alignItems:'center', marginBottom:10, fontSize:13, color:'var(--text-primary)' }}>
-              <input type="checkbox" checked={data.fait_om}
-                onChange={e => set('fait_om', e.target.checked)}
-                style={{ width:'auto', accentColor:'var(--primary)' }}/>
-              Le prospect faisait déjà OM ?
-            </label>
-            {data.fait_om ? (
-              <div className="form-grid">
-                <label>Commission mensuelle (FCFA)<input type="number" value={data.om_commission_mensuelle} onChange={e => set('om_commission_mensuelle', e.target.value)}/></label>
-                <label>CA moyen mensuel (FCFA)<input type="number" value={data.om_ca_mensuel} onChange={e => set('om_ca_mensuel', e.target.value)}/></label>
-                <label>Ancienne puce (n°)<input value={data.om_ancienne_puce} onChange={e => set('om_ancienne_puce', e.target.value)}/></label>
-                <label className="full">Raison du changement<textarea value={data.om_raison_changement} onChange={e => set('om_raison_changement', e.target.value)}/></label>
-              </div>
-            ) : (
-              <div className="form-grid">
-                <label>Capital de démarrage (FCFA, min 50 000)<input type="number" value={data.capital_demarrage} onChange={e => set('capital_demarrage', e.target.value)}/></label>
-                <label>Source du financement<input value={data.source_financement} onChange={e => set('source_financement', e.target.value)}/></label>
-              </div>
-            )}
-          </div>
+        <form onSubmit={submit} style={{ padding: '20px 24px' }}>
 
-          <div className="modal-section">
-            <h3><MapPin size={12}/> Localisation du futur PDV</h3>
-            <div className="form-grid">
-              <label>Latitude<input type="number" step="any" value={data.latitude} onChange={e => set('latitude', e.target.value)}/></label>
-              <label>Longitude<input type="number" step="any" value={data.longitude} onChange={e => set('longitude', e.target.value)}/></label>
-              <div className="full">
-                <button type="button" className="btn-secondary" onClick={captureGPS}>
-                  <MapPin size={12}/> Capturer ma position GPS
-                </button>
-              </div>
-              <label>Type de local
-                <select value={data.type_local} onChange={e => set('type_local', e.target.value)}>
-                  <option value="BOUTIQUE_FIXE">Boutique fixe</option>
-                  <option value="KIOSQUE">Kiosque</option>
-                  <option value="TABLE">Table</option>
-                  <option value="MOBILE">Mobile</option>
-                  <option value="AUTRE">Autre</option>
-                </select>
-              </label>
-              <label>Fréquentation
-                <select value={data.frequentation} onChange={e => set('frequentation', e.target.value)}>
-                  <option value="">—</option>
-                  <option value="TRES_FREQUENTE">Très fréquentée</option>
-                  <option value="MOYENNE">Moyenne</option>
-                  <option value="FAIBLE">Faible</option>
-                </select>
-              </label>
-              <label className="full">Concurrents présents (séparés par virgules)
-                <input value={data.concurrents} onChange={e => set('concurrents', e.target.value)} placeholder="Moov, Wave, Sama Money"/>
+          {/* SECTION 1 — Infos personnelles */}
+          <ASection title="Informations personnelles" icon="👤" cols={2}>
+            <AFL label="Nom *" required><AFI required placeholder="Nom de famille" value={data.nom} onChange={e=>set('nom',e.target.value)}/></AFL>
+            <AFL label="Prénom *" required><AFI required placeholder="Prénom" value={data.prenom} onChange={e=>set('prenom',e.target.value)}/></AFL>
+            <AFL label="Téléphone principal *" required><AFI required placeholder="7X XX XX XX" value={data.telephone_principal} onChange={e=>set('telephone_principal',e.target.value)}/></AFL>
+            <AFL label="Téléphone secondaire"><AFI placeholder="7X XX XX XX" value={data.telephone_secondaire} onChange={e=>set('telephone_secondaire',e.target.value)}/></AFL>
+            <AFL label="Quartier"><AFI placeholder="Quartier de résidence" value={data.quartier} onChange={e=>set('quartier',e.target.value)}/></AFL>
+            <AFL label="Adresse"><AFI placeholder="Adresse complète" value={data.adresse} onChange={e=>set('adresse',e.target.value)}/></AFL>
+          </ASection>
+
+          {/* SECTION 2 — Historique OM */}
+          <ASection title="Historique Orange Money" icon="💰" cols={2}>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => set('fait_om', !data.fait_om)}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: 6, border: `2px solid ${data.fait_om ? '#FF6900' : 'rgba(255,255,255,0.2)'}`,
+                  background: data.fait_om ? '#FF6900' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {data.fait_om && <span style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 13, color: '#e2e8f0', fontWeight: 500 }}>Le prospect faisait déjà Orange Money ?</span>
               </label>
             </div>
+            {data.fait_om ? (<>
+              <AFL label="Commission mensuelle (FCFA)"><AFI type="number" placeholder="0" value={data.om_commission_mensuelle} onChange={e=>set('om_commission_mensuelle',e.target.value)}/></AFL>
+              <AFL label="CA moyen mensuel (FCFA)"><AFI type="number" placeholder="0" value={data.om_ca_mensuel} onChange={e=>set('om_ca_mensuel',e.target.value)}/></AFL>
+              <AFL label="Ancienne puce (n°)"><AFI placeholder="N° ancienne puce" value={data.om_ancienne_puce} onChange={e=>set('om_ancienne_puce',e.target.value)}/></AFL>
+              <AFL label="Raison du changement">
+                <textarea value={data.om_raison_changement} onChange={e=>set('om_raison_changement',e.target.value)}
+                  placeholder="Pourquoi changer de puce ?"
+                  style={{ ...INPUT_STYLE, height: 'auto', minHeight: 70, resize: 'vertical' }}/>
+              </AFL>
+            </>) : (<>
+              <AFL label="Capital de démarrage (FCFA, min 50 000)"><AFI type="number" placeholder="50000" value={data.capital_demarrage} onChange={e=>set('capital_demarrage',e.target.value)}/></AFL>
+              <AFL label="Source du financement"><AFI placeholder="Personnel, famille, crédit..." value={data.source_financement} onChange={e=>set('source_financement',e.target.value)}/></AFL>
+            </>)}
+          </ASection>
+
+          {/* SECTION 3 — Localisation PDV */}
+          <ASection title="Localisation du futur PDV" icon="📍" cols={2}>
+            <AFL label="Latitude"><AFI type="number" step="any" placeholder="12.3456" value={data.latitude} onChange={e=>set('latitude',e.target.value)}/></AFL>
+            <AFL label="Longitude"><AFI type="number" step="any" placeholder="-8.0000" value={data.longitude} onChange={e=>set('longitude',e.target.value)}/></AFL>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <button type="button" onClick={captureGPS} style={{
+                padding: '9px 18px', borderRadius: 8, border: '1px solid rgba(255,105,0,0.4)',
+                background: 'rgba(255,105,0,0.1)', color: '#FF6900', fontWeight: 700,
+                fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <MapPin size={14}/> Capturer ma position GPS
+              </button>
+            </div>
+            <AFL label="Type de local">
+              <AFS value={data.type_local} onChange={e=>set('type_local',e.target.value)}>
+                <option value="BOUTIQUE_FIXE">Boutique fixe</option>
+                <option value="KIOSQUE">Kiosque</option>
+                <option value="TABLE">Table</option>
+                <option value="MOBILE">Mobile</option>
+                <option value="AUTRE">Autre</option>
+              </AFS>
+            </AFL>
+            <AFL label="Fréquentation">
+              <AFS value={data.frequentation} onChange={e=>set('frequentation',e.target.value)}>
+                <option value="">—</option>
+                <option value="TRES_FREQUENTE">Très fréquentée</option>
+                <option value="MOYENNE">Moyenne</option>
+                <option value="FAIBLE">Faible</option>
+              </AFS>
+            </AFL>
+            <AFL label="Concurrents présents (séparés par virgules)" style={{ gridColumn: '1 / -1' }}>
+              <AFI placeholder="Moov, Wave, Sama Money..." value={data.concurrents} onChange={e=>set('concurrents',e.target.value)}/>
+            </AFL>
+          </ASection>
+
+          {/* SECTION 4 — Notes */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'1px solid rgba(255,105,0,0.2)' }}>
+              <span style={{ fontSize:16 }}>📝</span>
+              <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>Notes</span>
+            </div>
+            <textarea value={data.notes} onChange={e=>set('notes',e.target.value)}
+              placeholder="Observations, remarques..."
+              style={{ ...INPUT_STYLE, height: 'auto', minHeight: 70, resize: 'vertical' }}/>
           </div>
 
-          <div className="modal-section">
-            <h3>📝 Notes</h3>
-            <textarea value={data.notes} onChange={e => set('notes', e.target.value)}
-              style={{ width:'100%', minHeight:70 }}/>
-          </div>
-
-          <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>Annuler</button>
-            <button type="submit" className="btn-primary" disabled={busy}>
+          {/* Footer boutons */}
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', paddingTop:16, borderTop:'1px solid rgba(255,255,255,0.06)', flexWrap:'wrap' }}>
+            <button type="button" onClick={onClose} style={{
+              padding:'10px 24px', borderRadius:10, border:'1px solid rgba(255,255,255,0.15)',
+              background:'transparent', color:'#94a3b8', fontWeight:600, fontSize:14, cursor:'pointer',
+            }}>Annuler</button>
+            <button type="submit" disabled={busy} style={{
+              padding:'10px 28px', borderRadius:10, border:'none',
+              background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff',
+              fontWeight:700, fontSize:14, cursor:'pointer', opacity: busy ? 0.7 : 1,
+              boxShadow:'0 4px 16px rgba(255,105,0,0.35)',
+              display:'flex', alignItems:'center', gap:8,
+            }}>
               <Send size={14}/> {busy ? 'Soumission…' : 'Soumettre la demande'}
             </button>
           </div>
