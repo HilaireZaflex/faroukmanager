@@ -230,12 +230,23 @@ export default function ProspectionPage() {
 // =============================================================================
 // ONGLET 1 : DEMANDES — Liste complète de toutes les demandes
 // =============================================================================
+// Mapping KPI → statut pour filtrage par clic
+const KPI_STATUS_MAP = {
+  nouvelles:       'NOUVELLE',
+  en_visite:       'EN_VISITE',
+  en_attente_rc:   'VISITE_VALIDEE',
+  puce_attribuees: 'PUCE_ATTRIBUEE',
+  activees:        'PUCE_ACTIVEE',
+  refusees:        'REFUSE',
+};
+
 function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [prospects, setProspects] = useState([]);
+  const [allProspects, setAllProspects] = useState([]); // liste complète pour extraire superviseurs/devs
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ status: '', search: '' });
-  const [confirmDelete, setConfirmDelete] = useState(null); // prospect à supprimer
+  const [filters, setFilters] = useState({ status: '', search: '', superviseur: '', developpeur: '' });
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -247,44 +258,57 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         prospectService.list(params),
         prospectService.stats(),
       ]);
-      setProspects(list); setStats(st);
+      setAllProspects(list);
+      setProspects(list);
+      setStats(st);
     } catch (e) {
       alert('Erreur : ' + (errMsg(e)));
     } finally { setLoading(false); }
-  }, [filters]);
+  }, [filters.status, filters.search]);
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Filtrage local par superviseur et développeur
+  const filtered = allProspects.filter(p => {
+    if (filters.superviseur && p.submitted_by?.role === 'superviseur' &&
+        `${p.submitted_by?.nom} ${p.submitted_by?.prenom||''}`.toLowerCase() !== filters.superviseur.toLowerCase()) return false;
+    if (filters.developpeur && p.visit_assigned_to &&
+        `${p.visit_assigned_to?.nom} ${p.visit_assigned_to?.prenom||''}`.toLowerCase() !== filters.developpeur.toLowerCase()) return false;
+    return true;
+  });
+
+  // Extraire superviseurs et développeurs uniques depuis la liste
+  const superviseurs = [...new Set(allProspects
+    .filter(p => p.submitted_by?.nom)
+    .map(p => `${p.submitted_by.nom} ${p.submitted_by.prenom||''}`.trim())
+  )].sort();
+  const developpeurs = [...new Set(allProspects
+    .filter(p => p.visit_assigned_to?.nom)
+    .map(p => `${p.visit_assigned_to.nom} ${p.visit_assigned_to.prenom||''}`.trim())
+  )].sort();
+
   const canDelete = ['admin', 'manager', 'rc'].includes(currentUser?.role);
 
-  const handleDelete = (e, p) => {
-    e.stopPropagation();
-    setConfirmDelete(p);
-  };
-
+  const handleDelete = (e, p) => { e.stopPropagation(); setConfirmDelete(p); };
   const doDelete = async () => {
     const p = confirmDelete;
     setConfirmDelete(null);
-    try {
-      await prospectService.delete(p.id);
-      reload();
-      onRefresh && onRefresh();
-    }
+    try { await prospectService.delete(p.id); reload(); onRefresh && onRefresh(); }
     catch (err) { alert('Erreur suppression : ' + errMsg(err)); }
+  };
+
+  // Clic sur un KPI → filtre par statut correspondant
+  const handleKpiClick = (kpiKey) => {
+    const status = KPI_STATUS_MAP[kpiKey] || '';
+    setFilters(f => ({ ...f, status: f.status === status ? '' : status }));
   };
 
   return (
     <>
-      {/* Modale confirmation suppression */}
       {confirmDelete && (
-        <ConfirmDeleteModal
-          prospect={confirmDelete}
-          onConfirm={doDelete}
-          onCancel={() => setConfirmDelete(null)}
-        />
+        <ConfirmDeleteModal prospect={confirmDelete} onConfirm={doDelete} onCancel={() => setConfirmDelete(null)}/>
       )}
 
-      {/* Légende étape */}
       <StepLegend
         step={1}
         title="Saisie des demandes"
@@ -293,35 +317,73 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         color="#0ea5e9"
       />
 
-      {/* Stats */}
+      {/* KPIs cliquables */}
       {stats && (
         <div className="stats-grid" style={{ marginBottom: 16 }}>
-          <Stat label="Total" value={stats.total}/>
-          <Stat label="🆕 Nouvelles" value={stats.nouvelles}/>
-          <Stat label="🔍 En visite" value={stats.en_visite}/>
-          <Stat label="✅ Validées Dev" value={stats.en_attente_rc}/>
-          <Stat label="🟢 Approuvées RC" value={stats.puce_attribuees}/>
-          <Stat label="⚡ Activées" value={stats.activees} variant="ok"/>
-          <Stat label="🚫 Refusées" value={stats.refusees}/>
-          <Stat label="⚠️ SLA en retard" value={stats.sla_en_retard} variant="warn"/>
-          <Stat label="Taux activation" value={`${stats.taux_activation || 0}%`} variant="ok"/>
+          {[
+            { key: 'total',           label: 'Total',            value: stats.total,                  variant: null },
+            { key: 'nouvelles',       label: '🆕 Nouvelles',     value: stats.nouvelles,              variant: null },
+            { key: 'en_visite',       label: '🔍 En visite',     value: stats.en_visite,              variant: null },
+            { key: 'en_attente_rc',   label: '✅ Validées Dev',  value: stats.en_attente_rc,          variant: null },
+            { key: 'puce_attribuees', label: '🟢 Approuvées RC', value: stats.puce_attribuees,        variant: null },
+            { key: 'activees',        label: '⚡ Activées',      value: stats.activees,               variant: 'ok' },
+            { key: 'refusees',        label: '🚫 Refusées',      value: stats.refusees,               variant: null },
+            { key: 'sla_en_retard',   label: '⚠️ SLA retard',   value: stats.sla_en_retard,          variant: 'warn' },
+            { key: 'taux_activation', label: 'Taux activation',  value: `${stats.taux_activation||0}%`, variant: 'ok' },
+          ].map(({ key, label, value, variant }) => {
+            const isClickable = !!KPI_STATUS_MAP[key];
+            const isActive = filters.status === KPI_STATUS_MAP[key];
+            return (
+              <div key={key}
+                onClick={() => isClickable && handleKpiClick(key)}
+                style={{ cursor: isClickable ? 'pointer' : 'default', transition: 'all 0.15s',
+                  outline: isActive ? '2px solid #FF6900' : 'none', borderRadius: 10,
+                  transform: isActive ? 'scale(1.03)' : 'scale(1)',
+                }}>
+                <Stat label={label} value={value} variant={isActive ? 'ok' : variant}/>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Filtres */}
-      <div className="filters">
+      {/* Filtres sur une ligne */}
+      <div className="filters" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12 }}>
         <Search size={14} color="var(--text-muted)"/>
         <input
           placeholder="Rechercher (réf, nom, téléphone, quartier)..."
           value={filters.search}
           onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+          style={{ flex: 2, minWidth: 180 }}
         />
-        <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
+        <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} style={{ flex: 1, minWidth: 130 }}>
           <option value="">— Tous statuts —</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v.label}</option>
           ))}
         </select>
+        <select value={filters.superviseur} onChange={e => setFilters(f => ({ ...f, superviseur: e.target.value }))} style={{ flex: 1, minWidth: 130 }}>
+          <option value="">— Superviseur —</option>
+          {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={filters.developpeur} onChange={e => setFilters(f => ({ ...f, developpeur: e.target.value }))} style={{ flex: 1, minWidth: 130 }}>
+          <option value="">— Développeur —</option>
+          {developpeurs.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        {(filters.status || filters.search || filters.superviseur || filters.developpeur) && (
+          <button onClick={() => setFilters({ status:'', search:'', superviseur:'', developpeur:'' })}
+            style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'6px 12px', color:'#94a3b8', cursor:'pointer', fontSize:12, whiteSpace:'nowrap' }}>
+            ✕ Réinitialiser
+          </button>
+        )}
+      </div>
+
+      {/* Compteur résultats */}
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+        {filtered.length} demande{filtered.length > 1 ? 's' : ''} affichée{filtered.length > 1 ? 's' : ''}
+        {filters.status && <span style={{ color: '#FF6900', marginLeft: 6 }}>· filtrée par statut</span>}
+        {filters.superviseur && <span style={{ color: '#FF6900', marginLeft: 6 }}>· superviseur: {filters.superviseur}</span>}
+        {filters.developpeur && <span style={{ color: '#FF6900', marginLeft: 6 }}>· développeur: {filters.developpeur}</span>}
       </div>
 
       {/* Table */}
@@ -337,9 +399,9 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
               </tr>
             </thead>
             <tbody>
-              {prospects.length === 0 ? (
+              {filtered.length === 0 ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>Aucune demande trouvée.</td></tr>
-              ) : prospects.map(p => {
+              ) : filtered.map(p => {
                 const st = STATUS_LABELS[p.status] || { label: p.status, color: '#94a3b8' };
                 return (
                   <tr key={p.id} onClick={() => onOpen(p)}>
