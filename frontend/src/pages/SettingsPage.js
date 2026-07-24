@@ -242,6 +242,7 @@ function SectionUtilisateurs({ currentUser, customRoles = [] }) {
                 { key:'teleconseilleres',role:'teleconseillere',label:'📞 Téléconseillère',     color:'#a29bfe' },
                 { key:'rc',            role:'rc',              label:'🟢 Resp. Commercial',    color:'#22c55e' },
                 { key:'conformite',    role:'conformite',      label:'🛡️ Resp. Conformité',    color:'#0ea5e9' },
+                { key:'commercials',   role:'commercial',      label:'⭐ Commercial',           color:'#f59e0b' },
               ].map(({ key, role, label, color }) => (
                 <div key={key}>
                   <label style={{ fontSize:10, fontWeight:700, color, display:'block', marginBottom:4 }}>{label}</label>
