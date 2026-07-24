@@ -154,7 +154,7 @@ const EXTRA_MENUS = [
   { id: 'settings',     label: '⚙️ Paramètres' },
 ];
 
-function SectionUtilisateurs({ currentUser }) {
+function SectionUtilisateurs({ currentUser, customRoles = [] }) {
   const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editUser, setEditUser] = useState(null);
@@ -297,7 +297,9 @@ function SectionUtilisateurs({ currentUser }) {
                   <option value="rc">🟢 Resp. Commercial</option>
                   <option value="conformite">🛡️ Resp. de Conformité</option>
                   {/* Rôles custom depuis Railway */}
-                  <CustomRoleOptions />
+                  {customRoles.filter(r => !r.locked).map(r => (
+                    <option key={r.id} value={r.id}>⭐ {r.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -677,7 +679,7 @@ const ROLE_TABS = BASE_ROLE_TABS; // sera mis à jour dynamiquement dans le comp
 
 const EMPTY_FORM = { nom: '', telephone: '', zone: '' };
 
-function SectionEquipeReseau() {
+function SectionEquipeReseau({ customRoles = [] }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('superviseurs');
   const [showForm, setShowForm] = useState(false);
@@ -685,12 +687,7 @@ function SectionEquipeReseau() {
   const [editingNom, setEditingNom] = useState(null);
   const [search, setSearch] = useState('');
 
-  // Charger les rôles custom depuis l'API Railway (pas localStorage)
-  const { data: customRolesData = [] } = useQuery('custom-roles',
-    () => api.get('/custom-roles').then(r => r.data).catch(() => []),
-    { staleTime: 60000 }
-  );
-  const roleTabs = buildRoleTabs(customRolesData);
+  const roleTabs = buildRoleTabs(customRoles);
 
   const { data: equipe, isLoading } = useQuery('equipe-reseau',
     () => api.get('/reseau/equipe').then(r => r.data),
@@ -889,6 +886,12 @@ function SectionEquipeReseau() {
 function SectionEquipeEtAcces({ currentUser }) {
   const [activeTab, setActiveTab] = useState('comptes');
 
+  // Charger les rôles custom ici pour les passer aux deux sections
+  const { data: customRoles = [] } = useQuery('custom-roles',
+    () => api.get('/custom-roles').then(r => r.data).catch(() => []),
+    { staleTime: 30000 }
+  );
+
   const tabs = [
     { id: 'comptes', label: '🔐 Comptes Utilisateurs', color: '#FF6900' },
     { id: 'terrain', label: '👥 Équipe Terrain',        color: '#4a9eff' },
@@ -913,8 +916,8 @@ function SectionEquipeEtAcces({ currentUser }) {
         ))}
       </div>
 
-      {activeTab === 'comptes' && <SectionUtilisateurs currentUser={currentUser} />}
-      {activeTab === 'terrain' && <SectionEquipeReseau />}
+      {activeTab === 'comptes' && <SectionUtilisateurs currentUser={currentUser} customRoles={customRoles} />}
+      {activeTab === 'terrain' && <SectionEquipeReseau customRoles={customRoles} />}
     </div>
   );
 }
