@@ -296,10 +296,7 @@ function SectionUtilisateurs({ currentUser, customRoles = [] }) {
                   <option value="teleconseillere">📞 Téléconseillère</option>
                   <option value="rc">🟢 Resp. Commercial</option>
                   <option value="conformite">🛡️ Resp. de Conformité</option>
-                  {/* Rôles custom depuis Railway */}
-                  {customRoles.filter(r => !r.locked).map(r => (
-                    <option key={r.id} value={r.id}>⭐ {r.label}</option>
-                  ))}
+                  <option value="commercial">⭐ Commercial</option>
                 </select>
               </div>
             </div>
@@ -652,6 +649,7 @@ const BASE_ROLE_TABS = [
   { key: 'teleconseilleres',role: 'teleconseillere', label: 'Téléconseillères',    icon: '📞', color: '#a29bfe' },
   { key: 'rc',              role: 'rc',              label: 'Resp. Commercial',    icon: '🟢', color: '#22c55e' },
   { key: 'conformite',      role: 'conformite',      label: 'Resp. Conformité',    icon: '🛡️', color: '#0ea5e9' },
+  { key: 'commerciaux',     role: 'commercial',      label: 'Commerciaux',         icon: '⭐', color: '#f59e0b' },
 ];
 
 // Générer les tabs depuis une liste de rôles custom
