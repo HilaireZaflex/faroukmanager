@@ -935,6 +935,19 @@ async def delete_custom_role(role_id: str):
     finally:
         db.close()
 
+@app.get("/migrate-commercial-role")
+async def migrate_commercial_role():
+    """Ajoute le rôle commercial à l'enum PostgreSQL."""
+    from app.core.database import engine
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'commercial'"))
+            conn.commit()
+            return {"status": "ok", "message": "Rôle commercial ajouté à l'enum PostgreSQL"}
+        except Exception as e:
+            return {"status": "info", "message": str(e)}
+
 @app.get("/reset-commercial-permissions")
 async def reset_commercial_permissions():
     """Réinitialise les permissions de tous les commerciaux — prospection uniquement."""
