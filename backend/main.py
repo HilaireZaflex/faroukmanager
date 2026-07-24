@@ -854,6 +854,39 @@ async def fix_pdv_history(numero_pdv: str):
     finally:
         db.close()
 
+@app.get("/reset-developer-permissions")
+async def reset_developer_permissions():
+    """Réinitialise les permissions de tous les développeurs — supprime les dashboards."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        # Récupérer tous les users avec rôle développeur
+        devs = db.execute(text("SELECT id, nom, prenom FROM users WHERE role = 'DEVELOPPEUR' OR role = 'developpeur'")).fetchall()
+        updated = []
+        for dev in devs:
+            user_key = f"user_{dev[0]}"
+            # Mettre à jour les permissions : aucun dashboard, seulement pdvs + prospection
+            db.execute(text("""
+                UPDATE role_permissions
+                SET menus = '["pdvs", "prospection"]', dashboards = '[]'
+                WHERE role_id = :key
+            """), {"key": user_key})
+            # Si pas encore de ligne, créer
+            existing = db.execute(text("SELECT id FROM role_permissions WHERE role_id = :key"), {"key": user_key}).fetchone()
+            if not existing:
+                db.execute(text("""
+                    INSERT INTO role_permissions (role_id, menus, dashboards)
+                    VALUES (:key, '["pdvs", "prospection"]', '[]')
+                """), {"key": user_key})
+            updated.append(f"{dev[1]} {dev[2]} (id:{dev[0]})")
+        db.commit()
+        return {"status": "ok", "developpeurs_mis_a_jour": updated}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
+
 @app.get("/migrate-pdv-history")
 async def migrate_pdv_history():
     """Migration: crée la table pdv_history si elle n'existe pas encore."""
