@@ -649,7 +649,7 @@ const BASE_ROLE_TABS = [
   { key: 'teleconseilleres',role: 'teleconseillere', label: 'Téléconseillères',    icon: '📞', color: '#a29bfe' },
   { key: 'rc',              role: 'rc',              label: 'Resp. Commercial',    icon: '🟢', color: '#22c55e' },
   { key: 'conformite',      role: 'conformite',      label: 'Resp. Conformité',    icon: '🛡️', color: '#0ea5e9' },
-  { key: 'commerciaux',     role: 'commercial',      label: 'Commerciaux',         icon: '⭐', color: '#f59e0b' },
+  { key: 'commercials',     role: 'commercial',      label: 'Commerciaux',         icon: '⭐', color: '#f59e0b' },
 ];
 
 // Générer les tabs depuis une liste de rôles custom
