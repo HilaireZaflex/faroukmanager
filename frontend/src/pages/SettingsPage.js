@@ -297,15 +297,10 @@ function SectionUtilisateurs({ currentUser }) {
                   <option value="rc">🟢 Resp. Commercial</option>
                   <option value="conformite">🛡️ Resp. de Conformité</option>
                   {/* Rôles custom créés dans Rôles & Permissions */}
-                  {(() => {
-                    try {
-                      const saved = localStorage.getItem('fd_roles');
-                      const customRoles = saved ? JSON.parse(saved) : [];
-                      return customRoles
-                        .filter(r => !r.locked && !['admin','manager','superviseur','gestionnaire','developpeur','teleconseillere','rc','conformite'].includes(r.id))
-                        .map(r => <option key={r.id} value={r.id}>⭐ {r.label}</option>);
-                    } catch(e) { return null; }
-                  })()}
+                  {getRoleTabs()
+                    .filter(r => r.isCustom)
+                    .map(r => <option key={r.role} value={r.role}>⭐ {r.label.replace(/s$/, '')}</option>)
+                  }
                 </select>
               </div>
             </div>
