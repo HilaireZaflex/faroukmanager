@@ -762,7 +762,7 @@ function SectionEquipeReseau({ customRoles = [] }) {
 
       {/* Onglets par rôle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {ROLE_TABS.map(t => {
+        {roleTabs.map(t => {
           const count = equipe?.[t.key]?.length || 0;
           const isActive = activeTab === t.key;
           return (
