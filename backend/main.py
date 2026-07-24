@@ -383,7 +383,20 @@ async def get_equipe_reseau():
         def to_list(dct):
             return [{"nom": k, "telephone": v.get("telephone",""), "zone": v.get("zone","")} for k, v in sorted(dct.items())]
 
-        return {
+        # 3. Ajouter les rôles custom (tous les rôles dans equipe_reseau non présents dans role_map)
+        custom_roles = {}
+        for (nom_db, role_db), info in phones.items():
+            if role_db not in role_map:
+                # Rôle custom — clé = role_db + 's' (ex: commercial → commercials)
+                key = role_db + 's'
+                if key not in custom_roles:
+                    custom_roles[key] = {}
+                custom_roles[key][nom_db] = {
+                    "telephone": info.get("telephone", "") if isinstance(info, dict) else "",
+                    "zone": info.get("zone", "") if isinstance(info, dict) else "",
+                }
+
+        result = {
             "superviseurs":    to_list(superviseurs),
             "gestionnaires":   to_list(gestionnaires),
             "developpeurs":    to_list(developpeurs),
@@ -391,6 +404,11 @@ async def get_equipe_reseau():
             "rc":              to_list(rc),
             "conformite":      to_list(conformite),
         }
+        # Ajouter les rôles custom dans le résultat
+        for key, dct in custom_roles.items():
+            result[key] = to_list(dct)
+
+        return result
     finally:
         db.close()
 
