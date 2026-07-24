@@ -935,6 +935,20 @@ async def delete_custom_role(role_id: str):
     finally:
         db.close()
 
+@app.get("/check-users")
+async def check_users():
+    """Vérifie les utilisateurs en base."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        users = db.execute(text("SELECT id, email, nom, role, is_active FROM users ORDER BY id")).fetchall()
+        return [{"id": r[0], "email": r[1], "nom": r[2], "role": r[3], "is_active": r[4]} for r in users]
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
+
 @app.get("/migrate-commercial-role")
 async def migrate_commercial_role():
     """Ajoute le rôle commercial à l'enum PostgreSQL."""
