@@ -296,11 +296,8 @@ function SectionUtilisateurs({ currentUser }) {
                   <option value="teleconseillere">📞 Téléconseillère</option>
                   <option value="rc">🟢 Resp. Commercial</option>
                   <option value="conformite">🛡️ Resp. de Conformité</option>
-                  {/* Rôles custom créés dans Rôles & Permissions */}
-                  {getRoleTabs()
-                    .filter(r => r.isCustom)
-                    .map(r => <option key={r.role} value={r.role}>⭐ {r.label.replace(/s$/, '')}</option>)
-                  }
+                  {/* Rôles custom depuis Railway */}
+                  <CustomRoleOptions />
                 </select>
               </div>
             </div>
@@ -458,13 +455,17 @@ function SectionRoles() {
     setPermissions(p => ({ ...p, [roleKey]: { ...p[roleKey], ...updates } }));
   };
 
-  const addRole = () => {
+  const addRole = async () => {
     if (!newRoleLabel.trim()) return;
     const id = newRoleLabel.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
     if (roles.find(r => r.id === id)) { toast.error('Ce role existe deja'); return; }
     const newR = { id, label: newRoleLabel.trim(), color: newRoleColor, bg: newRoleColor + '26', locked: false };
     setRoles(r => [...r, newR]);
     setPermissions(p => ({ ...p, [id]: Object.fromEntries(ALL_IDS.map(i => [i, false])) }));
+    // Sauvegarder en base Railway (disponible sur tous les appareils)
+    try { await api.post('/custom-roles', { id, label: newRoleLabel.trim(), color: newRoleColor }); } catch(e) {}
+    // Aussi localStorage pour compatibilité
+    localStorage.setItem('fd_roles', JSON.stringify([...roles, newR]));
     setNewRoleLabel(''); setNewRoleColor('#4a9eff'); setShowAddRole(false);
     setSelectedRole(id);
     toast.success(`Role "${newRoleLabel}" cree !`);
@@ -631,6 +632,17 @@ function SectionRoles() {
 
 // ─── SECTION BASE DE DONNEES ──────────────────────────────────────────────────
 
+// Composant pour charger et afficher les rôles custom depuis l'API
+function CustomRoleOptions() {
+  const { data: customRoles = [] } = useQuery('custom-roles',
+    () => api.get('/custom-roles').then(r => r.data).catch(() => []),
+    { staleTime: 60000 }
+  );
+  return customRoles
+    .filter(r => !r.locked)
+    .map(r => <option key={r.id} value={r.id}>⭐ {r.label}</option>);
+}
+
 const BASE_ROLE_TABS = [
   { key: 'superviseurs',    role: 'superviseur',     label: 'Superviseurs',        icon: '👤', color: '#4a9eff' },
   { key: 'gestionnaires',   role: 'gestionnaire',    label: 'Gestionnaires',       icon: '💼', color: '#FF6900' },
@@ -640,29 +652,28 @@ const BASE_ROLE_TABS = [
   { key: 'conformite',      role: 'conformite',      label: 'Resp. Conformité',    icon: '🛡️', color: '#0ea5e9' },
 ];
 
-// Charger les rôles custom depuis localStorage et les fusionner avec les tabs de base
-function getRoleTabs() {
-  try {
-    const saved = localStorage.getItem('fd_roles');
-    const customRoles = saved ? JSON.parse(saved) : [];
-    const customTabs = customRoles
-      .filter(r => !r.locked) // exclure les rôles système
-      .filter(r => !BASE_ROLE_TABS.find(b => b.role === r.id)) // exclure les doublons
-      .map(r => ({
-        key: r.id + 's',
-        role: r.id,
-        label: r.label + 's',
-        icon: '⭐',
-        color: r.color || '#94a3b8',
-        isCustom: true,
-      }));
-    return [...BASE_ROLE_TABS, ...customTabs];
-  } catch (e) {
-    return BASE_ROLE_TABS;
-  }
+// Générer les tabs depuis une liste de rôles custom
+function buildRoleTabs(customRoles = []) {
+  const customTabs = customRoles
+    .filter(r => !r.locked)
+    .filter(r => !BASE_ROLE_TABS.find(b => b.role === r.id))
+    .map(r => ({
+      key: r.id + 's',
+      role: r.id,
+      label: r.label,
+      icon: '⭐',
+      color: r.color || '#94a3b8',
+      isCustom: true,
+    }));
+  return [...BASE_ROLE_TABS, ...customTabs];
 }
 
-const ROLE_TABS = getRoleTabs();
+// Fallback localStorage pour compatibilité
+function getRoleTabs(customRoles = []) {
+  return buildRoleTabs(customRoles);
+}
+
+const ROLE_TABS = BASE_ROLE_TABS; // sera mis à jour dynamiquement dans le composant
 
 const EMPTY_FORM = { nom: '', telephone: '', zone: '' };
 
@@ -674,12 +685,19 @@ function SectionEquipeReseau() {
   const [editingNom, setEditingNom] = useState(null);
   const [search, setSearch] = useState('');
 
+  // Charger les rôles custom depuis l'API Railway (pas localStorage)
+  const { data: customRolesData = [] } = useQuery('custom-roles',
+    () => api.get('/custom-roles').then(r => r.data).catch(() => []),
+    { staleTime: 60000 }
+  );
+  const roleTabs = buildRoleTabs(customRolesData);
+
   const { data: equipe, isLoading } = useQuery('equipe-reseau',
     () => api.get('/reseau/equipe').then(r => r.data),
     { staleTime: 30000 }
   );
 
-  const currentTab = ROLE_TABS.find(t => t.key === activeTab);
+  const currentTab = roleTabs.find(t => t.key === activeTab) || BASE_ROLE_TABS[0];
   const items = (equipe?.[activeTab] || []).filter(m =>
     !search || m.nom?.toLowerCase().includes(search.toLowerCase()) ||
     m.telephone?.includes(search) || m.zone?.toLowerCase().includes(search.toLowerCase())

@@ -872,6 +872,69 @@ async def fix_pdv_history(numero_pdv: str):
     finally:
         db.close()
 
+@app.get("/api/custom-roles")
+async def get_custom_roles():
+    """Retourne les rôles custom depuis la base de données."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS custom_roles (
+                id VARCHAR(100) PRIMARY KEY,
+                label VARCHAR(200) NOT NULL,
+                color VARCHAR(20) DEFAULT '#4a9eff',
+                locked BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        db.commit()
+        rows = db.execute(text("SELECT id, label, color, locked FROM custom_roles ORDER BY label")).fetchall()
+        return [{"id": r[0], "label": r[1], "color": r[2], "locked": r[3]} for r in rows]
+    except Exception as e:
+        return []
+    finally:
+        db.close()
+
+@app.post("/api/custom-roles")
+async def create_custom_role(data: dict):
+    """Crée un rôle custom en base de données."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        role_id = data.get('id', '').strip()
+        label = data.get('label', '').strip()
+        color = data.get('color', '#4a9eff')
+        if not role_id or not label:
+            return {"error": "id et label obligatoires"}
+        db.execute(text("""
+            INSERT INTO custom_roles (id, label, color, locked)
+            VALUES (:id, :label, :color, FALSE)
+            ON CONFLICT (id) DO UPDATE SET label=:label, color=:color
+        """), {"id": role_id, "label": label, "color": color})
+        db.commit()
+        return {"success": True, "id": role_id, "label": label}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+@app.delete("/api/custom-roles/{role_id}")
+async def delete_custom_role(role_id: str):
+    """Supprime un rôle custom."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        db.execute(text("DELETE FROM custom_roles WHERE id=:id AND locked=FALSE"), {"id": role_id})
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
+
 @app.get("/reset-commercial-permissions")
 async def reset_commercial_permissions():
     """Réinitialise les permissions de tous les commerciaux — prospection uniquement."""
