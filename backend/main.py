@@ -872,6 +872,30 @@ async def fix_pdv_history(numero_pdv: str):
     finally:
         db.close()
 
+@app.get("/reset-commercial-permissions")
+async def reset_commercial_permissions():
+    """Réinitialise les permissions de tous les commerciaux — prospection uniquement."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text
+    db = SessionLocal()
+    try:
+        comms = db.execute(text("SELECT id, nom, prenom FROM users WHERE role = 'commercial'")).fetchall()
+        updated = []
+        for c in comms:
+            user_key = f"user_{c[0]}"
+            existing = db.execute(text("SELECT id FROM role_permissions WHERE role_id = :key"), {"key": user_key}).fetchone()
+            if existing:
+                db.execute(text("UPDATE role_permissions SET menus = '[\"prospection\"]', dashboards = '[]' WHERE role_id = :key"), {"key": user_key})
+            else:
+                db.execute(text("INSERT INTO role_permissions (role_id, menus, dashboards) VALUES (:key, '[\"prospection\"]', '[]')"), {"key": user_key})
+            updated.append(f"{c[1]} {c[2]} (id:{c[0]})")
+        db.commit()
+        return {"status": "ok", "commerciaux_mis_a_jour": updated}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        db.close()
+
 @app.get("/reset-developer-permissions")
 async def reset_developer_permissions():
     """Réinitialise les permissions de tous les développeurs — supprime les dashboards."""
