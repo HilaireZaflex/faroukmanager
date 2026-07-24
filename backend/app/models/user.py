@@ -23,7 +23,7 @@ class User(Base):
     nom = Column(String, nullable=False)
     prenom = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.SUPERVISEUR)
+    role = Column(String(50), default=UserRole.SUPERVISEUR)
     zone = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
