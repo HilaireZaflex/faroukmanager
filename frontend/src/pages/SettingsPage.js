@@ -296,6 +296,16 @@ function SectionUtilisateurs({ currentUser }) {
                   <option value="teleconseillere">📞 Téléconseillère</option>
                   <option value="rc">🟢 Resp. Commercial</option>
                   <option value="conformite">🛡️ Resp. de Conformité</option>
+                  {/* Rôles custom créés dans Rôles & Permissions */}
+                  {(() => {
+                    try {
+                      const saved = localStorage.getItem('fd_roles');
+                      const customRoles = saved ? JSON.parse(saved) : [];
+                      return customRoles
+                        .filter(r => !r.locked && !['admin','manager','superviseur','gestionnaire','developpeur','teleconseillere','rc','conformite'].includes(r.id))
+                        .map(r => <option key={r.id} value={r.id}>⭐ {r.label}</option>);
+                    } catch(e) { return null; }
+                  })()}
                 </select>
               </div>
             </div>
@@ -626,7 +636,7 @@ function SectionRoles() {
 
 // ─── SECTION BASE DE DONNEES ──────────────────────────────────────────────────
 
-const ROLE_TABS = [
+const BASE_ROLE_TABS = [
   { key: 'superviseurs',    role: 'superviseur',     label: 'Superviseurs',        icon: '👤', color: '#4a9eff' },
   { key: 'gestionnaires',   role: 'gestionnaire',    label: 'Gestionnaires',       icon: '💼', color: '#FF6900' },
   { key: 'developpeurs',    role: 'developpeur',     label: 'Développeurs',        icon: '🚨', color: '#00d68f' },
@@ -634,6 +644,30 @@ const ROLE_TABS = [
   { key: 'rc',              role: 'rc',              label: 'Resp. Commercial',    icon: '🟢', color: '#22c55e' },
   { key: 'conformite',      role: 'conformite',      label: 'Resp. Conformité',    icon: '🛡️', color: '#0ea5e9' },
 ];
+
+// Charger les rôles custom depuis localStorage et les fusionner avec les tabs de base
+function getRoleTabs() {
+  try {
+    const saved = localStorage.getItem('fd_roles');
+    const customRoles = saved ? JSON.parse(saved) : [];
+    const customTabs = customRoles
+      .filter(r => !r.locked) // exclure les rôles système
+      .filter(r => !BASE_ROLE_TABS.find(b => b.role === r.id)) // exclure les doublons
+      .map(r => ({
+        key: r.id + 's',
+        role: r.id,
+        label: r.label + 's',
+        icon: '⭐',
+        color: r.color || '#94a3b8',
+        isCustom: true,
+      }));
+    return [...BASE_ROLE_TABS, ...customTabs];
+  } catch (e) {
+    return BASE_ROLE_TABS;
+  }
+}
+
+const ROLE_TABS = getRoleTabs();
 
 const EMPTY_FORM = { nom: '', telephone: '', zone: '' };
 
