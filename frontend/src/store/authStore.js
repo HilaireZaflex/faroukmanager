@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 
 // Menus de base pour tous les non-admin
 export const DEFAULT_MENUS = ['pdvs', 'prospection', 'evaluations', 'alerts'];
-export const DEFAULT_DASHBOARDS = ['omy', 'nafama', 'kaabu'];
+export const DEFAULT_DASHBOARDS = []; // Aucun dashboard par défaut — doit être explicitement coché
 
 // Mapping menu → route(s)
 export const MENU_ROUTES = {

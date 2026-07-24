@@ -30,8 +30,8 @@ DEFAULT_SIDEBAR = {
     "manager":         {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
     "superviseur":     {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
     "rc":              {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
-    "developpeur":     {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
-    "teleconseillere": {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
+    "developpeur":     {"dashboards": [], "menus": ["pdvs", "prospection"]},
+    "teleconseillere": {"dashboards": [], "menus": DEFAULT_MENUS_NON_ADMIN},
 }
 
 # ── Menus additionnels disponibles (que l'admin peut attribuer) ───────────────
