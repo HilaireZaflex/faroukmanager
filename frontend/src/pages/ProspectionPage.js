@@ -1460,6 +1460,93 @@ function Stat({ label, value, variant }) {
 // =============================================================================
 // MODAL : Création d'un prospect
 // =============================================================================
+function SuccessDemandeModal({ prospect, onClose, onNewDemande }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+      backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', zIndex: 2000, padding: 16,
+    }}>
+      <div style={{
+        background: 'linear-gradient(135deg, #0f172a 0%, #1a1a2e 100%)',
+        border: '1px solid rgba(16,185,129,0.3)', borderRadius: 20,
+        maxWidth: 480, width: '100%', padding: '36px 32px',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+        textAlign: 'center',
+      }}>
+        {/* Icône animée */}
+        <div style={{
+          width: 80, height: 80, borderRadius: '50%', margin: '0 auto 24px',
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(16,185,129,0.05))',
+          border: '2px solid rgba(16,185,129,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36,
+        }}>✅</div>
+
+        {/* Titre */}
+        <div style={{ fontSize: 20, fontWeight: 900, color: '#10b981', marginBottom: 8 }}>
+          Demande envoyée avec succès !
+        </div>
+        <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 24 }}>
+          Votre demande pour <b style={{ color: '#e2e8f0' }}>{prospect?.prenom} {prospect?.nom}</b> a bien été reçue par l'équipe.
+        </div>
+
+        {/* Étapes suivantes */}
+        <div style={{
+          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 12, padding: '16px 18px', marginBottom: 24, textAlign: 'left',
+        }}>
+          <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+            ⚙️ Prochaines étapes
+          </div>
+          {[
+            { icon: '🔍', step: '1', label: 'Attribution visite', desc: 'Le RC va affecter un développeur pour effectuer la visite terrain.' },
+            { icon: '🏃', step: '2', label: 'Visite terrain', desc: 'Le développeur se rend sur place pour vérifier le lieu et rencontrer le prospect.' },
+            { icon: '✅', step: '3', label: 'Validation RC', desc: 'Le RC examine le rapport de visite et prend une décision.' },
+            { icon: '⚡', step: '4', label: 'Activation puce', desc: 'Si approuvé, la puce Orange Money est activée et le PDV créé.' },
+          ].map((s, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: i < 3 ? 10 : 0 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                background: 'rgba(255,105,0,0.12)', border: '1px solid rgba(255,105,0,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+              }}>{s.icon}</div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>Étape {s.step} — {s.label}</div>
+                <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>{s.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 11, color: '#475569', marginBottom: 20 }}>
+          Vous pouvez suivre l'avancement dans l'onglet <b style={{ color: '#FF6900' }}>Workflow</b>.
+        </div>
+
+        {/* Boutons */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={onClose} style={{
+            padding: '10px 24px', borderRadius: 10,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'transparent', color: '#94a3b8',
+            fontWeight: 600, fontSize: 13, cursor: 'pointer',
+          }}>
+            Fermer
+          </button>
+          <button onClick={onNewDemande} style={{
+            padding: '10px 24px', borderRadius: 10, border: 'none',
+            background: 'linear-gradient(135deg,#FF6900,#ff9500)',
+            color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(255,105,0,0.35)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            ➕ Nouvelle demande
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CreateProspectModal({ onClose, onSaved }) {
   const [data, setData] = useState({
     nom: '', prenom: '', telephone_principal: '', telephone_secondaire: '',
@@ -1475,6 +1562,7 @@ function CreateProspectModal({ onClose, onSaved }) {
     notes: '',
   });
   const [busy, setBusy] = useState(false);
+  const [successData, setSuccessData] = useState(null); // prospect soumis avec succès
   const set = (k, v) => setData(d => ({ ...d, [k]: v }));
 
   const captureGPS = () => {
@@ -1513,12 +1601,38 @@ function CreateProspectModal({ onClose, onSaved }) {
       delete payload.piece_fichier;
       console.log('Payload envoyé:', payload); // Debug temporaire
       await prospectService.create(payload);
-      onSaved();
+      // Afficher la modale de succès au lieu de fermer directement
+      setSuccessData({ prenom: data.prenom, nom: data.nom });
     } catch (err) {
       console.error('Erreur create prospect:', err?.response?.data || err?.message || err);
       alert('Erreur : ' + errMsg(err));
     } finally { setBusy(false); }
   };
+
+  // Réinitialiser le formulaire pour une nouvelle demande
+  const handleNewDemande = () => {
+    setSuccessData(null);
+    setData({
+      nom: '', prenom: '', telephone_principal: '', telephone_secondaire: '',
+      quartier: '', adresse: '', piece_identite_type: '', piece_identite_numero: '',
+      fait_om: false, om_commission_mensuelle: '', om_ca_mensuel: '',
+      om_ancienne_puce: '', om_raison_changement: '', capital_demarrage: '',
+      source_financement: '', latitude: '', longitude: '', type_local: 'BOUTIQUE_FIXE',
+      frequentation: '', concurrents: '', notes: '',
+    });
+    onSaved(); // rafraîchir la liste
+  };
+
+  // Afficher la modale de succès si demande soumise
+  if (successData) {
+    return (
+      <SuccessDemandeModal
+        prospect={successData}
+        onClose={() => { onSaved(); onClose(); }}
+        onNewDemande={handleNewDemande}
+      />
+    );
+  }
 
   return (
     <div style={{
