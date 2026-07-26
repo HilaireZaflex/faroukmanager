@@ -71,12 +71,11 @@ const useAuthStore = create(
 
       // Vérifie si un dashboard est accessible
       canAccessDash: (dashId) => {
-        const { user } = get();
-        // Commerciaux : aucun dashboard
-        if (user?.role === 'COMMERCIAL' || user?.role === 'commercial') return false;
         const { user, permissions } = get();
         if (!user) return false;
         const role = (user.role || '').toLowerCase().replace('userrole.', '');
+        // Commerciaux : aucun dashboard
+        if (role === 'commercial') return false;
         if (role === 'admin') return true;
         if (!permissions) return DEFAULT_DASHBOARDS.includes(dashId);
         return (permissions.dashboards || DEFAULT_DASHBOARDS).includes(dashId);
