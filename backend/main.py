@@ -956,7 +956,7 @@ async def migrate_commercial_role():
     from sqlalchemy import text
     with engine.connect() as conn:
         try:
-            conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'commercial'"))
+            conn.execute(text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'COMMERCIAL'"))
             conn.commit()
             return {"status": "ok", "message": "Rôle commercial ajouté à l'enum PostgreSQL"}
         except Exception as e:

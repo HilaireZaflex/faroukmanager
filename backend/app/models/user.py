@@ -5,7 +5,7 @@ import enum
 from app.core.database import Base
 
 class UserRole(str, enum.Enum):
-    COMMERCIAL = "commercial"
+    COMMERCIAL = "COMMERCIAL"
     ADMIN = "admin"
     MANAGER = "manager"
     SUPERVISEUR = "superviseur"

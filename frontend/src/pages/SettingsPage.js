@@ -297,7 +297,7 @@ function SectionUtilisateurs({ currentUser, customRoles = [] }) {
                   <option value="teleconseillere">📞 Téléconseillère</option>
                   <option value="rc">🟢 Resp. Commercial</option>
                   <option value="conformite">🛡️ Resp. de Conformité</option>
-                  <option value="commercial">⭐ Commercial</option>
+                  <option value="COMMERCIAL">⭐ Commercial</option>
                 </select>
               </div>
             </div>
