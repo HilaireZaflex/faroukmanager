@@ -119,6 +119,10 @@ def list_prospects(
     limit: int = Query(50, le=200),
 ):
     """Liste paginée des prospects avec filtres."""
+    # Les commerciaux ne voient que leurs propres soumissions
+    from app.models.user import UserRole
+    if current_user.role == UserRole.COMMERCIAL:
+        submitted_by_me = True
     return svc.list_prospects(
         db, current_user,
         status_filter=status_filter,
