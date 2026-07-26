@@ -51,14 +51,19 @@ function MobileBottomBar({ onMenuOpen, pathname }) {
   const user = useAuthStore(s => s.user);
   const isCommercial = user?.role === 'COMMERCIAL' || user?.role === 'commercial';
 
-  // Commerciaux : uniquement Prospection
+  // Commerciaux : Prospection + bouton Déconnexion
   if (isCommercial) {
     return (
       <nav className="mobile-bottom-bar">
-        <a href="/prospection" className={`mbb-item${pathname.startsWith('/prospection') ? ' mbb-active' : ''}`} style={{ flex: 1 }}>
+        <a href="/prospection" className={`mbb-item${pathname.startsWith('/prospection') ? ' mbb-active' : ''}`} style={{ flex: 2 }}>
           <span className="mbb-icon">📋</span>
           <span className="mbb-label">Prospection</span>
         </a>
+        <button className="mbb-item" onClick={() => { useAuthStore.getState().logout(); window.location.href = '/login'; }}
+          style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontFamily: 'inherit' }}>
+          <span className="mbb-icon">🚪</span>
+          <span className="mbb-label">Déco.</span>
+        </button>
       </nav>
     );
   }

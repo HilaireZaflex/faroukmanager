@@ -198,7 +198,7 @@ export default function ProspectionPage() {
               Bonjour, {user?.prenom || user?.nom || 'Commercial'} !
             </div>
             <div style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>
-              Commercial · Orange Money
+              Commercial · Farouk Distribution
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
               Bienvenue sur votre espace de prospection. Soumettez vos demandes de puce OM ici.
