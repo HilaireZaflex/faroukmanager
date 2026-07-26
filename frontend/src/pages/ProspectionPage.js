@@ -168,6 +168,7 @@ export default function ProspectionPage() {
 
   const isAdminOrRC = ['admin', 'rc', 'manager', 'ADMIN', 'RC', 'MANAGER'].includes(user?.role);
   const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(user?.role) || isAdminOrRC;
+  const isCommercial = ['commercial', 'COMMERCIAL'].includes(user?.role);
 
   const allTabs = [
     { id: 'demandes',   label: '📋 Demandes',           show: true },
@@ -179,10 +180,37 @@ export default function ProspectionPage() {
 
   return (
     <div className="prospection-page">
+      {/* Message de bienvenue pour les commerciaux */}
+      {isCommercial && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(255,105,0,0.15), rgba(255,149,0,0.08))',
+          border: '1px solid rgba(255,105,0,0.3)', borderRadius: 14,
+          padding: '16px 20px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+            background: 'linear-gradient(135deg,#FF6900,#ff9500)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+          }}>👋</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>
+              Bonjour, {user?.prenom || user?.nom || 'Commercial'} !
+            </div>
+            <div style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>
+              Commercial · Orange Money
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+              Bienvenue sur votre espace de prospection. Soumettez vos demandes de puce OM ici.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="prospection-header">
         <h1>
           <span>📋 Prospection — Demandes de puce Orange Money</span>
-          <small>Workflow collaboratif en 6 étapes · Superviseur → Dev → RC → Activation</small>
+          {!isCommercial && <small>Workflow collaboratif en 6 étapes · Superviseur → Dev → RC → Activation</small>}
         </h1>
         <div className="header-actions">
           <button className="btn-secondary" onClick={refresh}><RefreshCw size={14}/> Actualiser</button>
