@@ -1,5 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
+/* ── Fix zoom automatique iOS Safari ──────────────────────────────────────── */
+/* iOS Safari zoome automatiquement sur tout input avec font-size < 16px     */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 :root {
   --primary: #FF6900;
   --primary-dark: #cc5200;
