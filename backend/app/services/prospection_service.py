@@ -932,12 +932,18 @@ def cancel_prospect(db: Session, prospect_id: int, payload: CancelRequest, curre
 # ─────────────────────────────────────────────────────────────────────────────
 # Statistiques globales du module Prospection
 # ─────────────────────────────────────────────────────────────────────────────
-def get_stats(db: Session) -> Dict[str, Any]:
+def get_stats(db: Session, user_id_filter: Optional[int] = None) -> Dict[str, Any]:
     now = datetime.utcnow()
-    total = db.query(func.count(Prospect.id)).scalar() or 0
+
+    base_q = db.query(Prospect)
+    if user_id_filter:
+        base_q = base_q.filter(Prospect.submitted_by_id == user_id_filter)
+
+    total = base_q.with_entities(func.count(Prospect.id)).scalar() or 0
 
     def cnt(*statuses):
-        return db.query(func.count(Prospect.id)).filter(Prospect.status.in_(statuses)).scalar() or 0
+        q = base_q.with_entities(func.count(Prospect.id)).filter(Prospect.status.in_(statuses))
+        return q.scalar() or 0
 
     activees = cnt(ProspectStatus.PUCE_ACTIVEE)
     refusees = cnt(ProspectStatus.REFUSEE_DEV, ProspectStatus.REFUSEE_RC)

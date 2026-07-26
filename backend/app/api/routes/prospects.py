@@ -140,7 +140,10 @@ def stats(
     current_user: User = Depends(get_current_user),
 ):
     """Statistiques globales du module Prospection."""
-    return svc.get_stats(db)
+    from app.models.user import UserRole
+    # Les commerciaux voient uniquement leurs propres stats
+    user_id_filter = current_user.id if current_user.role == UserRole.COMMERCIAL else None
+    return svc.get_stats(db, user_id_filter=user_id_filter)
 
 
 @router.get("/{prospect_id}", response_model=ProspectDetailOut)
