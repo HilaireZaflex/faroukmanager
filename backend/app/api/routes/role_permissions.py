@@ -33,6 +33,7 @@ DEFAULT_SIDEBAR = {
     "developpeur":     {"dashboards": [], "menus": ["pdvs", "prospection"]},
     "teleconseillere": {"dashboards": [], "menus": DEFAULT_MENUS_NON_ADMIN},
     "commercial":      {"dashboards": [], "menus": ["prospection"]},
+    "COMMERCIAL":      {"dashboards": [], "menus": ["prospection"]},
 }
 
 # ── Menus additionnels disponibles (que l'admin peut attribuer) ───────────────

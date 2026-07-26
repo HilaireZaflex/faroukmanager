@@ -63,12 +63,17 @@ const useAuthStore = create(
         if (!user) return false;
         const role = (user.role || '').toLowerCase().replace('userrole.', '');
         if (role === 'admin') return true;
+        // Commerciaux : uniquement prospection
+        if (role === 'commercial') return menuId === 'prospection';
         if (!permissions) return DEFAULT_MENUS.includes(menuId);
         return (permissions.menus || DEFAULT_MENUS).includes(menuId);
       },
 
       // Vérifie si un dashboard est accessible
       canAccessDash: (dashId) => {
+        const { user } = get();
+        // Commerciaux : aucun dashboard
+        if (user?.role === 'COMMERCIAL' || user?.role === 'commercial') return false;
         const { user, permissions } = get();
         if (!user) return false;
         const role = (user.role || '').toLowerCase().replace('userrole.', '');
