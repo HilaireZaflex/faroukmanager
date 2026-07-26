@@ -1,12 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import useAuthStore from '../../store/authStore';
 import './Layout.css';
 
 export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const user = useAuthStore(s => s.user);
+
+  // Rediriger les commerciaux vers Prospection automatiquement
+  useEffect(() => {
+    const role = (user?.role || '').toLowerCase();
+    if (role === 'commercial' && location.pathname === '/accueil') {
+      navigate('/prospection');
+    }
+  }, [user, location.pathname, navigate]);
 
   // Fermer le drawer uniquement au changement de page (URL)
   useEffect(() => {
@@ -37,6 +48,21 @@ export default function Layout({ children }) {
 }
 
 function MobileBottomBar({ onMenuOpen, pathname }) {
+  const user = useAuthStore(s => s.user);
+  const isCommercial = user?.role === 'COMMERCIAL' || user?.role === 'commercial';
+
+  // Commerciaux : uniquement Prospection
+  if (isCommercial) {
+    return (
+      <nav className="mobile-bottom-bar">
+        <a href="/prospection" className={`mbb-item${pathname.startsWith('/prospection') ? ' mbb-active' : ''}`} style={{ flex: 1 }}>
+          <span className="mbb-icon">📋</span>
+          <span className="mbb-label">Prospection</span>
+        </a>
+      </nav>
+    );
+  }
+
   return (
     <nav className="mobile-bottom-bar">
       <a href="/accueil" className={`mbb-item${pathname === '/accueil' ? ' mbb-active' : ''}`}>
