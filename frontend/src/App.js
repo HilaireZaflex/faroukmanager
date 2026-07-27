@@ -46,10 +46,11 @@ const ProtectedRoute = ({ children }) => {
 
   // Charger les permissions si pas encore chargées
   useEffect(() => {
-    if (isAuthenticated && !permissions) {
+    // Toujours recharger les permissions depuis le serveur (pas de cache localStorage)
+    if (isAuthenticated) {
       loadPermissions();
     }
-  }, [isAuthenticated, permissions, loadPermissions]);
+  }, [isAuthenticated, loadPermissions]);
 
   if (!hasHydrated) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#fff', fontSize: '18px' }}>Chargement...</div>;
