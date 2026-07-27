@@ -19,6 +19,8 @@ class RolePermission(Base):
 # ── Menus par défaut tous rôles non-admin ─────────────────────────────────────
 DEFAULT_MENUS_NON_ADMIN = ["pdvs", "prospection", "evaluations", "alerts"]
 DEFAULT_DASHBOARDS_NON_ADMIN = ["omy", "nafama", "kaabu"]
+ALL_MENUS = ["pdvs", "prospection", "indicateurs", "commissions", "evaluations", "alerts", "reseau", "ia", "carte", "recovery", "import", "reports", "settings"]
+ALL_DASHBOARDS = ["omy", "nafama", "kaabu"]
 
 # ── Permissions sidebar par défaut ──────────────────────────────────────────
 DEFAULT_SIDEBAR = {
@@ -29,7 +31,7 @@ DEFAULT_SIDEBAR = {
     # Tous les autres rôles : menus de base uniquement (+ extras attribués par admin)
     "manager":         {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
     "superviseur":     {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
-    "rc":              {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
+    "rc":              {"dashboards": ALL_DASHBOARDS, "menus": ALL_MENUS},
     "developpeur":     {"dashboards": [], "menus": ["pdvs", "prospection"]},
     "teleconseillere": {"dashboards": [], "menus": DEFAULT_MENUS_NON_ADMIN},
     "commercial":      {"dashboards": [], "menus": ["prospection"]},
