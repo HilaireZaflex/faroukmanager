@@ -89,8 +89,8 @@ def get_pdv_filters(user: User) -> dict:
     else:
         nom_complet = (user.nom or '').strip()
 
-    if role in ('admin', 'manager', 'conformite'):
-        return {}  # Voient tout
+    if role in ('admin', 'manager', 'conformite', 'rc'):
+        return {}  # Voient tout — pas de filtre
     elif role == 'superviseur':
         return {'superviseur': nom_complet}
     elif role == 'gestionnaire':
@@ -99,8 +99,6 @@ def get_pdv_filters(user: User) -> dict:
         return {'developpeur': nom_complet}
     elif role == 'teleconseillere':
         return {'teleconseillere': nom_complet}
-    elif role == 'rc':
-        return {'gestionnaire': nom_complet}
     return {}
 
 @router.post("/auth/login", response_model=Token)
