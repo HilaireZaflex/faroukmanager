@@ -173,7 +173,7 @@ export default function ProspectionPage() {
   const allTabs = [
     { id: 'demandes',   label: '📋 Demandes',           show: true },
     { id: 'workflow',   label: '🔄 Workflow',            show: isAdminOrRC || isDev },
-    { id: 'activation', label: '⚡ Activation',          show: true },
+    { id: 'activation', label: '⚡ Activation',          show: !isCommercial },
   ];
   const tabs = allTabs.filter(t => t.show);
   const safeTab = tabs.find(t => t.id === activeTab) ? activeTab : 'demandes';
