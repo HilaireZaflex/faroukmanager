@@ -139,16 +139,28 @@ def get_my_permissions(
             "is_admin": True,
         }
 
-    # Menus de base
-    base_menus = list(DEFAULT_MENUS_NON_ADMIN)
-    base_dashboards = list(DEFAULT_DASHBOARDS_NON_ADMIN)
+    # 1. Lire les permissions du rôle (définies dans Rôles & Permissions)
+    role_row = db.query(RolePermission).filter(RolePermission.role_id == role).first()
+    if role_row and role_row.sidebar_config:
+        base_menus = role_row.sidebar_config.get("menus", list(DEFAULT_MENUS_NON_ADMIN))
+        base_dashboards = role_row.sidebar_config.get("dashboards", list(DEFAULT_DASHBOARDS_NON_ADMIN))
+    else:
+        # Fallback sur les defaults du rôle
+        role_defaults = DEFAULT_SIDEBAR.get(role, {})
+        base_menus = list(role_defaults.get("menus", DEFAULT_MENUS_NON_ADMIN))
+        base_dashboards = list(role_defaults.get("dashboards", DEFAULT_DASHBOARDS_NON_ADMIN))
 
-    # Extras attribués par l'admin (stockés dans role_permissions avec role_id = "user_{id}")
+    # 2. Extras individuels attribués par l'admin (stockés avec role_id = "user_{id}")
     user_key = f"user_{current_user.id}"
-    row = db.query(RolePermission).filter(RolePermission.role_id == user_key).first()
+    user_row = db.query(RolePermission).filter(RolePermission.role_id == user_key).first()
     extra_menus = []
-    if row and row.sidebar_config:
-        extra_menus = row.sidebar_config.get("extra_menus", [])
+    if user_row and user_row.sidebar_config:
+        extra_menus = user_row.sidebar_config.get("extra_menus", [])
+        # Les permissions individuelles remplacent les permissions du rôle si définies
+        if "menus" in user_row.sidebar_config:
+            base_menus = user_row.sidebar_config.get("menus", base_menus)
+        if "dashboards" in user_row.sidebar_config:
+            base_dashboards = user_row.sidebar_config.get("dashboards", base_dashboards)
 
     all_menus = list(set(base_menus + extra_menus))
 
