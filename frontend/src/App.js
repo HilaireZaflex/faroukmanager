@@ -20,6 +20,7 @@ import ImportPage from './pages/ImportPage';
 import IAPage from './pages/IAPage';
 import WhatIfPage from './pages/WhatIfPage';
 import AccueilPage from './pages/AccueilPage';
+import ChallengePage from './pages/ChallengePage';
 import CartePage from './pages/CartePage';
 import RecoveryListePage from './pages/RecoveryListePage';
 import OMyDashboardPage from './pages/OMyDashboardPage';
@@ -123,6 +124,7 @@ function App() {
               <Routes>
                 {/* ── Routes libres (toujours accessibles) ── */}
                 <Route path="/accueil" element={<AccueilPage />} />
+                <Route path="/challenge" element={<MenuRoute menuId="challenge"><ChallengePage /></MenuRoute>} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
                 <Route path="/omy/dashboard/weekly" element={<OMyWeeklyDashboardPage />} />
                 <Route path="/nafama/dashboard" element={<NafamaDashboardPage />} />

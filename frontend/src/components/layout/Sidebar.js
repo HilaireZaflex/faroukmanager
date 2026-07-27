@@ -4,7 +4,7 @@ import {
   Home, LayoutDashboard, CalendarDays, Store, Bell,
   Brain, RefreshCw, FileText, Settings,
   LogOut, ChevronLeft, ChevronRight, Users, Upload,
-  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star
+  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import './Sidebar.css';
@@ -159,6 +159,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
         <div className="nav-divider"/>
         {!collapsed && <div className="nav-section-label">Gestion</div>}
 
+        {can('challenge')   && nl('/challenge',    Trophy,      '🏆 Orange Awards 2026')}
         {can('pdvs')        && nl('/pdvs',        Store,       'Points de Vente')}
         {can('prospection') && nl('/prospection', UserPlus,    'Prospection OM')}
         {can('indicateurs') && nl('/indicateurs', Activity,    'Indicateurs')}

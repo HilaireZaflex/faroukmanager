@@ -1,6 +1,7 @@
 from app.models.user import User
 from app.models.pdv import PDV
 from app.models.pdv_history import PDVHistory
+from app.models.challenge import ChallengeObjectif, ChallengeRecrutement, ChallengePLV, ChallengePointControle
 from app.models.performance import WeeklyPerformance, MonthlyPerformance
 from app.models.action import TerrainAction
 from app.models.recovery import Recovery

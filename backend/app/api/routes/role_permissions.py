@@ -19,7 +19,7 @@ class RolePermission(Base):
 # ── Menus par défaut tous rôles non-admin ─────────────────────────────────────
 DEFAULT_MENUS_NON_ADMIN = ["pdvs", "prospection", "evaluations", "alerts"]
 DEFAULT_DASHBOARDS_NON_ADMIN = ["omy", "nafama", "kaabu"]
-ALL_MENUS = ["pdvs", "prospection", "indicateurs", "commissions", "evaluations", "alerts", "reseau", "ia", "carte", "recovery", "import", "reports", "settings"]
+ALL_MENUS = ["pdvs", "prospection", "indicateurs", "commissions", "evaluations", "alerts", "reseau", "ia", "carte", "recovery", "import", "reports", "settings", "challenge"]
 ALL_DASHBOARDS = ["omy", "nafama", "kaabu"]
 
 # ── Permissions sidebar par défaut ──────────────────────────────────────────

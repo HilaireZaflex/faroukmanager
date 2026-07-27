@@ -51,6 +51,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.routes.challenge import router as challenge_router
+app.include_router(challenge_router, prefix="/api", tags=["Challenge Orange Awards"])
 app.include_router(auth.router, prefix="/api", tags=["Authentification"])
 app.include_router(pdv.router, prefix="/api", tags=["PDV"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
