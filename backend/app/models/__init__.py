@@ -31,6 +31,7 @@ from app.models.developpeur import (
     DevTask, DevDailyGoal, DevPortfolio, SuperviseurPDVObjective,
     TaskType, TaskStatus, TaskPriority,
 )
+from app.models.nafama import NafamaTransaction
 from app.models.indicator import (
     Indicator, IndicatorVersion, IndicatorScore,
     IndicatorCategory, IndicatorMethod, IndicatorPeriod, IndicatorStatus,

@@ -52,7 +52,9 @@ app.add_middleware(
 )
 
 from app.api.routes.challenge import router as challenge_router
+from app.api.routes.nafama import router as nafama_router
 app.include_router(challenge_router, prefix="/api", tags=["Challenge Orange Awards"])
+app.include_router(nafama_router, prefix="/api", tags=["NAFAMA"])
 app.include_router(auth.router, prefix="/api", tags=["Authentification"])
 app.include_router(pdv.router, prefix="/api", tags=["PDV"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
