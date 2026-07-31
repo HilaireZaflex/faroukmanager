@@ -680,66 +680,92 @@ def get_weekly_evolution_detail(db: Session, annee: int, semaine: int) -> Dict[s
 
 
 def _get_nb_mois_consecutifs_inactif(db: Session, numero_pdv: str, annee: int, mois: int) -> int:
-    """Compte le nombre de mois consécutifs d'inactivité jusqu'à annee/mois (inclus)."""
+    """
+    Compte le nombre de mois consécutifs d'inactivité jusqu'à annee/mois (inclus).
+    On part du mois actuel (déjà inactif) et on remonte en arrière.
+    """
     count = 0
     a, m = annee, mois
-    for _ in range(12):
+    for _ in range(24):
         exists = db.query(NafamaTransaction.id).filter(
             NafamaTransaction.numero_pdv == numero_pdv,
             NafamaTransaction.annee == a,
             NafamaTransaction.mois == m,
         ).first()
         if exists:
-            break
+            break  # PDV actif ce mois → on arrête
         count += 1
+        # Reculer d'un mois
         m -= 1
         if m == 0:
             m = 12
             a -= 1
+        # Sécurité : si on est avant le début des données, on arrête
+        if a < 2025:
+            break
     return count
 
 
 def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, Any]:
-    """PDVs inactifs ce mois — enrichi avec infos PDV, nb mois consécutifs, alerte."""
-    mois_prec = mois - 1 if mois > 1 else 12
-    annee_prec = annee if mois > 1 else annee - 1
-
+    """
+    PDVs inactifs ce mois — cherche dans une fenêtre de 6 mois pour capturer
+    les PDVs absents depuis 1, 2 ou 3+ mois consécutifs.
+    """
     pdvs_ce_mois = set(
         r[0] for r in db.query(NafamaTransaction.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
         .distinct().all()
     )
 
-    rows_prec = (
-        db.query(
-            NafamaTransaction.numero_pdv,
-            func.sum(NafamaTransaction.montant).label("ca_prec"),
-            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+    # Collecter tous les PDVs vus dans les 6 derniers mois (fenêtre glissante)
+    candidats = {}  # numero_pdv -> (ca_dernier_mois, infos PDV)
+    for i in range(1, 7):
+        m = mois - i
+        a = annee
+        while m <= 0:
+            m += 12
+            a -= 1
+
+        rows = (
+            db.query(
+                NafamaTransaction.numero_pdv,
+                func.sum(NafamaTransaction.montant).label("ca"),
+                PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+            )
+            .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+            .filter(NafamaTransaction.annee == a, NafamaTransaction.mois == m)
+            .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+            .all()
         )
-        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
-        .filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec)
-        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
-        .all()
-    )
+        for r in rows:
+            if r.numero_pdv not in pdvs_ce_mois and r.numero_pdv not in candidats:
+                # Premier mois trouvé = dernier mois actif
+                candidats[r.numero_pdv] = {
+                    "ca_dernier_mois": int(r.ca),
+                    "nom": r.nom or r.numero_pdv,
+                    "zone": r.zone or "—",
+                    "quartier": r.quartier or "—",
+                    "superviseur": r.superviseur or "—",
+                    "gestionnaire": r.gestionnaire or "—",
+                }
 
     pdvs = []
-    for r in rows_prec:
-        if r.numero_pdv not in pdvs_ce_mois:
-            nb = _get_nb_mois_consecutifs_inactif(db, r.numero_pdv, annee, mois)
-            alerte = "🔴 Critique" if nb >= 3 else "🟠 Haute" if nb == 2 else "⚪ Normale"
-            pdvs.append({
-                "numero_pdv": r.numero_pdv,
-                "nom": r.nom or r.numero_pdv,
-                "zone": r.zone or "—",
-                "quartier": r.quartier or "—",
-                "superviseur": r.superviseur or "—",
-                "gestionnaire": r.gestionnaire or "—",
-                "ca_dernier_mois": int(r.ca_prec),
-                "nb_mois_consecutifs_inactif": nb,
-                "alerte": alerte,
-            })
+    for numero_pdv, info in candidats.items():
+        nb = _get_nb_mois_consecutifs_inactif(db, numero_pdv, annee, mois)
+        alerte = "🔴 Critique" if nb >= 3 else "🟠 Haute" if nb == 2 else "⚪ Normale"
+        pdvs.append({
+            "numero_pdv": numero_pdv,
+            "nom": info["nom"],
+            "zone": info["zone"],
+            "quartier": info["quartier"],
+            "superviseur": info["superviseur"],
+            "gestionnaire": info["gestionnaire"],
+            "ca_dernier_mois": info["ca_dernier_mois"],
+            "nb_mois_consecutifs_inactif": nb,
+            "alerte": alerte,
+        })
 
-    pdvs.sort(key=lambda x: x["ca_dernier_mois"], reverse=True)
+    pdvs.sort(key=lambda x: x["nb_mois_consecutifs_inactif"], reverse=True)
     critique = [p for p in pdvs if p["nb_mois_consecutifs_inactif"] >= 3]
     haute = [p for p in pdvs if p["nb_mois_consecutifs_inactif"] == 2]
     normale = [p for p in pdvs if p["nb_mois_consecutifs_inactif"] == 1]
