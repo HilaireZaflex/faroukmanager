@@ -514,7 +514,33 @@ export default function ChallengePage() {
     { staleTime: 60000 }
   );
 
-  const nbCritiques = alertes?.nb_critiques || 0;
+  // Charger les données Award pour calculer le vrai nombre d'actions
+  const { data: awardDataMain } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  // Calculer le nb total d'actions urgentes (indicateurs Award + KPIs OM)
+  const nbCritiques = React.useMemo(() => {
+    let count = 0;
+    // Indicateurs Award
+    INDICATEURS_LIST.forEach(ind => {
+      const data = awardDataMain?.[ind] || {};
+      const total = (data.totaux || []).filter(t => t.realisation !== null).slice(-1)[0];
+      if (!total) return;
+      const pctO = total.taux_orange != null ? Math.round(total.taux_orange * 100) : null;
+      const pctF = total.taux_farouk != null ? Math.round(total.taux_farouk * 100) : null;
+      const cfg = INDICATEUR_CONFIG[ind];
+      if (pctO !== null && pctO < 95) count++;
+      if (cfg.hasFarouk && pctF !== null && pctF < 80) count++;
+    });
+    // KPIs Challenge OM
+    const kpis = dashboard?.kpis || {};
+    if ((kpis?.recrutement_omy?.taux || 0) < 0.95) count++;
+    if ((kpis?.deploiement_plv?.taux || 0) < 0.95) count++;
+    if ((kpis?.points_controles?.taux || 0) < 0.95) count++;
+    return count;
+  }, [awardDataMain, dashboard]);
 
   return (
     <div className="challenge-page">
