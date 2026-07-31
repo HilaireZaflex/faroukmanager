@@ -245,6 +245,8 @@ function TabTopPDVs({ annee, mois }) {
   const [topN, setTopN] = useState(20);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
+  const [supFilter, setSupFilter] = useState('');
+  const [quarFilter, setQuarFilter] = useState('');
   const [sortBy, setSortBy] = useState('ca_desc');
   const [selectedPDV, setSelectedPDV] = useState(null);
   const [historyData, setHistoryData] = useState([]);
@@ -272,9 +274,13 @@ function TabTopPDVs({ annee, mois }) {
   if (!data?.length) return <EmptyTab />;
 
   const zoneList = [...new Set(data.map(p => p.zone).filter(z => z && z !== '—'))].sort();
+  const supList = [...new Set(data.filter(p => !zoneFilter || p.zone === zoneFilter).map(p => p.superviseur).filter(s => s && s !== '—'))].sort();
+  const quarList = [...new Set(data.filter(p => (!zoneFilter || p.zone === zoneFilter) && (!supFilter || p.superviseur === supFilter)).map(p => p.quartier).filter(q => q && q !== '—'))].sort();
 
   const filtered = data
     .filter(p => !zoneFilter || p.zone === zoneFilter)
+    .filter(p => !supFilter || p.superviseur === supFilter)
+    .filter(p => !quarFilter || p.quartier === quarFilter)
     .filter(p => !search ||
       (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
       (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -284,52 +290,82 @@ function TabTopPDVs({ annee, mois }) {
       if (sortBy === 'ca_asc') return a.ca - b.ca;
       if (sortBy === 'nom_asc') return (a.nom || '').localeCompare(b.nom || '');
       if (sortBy === 'zone_asc') return (a.zone || '').localeCompare(b.zone || '');
+      if (sortBy === 'sup_asc') return (a.superviseur || '').localeCompare(b.superviseur || '');
       if (sortBy === 'evol_desc') return (b.evolution_pct ?? -999) - (a.evolution_pct ?? -999);
       return b.ca - a.ca;
     });
 
   const selectedPDVData = data.find(p => p.numero_pdv === selectedPDV);
 
+  const selectStyle = {
+    padding: '9px 10px', background: 'rgba(0,0,0,0.3)',
+    border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8,
+    color: '#ddd', fontSize: 12, cursor: 'pointer', outline: 'none',
+    minWidth: 0,
+  };
+
   return (
     <div>
-      {/* Seuil + barre de recherche */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '16px 20px', marginBottom: 14 }}>
-        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <label style={{ fontSize: 12, color: '#8a8a9a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
-              Seuil : <span style={{ color: COLOR_PRIMARY, fontWeight: 800 }}>Top {topN}</span>
-            </label>
-            <input type="range" min="10" max="100" step="10" value={topN}
-              onChange={e => setTopN(parseInt(e.target.value))}
-              style={{ width: '100%', accentColor: COLOR_PRIMARY }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#555', marginTop: 3 }}>
-              {[10,20,30,40,50,60,70,80,90,100].map(v => <span key={v}>{v}</span>)}
-            </div>
+      {/* Seuil */}
+      <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 12, padding: '14px 18px', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ fontSize: 12, color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            Seuil : <span style={{ color: COLOR_PRIMARY, fontWeight: 800 }}>Top {topN}</span>
+          </span>
+          <input type="range" min="10" max="100" step="10" value={topN}
+            onChange={e => setTopN(parseInt(e.target.value))}
+            style={{ flex: 1, accentColor: COLOR_PRIMARY, height: 4 }} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[10,20,30,50,100].map(v => (
+              <button key={v} onClick={() => setTopN(v)}
+                style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: `1px solid ${topN === v ? COLOR_PRIMARY : 'rgba(255,255,255,0.1)'}`, background: topN === v ? 'rgba(0,214,143,0.15)' : 'transparent', color: topN === v ? COLOR_PRIMARY : '#888', cursor: 'pointer', fontWeight: topN === v ? 700 : 400 }}>
+                {v}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Filtres */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: 2, minWidth: 180, position: 'relative' }}>
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#8a8a9a' }}>🔍</span>
-          <input type="text" placeholder="Rechercher PDV, numéro, superviseur..."
+      {/* Barre de filtres — tout sur une ligne */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 12, padding: '10px 14px' }}>
+        {/* Recherche */}
+        <div style={{ flex: 2, minWidth: 160, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#8a8a9a' }}>🔍</span>
+          <input type="text" placeholder="PDV, numéro, superviseur..."
             value={search} onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, boxSizing: 'border-box' }} />
+            style={{ ...selectStyle, width: '100%', paddingLeft: 30, boxSizing: 'border-box', background: 'transparent', border: 'none', borderRight: '1px solid rgba(0,214,143,0.12)', borderRadius: 0, paddingRight: 8 }} />
         </div>
-        <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
-          style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13 }}>
-          <option value="">Toutes les zones</option>
+        {/* Zone */}
+        <select value={zoneFilter} onChange={e => { setZoneFilter(e.target.value); setSupFilter(''); setQuarFilter(''); }} style={selectStyle}>
+          <option value="">📍 Zone</option>
           {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
         </select>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13 }}>
-          <option value="ca_desc">↓ CA (plus haut)</option>
-          <option value="ca_asc">↑ CA (plus bas)</option>
-          <option value="nom_asc">↑ Nom A→Z</option>
-          <option value="zone_asc">↑ Zone A→Z</option>
-          <option value="evol_desc">↓ Évolution (meilleure)</option>
+        {/* Superviseur */}
+        <select value={supFilter} onChange={e => { setSupFilter(e.target.value); setQuarFilter(''); }} style={selectStyle}>
+          <option value="">👤 Superviseur</option>
+          {supList.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+        {/* Quartier */}
+        <select value={quarFilter} onChange={e => setQuarFilter(e.target.value)} style={selectStyle}>
+          <option value="">🏘️ Quartier</option>
+          {quarList.map(q => <option key={q} value={q}>{q}</option>)}
+        </select>
+        {/* Tri */}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ ...selectStyle, borderLeft: '1px solid rgba(0,214,143,0.12)' }}>
+          <option value="ca_desc">↓ CA max</option>
+          <option value="ca_asc">↑ CA min</option>
+          <option value="evol_desc">↓ Évolution</option>
+          <option value="nom_asc">↑ Nom</option>
+          <option value="zone_asc">↑ Zone</option>
+          <option value="sup_asc">↑ Superviseur</option>
+        </select>
+        {/* Reset */}
+        {(search || zoneFilter || supFilter || quarFilter) && (
+          <button onClick={() => { setSearch(''); setZoneFilter(''); setSupFilter(''); setQuarFilter(''); }}
+            style={{ padding: '7px 10px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 8, color: '#ff4757', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}>
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Courbe d'évolution du PDV sélectionné */}
