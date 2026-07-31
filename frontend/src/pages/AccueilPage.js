@@ -97,9 +97,23 @@ export default function AccueilPage() {
   const lastSemaineAnnee = lastAvailable?.last_week?.annee;
 
   const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
-  // Kaabu et Nafama — données à venir (pas encore importées)
+  // NAFAMA — données disponibles depuis nos endpoints dédiés
   const kaabuStats = null;
-  const nafamaStats = null;
+  const { data: nafamaPeriods } = useQuery('nafama-periods-accueil', () => api.get('/nafama/periods').then(r => r.data), { staleTime: 300000 });
+  const nafamaLastMois = nafamaPeriods?.mois?.slice(-1)[0] || null;
+  const { data: nafamaSummary } = useQuery(
+    ['nafama-accueil-summary', nafamaLastMois?.annee, nafamaLastMois?.mois],
+    () => api.get(`/nafama/monthly/summary?annee=${nafamaLastMois.annee}&mois=${nafamaLastMois.mois}`).then(r => r.data),
+    { staleTime: 300000, enabled: !!nafamaLastMois }
+  );
+  const nafamaStats = nafamaSummary ? {
+    total_nafama: nafamaSummary.nb_pdv_actifs,
+    taux_actifs: nafamaSummary.nb_pdv_actifs && (nafamaSummary.nb_pdv_actifs + nafamaSummary.nb_pdv_inactifs) > 0
+      ? (nafamaSummary.nb_pdv_actifs / (nafamaSummary.nb_pdv_actifs + nafamaSummary.nb_pdv_inactifs)) * 100
+      : 0,
+    ca_total: nafamaSummary.ca_total,
+    label: nafamaLastMois ? `${['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][nafamaLastMois.mois]} ${nafamaLastMois.annee}` : '',
+  } : null;
   const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois], () =>
     api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data),
     { staleTime: 300000, enabled: periodeType === 'mensuel' && !!lastAvailable });
@@ -244,7 +258,7 @@ export default function AccueilPage() {
           <StatCard icon={Store} value={kaabuStats?.total_kaabu ?? '--'} label="PDVs Kaabu" sub={kaabuStats ? `${kaabuStats.taux_actifs?.toFixed(1)}% actifs` : 'Données à venir'} color="#00cec9" onClick={() => navigate('/dashboard/kaabu')} badge="Kaabu" />
           <StatCard icon={Activity} value={kaabuStats?.actifs ?? '--'} label="PDVs Kaabu Actifs" sub={kaabuStats ? (periodeType === 'mensuel' ? `${MOIS_NOMS[(selectedMois||mois)-1]} ${annee}` : `Semaine ${selectedSemaine||lastSemaine}`) : 'Données à venir'} color="#00b894" onClick={() => navigate('/dashboard/kaabu')} badge="Kaabu" />
           {/* ── Indicateur Nafama ── */}
-          <StatCard icon={Store} value={nafamaStats?.total_nafama ?? '--'} label="PDVs Nafama" sub={nafamaStats ? `${nafamaStats.taux_actifs?.toFixed(1)}% actifs` : 'Données à venir'} color="#fd79a8" onClick={() => navigate('/dashboard/nafama')} badge="Nafama" />
+          <StatCard icon={Store} value={nafamaStats?.total_nafama ?? '--'} label="PDVs Nafama Actifs" sub={nafamaStats ? `${nafamaStats.taux_actifs?.toFixed(1)}% actifs · ${nafamaStats.label}` : 'Chargement...'} color="#00d68f" onClick={() => navigate('/nafama/dashboard')} badge="Nafama" />
         </div>
       </div>
 

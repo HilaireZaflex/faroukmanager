@@ -453,22 +453,11 @@ export default function ImportPage() {
 
       <ImportSection
         icon={Calendar}
-        title="📅 Import NAFAMA — Mensuel"
-        description="Importez les performances mensuelles NAFAMA. Colonnes requises: numero_pdv, annee, mois, ca, nb_operations, est_actif. L'indicateur NAFAMA sera automatiquement assigné."
-        endpoint="/performance/monthly?indicateur=NAFAMA"
-        label="NAFAMA Mensuel"
+        title="📅 Import NAFAMA — Fichier Excel"
+        description="Importez le fichier Excel NAFAMA (colonnes: PDV, MONTANT SOMME, Date). Toutes les périodes sont automatiquement détectées (mois et semaines)."
+        endpoint="/nafama/import"
+        label="NAFAMA"
         templateType="mensuel"
-        color="#00d68f"
-        queryClient={queryClient}
-      />
-
-      <ImportSection
-        icon={CalendarDays}
-        title="📆 Import NAFAMA — Hebdomadaire"
-        description="Importez les performances hebdomadaires NAFAMA. Colonnes requises: numero_pdv, annee, semaine, ca, nb_operations, est_actif."
-        endpoint="/performance/weekly?indicateur=NAFAMA"
-        label="NAFAMA Hebdomadaire"
-        templateType="hebdo"
         color="#00d68f"
         queryClient={queryClient}
       />
