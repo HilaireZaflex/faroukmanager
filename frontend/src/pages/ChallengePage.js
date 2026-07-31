@@ -568,7 +568,7 @@ export default function ChallengePage() {
             {activeTab === 'plv' && <TabPLV />}
             {activeTab === 'points' && <TabPointsControles />}
             {activeTab === 'classement' && <TabClassement />}
-            {activeTab === 'alertes' && <TabAlertes alertes={alertes} />}
+            {activeTab === 'alertes' && <TabAlertes alertes={alertes} dashboard={dashboard} />}
           </>
         )}
       </div>
@@ -1303,40 +1303,239 @@ function TabClassement() {
 }
 
 // ── Tab Alertes ───────────────────────────────────────────────────────────────
-function TabAlertes({ alertes }) {
-  const al = alertes?.alertes || [];
+function TabAlertes({ alertes, dashboard }) {
+  // Charger les indicateurs Award pour analyses
+  const { data: awardData } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+
+  const kpis = dashboard?.kpis || {};
+  const scores = dashboard?.scores || {};
+  const periode = dashboard?.periode || {};
+
+  // Générer toutes les actions à partir de toutes les sources
+  const actions = [];
+
+  // ── Indicateurs Award ──────────────────────────────────────────────────────
+  INDICATEURS_LIST.forEach(ind => {
+    const cfg = INDICATEUR_CONFIG[ind];
+    const data = awardData?.[ind] || {};
+    const total = (data.totaux || []).filter(t => t.realisation !== null).slice(-1)[0];
+    if (!total) return;
+
+    const pctO = total.taux_orange != null ? Math.round(total.taux_orange * 100) : null;
+    const pctF = total.taux_farouk != null ? Math.round(total.taux_farouk * 100) : null;
+    const ecart = total.objectif_orange && total.realisation
+      ? Math.round(total.objectif_orange - total.realisation)
+      : null;
+
+    // Action basée sur taux Orange
+    if (pctO !== null && pctO < 95) {
+      const urgence = pctO < 70 ? 'critique' : pctO < 85 ? 'haute' : 'normale';
+      const manquant = ecart && ecart > 0 ? ` Il manque ${fmtV(ecart, cfg.unite)} pour atteindre l'objectif.` : '';
+      actions.push({
+        source: ind,
+        icon: cfg.icon,
+        color: urgence === 'critique' ? '#ff4757' : urgence === 'haute' ? '#ffa502' : '#f59e0b',
+        urgence,
+        titre: `${cfg.icon} ${ind} — Taux Orange ${pctO}%`,
+        situation: `Réalisation : ${fmtV(total.realisation, cfg.unite)} / Objectif : ${fmtV(total.objectif_orange, cfg.unite)}.${manquant}`,
+        actions: pctO < 70 ? [
+          `🚨 Réunion d'urgence avec l'équipe terrain pour analyser les blocages sur ${ind}`,
+          `📞 Appels quotidiens aux superviseurs pour suivi hebdomadaire`,
+          `🎯 Identifier les top 20% PDVs qui peuvent booster rapidement le ${ind}`,
+          `📊 Comparer avec la semaine S30 pour identifier la tendance`,
+        ] : pctO < 85 ? [
+          `⚡ Mobiliser les superviseurs sur les zones les plus actives ${ind}`,
+          `📈 Analyser les PDVs en baisse pour les récupérer en urgence`,
+          `💬 Communication directe avec les gestionnaires de zone`,
+        ] : [
+          `✅ Bon niveau ! Maintenir le rythme pour atteindre 95%`,
+          `🔍 Focus sur les PDVs inactifs pour gagner les derniers points`,
+        ],
+      });
+    }
+
+    // Action basée sur taux Farouk (si disponible et en retard)
+    if (cfg.hasFarouk && pctF !== null && pctF < 80) {
+      actions.push({
+        source: `${ind} Farouk`,
+        icon: '🏢',
+        color: '#ffa502',
+        urgence: pctF < 60 ? 'haute' : 'normale',
+        titre: `🏢 ${ind} — Objectif Farouk ${pctF}%`,
+        situation: `Notre performance interne Farouk est à ${pctF}% de l'objectif fixé.`,
+        actions: [
+          `📋 Revoir la stratégie interne de vente ${ind} avec l'équipe`,
+          `🎯 Fixer des sous-objectifs hebdomadaires par superviseur`,
+          `📊 Comparer notre performance avec les données Orange pour ajuster`,
+        ],
+      });
+    }
+  });
+
+  // ── KPIs Challenge OM ──────────────────────────────────────────────────────
+  const tauxRecrut = kpis?.recrutement_omy?.taux || 0;
+  const manqRecr = kpis?.recrutement_omy
+    ? Math.max(0, Math.round((kpis.recrutement_omy.objectif_cumule || 0) - (kpis.recrutement_omy.realise || 0)))
+    : 0;
+  if (tauxRecrut < 0.95) {
+    actions.push({
+      source: 'Recrutement OMY',
+      icon: '👥',
+      color: tauxRecrut < 0.5 ? '#ff4757' : '#ffa502',
+      urgence: tauxRecrut < 0.5 ? 'critique' : 'haute',
+      titre: `👥 Recrutement OMY — ${Math.round(tauxRecrut * 100)}%`,
+      situation: `${kpis?.recrutement_omy?.realise || 0} clients recrutés sur ${kpis?.recrutement_omy?.objectif_cumule || 0} attendus.${manqRecr > 0 ? ` Il manque ${manqRecr} recrutements.` : ''}`,
+      actions: [
+        `🎯 Chaque développeur doit prospecter au moins 3 nouveaux clients par jour`,
+        `📍 Cibler les quartiers à forte densité commerciale non encore couverts`,
+        `🤝 Incentiver les PDVs actifs à recommander des nouveaux commerçants`,
+        `📱 Organiser des sessions de démonstration Orange Money dans les marchés`,
+        `📋 Suivre quotidiennement le tableau de bord Prospection`,
+      ],
+    });
+  }
+
+  const tauxPLV = kpis?.deploiement_plv?.taux || 0;
+  if (tauxPLV < 0.95) {
+    actions.push({
+      source: 'PLV',
+      icon: '📦',
+      color: tauxPLV < 0.5 ? '#ff4757' : '#ffa502',
+      urgence: tauxPLV < 0.5 ? 'critique' : 'haute',
+      titre: `📦 Déploiement PLV — ${Math.round(tauxPLV * 100)}%`,
+      situation: `${kpis?.deploiement_plv?.realise || 0} PLV déployés sur ${kpis?.deploiement_plv?.objectif_cumule || 0} attendus.`,
+      actions: [
+        `🚗 Planifier des tournées PLV avec les superviseurs dès cette semaine`,
+        `📦 Prioriser les PDVs à fort CA qui n'ont pas encore leur PLV`,
+        `📸 Prendre des photos de preuve pour chaque PLV installée`,
+        `🗺️ Cartographier les zones non couvertes et affecter des responsables`,
+      ],
+    });
+  }
+
+  const tauxPoints = kpis?.points_controles?.taux || 0;
+  if (tauxPoints < 0.95) {
+    actions.push({
+      source: 'Points Contrôle',
+      icon: '📍',
+      color: tauxPoints < 0.5 ? '#ff4757' : '#ffa502',
+      urgence: tauxPoints < 0.5 ? 'critique' : 'haute',
+      titre: `📍 Points de Contrôle — ${Math.round(tauxPoints * 100)}%`,
+      situation: `${kpis?.points_controles?.realise || 0} points créés sur ${kpis?.points_controles?.objectif_cumule || 0} attendus.`,
+      actions: [
+        `🏪 Identifier et enregistrer tous les nouveaux PDVs actifs comme points de contrôle`,
+        `📋 Faire une tournée complète de vérification terrain chaque semaine`,
+        `✅ Mettre à jour le tableau de bord après chaque point validé`,
+      ],
+    });
+  }
+
+  // Ajouter des conseils généraux si tout va bien
+  const nbCritiques = actions.filter(a => a.urgence === 'critique').length;
+  const nbHaute = actions.filter(a => a.urgence === 'haute').length;
+
+  // Trier : critique > haute > normale
+  const ordre = { critique: 0, haute: 1, normale: 2 };
+  actions.sort((a, b) => ordre[a.urgence] - ordre[b.urgence]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {al.length === 0 ? (
-        <div className="ch-card" style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>Excellent ! Tous les KPIs sont dans les objectifs !</div>
-          <div style={{ fontSize: 13, color: '#64748b', marginTop: 8 }}>Continuez sur cette lancée pour remporter le challenge.</div>
-        </div>
-      ) : al.map((a, i) => (
-        <div key={i} style={{
-          background: a.niveau === 'critique' ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
-          border: `1px solid ${a.niveau === 'critique' ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
-          borderRadius: 12, padding: '16px 20px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-            <div style={{ fontSize: 20 }}>{a.niveau === 'critique' ? '🚨' : '⚠️'}</div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: a.niveau === 'critique' ? '#ef4444' : '#f59e0b' }}>{a.kpi}</div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>Taux d'atteinte : {fmtPct(a.taux)}</div>
+
+      {/* Header motivant */}
+      <div style={{
+        background: nbCritiques > 0
+          ? 'linear-gradient(135deg, rgba(255,71,87,0.12), rgba(255,71,87,0.04))'
+          : nbHaute > 0
+          ? 'linear-gradient(135deg, rgba(255,165,2,0.12), rgba(255,165,2,0.04))'
+          : 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))',
+        border: `1px solid ${nbCritiques > 0 ? 'rgba(255,71,87,0.3)' : nbHaute > 0 ? 'rgba(255,165,2,0.3)' : 'rgba(34,197,94,0.3)'}`,
+        borderRadius: 14, padding: '20px 24px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ fontSize: 40 }}>
+            {nbCritiques > 0 ? '🚨' : nbHaute > 0 ? '⚡' : '🏆'}
+          </div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginBottom: 4 }}>
+              {nbCritiques > 0
+                ? `${nbCritiques} point${nbCritiques > 1 ? 's' : ''} critique${nbCritiques > 1 ? 's' : ''} — Mobilisation immédiate !`
+                : nbHaute > 0
+                ? `${actions.length} action${actions.length > 1 ? 's' : ''} à prioriser cette semaine`
+                : '🎉 Performance dans les objectifs — Maintenez le cap !'}
             </div>
-            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-              background: a.niveau === 'critique' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)',
-              color: a.niveau === 'critique' ? '#ef4444' : '#f59e0b' }}>
-              {a.niveau === 'critique' ? '🔴 CRITIQUE' : '⚠️ ATTENTION'}
-            </span>
-          </div>
-          <div style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 8 }}>{a.message}</div>
-          <div style={{ fontSize: 12, color: '#10b981', background: 'rgba(16,185,129,0.08)', borderRadius: 8, padding: '8px 12px', borderLeft: '3px solid #10b981' }}>
-            💡 Action : {a.action}
+            <div style={{ fontSize: 13, color: '#94a3b8' }}>
+              {periode?.jours_restants ? `Il reste ${periode.jours_restants} jours pour remporter le challenge Orange Awards 2026` : 'Challenge Orange Awards 2026 — Farouk Distribution SARL'}
+            </div>
           </div>
         </div>
-      ))}
+      </div>
+
+      {/* Actions par urgence */}
+      {actions.length === 0 ? (
+        <div className="ch-card" style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🏆</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#22c55e', marginBottom: 8 }}>Félicitations ! Tous les indicateurs sont dans les objectifs !</div>
+          <div style={{ fontSize: 13, color: '#64748b' }}>Continuez sur cette lancée — vous êtes sur la bonne voie pour remporter le prix Orange Awards 2026.</div>
+        </div>
+      ) : (
+        actions.map((a, i) => (
+          <div key={i} style={{
+            background: a.urgence === 'critique' ? 'rgba(255,71,87,0.06)' : a.urgence === 'haute' ? 'rgba(255,165,2,0.06)' : 'rgba(255,255,255,0.02)',
+            border: `1px solid ${a.urgence === 'critique' ? 'rgba(255,71,87,0.25)' : a.urgence === 'haute' ? 'rgba(255,165,2,0.25)' : 'rgba(255,255,255,0.08)'}`,
+            borderLeft: `4px solid ${a.color}`,
+            borderRadius: 12, padding: '16px 20px',
+          }}>
+            {/* Header action */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 22 }}>{a.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{a.titre}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{a.situation}</div>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, whiteSpace: 'nowrap',
+                background: `rgba(${a.urgence === 'critique' ? '255,71,87' : a.urgence === 'haute' ? '255,165,2' : '255,193,7'},0.15)`,
+                color: a.color }}>
+                {a.urgence === 'critique' ? '🔴 URGENT' : a.urgence === 'haute' ? '🟠 HAUTE' : '🟡 NORMALE'}
+              </span>
+            </div>
+
+            {/* Barre progression si disponible */}
+            <BarreProg taux={a.taux} color={a.color} />
+
+            {/* Liste des actions */}
+            <div style={{ marginTop: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                💡 Actions recommandées
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {a.actions.map((act, j) => (
+                  <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#e2e8f0' }}>
+                    <span style={{ color: a.color, fontWeight: 700, marginTop: 1, flexShrink: 0 }}>{j + 1}.</span>
+                    <span>{act}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* Conseil final si des actions existent */}
+      {actions.length > 0 && (
+        <div style={{ background: 'rgba(255,105,0,0.06)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 12, padding: '16px 20px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 28, flexShrink: 0 }}>🏆</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#FF6900', marginBottom: 6 }}>Message du Manager</div>
+            <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.7 }}>
+              Chaque point gagné sur un indicateur rapproche Farouk Distribution du prix Orange Awards 2026.
+              {' '}<strong style={{ color: '#FF6900' }}>Il reste encore {periode?.jours_restants || '—'} jours</strong> pour inverser la tendance et montrer de quoi notre équipe est capable.
+              Chaque action terrain compte. <strong style={{ color: '#ffa502' }}>L'effort d'aujourd'hui sera récompensé demain.</strong>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
