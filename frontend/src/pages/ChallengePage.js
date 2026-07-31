@@ -578,28 +578,112 @@ export default function ChallengePage() {
 
 // ── Tab Dashboard ─────────────────────────────────────────────────────────────
 function TabDashboard({ dashboard }) {
-  if (!dashboard) return <div className="ch-loading">Aucune donnée</div>;
-  const { kpis, scores, periode } = dashboard;
+  const { kpis, scores, periode } = dashboard || {};
+
+  // Charger les données des indicateurs Award
+  const { data: awardData } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+
+  // Extraire le dernier total disponible pour chaque indicateur
+  const getLastTotal = (ind) => {
+    const data = awardData?.[ind] || {};
+    return (data.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
+  };
+
+  const indData = INDICATEURS_LIST.map(ind => ({
+    nom: ind,
+    cfg: INDICATEUR_CONFIG[ind],
+    total: getLastTotal(ind),
+  }));
+
+  // Score indicateurs : moyenne des taux orange disponibles (plafonnés à 100%)
+  const tauxDispo = indData.filter(i => i.total?.taux_orange !== null && i.total?.taux_orange !== undefined);
+  const scoreIndicateurs = tauxDispo.length > 0
+    ? Math.min(100, Math.round(tauxDispo.reduce((s, i) => s + Math.min(1, i.total.taux_orange), 0) / tauxDispo.length * 100))
+    : 0;
+
+  // Score global enrichi = moyenne score existant + score indicateurs
+  const scoreExistant = scores?.global || 0;
+  const scoreGlobal = tauxDispo.length > 0
+    ? Math.round((scoreExistant + scoreIndicateurs) / 2)
+    : scoreExistant;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Scores globaux */}
+      {/* Scores globaux — enrichis */}
       <div className="ch-card">
         <h3 className="ch-section-title">🏆 Score Global Challenge</h3>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 40, flexWrap: 'wrap', padding: '20px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: '20px 0' }}>
           <ScoreJauge label="Challenge OM" score={scores?.om || 0} color="#FF6900"/>
           <ScoreJauge label="Challenge TELCO" score={scores?.telco || 0} color="#0ea5e9"/>
-          <ScoreJauge label="Score Global" score={scores?.global || 0} color="#10b981"/>
+          <ScoreJauge label="Indicateurs" score={scoreIndicateurs} color="#FF6900"/>
+          <ScoreJauge label="Score Global" score={scoreGlobal} color="#10b981"/>
         </div>
         <div style={{ textAlign: 'center', marginTop: 8 }}>
-          {scores?.global >= 95 ? (
+          {scoreGlobal >= 95 ? (
             <div style={{ color: '#10b981', fontWeight: 700 }}>🎉 Excellente performance ! Vous êtes sur la bonne voie pour remporter le prix !</div>
-          ) : scores?.global >= 70 ? (
+          ) : scoreGlobal >= 70 ? (
             <div style={{ color: '#f59e0b', fontWeight: 700 }}>⚠️ Performance correcte mais des efforts supplémentaires sont nécessaires</div>
           ) : (
             <div style={{ color: '#ef4444', fontWeight: 700 }}>🔴 Situation critique — Des actions immédiates sont nécessaires !</div>
           )}
+        </div>
+      </div>
+
+      {/* ═══ INDICATEURS ORANGE AWARD ═══ */}
+      <div className="ch-card">
+        <h3 className="ch-section-title">📈 Indicateurs Orange Awards 2026 — Juillet</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14, marginTop: 8 }}>
+          {indData.map(({ nom, cfg, total }) => {
+            const tauxO = total?.taux_orange;
+            const tauxF = total?.taux_farouk;
+            const pctO = tauxO !== null && tauxO !== undefined ? Math.round(tauxO * 100) : null;
+            return (
+              <div key={nom} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.07)`, borderLeft: `4px solid ${cfg.color}`, borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 20 }}>{cfg.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{nom}</div>
+                    {total && <div style={{ fontSize: 10, color: '#64748b' }}>{total.mois}</div>}
+                  </div>
+                  {pctO !== null && <TauxBadge taux={tauxO} />}
+                </div>
+                {total ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Objectif Orange</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{fmtV(total.objectif_orange, cfg.unite)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Réalisation</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>{fmtV(total.realisation, cfg.unite)}</div>
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Taux Orange</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: pctO >= 95 ? '#22c55e' : pctO >= 80 ? '#ffa502' : '#ff4757' }}>
+                          {pctO !== null ? `${pctO}%` : '—'}
+                        </span>
+                      </div>
+                      <BarreProg taux={tauxO} color={cfg.color} />
+                    </div>
+                    {cfg.hasFarouk && tauxF !== null && tauxF !== undefined && (
+                      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Taux Farouk</span>
+                        <TauxBadge taux={tauxF} />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', padding: '8px 0' }}>Données en attente</div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -629,9 +713,9 @@ function TabDashboard({ dashboard }) {
         </div>
       </div>
 
-      {/* KPIs résumé */}
+      {/* KPIs challenge (existants) */}
       <div className="ch-card">
-        <h3 className="ch-section-title">📊 Vue d'ensemble des KPIs</h3>
+        <h3 className="ch-section-title">📊 Autres KPIs Challenge</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
           <KPIBar label="👥 Recrutement OMY" realise={kpis?.recrutement_omy?.realise} objectif={kpis?.recrutement_omy?.objectif_cumule} taux={kpis?.recrutement_omy?.taux} unite="clients" poids={15}/>
           <KPIBar label="📦 Déploiement PLV" realise={kpis?.deploiement_plv?.realise} objectif={kpis?.deploiement_plv?.objectif_cumule} taux={kpis?.deploiement_plv?.taux} unite="PLV" poids={15}/>
