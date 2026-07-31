@@ -178,6 +178,8 @@ export default function ProspectionPage() {
   const tabs = allTabs.filter(t => t.show);
   const safeTab = tabs.find(t => t.id === activeTab) ? activeTab : 'demandes';
 
+  const isDeveloppeur = ['developpeur', 'DEVELOPPEUR'].includes(user?.role);
+
   return (
     <div className="prospection-page">
       {/* Message de bienvenue pour les commerciaux */}
@@ -202,6 +204,33 @@ export default function ProspectionPage() {
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
               Bienvenue sur votre espace de prospection. Soumettez vos demandes de puce OM ici.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message de bienvenue pour les développeurs */}
+      {isDeveloppeur && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(55,66,250,0.15), rgba(55,66,250,0.05))',
+          border: '1px solid rgba(55,66,250,0.35)', borderRadius: 14,
+          padding: '16px 20px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+            background: 'linear-gradient(135deg,#3742fa,#5f6cf5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+          }}>👋</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>
+              Bonjour, {user?.prenom || user?.nom || 'Développeur'} !
+            </div>
+            <div style={{ fontSize: 12, color: '#5f6cf5', fontWeight: 600 }}>
+              Développeur · Farouk Distribution
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+              Bienvenue sur votre espace de prospection. Retrouvez ici vos demandes assignées et soumettez de nouvelles fiches.
             </div>
           </div>
         </div>
