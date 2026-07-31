@@ -109,8 +109,386 @@ function CountdownTimer() {
 }
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
+const INDICATEURS_LIST = ["OMY", "KAABU MOBILE", "NAFAMA", "TERMINAUX", "ORANGE ENERGIE"];
+const MOIS_CHALLENGE_LIST = ["JUILLET", "AOÛT", "SEPTEMBRE", "OCTOBRE"];
+
+const INDICATEUR_CONFIG = {
+  "OMY":            { icon: "📱", color: "#FF6900", unite: "FCFA", hasFarouk: true },
+  "KAABU MOBILE":  { icon: "💳", color: "#0ea5e9", unite: "PDVs actifs", hasFarouk: false },
+  "NAFAMA":         { icon: "🟢", color: "#00d68f", unite: "FCFA", hasFarouk: true },
+  "TERMINAUX":      { icon: "🖥️", color: "#a29bfe", unite: "terminaux", hasFarouk: true },
+  "ORANGE ENERGIE": { icon: "☀️", color: "#22c55e", unite: "kits", hasFarouk: true },
+};
+
+function fmtV(v, unite) {
+  if (v === null || v === undefined) return '—';
+  if (unite === 'FCFA') return new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' F';
+  return Math.round(v).toLocaleString('fr-FR') + (unite ? ' ' + unite : '');
+}
+
+function TauxBadge({ taux }) {
+  if (taux === null || taux === undefined) return <span style={{ color: '#64748b' }}>—</span>;
+  const pct = Math.round(taux * 100);
+  const color = pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
+  return (
+    <span style={{ fontSize: 12, fontWeight: 800, padding: '3px 8px', borderRadius: 6,
+      background: `rgba(${pct>=95?'34,197,94':pct>=80?'255,165,2':'255,71,87'},0.12)`, color }}>
+      {pct >= 95 ? '✅' : pct >= 80 ? '⚠️' : '🔴'} {pct}%
+    </span>
+  );
+}
+
+function BarreProg({ taux, color }) {
+  const pct = Math.min(100, Math.round((taux || 0) * 100));
+  const c = pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
+  return (
+    <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden', marginTop: 4 }}>
+      <div style={{ height: '100%', width: `${pct}%`, background: c, borderRadius: 4, transition: 'width 0.6s ease' }} />
+    </div>
+  );
+}
+
+// ── Tab Indicateurs ───────────────────────────────────────────────────────────
+function TabIndicateurs() {
+  const [activeInd, setActiveInd] = useState(null); // null = vue globale
+  const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: dashboard, isLoading } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+
+  if (isLoading) return <div className="ch-loading">⏳ Chargement des indicateurs…</div>;
+
+  // ── Vue globale ──────────────────────────────────────────────────────────
+  if (!activeInd) {
+    return (
+      <div>
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <button onClick={() => setShowImport(true)}
+            style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,105,0,0.4)', background: 'rgba(255,105,0,0.1)', color: '#FF6900', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            📂 Importer Excel
+          </button>
+          <button onClick={() => setShowForm(true)}
+            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            ✏️ Saisie Manuelle
+          </button>
+        </div>
+
+        {/* Cartes par indicateur */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+          {INDICATEURS_LIST.map(ind => {
+            const cfg = INDICATEUR_CONFIG[ind];
+            const data = dashboard?.[ind] || {};
+            const totaux = data.totaux || [];
+            const semaines = data.semaines || [];
+            // Dernier total disponible (données réelles)
+            const lastTotal = totaux.filter(t => t.realisation !== null).slice(-1)[0];
+            // Toutes semaines avec données
+            const semAvecData = semaines.filter(s => s.realisation !== null);
+            const derniereSem = semAvecData.slice(-1)[0];
+            return (
+              <div key={ind} onClick={() => setActiveInd(ind)}
+                style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.08)`, borderTop: `3px solid ${cfg.color}`, borderRadius: 14, padding: '18px 20px', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseOver={e => e.currentTarget.style.background = `rgba(${cfg.color.replace('#','').match(/.{2}/g).map(h=>parseInt(h,16)).join(',')},0.06)`}
+                onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <span style={{ fontSize: 24 }}>{cfg.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{ind}</div>
+                    <div style={{ fontSize: 11, color: cfg.color }}>{cfg.unite}</div>
+                  </div>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#64748b' }}>Voir détail →</span>
+                </div>
+
+                {lastTotal ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif {lastTotal.mois}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{fmtV(lastTotal.objectif_orange, cfg.unite)}</div>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Réalisation</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: cfg.color }}>{fmtV(lastTotal.realisation, cfg.unite)}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>Taux Orange</span>
+                      <TauxBadge taux={lastTotal.taux_orange} />
+                    </div>
+                    <BarreProg taux={lastTotal.taux_orange} color={cfg.color} />
+                    {cfg.hasFarouk && lastTotal.taux_farouk !== null && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>Taux Farouk</span>
+                        <TauxBadge taux={lastTotal.taux_farouk} />
+                      </div>
+                    )}
+                    {derniereSem && (
+                      <div style={{ marginTop: 10, fontSize: 11, color: '#64748b', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
+                        Dernière sem. renseignée : <strong style={{ color: '#aaa' }}>{derniereSem.semaine}</strong>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '16px 0', color: '#64748b', fontSize: 13 }}>
+                    Aucune réalisation saisie
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {showForm && <FormulaireManuel onClose={() => setShowForm(false)} onSaved={() => { queryClient.invalidateQueries('award-dashboard'); setShowForm(false); }} />}
+        {showImport && <ImportExcelModal onClose={() => setShowImport(false)} onSaved={() => { queryClient.invalidateQueries('award-dashboard'); setShowImport(false); }} />}
+      </div>
+    );
+  }
+
+  // ── Détail d'un indicateur ──────────────────────────────────────────────
+  return <DetailIndicateur nom={activeInd} onBack={() => setActiveInd(null)} queryClient={queryClient} />;
+}
+
+function DetailIndicateur({ nom, onBack, queryClient }) {
+  const cfg = INDICATEUR_CONFIG[nom];
+  const [showForm, setShowForm] = useState(false);
+
+  const { data, isLoading } = useQuery(['award-detail', nom],
+    () => api.get(`/award/indicateur/${encodeURIComponent(nom)}`).then(r => r.data),
+    { staleTime: 30000 }
+  );
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>← Retour</button>
+        <span style={{ fontSize: 28 }}>{cfg.icon}</span>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{nom}</div>
+          <div style={{ fontSize: 12, color: cfg.color }}>Suivi hebdomadaire · Orange Awards 2026</div>
+        </div>
+        <button onClick={() => setShowForm(true)} style={{ marginLeft: 'auto', padding: '8px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+          ✏️ Saisir données
+        </button>
+      </div>
+
+      {isLoading ? <div className="ch-loading">Chargement…</div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {(data?.mois || []).map(moisData => (
+            <div key={moisData.mois} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+              {/* Header mois */}
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: cfg.color }}>📅 {moisData.mois}</span>
+                {moisData.total && (
+                  <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>Total : {fmtV(moisData.total.realisation, cfg.unite)} / {fmtV(moisData.total.objectif_orange, cfg.unite)}</span>
+                    <TauxBadge taux={moisData.total.taux_orange} />
+                    {cfg.hasFarouk && moisData.total.taux_farouk !== null && <TauxBadge taux={moisData.total.taux_farouk} />}
+                  </div>
+                )}
+              </div>
+              {/* Tableau semaines */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                      <th style={{ padding: '10px 14px', textAlign: 'left', color: '#64748b' }}>Semaine</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right', color: '#64748b' }}>Objectif Orange</th>
+                      {nom === 'KAABU MOBILE' && <th style={{ padding: '10px 14px', textAlign: 'right', color: '#64748b' }}>Nb PDV</th>}
+                      <th style={{ padding: '10px 14px', textAlign: 'right', color: cfg.color }}>Réalisation</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'center', color: '#64748b' }}>Taux Orange</th>
+                      {cfg.hasFarouk && <th style={{ padding: '10px 14px', textAlign: 'right', color: '#64748b' }}>Obj. Farouk</th>}
+                      {cfg.hasFarouk && <th style={{ padding: '10px 14px', textAlign: 'center', color: '#64748b' }}>Taux Farouk</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(moisData.semaines || []).map((s, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '10px 14px', fontWeight: 700, color: '#fff' }}>{s.semaine}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', color: '#94a3b8' }}>{fmtV(s.objectif_orange, cfg.unite)}</td>
+                        {nom === 'KAABU MOBILE' && <td style={{ padding: '10px 14px', textAlign: 'right', color: '#0ea5e9' }}>{s.nombre_pdv || '—'}</td>}
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: s.realisation !== null ? cfg.color : '#64748b' }}>
+                          {fmtV(s.realisation, cfg.unite)}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'center' }}><TauxBadge taux={s.taux_orange} /></td>
+                        {cfg.hasFarouk && <td style={{ padding: '10px 14px', textAlign: 'right', color: '#94a3b8' }}>{fmtV(s.objectif_farouk, cfg.unite)}</td>}
+                        {cfg.hasFarouk && <td style={{ padding: '10px 14px', textAlign: 'center' }}><TauxBadge taux={s.taux_farouk} /></td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {showForm && <FormulaireManuel indicateurDefaut={nom} onClose={() => setShowForm(false)} onSaved={() => { queryClient.invalidateQueries(['award-detail', nom]); setShowForm(false); }} />}
+    </div>
+  );
+}
+
+function FormulaireManuel({ indicateurDefaut, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    indicateur: indicateurDefaut || 'OMY',
+    mois: 'JUILLET', semaine: 'S27',
+    objectif_orange: '', realisation: '', taux_orange: '',
+    objectif_farouk: '', taux_farouk: '', nombre_pdv: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const sf = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const cfg = INDICATEUR_CONFIG[form.indicateur] || {};
+
+  const semaines = ['S27','S28','S29','S30','S31','S32','S33','S34','S35','S36','S37','S38','S39','S40','S41','S42','TOTAL'];
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const payload = {
+        indicateur: form.indicateur, mois: form.mois, semaine: form.semaine,
+        est_total: form.semaine === 'TOTAL',
+        objectif_orange: form.objectif_orange ? parseFloat(form.objectif_orange) : null,
+        realisation: form.realisation ? parseFloat(form.realisation) : null,
+        taux_orange: form.taux_orange ? parseFloat(form.taux_orange) / 100 : null,
+        objectif_farouk: form.objectif_farouk ? parseFloat(form.objectif_farouk) : null,
+        taux_farouk: form.taux_farouk ? parseFloat(form.taux_farouk) / 100 : null,
+        nombre_pdv: form.nombre_pdv ? parseInt(form.nombre_pdv) : null,
+      };
+      await api.post('/award/upsert', payload);
+      onSaved();
+    } catch (e) { alert('Erreur: ' + e.message); }
+    finally { setBusy(false); }
+  };
+
+  const IS = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, width: '100%', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={onClose}>
+      <div style={{ background: 'linear-gradient(135deg,#0f0f1e,#1a1a2e)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 16, padding: '24px 28px', width: '90%', maxWidth: 560, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>✏️ Saisie Manuelle Indicateur</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Indicateur</label>
+              <select value={form.indicateur} onChange={e => sf('indicateur', e.target.value)} style={{ ...IS }}>
+                {INDICATEURS_LIST.map(i => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Mois</label>
+              <select value={form.mois} onChange={e => sf('mois', e.target.value)} style={{ ...IS }}>
+                {MOIS_CHALLENGE_LIST.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Semaine</label>
+              <select value={form.semaine} onChange={e => sf('semaine', e.target.value)} style={{ ...IS }}>
+                {semaines.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Objectif Orange</label>
+              <input type="number" step="any" value={form.objectif_orange} onChange={e => sf('objectif_orange', e.target.value)} placeholder="Ex: 16190484" style={{ ...IS }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Réalisation</label>
+              <input type="number" step="any" value={form.realisation} onChange={e => sf('realisation', e.target.value)} placeholder="Ex: 15705945" style={{ ...IS }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Taux Orange (%)</label>
+              <input type="number" step="0.01" value={form.taux_orange} onChange={e => sf('taux_orange', e.target.value)} placeholder="Ex: 97 (pour 97%)" style={{ ...IS }} />
+            </div>
+            {cfg.hasFarouk && <>
+              <div>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Objectif Farouk</label>
+                <input type="number" step="any" value={form.objectif_farouk} onChange={e => sf('objectif_farouk', e.target.value)} style={{ ...IS }} />
+              </div>
+              <div style={{ gridColumn: '1' }}>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Taux Farouk (%)</label>
+                <input type="number" step="0.01" value={form.taux_farouk} onChange={e => sf('taux_farouk', e.target.value)} placeholder="Ex: 80.8 (pour 80.8%)" style={{ ...IS }} />
+              </div>
+            </>}
+            {form.indicateur === 'KAABU MOBILE' && (
+              <div>
+                <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 5 }}>Nombre PDV</label>
+                <input type="number" value={form.nombre_pdv} onChange={e => sf('nombre_pdv', e.target.value)} style={{ ...IS }} />
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+            <button type="button" onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Annuler</button>
+            <button type="submit" disabled={busy} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.7 : 1 }}>
+              {busy ? 'Enregistrement…' : '💾 Enregistrer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ImportExcelModal({ onClose, onSaved }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const fileRef = React.useRef();
+
+  const handleImport = async () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file) return alert('Sélectionnez un fichier Excel');
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/award/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setResult(res.data);
+      onSaved();
+    } catch (e) { alert('Erreur: ' + (e.response?.data?.detail || e.message)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={onClose}>
+      <div style={{ background: 'linear-gradient(135deg,#0f0f1e,#1a1a2e)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 16, padding: '28px 32px', width: '90%', maxWidth: 440 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>📂 Import Excel Indicateurs</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+          Importez le fichier <strong style={{ color: '#FF6900' }}>Suivi_Indicateur challenge.xlsx</strong>.<br/>
+          Chaque feuille correspond à un indicateur (OMY, KAABU MOBILE, NAFAMA, TERMINAUX, ORANGE ENERGIE).
+        </p>
+        {result ? (
+          <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '14px', marginBottom: 16, fontSize: 13 }}>
+            ✅ <strong style={{ color: '#22c55e' }}>{result.inserted} lignes ajoutées</strong>, {result.updated} mises à jour<br/>
+            Indicateurs : {result.indicateurs?.join(', ')}
+          </div>
+        ) : null}
+        <div style={{ marginBottom: 16 }}>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ fontSize: 13, color: '#fff', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '8px 12px', width: '100%', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Annuler</button>
+          <button onClick={handleImport} disabled={busy} style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.7 : 1 }}>
+            {busy ? 'Import en cours…' : '📂 Importer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'dashboard', label: '🏆 Score Global', icon: Trophy },
+  { id: 'indicateurs', label: '📈 Indicateurs', icon: Target },
   { id: 'kpis', label: '📊 Suivi KPIs', icon: Target },
   { id: 'recrutement', label: '👥 Recrutement OMY', icon: Users },
   { id: 'plv', label: '📦 Déploiement PLV', icon: Package },
@@ -184,6 +562,7 @@ export default function ChallengePage() {
         ) : (
           <>
             {activeTab === 'dashboard' && <TabDashboard dashboard={dashboard} />}
+            {activeTab === 'indicateurs' && <TabIndicateurs />}
             {activeTab === 'kpis' && <TabKPIs dashboard={dashboard} moisSelectionne={moisSelectionne} setMoisSelectionne={setMoisSelectionne} />}
             {activeTab === 'recrutement' && <TabRecrutement />}
             {activeTab === 'plv' && <TabPLV />}
