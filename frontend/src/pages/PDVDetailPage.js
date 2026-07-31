@@ -119,8 +119,8 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
 const MOIS_NOMS = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
 function formatCA(value) {
-  if (!value) return '0 FCFA';
-  return new Math.round(value).toLocaleString('en-US').replace(/,/g, ' ') + ' FCFA';
+  if (!value && value !== 0) return '—';
+  return new Intl.NumberFormat('fr-FR').format(Math.round(value)) + ' FCFA';
 }
 
 function formatDate(dateStr) {
