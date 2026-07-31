@@ -270,11 +270,17 @@ const KPI_STATUS_MAP = {
 
 function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [prospects, setProspects] = useState([]);
-  const [allProspects, setAllProspects] = useState([]); // liste complète pour extraire superviseurs/devs
+  const [allProspects, setAllProspects] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: '', search: '', superviseur: '', developpeur: '' });
   const [confirmDelete, setConfirmDelete] = useState(null);
+
+  // Détecter si l'utilisateur est un développeur
+  const isDeveloppeur = ['developpeur', 'DEVELOPPEUR'].includes(currentUser?.role);
+  const devFullName = isDeveloppeur
+    ? `${currentUser?.nom || ''} ${currentUser?.prenom || ''}`.trim().toLowerCase()
+    : '';
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -296,14 +302,38 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Filtrage local par superviseur et développeur
+  // Filtrage local — si développeur : seulement ses propres prospects
   const filtered = allProspects.filter(p => {
+    // Filtre développeur : ne voir que ses propres prospects
+    if (isDeveloppeur) {
+      const assignedName = p.visit_assigned_to
+        ? `${p.visit_assigned_to.nom || ''} ${p.visit_assigned_to.prenom || ''}`.trim().toLowerCase()
+        : '';
+      const submittedName = p.submitted_by
+        ? `${p.submitted_by.nom || ''} ${p.submitted_by.prenom || ''}`.trim().toLowerCase()
+        : '';
+      if (assignedName !== devFullName && submittedName !== devFullName) return false;
+    }
     if (filters.superviseur && p.submitted_by?.role === 'superviseur' &&
         `${p.submitted_by?.nom} ${p.submitted_by?.prenom||''}`.toLowerCase() !== filters.superviseur.toLowerCase()) return false;
     if (filters.developpeur && p.visit_assigned_to &&
         `${p.visit_assigned_to?.nom} ${p.visit_assigned_to?.prenom||''}`.toLowerCase() !== filters.developpeur.toLowerCase()) return false;
     return true;
   });
+
+  // KPIs filtrés pour les développeurs
+  const devStats = isDeveloppeur && stats ? {
+    ...stats,
+    total: filtered.length,
+    nouvelles: filtered.filter(p => p.status === 'NOUVELLE').length,
+    en_visite: filtered.filter(p => p.status === 'EN_VISITE').length,
+    en_attente_rc: filtered.filter(p => p.status === 'VISITE_VALIDEE').length,
+    puce_attribuees: filtered.filter(p => p.status === 'PUCE_ATTRIBUEE').length,
+    activees: filtered.filter(p => p.status === 'PUCE_ACTIVEE').length,
+    refusees: filtered.filter(p => p.status === 'REFUSE').length,
+  } : stats;
+
+  const displayStats = isDeveloppeur ? devStats : stats;
 
   // Extraire superviseurs et développeurs uniques depuis la liste
   const superviseurs = [...new Set(allProspects
@@ -346,18 +376,20 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       />
 
       {/* KPIs cliquables */}
-      {stats && (
+      {displayStats && (
         <div className="stats-grid" style={{ marginBottom: 16 }}>
           {[
-            { key: 'total',           label: 'Total',            value: stats.total,                  variant: null },
-            { key: 'nouvelles',       label: '🆕 Nouvelles',     value: stats.nouvelles,              variant: null },
-            { key: 'en_visite',       label: '🔍 En visite',     value: stats.en_visite,              variant: null },
-            { key: 'en_attente_rc',   label: '✅ Validées Dev',  value: stats.en_attente_rc,          variant: null },
-            { key: 'puce_attribuees', label: '🟢 Approuvées RC', value: stats.puce_attribuees,        variant: null },
-            { key: 'activees',        label: '⚡ Activées',      value: stats.activees,               variant: 'ok' },
-            { key: 'refusees',        label: '🚫 Refusées',      value: stats.refusees,               variant: null },
-            { key: 'sla_en_retard',   label: '⚠️ SLA retard',   value: stats.sla_en_retard,          variant: 'warn' },
-            { key: 'taux_activation', label: 'Taux activation',  value: `${stats.taux_activation||0}%`, variant: 'ok' },
+            { key: 'total',           label: isDeveloppeur ? 'Mes Demandes' : 'Total', value: displayStats.total, variant: null },
+            { key: 'nouvelles',       label: '🆕 Nouvelles',     value: displayStats.nouvelles,              variant: null },
+            { key: 'en_visite',       label: '🔍 En visite',     value: displayStats.en_visite,              variant: null },
+            { key: 'en_attente_rc',   label: '✅ Validées Dev',  value: displayStats.en_attente_rc,          variant: null },
+            { key: 'puce_attribuees', label: '🟢 Approuvées RC', value: displayStats.puce_attribuees,        variant: null },
+            { key: 'activees',        label: '⚡ Activées',      value: displayStats.activees,               variant: 'ok' },
+            { key: 'refusees',        label: '🚫 Refusées',      value: displayStats.refusees,               variant: null },
+            ...(!isDeveloppeur ? [
+              { key: 'sla_en_retard',   label: '⚠️ SLA retard',   value: displayStats.sla_en_retard, variant: 'warn' },
+              { key: 'taux_activation', label: 'Taux activation',  value: `${displayStats.taux_activation||0}%`, variant: 'ok' },
+            ] : []),
           ].map(({ key, label, value, variant }) => {
             const isClickable = !!KPI_STATUS_MAP[key];
             const isActive = filters.status === KPI_STATUS_MAP[key];

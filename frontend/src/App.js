@@ -38,6 +38,14 @@ import EvaluationsPage from './pages/EvaluationsPage';
 // Layout
 import Layout from './components/layout/Layout';
 
+// ── Redirection selon le rôle ─────────────────────────────────────────────────
+const RoleRedirect = () => {
+  const user = useAuthStore((state) => state.user);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  if (role === 'developpeur') return <Navigate to="/prospection" replace />;
+  return <Navigate to="/accueil" replace />;
+};
+
 // ── Route protégée par authentification ──────────────────────────────────────
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -154,7 +162,7 @@ function App() {
                 <Route path="/analytics" element={<MenuRoute menuId="reports"><AnalyticsPage /></MenuRoute>} />
                 <Route path="/superviseurs" element={<MenuRoute menuId="settings"><SuperviseurPage /></MenuRoute>} />
 
-                <Route path="/" element={<Navigate to="/accueil" replace />} />
+                <Route path="/" element={<RoleRedirect />} />
               </Routes>
             </Layout>
           </ProtectedRoute>
