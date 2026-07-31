@@ -255,75 +255,66 @@ function TabPerformances({ pdv }) {
   const caMoyenne = historique.length > 0 ? historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0) / historique.length : 0;
   const caTotal = historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0);
 
+  if (!historique.length) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
+        <p style={{ fontSize: 15, fontWeight: 600 }}>Aucune donnée de performance disponible</p>
+        <p style={{ fontSize: 13, marginTop: 8 }}>Les performances apparaîtront après le premier import mensuel.</p>
+      </div>
+    );
+  }
+
+  const kpiStyle = { padding: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, textAlign: 'center' };
+
   return (
     <div>
-      {/* Résumés */}
-      <div className="grid-4 mb-24">
-        <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>CA Max</div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--success)' }}>{formatCA(caMax)}</div>
+      {/* KPIs — grid inline pour éviter les bugs de classes CSS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+        <div style={kpiStyle}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>CA Max</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#00d68f' }}>{formatCA(caMax)}</div>
         </div>
-        <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>CA Min</div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--danger)' }}>{formatCA(caMin)}</div>
+        <div style={kpiStyle}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>CA Min</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#ff4757' }}>{formatCA(caMin)}</div>
         </div>
-        <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Moy. Transaction</div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--primary)' }}>{formatCA(caMoyenne)}</div>
+        <div style={kpiStyle}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Moy. Transaction</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#FF6900' }}>{formatCA(caMoyenne)}</div>
         </div>
-        <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Transaction Total</div>
-          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--info)' }}>{formatCA(caTotal)}</div>
+        <div style={kpiStyle}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>CA Total</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#a29bfe' }}>{formatCA(caTotal)}</div>
         </div>
       </div>
 
       {/* Table historique */}
-      <div className="card table-wrapper">
-        <table>
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr>
-              <th>Année</th>
-              <th>Mois</th>
-              <th>CA</th>
-              <th>Nb Opérations</th>
-              <th>Dépôts</th>
-              <th>Retraits</th>
-              <th>Variation</th>
-              <th>Statut</th>
+            <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+              {['Année','Mois','CA','Nb Opérations','Dépôts','Retraits','Variation','Statut'].map(h => (
+                <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {historique.map((h, i) => (
-              <tr key={i}>
-                <td>{h.annee}</td>
-                <td>{MOIS_NOMS[h.mois]}</td>
-                <td style={{ fontWeight: 600 }}>{formatCA(h.montant_transaction || h.ca)}</td>
-                <td>{h.nb_operations || '—'}</td>
-                <td>{h.nb_depots ? `${h.nb_depots} (${(h.montant_depots/1000000).toFixed(1)}M)` : '—'}</td>
-                <td>{h.nb_retraits ? `${h.nb_retraits} (${(h.montant_retraits/1000000).toFixed(1)}M)` : '—'}</td>
-                <td>
-                  <span style={{ color: (h.taux_variation || 0) >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-                    {h.taux_variation >= 0 ? '+' : ''}{(h.taux_variation || 0).toFixed(1)}%
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '10px 12px' }}>{h.annee}</td>
+                <td style={{ padding: '10px 12px' }}>{MOIS_NOMS[h.mois]}</td>
+                <td style={{ padding: '10px 12px', fontWeight: 600, color: '#FF6900' }}>{formatCA(h.montant_transaction || h.ca)}</td>
+                <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_operations || '—'}</td>
+                <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_depots ? `${h.nb_depots} (${((h.montant_depots||0)/1000000).toFixed(1)}M)` : '—'}</td>
+                <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_retraits ? `${h.nb_retraits} (${((h.montant_retraits||0)/1000000).toFixed(1)}M)` : '—'}</td>
+                <td style={{ padding: '10px 12px' }}>
+                  <span style={{ color: (h.taux_variation || 0) >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
+                    {(h.taux_variation || 0) >= 0 ? '+' : ''}{(h.taux_variation || 0).toFixed(1)}%
                   </span>
                 </td>
-                <td>
-                  <span
-                    className="badge"
-                    style={{
-                      background:
-                        h.est_actif === true
-                          ? 'var(--success-bg)'
-                          : h.est_actif === false
-                            ? 'var(--danger-bg)'
-                            : 'var(--warning-bg)',
-                      color:
-                        h.statut === 'actif'
-                          ? 'var(--success)'
-                          : h.statut === 'inactif'
-                            ? 'var(--danger)'
-                            : 'var(--warning)',
-                    }}
-                  >
+                <td style={{ padding: '10px 12px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: h.est_actif ? 'rgba(0,214,143,0.15)' : 'rgba(255,71,87,0.15)', color: h.est_actif ? '#00d68f' : '#ff4757' }}>
                     {h.est_actif ? 'Actif' : 'Inactif'}
                   </span>
                 </td>
@@ -338,76 +329,61 @@ function TabPerformances({ pdv }) {
 
 // ============ ONGLET 3: COURBES ============
 function TabCourbes({ pdv }) {
-  const monthly = pdv?.historique_mensuel || [];
-  const weekly = pdv?.historique_hebdo || [];
+  const monthly = (pdv?.historique_mensuel || []).map(m => ({ label: MOIS_NOMS[m.mois] || String(m.mois), value: m.ca || 0 }));
+  const weekly = (pdv?.historique_hebdo || []).map(w => ({ label: `S${w.semaine}`, value: w.ca || 0 }));
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div
-          style={{
-            background: 'rgba(10, 10, 20, 0.95)',
-            border: '1px solid var(--border)',
-            borderRadius: '8px',
-            padding: '8px 12px',
-            fontSize: '12px',
-          }}
-        >
-          <p style={{ color: 'var(--text-secondary)' }}>{payload[0].payload.label}</p>
-          <p style={{ color: 'var(--primary)', fontWeight: 600 }}>{formatCA(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
+  const TooltipCA = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+        <p style={{ color: '#8a8a9a', marginBottom: 4 }}>{label}</p>
+        <p style={{ color: '#FF6900', fontWeight: 700 }}>{formatCA(payload[0].value)}</p>
+      </div>
+    );
   };
+
+  const cardStyle = { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '16px 20px', marginBottom: 16 };
 
   return (
     <div>
       {/* LineChart CA Mensuel */}
-      <div className="card mb-24">
-        <h3 style={{ fontSize: '13px', fontWeight: 700, marginBottom: '16px' }}>CA Mensuel (12 derniers mois)</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart
-            data={monthly.map((m) => ({
-              label: MOIS_NOMS[m.mois],
-              value: m.ca,
-            }))}
-            margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-            <XAxis dataKey="label" stroke="var(--text-secondary)" />
-            <YAxis stroke="var(--text-secondary)" />
-            <Tooltip content={<CustomTooltip />} />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke="#FF6900"
-              strokeWidth={2}
-              dot={{ fill: '#FF6900', r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div style={cardStyle}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: '#fff' }}>📈 CA Mensuel (12 derniers mois)</h3>
+        {monthly.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#8a8a9a', fontSize: 13 }}>Aucune donnée mensuelle disponible</div>
+        ) : (
+          <div style={{ width: '100%', height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthly} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1000000).toFixed(1)}M`} width={50} />
+                <Tooltip content={<TooltipCA />} />
+                <Line type="monotone" dataKey="value" stroke="#FF6900" strokeWidth={2.5} dot={{ fill: '#FF6900', r: 4, stroke: '#0a0a1a', strokeWidth: 2 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* BarChart CA Hebdomadaire */}
-      <div className="card">
-        <h3 style={{ fontSize: '13px', fontWeight: 700, marginBottom: '16px' }}>CA Hebdomadaire (8 dernières semaines)</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart
-            data={weekly.map((w) => ({
-              label: `S${w.semaine}`,
-              value: w.ca,
-            }))}
-            margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-            <XAxis dataKey="label" stroke="var(--text-secondary)" />
-            <YAxis stroke="var(--text-secondary)" />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="value" fill="#FF6900" radius={[8, 8, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+      <div style={cardStyle}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: '#fff' }}>📊 CA Hebdomadaire (8 dernières semaines)</h3>
+        {weekly.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#8a8a9a', fontSize: 13 }}>Aucune donnée hebdomadaire disponible</div>
+        ) : (
+          <div style={{ width: '100%', height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weekly} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1000000).toFixed(1)}M`} width={50} />
+                <Tooltip content={<TooltipCA />} />
+                <Bar dataKey="value" fill="#FF6900" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </div>
   );
