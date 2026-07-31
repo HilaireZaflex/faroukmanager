@@ -32,6 +32,7 @@ from app.models.developpeur import (
     TaskType, TaskStatus, TaskPriority,
 )
 from app.models.nafama import NafamaTransaction
+from app.models.prospect_energia import ProspectEnergia
 from app.models.indicator import (
     Indicator, IndicatorVersion, IndicatorScore,
     IndicatorCategory, IndicatorMethod, IndicatorPeriod, IndicatorStatus,

@@ -1576,6 +1576,10 @@ function SuccessDemandeModal({ prospect, onClose, onNewDemande }) {
 }
 
 function CreateProspectModal({ onClose, onSaved }) {
+  // ── Sélection du type de prospection ──
+  const [typeProspection, setTypeProspection] = useState(null); // 'OM' | 'ENERGIA'
+
+  // ── État formulaire OM ──
   const [data, setData] = useState({
     nom: '', prenom: '', telephone_principal: '', telephone_secondaire: '',
     quartier: '', adresse: '',
@@ -1589,17 +1593,62 @@ function CreateProspectModal({ onClose, onSaved }) {
     frequentation: '', concurrents: '',
     notes: '',
   });
-  const [busy, setBusy] = useState(false);
-  const [successData, setSuccessData] = useState(null); // prospect soumis avec succès
-  const set = (k, v) => setData(d => ({ ...d, [k]: v }));
 
-  const captureGPS = () => {
+  // ── État formulaire Energia ──
+  const [energiaData, setEnergiaData] = useState({
+    nom_kit: '',
+    pret_payer_immediatement: null, // true | false
+    date_prospection: new Date().toISOString().slice(0, 10),
+    nom: '', prenom: '', telephone: '',
+    quartier: '',
+    latitude: '', longitude: '',
+    piece_identite: '',
+    notes: '',
+  });
+
+  const [busy, setBusy] = useState(false);
+  const [successData, setSuccessData] = useState(null);
+  const set = (k, v) => setData(d => ({ ...d, [k]: v }));
+  const setE = (k, v) => setEnergiaData(d => ({ ...d, [k]: v }));
+
+  const captureGPS = (forEnergia = false) => {
     if (!navigator.geolocation) return alert("Géolocalisation non disponible");
     navigator.geolocation.getCurrentPosition(
-      pos => { set('latitude', pos.coords.latitude); set('longitude', pos.coords.longitude); },
+      pos => {
+        if (forEnergia) {
+          setE('latitude', pos.coords.latitude);
+          setE('longitude', pos.coords.longitude);
+        } else {
+          set('latitude', pos.coords.latitude);
+          set('longitude', pos.coords.longitude);
+        }
+      },
       err => alert("Impossible : " + err.message),
       { enableHighAccuracy: true }
     );
+  };
+
+  const submitEnergia = async (e) => {
+    e.preventDefault();
+    if (!energiaData.nom_kit) return alert('Veuillez sélectionner un kit (DIABARANI ou YELEN)');
+    if (energiaData.pret_payer_immediatement === null) return alert('Veuillez indiquer si le client est prêt à payer immédiatement');
+    if (!energiaData.nom || !energiaData.prenom || !energiaData.telephone) return alert('Nom, Prénom et Téléphone sont obligatoires');
+    setBusy(true);
+    try {
+      const payload = {
+        ...energiaData,
+        latitude: energiaData.latitude === '' ? null : parseFloat(energiaData.latitude),
+        longitude: energiaData.longitude === '' ? null : parseFloat(energiaData.longitude),
+        quartier: energiaData.quartier || null,
+        piece_identite: energiaData.piece_identite || null,
+        notes: energiaData.notes || null,
+      };
+      await api.post('/energia/prospects', payload);
+      setSuccessData({ prenom: energiaData.prenom, nom: energiaData.nom, type: 'ENERGIA' });
+      onSaved();
+    } catch (err) {
+      alert('Erreur : ' + errMsg(err));
+    } finally { setBusy(false); }
   };
 
   const submit = async (e) => {
@@ -1662,6 +1711,174 @@ function CreateProspectModal({ onClose, onSaved }) {
     );
   }
 
+  // ── Si aucun type sélectionné → afficher le sélecteur ──
+  if (!typeProspection) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={onClose}>
+        <div style={{ background: 'linear-gradient(135deg, #0f0f1e, #1a1a2e)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '36px 32px', width: '90%', maxWidth: 520, boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Nouvelle Prospection</h2>
+            <p style={{ fontSize: 13, color: '#64748b' }}>Choisissez le type de prospection à effectuer</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Option 1 : Demande Puce OM */}
+            <button onClick={() => setTypeProspection('OM')} style={{
+              padding: '20px 24px', borderRadius: 14, border: '2px solid rgba(255,105,0,0.3)',
+              background: 'rgba(255,105,0,0.06)', cursor: 'pointer', textAlign: 'left',
+              transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 16,
+            }}
+              onMouseOver={e => { e.currentTarget.style.border = '2px solid rgba(255,105,0,0.7)'; e.currentTarget.style.background = 'rgba(255,105,0,0.12)'; }}
+              onMouseOut={e => { e.currentTarget.style.border = '2px solid rgba(255,105,0,0.3)'; e.currentTarget.style.background = 'rgba(255,105,0,0.06)'; }}>
+              <div style={{ width: 52, height: 52, borderRadius: 12, background: 'linear-gradient(135deg,#FF6900,#ff9500)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>📱</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Demande Puce Orange Money</div>
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>Prospection pour une nouvelle puce OM · Workflow complet</div>
+              </div>
+              <div style={{ marginLeft: 'auto', fontSize: 20, color: '#FF6900' }}>›</div>
+            </button>
+
+            {/* Option 2 : Vente Energia */}
+            <button onClick={() => setTypeProspection('ENERGIA')} style={{
+              padding: '20px 24px', borderRadius: 14, border: '2px solid rgba(34,197,94,0.3)',
+              background: 'rgba(34,197,94,0.06)', cursor: 'pointer', textAlign: 'left',
+              transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 16,
+            }}
+              onMouseOver={e => { e.currentTarget.style.border = '2px solid rgba(34,197,94,0.7)'; e.currentTarget.style.background = 'rgba(34,197,94,0.12)'; }}
+              onMouseOut={e => { e.currentTarget.style.border = '2px solid rgba(34,197,94,0.3)'; e.currentTarget.style.background = 'rgba(34,197,94,0.06)'; }}>
+              <div style={{ width: 52, height: 52, borderRadius: 12, background: 'linear-gradient(135deg,#22c55e,#16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>☀️</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 4 }}>Vente ENERGIA</div>
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>Kit solaire DIABARANI ou YELEN · Saisie rapide</div>
+              </div>
+              <div style={{ marginLeft: 'auto', fontSize: 20, color: '#22c55e' }}>›</div>
+            </button>
+          </div>
+          <button onClick={onClose} style={{ marginTop: 20, width: '100%', padding: '10px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Formulaire ENERGIA ──
+  if (typeProspection === 'ENERGIA') {
+    const ENERGIA_GREEN = '#22c55e';
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, overflowY: 'auto', padding: '16px' }} onClick={onClose}>
+        <div style={{ background: 'linear-gradient(135deg, #0f0f1e, #1a1a2e)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 16, width: '100%', maxWidth: 760, margin: '0 auto 80px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid rgba(34,197,94,0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#22c55e,#16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>☀️</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>Prospection Vente ENERGIA</div>
+                <div style={{ fontSize: 11, color: ENERGIA_GREEN, fontWeight: 600 }}>Kit solaire DIABARANI ou YELEN</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setTypeProspection(null)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: '#94a3b8', fontSize: 12 }}>← Retour</button>
+              <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8', fontSize: 14, fontWeight: 700 }}>✕</button>
+            </div>
+          </div>
+
+          <form onSubmit={submitEnergia} style={{ padding: '20px 24px' }}>
+
+            {/* NOM DU KIT */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(34,197,94,0.2)` }}>
+                <span style={{ fontSize: 16 }}>☀️</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: ENERGIA_GREEN, textTransform: 'uppercase', letterSpacing: '1px' }}>Kit Energia</span>
+              </div>
+              <AFL label="Nom du Kit *" required>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  {['DIABARANI', 'YELEN'].map(kit => (
+                    <button key={kit} type="button" onClick={() => setE('nom_kit', kit)}
+                      style={{ flex: 1, padding: '12px 20px', borderRadius: 10, border: `2px solid ${energiaData.nom_kit === kit ? ENERGIA_GREEN : 'rgba(255,255,255,0.1)'}`, background: energiaData.nom_kit === kit ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.03)', color: energiaData.nom_kit === kit ? ENERGIA_GREEN : '#94a3b8', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.2s' }}>
+                      {kit === 'DIABARANI' ? '🌞 DIABARANI' : '💡 YELEN'}
+                    </button>
+                  ))}
+                </div>
+              </AFL>
+            </div>
+
+            {/* PRET A PAYER */}
+            <div style={{ marginBottom: 24 }}>
+              <AFL label="Est-il prêt à payer l'argent immédiatement ? *" required>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  {[{ val: true, label: '✅ OUI', color: '#22c55e' }, { val: false, label: '❌ NON', color: '#ef4444' }].map(opt => (
+                    <button key={String(opt.val)} type="button" onClick={() => setE('pret_payer_immediatement', opt.val)}
+                      style={{ flex: 1, padding: '12px 20px', borderRadius: 10, border: `2px solid ${energiaData.pret_payer_immediatement === opt.val ? opt.color : 'rgba(255,255,255,0.1)'}`, background: energiaData.pret_payer_immediatement === opt.val ? `${opt.color}15` : 'rgba(255,255,255,0.03)', color: energiaData.pret_payer_immediatement === opt.val ? opt.color : '#94a3b8', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </AFL>
+            </div>
+
+            {/* DATE */}
+            <ASection title="Date de prospection" icon="📅" cols={1}>
+              <AFL label="Date *" required>
+                <input type="date" value={energiaData.date_prospection} onChange={e => setE('date_prospection', e.target.value)}
+                  required style={{ ...INPUT_STYLE, colorScheme: 'dark' }} />
+              </AFL>
+            </ASection>
+
+            {/* INFOS CLIENT */}
+            <ASection title="Informations du Client" icon="👤" cols={2}>
+              <AFL label="Nom *" required><AFI required placeholder="Nom de famille" value={energiaData.nom} onChange={e => setE('nom', e.target.value)}/></AFL>
+              <AFL label="Prénom *" required><AFI required placeholder="Prénom" value={energiaData.prenom} onChange={e => setE('prenom', e.target.value)}/></AFL>
+              <AFL label="Numéro de téléphone *" required><AFI required placeholder="7X XX XX XX" value={energiaData.telephone} onChange={e => setE('telephone', e.target.value)}/></AFL>
+              <AFL label="Quartier"><AFI placeholder="Quartier" value={energiaData.quartier} onChange={e => setE('quartier', e.target.value)}/></AFL>
+            </ASection>
+
+            {/* LOCALISATION */}
+            <ASection title="Localisation" icon="📍" cols={2}>
+              <AFL label="Latitude"><AFI type="number" step="any" placeholder="12.3456" value={energiaData.latitude} onChange={e => setE('latitude', e.target.value)}/></AFL>
+              <AFL label="Longitude"><AFI type="number" step="any" placeholder="-8.0000" value={energiaData.longitude} onChange={e => setE('longitude', e.target.value)}/></AFL>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <button type="button" onClick={() => captureGPS(true)} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid rgba(34,197,94,0.4)`, background: 'rgba(34,197,94,0.1)', color: ENERGIA_GREEN, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <MapPin size={14}/> Capturer ma position GPS
+                </button>
+                {energiaData.latitude && energiaData.longitude && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: ENERGIA_GREEN }}>
+                    ✅ Position capturée : {parseFloat(energiaData.latitude).toFixed(5)}, {parseFloat(energiaData.longitude).toFixed(5)}
+                  </div>
+                )}
+              </div>
+            </ASection>
+
+            {/* PIECE D'IDENTITE */}
+            <ASection title="Pièce d'Identité ou RCCM" icon="🪪" cols={1}>
+              <AFL label="Numéro de pièce / RCCM">
+                <AFI placeholder="Ex: CNI 123456789 ou RCCM ML-BKO-2024-A-12345" value={energiaData.piece_identite} onChange={e => setE('piece_identite', e.target.value)}/>
+              </AFL>
+            </ASection>
+
+            {/* NOTES */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid rgba(34,197,94,0.2)` }}>
+                <span style={{ fontSize: 16 }}>📝</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: ENERGIA_GREEN, textTransform: 'uppercase', letterSpacing: '1px' }}>Notes</span>
+              </div>
+              <textarea value={energiaData.notes} onChange={e => setE('notes', e.target.value)}
+                placeholder="Observations, remarques..."
+                style={{ ...INPUT_STYLE, height: 'auto', minHeight: 70, resize: 'vertical', borderColor: 'rgba(34,197,94,0.2)' }}/>
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => setTypeProspection(null)} style={{ padding: '10px 24px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#94a3b8', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>← Retour</button>
+              <button type="submit" disabled={busy} style={{ padding: '10px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', opacity: busy ? 0.7 : 1, boxShadow: '0 4px 16px rgba(34,197,94,0.35)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Send size={14}/> {busy ? 'Enregistrement…' : 'Enregistrer le prospect'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Formulaire OM (existant) ──
   return (
     <div style={{
       position: 'fixed', inset: 0,
@@ -1689,7 +1906,10 @@ function CreateProspectModal({ onClose, onSaved }) {
               <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 600 }}>Remplissez les informations du prospect</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8', fontSize: 14, fontWeight: 700 }}>✕</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setTypeProspection(null)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: '#94a3b8', fontSize: 12 }}>← Retour</button>
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8', fontSize: 14, fontWeight: 700 }}>✕</button>
+          </div>
         </div>
 
         <form onSubmit={submit} style={{ padding: '20px 24px' }}>
