@@ -67,7 +67,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
       <nav className="sidebar-nav">
 
         {/* ── ACCUEIL — masqué pour les commerciaux ── */}
-        {role !== 'commercial' && nl('/accueil', Home, 'Accueil', true)}
+        {role !== 'commercial' && role !== 'developpeur' && nl('/accueil', Home, 'Accueil', true)}
 
         {/* ── DASHBOARDS ── */}
         {(canD('omy') || canD('nafama') || canD('kaabu')) && (
