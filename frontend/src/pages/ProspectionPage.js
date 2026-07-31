@@ -2020,7 +2020,7 @@ function CreateProspectModal({ onClose, onSaved }) {
             <AFL label="Latitude"><AFI type="number" step="any" placeholder="12.3456" value={data.latitude} onChange={e=>set('latitude',e.target.value)}/></AFL>
             <AFL label="Longitude"><AFI type="number" step="any" placeholder="-8.0000" value={data.longitude} onChange={e=>set('longitude',e.target.value)}/></AFL>
             <div style={{ gridColumn: '1 / -1' }}>
-              <button type="button" onClick={captureGPS} style={{
+              <button type="button" onClick={() => captureGPS(false)} style={{
                 padding: '9px 18px', borderRadius: 8, border: '1px solid rgba(255,105,0,0.4)',
                 background: 'rgba(255,105,0,0.1)', color: '#FF6900', fontWeight: 700,
                 fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
