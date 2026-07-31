@@ -90,6 +90,16 @@ def monthly_evolution(
     return nafama_service.get_monthly_evolution(db, annee)
 
 
+@router.get("/nafama/monthly/evolution-detail")
+def monthly_evolution_detail(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Évolution détaillée mensuelle : CA actuel vs M-1 par PDV/superviseur/gestionnaire."""
+    return nafama_service.get_monthly_evolution_detail(db, annee, mois)
+
+
 @router.get("/nafama/monthly/inactive")
 def monthly_inactive(
     annee: int = Query(...),
@@ -163,6 +173,16 @@ def weekly_evolution(
 ):
     """Évolution CA semaine par semaine."""
     return nafama_service.get_weekly_evolution(db, annee)
+
+
+@router.get("/nafama/weekly/evolution-detail")
+def weekly_evolution_detail(
+    annee: int = Query(...),
+    semaine: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Évolution détaillée hebdomadaire : CA actuel vs S-1 par PDV/superviseur/gestionnaire."""
+    return nafama_service.get_weekly_evolution_detail(db, annee, semaine)
 
 
 @router.get("/nafama/weekly/inactive")

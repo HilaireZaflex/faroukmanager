@@ -595,44 +595,168 @@ function OngletPareto({ annee, semaine }) {
 }
 
 // ─── Évolution hebdo ───────────────────────────────────────────────────────
-function OngletEvolution({ annee }) {
-  const { data, isLoading } = useQuery(
-    ['nafama-w-evolution', annee],
+function OngletEvolution({ annee, semaine }) {
+  const [activeSub, setActiveSub] = useState('pdvs');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+
+  const { data: graph } = useQuery(
+    ['nafama-w-evolution-graph', annee],
     () => api.get(`/nafama/weekly/evolution?annee=${annee}`).then(r => r.data),
     { staleTime: 60000, retry: false }
   );
 
-  if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
-  if (!data?.length) return <EmptyTab />;
+  const { data: detail, isLoading: loadingDetail } = useQuery(
+    ['nafama-w-evolution-detail', annee, semaine],
+    () => api.get(`/nafama/weekly/evolution-detail?annee=${annee}&semaine=${semaine}`).then(r => r.data),
+    { staleTime: 60000, retry: false }
+  );
+
+  const semPrec = detail?.semaine_prec || (semaine > 1 ? semaine - 1 : 52);
+  const anneePrec = detail?.annee_prec || annee;
+
+  const dataToShow = activeSub === 'pdvs' ? (detail?.par_pdv || [])
+    : activeSub === 'superviseurs' ? (detail?.par_superviseur || [])
+    : (detail?.par_gestionnaire || []);
+
+  const filtered = dataToShow.filter(row => !search ||
+    (row.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) ||
+    (row.nom||row.superviseur||row.gestionnaire||'').toLowerCase().includes(search.toLowerCase())
+  );
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const displayed = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+
+  const totalActuel = detail?.total_ca_actuel || 0;
+  const totalPrec = detail?.total_ca_precedent || 0;
+  const totalVar = detail?.total_variation || 0;
+  const totalTaux = detail?.total_taux || 0;
+
+  const selectStyle = { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: '#ddd', fontSize: 12, cursor: 'pointer', outline: 'none' };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="card">
-        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>📈 CA par Semaine — {annee}</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-            <YAxis tickFormatter={v => `${(v/1_000_000).toFixed(1)}M`} tick={{ fontSize: 10 }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="ca" name="CA" fill={COLOR_PRIMARY} radius={[4,4,0,0]}>
-              {data.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+    <div>
+      {/* KPIs 4 cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        {[
+          { label: `CA S${semaine} ${annee}`, value: formatCA(totalActuel), color: COLOR_PRIMARY },
+          { label: `CA S${semPrec} ${anneePrec}`, value: formatCA(totalPrec), color: '#ffa502' },
+          { label: 'Variation', value: `${totalVar >= 0 ? '+' : ''}${formatCA(totalVar)}`, color: totalVar >= 0 ? COLOR_PRIMARY : '#ff4757' },
+          { label: 'Taux Global', value: `${totalTaux >= 0 ? '▲' : '▼'} ${Math.abs(totalTaux)}%`, color: totalTaux >= 0 ? COLOR_PRIMARY : '#ff4757' },
+        ].map((k, i) => (
+          <div key={i} style={{ padding: '14px 16px', background: 'rgba(0,0,0,0.25)', border: `1px solid rgba(0,214,143,0.15)`, borderLeft: `3px solid ${k.color}`, borderRadius: 10 }}>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>{k.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: k.color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k.value}</div>
+          </div>
+        ))}
       </div>
-      <div className="card">
-        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>👥 PDVs Actifs par Semaine</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Line type="monotone" dataKey="nb_pdv" name="PDVs Actifs" stroke="#ffa502" strokeWidth={2.5} dot={{ r: 3 }} />
-          </LineChart>
-        </ResponsiveContainer>
+
+      {/* Graphique hebdo annuel */}
+      {graph?.length > 0 && (
+        <div style={{ background: 'linear-gradient(135deg, rgba(0,214,143,0.05) 0%, rgba(0,0,0,0) 60%)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 14, padding: '18px 20px', marginBottom: 20 }}>
+          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>📈 CA par Semaine — {annee}</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={graph}>
+              <defs>
+                <linearGradient id="nafamaWEvolGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#00d68f" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#00d68f" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(0)}M`} width={40} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="ca" name="CA" stroke={COLOR_PRIMARY} fill="url(#nafamaWEvolGrad)" strokeWidth={2.5} dot={{ r: 4, fill: COLOR_PRIMARY, stroke: '#0a0a1a', strokeWidth: 2 }} activeDot={{ r: 6 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Sous-onglets */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: 5 }}>
+        {[['pdvs','👥 PDVs'], ['superviseurs','👤 Superviseurs'], ['gestionnaires','🧑‍💼 Gestionnaires']].map(([key, label]) => (
+          <button key={key} onClick={() => { setActiveSub(key); setPage(1); }}
+            style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              background: activeSub === key ? COLOR_PRIMARY : 'transparent',
+              color: activeSub === key ? '#fff' : '#8a8a9a', transition: 'all 0.2s' }}>
+            {label}
+          </button>
+        ))}
       </div>
+
+      {/* Recherche */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 12, padding: '10px 14px' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#8a8a9a' }}>🔍</span>
+          <input type="text" placeholder="Rechercher PDV, nom, superviseur..."
+            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+            style={{ ...selectStyle, width: '100%', paddingLeft: 30, boxSizing: 'border-box', background: 'transparent', border: 'none' }} />
+        </div>
+        {search && <button onClick={() => { setSearch(''); setPage(1); }} style={{ padding: '7px 10px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 8, color: '#ff4757', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+      </div>
+
+      {/* Tableau */}
+      {loadingDetail ? <div className="loading-spinner" style={{ margin: '40px auto' }} /> : (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>📋 {activeSub === 'pdvs' ? 'Par PDV' : activeSub === 'superviseurs' ? 'Par Superviseur' : 'Par Gestionnaire'}</span>
+            <span style={{ fontSize: 12, color: COLOR_PRIMARY }}>{filtered.length} résultats</span>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Nom</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA S{semaine}</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>CA S{semPrec}</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Variation</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Taux</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayed.map((row, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '9px 12px', textAlign: 'center', color: '#666', fontWeight: 700 }}>{(page-1)*PAGE_SIZE + i + 1}</td>
+                    <td style={{ padding: '9px 12px' }}>
+                      {activeSub === 'pdvs' ? (
+                        <>
+                          <div style={{ fontWeight: 700, fontSize: 12 }}>{row.numero_pdv}</div>
+                          <div style={{ fontSize: 10, color: '#8a8a9a' }}>{row.nom !== row.numero_pdv ? row.nom : ''}</div>
+                        </>
+                      ) : <div style={{ fontWeight: 700 }}>{row.superviseur || row.gestionnaire}</div>}
+                    </td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(row.ca_actuel)}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', color: '#ffa502' }}>{formatCA(row.ca_precedent)}</td>
+                    <td style={{ padding: '9px 12px', textAlign: 'right', color: row.variation >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
+                      {row.variation >= 0 ? '+' : ''}{formatCA(row.variation)}
+                    </td>
+                    <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                        background: row.taux >= 0 ? 'rgba(0,214,143,0.12)' : 'rgba(255,71,87,0.12)',
+                        color: row.taux >= 0 ? COLOR_PRIMARY : '#ff4757' }}>
+                        {row.taux >= 0 ? '▲' : '▼'} {Math.abs(row.taux)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <span style={{ fontSize: 12, color: '#8a8a9a' }}>Page {page} / {totalPages} · {filtered.length} résultats</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+                  style={{ padding: '6px 14px', background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: COLOR_PRIMARY, cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 12, opacity: page === 1 ? 0.4 : 1 }}>← Préc.</button>
+                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+                  style={{ padding: '6px 14px', background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: COLOR_PRIMARY, cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: 12, opacity: page === totalPages ? 0.4 : 1 }}>Suiv. →</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -773,7 +897,7 @@ export default function NafamaWeeklyDashboardPage() {
       {activeTab === 'overview'  && <OngletVueEnsemble annee={annee} semaine={semaine} />}
       {activeTab === 'top'       && <OngletTop annee={annee} semaine={semaine} />}
       {activeTab === 'pareto'    && <OngletPareto annee={annee} semaine={semaine} />}
-      {activeTab === 'evolution' && <OngletEvolution annee={annee} />}
+      {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} />}
       {activeTab === 'inactifs'  && <OngletInactifs annee={annee} semaine={semaine} />}
       {activeTab === 'baisse'    && <OngletBaisse annee={annee} semaine={semaine} />}
     </div>

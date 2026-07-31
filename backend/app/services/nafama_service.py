@@ -433,6 +433,252 @@ def get_monthly_evolution(db: Session, annee: int) -> List[Dict]:
     ]
 
 
+def get_monthly_evolution_detail(db: Session, annee: int, mois: int) -> Dict[str, Any]:
+    """
+    Évolution détaillée mensuelle : CA actuel vs CA mois précédent
+    par PDV, superviseur et gestionnaire.
+    """
+    mois_prec = mois - 1 if mois > 1 else 12
+    annee_prec = annee if mois > 1 else annee - 1
+
+    # CA actuel par PDV (avec infos)
+    ca_actuel_pdv = {
+        r.numero_pdv: {
+            "ca": int(r.ca),
+            "nom": r.nom or r.numero_pdv,
+            "zone": r.zone or "—",
+            "superviseur": r.superviseur or "—",
+            "gestionnaire": r.gestionnaire or "—",
+        }
+        for r in db.query(
+            NafamaTransaction.numero_pdv,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            PDV.nom, PDV.zone, PDV.superviseur, PDV.gestionnaire,
+        )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.superviseur, PDV.gestionnaire)
+        .all()
+    }
+
+    ca_prec_pdv = {
+        r.numero_pdv: int(r.ca)
+        for r in db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
+        .filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec)
+        .group_by(NafamaTransaction.numero_pdv).all()
+    }
+
+    # Par PDV
+    all_pdvs = set(ca_actuel_pdv.keys()) | set(ca_prec_pdv.keys())
+    par_pdv = []
+    for pdv in all_pdvs:
+        actuel = ca_actuel_pdv.get(pdv, {}).get("ca", 0)
+        precedent = ca_prec_pdv.get(pdv, 0)
+        info = ca_actuel_pdv.get(pdv, {})
+        variation = actuel - precedent
+        taux = round((variation / precedent) * 100) if precedent > 0 else 0
+        par_pdv.append({
+            "numero_pdv": pdv,
+            "nom": info.get("nom", pdv),
+            "zone": info.get("zone", "—"),
+            "superviseur": info.get("superviseur", "—"),
+            "gestionnaire": info.get("gestionnaire", "—"),
+            "ca_actuel": actuel,
+            "ca_precedent": precedent,
+            "variation": variation,
+            "taux": taux,
+        })
+    par_pdv.sort(key=lambda x: x["ca_actuel"], reverse=True)
+
+    # Par Superviseur
+    sup_actuel = {}
+    for pdv, info in ca_actuel_pdv.items():
+        s = info["superviseur"]
+        sup_actuel[s] = sup_actuel.get(s, 0) + info["ca"]
+
+    sup_prec = {}
+    for r in db.query(
+        PDV.superviseur, func.sum(NafamaTransaction.montant).label("ca")
+    ).join(NafamaTransaction, NafamaTransaction.numero_pdv == PDV.numero_pdv
+    ).filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec
+    ).group_by(PDV.superviseur).all():
+        if r.superviseur:
+            sup_prec[r.superviseur] = int(r.ca)
+
+    par_superviseur = []
+    for s in set(list(sup_actuel.keys()) + list(sup_prec.keys())):
+        if not s or s == "—": continue
+        actuel = sup_actuel.get(s, 0)
+        precedent = sup_prec.get(s, 0)
+        variation = actuel - precedent
+        taux = round((variation / precedent) * 100) if precedent > 0 else 0
+        par_superviseur.append({"superviseur": s, "ca_actuel": actuel, "ca_precedent": precedent, "variation": variation, "taux": taux})
+    par_superviseur.sort(key=lambda x: x["ca_actuel"], reverse=True)
+
+    # Par Gestionnaire
+    gest_actuel = {}
+    for pdv, info in ca_actuel_pdv.items():
+        g = info["gestionnaire"]
+        gest_actuel[g] = gest_actuel.get(g, 0) + info["ca"]
+
+    gest_prec = {}
+    for r in db.query(
+        PDV.gestionnaire, func.sum(NafamaTransaction.montant).label("ca")
+    ).join(NafamaTransaction, NafamaTransaction.numero_pdv == PDV.numero_pdv
+    ).filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec
+    ).group_by(PDV.gestionnaire).all():
+        if r.gestionnaire:
+            gest_prec[r.gestionnaire] = int(r.ca)
+
+    par_gestionnaire = []
+    for g in set(list(gest_actuel.keys()) + list(gest_prec.keys())):
+        if not g or g == "—": continue
+        actuel = gest_actuel.get(g, 0)
+        precedent = gest_prec.get(g, 0)
+        variation = actuel - precedent
+        taux = round((variation / precedent) * 100) if precedent > 0 else 0
+        par_gestionnaire.append({"gestionnaire": g, "ca_actuel": actuel, "ca_precedent": precedent, "variation": variation, "taux": taux})
+    par_gestionnaire.sort(key=lambda x: x["ca_actuel"], reverse=True)
+
+    total_actuel = sum(info["ca"] for info in ca_actuel_pdv.values())
+    total_prec = sum(ca_prec_pdv.values())
+    total_var = total_actuel - total_prec
+    total_taux = round((total_var / total_prec) * 100, 1) if total_prec > 0 else 0
+
+    return {
+        "total_ca_actuel": total_actuel,
+        "total_ca_precedent": total_prec,
+        "total_variation": total_var,
+        "total_taux": total_taux,
+        "par_pdv": par_pdv,
+        "par_superviseur": par_superviseur,
+        "par_gestionnaire": par_gestionnaire,
+        "annee": annee, "mois": mois,
+        "annee_prec": annee_prec, "mois_prec": mois_prec,
+    }
+
+
+def get_weekly_evolution_detail(db: Session, annee: int, semaine: int) -> Dict[str, Any]:
+    """
+    Évolution détaillée hebdomadaire : CA actuel vs CA semaine précédente
+    par PDV, superviseur et gestionnaire.
+    """
+    sem_prec = semaine - 1 if semaine > 1 else 52
+    annee_prec_s = annee if semaine > 1 else annee - 1
+
+    ca_actuel_pdv = {
+        r.numero_pdv: {
+            "ca": int(r.ca),
+            "nom": r.nom or r.numero_pdv,
+            "zone": r.zone or "—",
+            "superviseur": r.superviseur or "—",
+            "gestionnaire": r.gestionnaire or "—",
+        }
+        for r in db.query(
+            NafamaTransaction.numero_pdv,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            PDV.nom, PDV.zone, PDV.superviseur, PDV.gestionnaire,
+        )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.superviseur, PDV.gestionnaire)
+        .all()
+    }
+
+    ca_prec_pdv = {
+        r.numero_pdv: int(r.ca)
+        for r in db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
+        .filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec)
+        .group_by(NafamaTransaction.numero_pdv).all()
+    }
+
+    all_pdvs = set(ca_actuel_pdv.keys()) | set(ca_prec_pdv.keys())
+    par_pdv = []
+    for pdv in all_pdvs:
+        actuel = ca_actuel_pdv.get(pdv, {}).get("ca", 0)
+        precedent = ca_prec_pdv.get(pdv, 0)
+        info = ca_actuel_pdv.get(pdv, {})
+        variation = actuel - precedent
+        taux = round((variation / precedent) * 100) if precedent > 0 else 0
+        par_pdv.append({
+            "numero_pdv": pdv,
+            "nom": info.get("nom", pdv),
+            "zone": info.get("zone", "—"),
+            "superviseur": info.get("superviseur", "—"),
+            "gestionnaire": info.get("gestionnaire", "—"),
+            "ca_actuel": actuel,
+            "ca_precedent": precedent,
+            "variation": variation,
+            "taux": taux,
+        })
+    par_pdv.sort(key=lambda x: x["ca_actuel"], reverse=True)
+
+    sup_actuel = {}
+    for pdv, info in ca_actuel_pdv.items():
+        s = info["superviseur"]
+        sup_actuel[s] = sup_actuel.get(s, 0) + info["ca"]
+
+    sup_prec = {}
+    for r in db.query(
+        PDV.superviseur, func.sum(NafamaTransaction.montant).label("ca")
+    ).join(NafamaTransaction, NafamaTransaction.numero_pdv == PDV.numero_pdv
+    ).filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec
+    ).group_by(PDV.superviseur).all():
+        if r.superviseur:
+            sup_prec[r.superviseur] = int(r.ca)
+
+    par_superviseur = []
+    for s in set(list(sup_actuel.keys()) + list(sup_prec.keys())):
+        if not s or s == "—": continue
+        actuel = sup_actuel.get(s, 0)
+        precedent = sup_prec.get(s, 0)
+        variation = actuel - precedent
+        taux = round((variation / precedent) * 100) if precedent > 0 else 0
+        par_superviseur.append({"superviseur": s, "ca_actuel": actuel, "ca_precedent": precedent, "variation": variation, "taux": taux})
+    par_superviseur.sort(key=lambda x: x["ca_actuel"], reverse=True)
+
+    gest_actuel = {}
+    for pdv, info in ca_actuel_pdv.items():
+        g = info["gestionnaire"]
+        gest_actuel[g] = gest_actuel.get(g, 0) + info["ca"]
+
+    gest_prec = {}
+    for r in db.query(
+        PDV.gestionnaire, func.sum(NafamaTransaction.montant).label("ca")
+    ).join(NafamaTransaction, NafamaTransaction.numero_pdv == PDV.numero_pdv
+    ).filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec
+    ).group_by(PDV.gestionnaire).all():
+        if r.gestionnaire:
+            gest_prec[r.gestionnaire] = int(r.ca)
+
+    par_gestionnaire = []
+    for g in set(list(gest_actuel.keys()) + list(gest_prec.keys())):
+        if not g or g == "—": continue
+        actuel = gest_actuel.get(g, 0)
+        precedent = gest_prec.get(g, 0)
+        variation = actuel - precedent
+        taux = round((variation / precedent) * 100) if precedent > 0 else 0
+        par_gestionnaire.append({"gestionnaire": g, "ca_actuel": actuel, "ca_precedent": precedent, "variation": variation, "taux": taux})
+    par_gestionnaire.sort(key=lambda x: x["ca_actuel"], reverse=True)
+
+    total_actuel = sum(info["ca"] for info in ca_actuel_pdv.values())
+    total_prec = sum(ca_prec_pdv.values())
+    total_var = total_actuel - total_prec
+    total_taux = round((total_var / total_prec) * 100, 1) if total_prec > 0 else 0
+
+    return {
+        "total_ca_actuel": total_actuel,
+        "total_ca_precedent": total_prec,
+        "total_variation": total_var,
+        "total_taux": total_taux,
+        "par_pdv": par_pdv,
+        "par_superviseur": par_superviseur,
+        "par_gestionnaire": par_gestionnaire,
+        "annee": annee, "semaine": semaine,
+        "annee_prec": annee_prec_s, "semaine_prec": sem_prec,
+    }
+
+
 def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> List[Dict]:
     """PDVs qui étaient actifs le mois précédent mais absents ce mois."""
     mois_prec = mois - 1 if mois > 1 else 12
