@@ -103,6 +103,16 @@ def monthly_declining(
 # HEBDOMADAIRE
 # ─────────────────────────────────────────────────────────────
 
+@router.get("/nafama/weekly/overview")
+def weekly_overview(
+    annee: int = Query(...),
+    semaine: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Vue d'ensemble hebdo enrichie : KPIs + zones + superviseurs + classement."""
+    return nafama_service.get_weekly_overview(db, annee, semaine)
+
+
 @router.get("/nafama/weekly/summary")
 def weekly_summary(
     annee: int = Query(...),

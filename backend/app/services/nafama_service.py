@@ -353,6 +353,118 @@ def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: flo
 
 
 # ─────────────────────────────────────────────────────────────
+# VUE D'ENSEMBLE HEBDO ENRICHIE
+# ─────────────────────────────────────────────────────────────
+
+def get_weekly_overview(db: Session, annee: int, semaine: int) -> Dict[str, Any]:
+    """Vue d'ensemble hebdo enrichie : KPIs + CA par superviseur/zone + classement."""
+
+    # KPIs de base
+    row = (
+        db.query(
+            func.count(func.distinct(NafamaTransaction.numero_pdv)).label("nb_pdv"),
+            func.sum(NafamaTransaction.montant).label("ca_total"),
+        )
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
+        .first()
+    )
+    ca_total = int(row.ca_total or 0)
+    nb_pdv = int(row.nb_pdv or 0)
+    ca_moyen = round(ca_total / nb_pdv, 0) if nb_pdv else 0
+
+    # Semaine précédente
+    sem_prec = semaine - 1 if semaine > 1 else 52
+    annee_prec_s = annee if semaine > 1 else annee - 1
+    row_prec = (
+        db.query(func.sum(NafamaTransaction.montant).label("ca"))
+        .filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec)
+        .first()
+    )
+    ca_prec = int(row_prec.ca or 0)
+    evolution = round((ca_total - ca_prec) / ca_prec * 100, 1) if ca_prec else 0
+
+    pdvs_sem = set(
+        r[0] for r in db.query(NafamaTransaction.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
+        .distinct().all()
+    )
+    pdvs_prec_s = set(
+        r[0] for r in db.query(NafamaTransaction.numero_pdv)
+        .filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec)
+        .distinct().all()
+    )
+    nb_inactifs = len(pdvs_prec_s - pdvs_sem)
+    nb_nouveaux = len(pdvs_sem - pdvs_prec_s)
+
+    # CA par Superviseur
+    sup_rows = (
+        db.query(
+            PDV.superviseur,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(func.distinct(NafamaTransaction.numero_pdv)).label("nb_pdv_actifs"),
+        )
+        .join(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
+        .group_by(PDV.superviseur)
+        .order_by(func.sum(NafamaTransaction.montant).desc())
+        .all()
+    )
+
+    # PDVs inactifs par superviseur
+    sup_inactifs = {}
+    if pdvs_prec_s:
+        inactif_set = pdvs_prec_s - pdvs_sem
+        if inactif_set:
+            inact_rows = (
+                db.query(PDV.superviseur, func.count(PDV.id).label("nb"))
+                .filter(PDV.numero_pdv.in_(inactif_set))
+                .group_by(PDV.superviseur).all()
+            )
+            sup_inactifs = {r.superviseur: int(r.nb) for r in inact_rows}
+
+    classement_superviseurs = [
+        {
+            "superviseur": r.superviseur or "—",
+            "ca_total": int(r.ca),
+            "nb_pdvs": int(r.nb_pdv_actifs),
+            "actifs": int(r.nb_pdv_actifs),
+            "inactifs": sup_inactifs.get(r.superviseur, 0),
+            "ca_moyen": round(int(r.ca) / int(r.nb_pdv_actifs), 0) if r.nb_pdv_actifs else 0,
+        }
+        for r in sup_rows if r.superviseur
+    ]
+
+    # CA par Zone
+    zone_rows = (
+        db.query(
+            PDV.zone,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(func.distinct(NafamaTransaction.numero_pdv)).label("nb_pdv"),
+        )
+        .join(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
+        .group_by(PDV.zone)
+        .order_by(func.sum(NafamaTransaction.montant).desc())
+        .all()
+    )
+
+    return {
+        "ca_total": ca_total,
+        "nb_pdv_actifs": nb_pdv,
+        "ca_moyen": int(ca_moyen),
+        "evolution_pct": evolution,
+        "ca_semaine_precedente": ca_prec,
+        "nb_pdv_inactifs": nb_inactifs,
+        "nb_nouveaux_pdv": nb_nouveaux,
+        "annee": annee,
+        "semaine": semaine,
+        "ca_by_zone": {r.zone or "Inconnue": int(r.ca) for r in zone_rows},
+        "ca_by_superviseur": {r.superviseur: int(r.ca) for r in sup_rows if r.superviseur},
+        "classement_superviseurs": classement_superviseurs,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
 # HEBDOMADAIRE
 # ─────────────────────────────────────────────────────────────
 
