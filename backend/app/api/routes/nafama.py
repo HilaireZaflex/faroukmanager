@@ -52,11 +52,23 @@ def monthly_summary(
 def monthly_top(
     annee: int = Query(...),
     mois: int = Query(...),
-    limit: int = Query(20, ge=5, le=100),
+    limit: int = Query(20, ge=5, le=200),
     db: Session = Depends(get_db),
 ):
-    """Top PDVs du mois par CA."""
+    """Top PDVs du mois par CA — enrichi avec infos PDV et évolution."""
     return nafama_service.get_monthly_top_pdv(db, annee, mois, limit)
+
+
+@router.get("/nafama/pdv/{numero_pdv}/monthly-history")
+def pdv_monthly_history(numero_pdv: str, db: Session = Depends(get_db)):
+    """Historique mensuel d'un PDV NAFAMA (courbe d'évolution)."""
+    return nafama_service.get_pdv_monthly_history(db, numero_pdv)
+
+
+@router.get("/nafama/pdv/{numero_pdv}/weekly-history")
+def pdv_weekly_history(numero_pdv: str, db: Session = Depends(get_db)):
+    """Historique hebdomadaire d'un PDV NAFAMA (courbe d'évolution)."""
+    return nafama_service.get_pdv_weekly_history(db, numero_pdv)
 
 
 @router.get("/nafama/monthly/pareto")
@@ -127,10 +139,10 @@ def weekly_summary(
 def weekly_top(
     annee: int = Query(...),
     semaine: int = Query(...),
-    limit: int = Query(20, ge=5, le=100),
+    limit: int = Query(20, ge=5, le=200),
     db: Session = Depends(get_db),
 ):
-    """Top PDVs de la semaine par CA."""
+    """Top PDVs de la semaine par CA — enrichi avec infos PDV et évolution."""
     return nafama_service.get_weekly_top_pdv(db, annee, semaine, limit)
 
 

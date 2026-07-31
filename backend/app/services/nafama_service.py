@@ -222,22 +222,123 @@ def get_monthly_summary(db: Session, annee: int, mois: int) -> Dict[str, Any]:
 def get_monthly_top_pdv(
     db: Session, annee: int, mois: int, limit: int = 20
 ) -> List[Dict]:
-    """Top PDVs du mois par CA."""
+    """Top PDVs du mois par CA — enrichi avec infos PDV et évolution vs M-1."""
+    # Mois précédent pour calcul évolution
+    mois_prec = mois - 1 if mois > 1 else 12
+    annee_prec = annee if mois > 1 else annee - 1
+
     rows = (
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca"),
             func.count(NafamaTransaction.id).label("nb_jours"),
+            PDV.nom,
+            PDV.zone,
+            PDV.quartier,
+            PDV.superviseur,
+            PDV.gestionnaire,
+            PDV.medaille,
+            PDV.commune,
         )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
-        .group_by(NafamaTransaction.numero_pdv)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier,
+                  PDV.superviseur, PDV.gestionnaire, PDV.medaille, PDV.commune)
         .order_by(func.sum(NafamaTransaction.montant).desc())
         .limit(limit)
         .all()
     )
+
+    # CA mois précédent pour chaque PDV
+    pdv_ids = [r.numero_pdv for r in rows]
+    ca_prec_map = {}
+    if pdv_ids:
+        prec_rows = (
+            db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
+            .filter(
+                NafamaTransaction.numero_pdv.in_(pdv_ids),
+                NafamaTransaction.annee == annee_prec,
+                NafamaTransaction.mois == mois_prec,
+            )
+            .group_by(NafamaTransaction.numero_pdv)
+            .all()
+        )
+        ca_prec_map = {r.numero_pdv: int(r.ca) for r in prec_rows}
+
+    result = []
+    for i, r in enumerate(rows):
+        ca = int(r.ca)
+        ca_prec = ca_prec_map.get(r.numero_pdv, 0)
+        evolution = round((ca - ca_prec) / ca_prec * 100, 1) if ca_prec else None
+        medaille_val = r.medaille.value if r.medaille and hasattr(r.medaille, 'value') else (str(r.medaille) if r.medaille else None)
+        result.append({
+            "rang": i + 1,
+            "numero_pdv": r.numero_pdv,
+            "nom": r.nom or r.numero_pdv,
+            "ca": ca,
+            "ca_precedent": ca_prec,
+            "evolution_pct": evolution,
+            "nb_jours_actif": int(r.nb_jours),
+            "zone": r.zone or "—",
+            "quartier": r.quartier or "—",
+            "superviseur": r.superviseur or "—",
+            "gestionnaire": r.gestionnaire or "—",
+            "medaille": medaille_val,
+            "commune": r.commune or "—",
+        })
+    return result
+
+
+def get_pdv_monthly_history(db: Session, numero_pdv: str) -> List[Dict]:
+    """Historique mensuel d'un PDV NAFAMA — pour la courbe d'évolution."""
+    rows = (
+        db.query(
+            NafamaTransaction.annee,
+            NafamaTransaction.mois,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(NafamaTransaction.id).label("nb_jours"),
+        )
+        .filter(NafamaTransaction.numero_pdv == numero_pdv)
+        .group_by(NafamaTransaction.annee, NafamaTransaction.mois)
+        .order_by(NafamaTransaction.annee, NafamaTransaction.mois)
+        .all()
+    )
+    MOIS_ABR = ['', 'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
     return [
-        {"numero_pdv": r.numero_pdv, "ca": int(r.ca), "nb_jours_actif": int(r.nb_jours), "rang": i + 1}
-        for i, r in enumerate(rows)
+        {
+            "annee": r.annee,
+            "mois": r.mois,
+            "label": f"{MOIS_ABR[r.mois]} {r.annee}",
+            "ca": int(r.ca),
+            "nb_jours": int(r.nb_jours),
+        }
+        for r in rows
+    ]
+
+
+def get_pdv_weekly_history(db: Session, numero_pdv: str) -> List[Dict]:
+    """Historique hebdomadaire d'un PDV NAFAMA — pour la courbe d'évolution."""
+    rows = (
+        db.query(
+            NafamaTransaction.annee,
+            NafamaTransaction.semaine,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(NafamaTransaction.id).label("nb_jours"),
+        )
+        .filter(NafamaTransaction.numero_pdv == numero_pdv)
+        .group_by(NafamaTransaction.annee, NafamaTransaction.semaine)
+        .order_by(NafamaTransaction.annee, NafamaTransaction.semaine)
+        .all()
+    )
+    return [
+        {
+            "annee": r.annee,
+            "semaine": r.semaine,
+            "label": f"S{r.semaine}",
+            "ca": int(r.ca),
+            "nb_jours": int(r.nb_jours),
+        }
+        for r in rows
     ]
 
 
@@ -520,23 +621,69 @@ def get_weekly_summary(db: Session, annee: int, semaine: int) -> Dict[str, Any]:
 
 
 def get_weekly_top_pdv(db: Session, annee: int, semaine: int, limit: int = 20) -> List[Dict]:
-    """Top PDVs de la semaine."""
+    """Top PDVs de la semaine — enrichi avec infos PDV et évolution vs S-1."""
+    sem_prec = semaine - 1 if semaine > 1 else 52
+    annee_prec_s = annee if semaine > 1 else annee - 1
+
     rows = (
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca"),
             func.count(NafamaTransaction.id).label("nb_jours"),
+            PDV.nom,
+            PDV.zone,
+            PDV.quartier,
+            PDV.superviseur,
+            PDV.gestionnaire,
+            PDV.medaille,
+            PDV.commune,
         )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
-        .group_by(NafamaTransaction.numero_pdv)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier,
+                  PDV.superviseur, PDV.gestionnaire, PDV.medaille, PDV.commune)
         .order_by(func.sum(NafamaTransaction.montant).desc())
         .limit(limit)
         .all()
     )
-    return [
-        {"numero_pdv": r.numero_pdv, "ca": int(r.ca), "nb_jours_actif": int(r.nb_jours), "rang": i + 1}
-        for i, r in enumerate(rows)
-    ]
+
+    pdv_ids = [r.numero_pdv for r in rows]
+    ca_prec_map = {}
+    if pdv_ids:
+        prec_rows = (
+            db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
+            .filter(
+                NafamaTransaction.numero_pdv.in_(pdv_ids),
+                NafamaTransaction.annee == annee_prec_s,
+                NafamaTransaction.semaine == sem_prec,
+            )
+            .group_by(NafamaTransaction.numero_pdv)
+            .all()
+        )
+        ca_prec_map = {r.numero_pdv: int(r.ca) for r in prec_rows}
+
+    result = []
+    for i, r in enumerate(rows):
+        ca = int(r.ca)
+        ca_prec = ca_prec_map.get(r.numero_pdv, 0)
+        evolution = round((ca - ca_prec) / ca_prec * 100, 1) if ca_prec else None
+        medaille_val = r.medaille.value if r.medaille and hasattr(r.medaille, 'value') else (str(r.medaille) if r.medaille else None)
+        result.append({
+            "rang": i + 1,
+            "numero_pdv": r.numero_pdv,
+            "nom": r.nom or r.numero_pdv,
+            "ca": ca,
+            "ca_precedent": ca_prec,
+            "evolution_pct": evolution,
+            "nb_jours_actif": int(r.nb_jours),
+            "zone": r.zone or "—",
+            "quartier": r.quartier or "—",
+            "superviseur": r.superviseur or "—",
+            "gestionnaire": r.gestionnaire or "—",
+            "medaille": medaille_val,
+            "commune": r.commune or "—",
+        })
+    return result
 
 
 def get_weekly_pareto(db: Session, annee: int, semaine: int) -> Dict[str, Any]:

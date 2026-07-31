@@ -216,31 +216,177 @@ function OngletVueEnsemble({ annee, semaine }) {
 
 // ─── Top PDVs hebdo ────────────────────────────────────────────────────────
 function OngletTop({ annee, semaine }) {
+  const [topN, setTopN] = useState(20);
+  const [search, setSearch] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [sortBy, setSortBy] = useState('ca_desc');
+  const [selectedPDV, setSelectedPDV] = useState(null);
+  const [historyData, setHistoryData] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const { data, isLoading } = useQuery(
-    ['nafama-w-top', annee, semaine],
-    () => api.get(`/nafama/weekly/top?annee=${annee}&semaine=${semaine}&limit=20`).then(r => r.data),
+    ['nafama-w-top', annee, semaine, topN],
+    () => api.get(`/nafama/weekly/top?annee=${annee}&semaine=${semaine}&limit=${topN}`).then(r => r.data),
     { staleTime: 60000, retry: false }
   );
+
+  const loadHistory = async (numeroPdv) => {
+    if (selectedPDV === numeroPdv) { setSelectedPDV(null); setHistoryData([]); return; }
+    setLoadingHistory(true);
+    setHistoryData([]);
+    try {
+      const res = await api.get(`/nafama/pdv/${numeroPdv}/weekly-history`);
+      setHistoryData(res.data || []);
+      setSelectedPDV(numeroPdv);
+    } catch (e) { console.error(e); }
+    finally { setLoadingHistory(false); }
+  };
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyTab />;
 
+  const zoneList = [...new Set(data.map(p => p.zone).filter(z => z && z !== '—'))].sort();
+
+  const filtered = data
+    .filter(p => !zoneFilter || p.zone === zoneFilter)
+    .filter(p => !search ||
+      (p.numero_pdv || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.nom || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === 'ca_asc') return a.ca - b.ca;
+      if (sortBy === 'nom_asc') return (a.nom || '').localeCompare(b.nom || '');
+      if (sortBy === 'zone_asc') return (a.zone || '').localeCompare(b.zone || '');
+      if (sortBy === 'evol_desc') return (b.evolution_pct ?? -999) - (a.evolution_pct ?? -999);
+      return b.ca - a.ca;
+    });
+
+  const selectedPDVData = data.find(p => p.numero_pdv === selectedPDV);
+
   return (
-    <div className="card">
-      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>🏆 Top 20 PDVs — Semaine {semaine} · {annee}</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {data.map((pdv, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: i < 3 ? `${ZONE_COLORS[i]}15` : 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid var(--border)' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
-              {i + 1}
+    <div>
+      {/* Seuil */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '16px 20px', marginBottom: 14 }}>
+        <label style={{ fontSize: 12, color: '#8a8a9a', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+          Seuil : <span style={{ color: COLOR_PRIMARY, fontWeight: 800 }}>Top {topN}</span>
+        </label>
+        <input type="range" min="10" max="100" step="10" value={topN}
+          onChange={e => setTopN(parseInt(e.target.value))}
+          style={{ width: '100%', accentColor: COLOR_PRIMARY }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#555', marginTop: 3 }}>
+          {[10,20,30,40,50,60,70,80,90,100].map(v => <span key={v}>{v}</span>)}
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ flex: 2, minWidth: 180, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: '#8a8a9a' }}>🔍</span>
+          <input type="text" placeholder="Rechercher PDV, numéro, superviseur..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, boxSizing: 'border-box' }} />
+        </div>
+        <select value={zoneFilter} onChange={e => setZoneFilter(e.target.value)}
+          style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13 }}>
+          <option value="">Toutes les zones</option>
+          {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
+        </select>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13 }}>
+          <option value="ca_desc">↓ CA (plus haut)</option>
+          <option value="ca_asc">↑ CA (plus bas)</option>
+          <option value="nom_asc">↑ Nom A→Z</option>
+          <option value="zone_asc">↑ Zone A→Z</option>
+          <option value="evol_desc">↓ Évolution (meilleure)</option>
+        </select>
+      </div>
+
+      {/* Courbe d'évolution hebdo */}
+      {selectedPDV && historyData.length > 0 && (
+        <div style={{ marginBottom: 16, padding: '18px 20px', background: 'linear-gradient(135deg, rgba(0,214,143,0.06) 0%, rgba(0,0,0,0) 60%)', borderRadius: 14, border: '1px solid rgba(0,214,143,0.25)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div>
+              <h3 style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>📈 Évolution hebdomadaire — {selectedPDVData?.nom || selectedPDV}</h3>
+              <p style={{ fontSize: 11, color: '#8a8a9a', marginTop: 3 }}>{selectedPDVData?.superviseur} · {selectedPDVData?.zone}</p>
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{pdv.numero_pdv}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{pdv.nb_jours_actif} jour(s) actif</div>
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: COLOR_PRIMARY }}>{formatCA(pdv.ca)}</div>
+            <button onClick={() => { setSelectedPDV(null); setHistoryData([]); }}
+              style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 18, borderRadius: 8, width: 32, height: 32 }}>✕</button>
           </div>
-        ))}
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={historyData}>
+              <defs>
+                <linearGradient id="nafamaWHistGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#00d68f" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#00d68f" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 9 }} tickFormatter={v => `${(v/1000).toFixed(0)}K`} width={45} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="ca" name="CA" stroke={COLOR_PRIMARY} fill="url(#nafamaWHistGrad)" strokeWidth={2.5} dot={{ r: 4, fill: COLOR_PRIMARY, stroke: '#0a0a1a', strokeWidth: 2 }} activeDot={{ r: 6 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Tableau */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>🏆 Top {topN} PDVs — Semaine {semaine} · {annee}</span>
+          <span style={{ fontSize: 12, color: COLOR_PRIMARY }}>{filtered.length} résultats</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>#</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>PDV</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY, fontWeight: 600 }}>CA</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Zone</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Superviseur</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Gestionnaire</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>Évolution vs S-1</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>Courbe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((pdv, i) => {
+                const evol = pdv.evolution_pct;
+                const isSelected = selectedPDV === pdv.numero_pdv;
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isSelected ? 'rgba(0,214,143,0.05)' : 'transparent', transition: 'background 0.2s' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: pdv.rang <= 3 ? COLOR_PRIMARY : '#666' }}>
+                      {pdv.rang === 1 ? '🥇' : pdv.rang === 2 ? '🥈' : pdv.rang === 3 ? '🥉' : pdv.rang}
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{pdv.numero_pdv}</div>
+                      <div style={{ fontSize: 11, color: '#8a8a9a' }}>{pdv.nom !== pdv.numero_pdv ? pdv.nom : ''}</div>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(pdv.ca)}</td>
+                    <td style={{ padding: '10px 12px', color: '#ccc' }}>{pdv.zone}</td>
+                    <td style={{ padding: '10px 12px', color: '#ccc' }}>{pdv.superviseur}</td>
+                    <td style={{ padding: '10px 12px', color: '#ccc' }}>{pdv.gestionnaire}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      {evol !== null && evol !== undefined ? (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: evol >= 0 ? '#00d68f' : '#ff4757' }}>
+                          {evol >= 0 ? '▲' : '▼'} {Math.abs(evol)}%
+                        </span>
+                      ) : <span style={{ color: '#555' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <button onClick={() => loadHistory(pdv.numero_pdv)}
+                        style={{ cursor: 'pointer', background: isSelected ? 'rgba(0,214,143,0.2)' : 'rgba(0,214,143,0.08)', border: `1px solid ${isSelected ? 'rgba(0,214,143,0.5)' : 'rgba(0,214,143,0.2)'}`, borderRadius: 7, color: COLOR_PRIMARY, padding: '5px 12px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {loadingHistory && isSelected ? '⏳' : '📊'} {isSelected ? 'Fermer' : 'Voir'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
