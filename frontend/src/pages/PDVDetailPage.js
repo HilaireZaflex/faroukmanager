@@ -249,8 +249,9 @@ function InfoRow({ label, value, badge, style }) {
 // ============ ONGLET 2: PERFORMANCES ============
 function TabPerformances({ pdv }) {
   const historique = pdv?.historique_mensuel || [];
-  const caMax = Math.max(...historique.map((h) => h.ca || 0));
-  const caMin = Math.min(...historique.map((h) => h.ca || 0));
+  const caValues = historique.map((h) => h.ca || 0);
+  const caMax = caValues.length > 0 ? Math.max(...caValues) : 0;
+  const caMin = caValues.length > 0 ? Math.min(...caValues) : 0;
   const caMoyenne = historique.length > 0 ? historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0) / historique.length : 0;
   const caTotal = historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0);
 
@@ -338,7 +339,7 @@ function TabPerformances({ pdv }) {
 // ============ ONGLET 3: COURBES ============
 function TabCourbes({ pdv }) {
   const monthly = pdv?.historique_mensuel || [];
-  const weekly = pdv?.historique_hebdomadaire || [];
+  const weekly = pdv?.historique_hebdo || [];
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
