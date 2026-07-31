@@ -77,18 +77,17 @@ function KPIBar({ label, realise, objectif, taux, unite, poids }) {
   );
 }
 
-function CountdownTimer() {
-  const [jours, setJours] = useState(0);
+function CountdownTimer({ joursRestants }) {
   const [heures, setHeures] = useState(0);
   const [minutes, setMinutes] = useState(0);
 
   useEffect(() => {
     const update = () => {
       const now = new Date();
-      const diff = CHALLENGE_END - now;
-      if (diff <= 0) { setJours(0); setHeures(0); setMinutes(0); return; }
-      setJours(Math.floor(diff / 86400000));
-      setHeures(Math.floor((diff % 86400000) / 3600000));
+      // Fin du jour courant = minuit ce soir
+      const finJour = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+      const diff = finJour - now;
+      setHeures(Math.floor(diff / 3600000));
       setMinutes(Math.floor((diff % 3600000) / 60000));
     };
     update();
@@ -96,11 +95,14 @@ function CountdownTimer() {
     return () => clearInterval(t);
   }, []);
 
+  // Utiliser les jours du backend (source de vérité unique)
+  const jours = joursRestants ?? '—';
+
   return (
     <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-      {[{ val: jours, label: 'Jours' }, { val: heures, label: 'Heures' }, { val: minutes, label: 'Minutes' }].map(({ val, label }) => (
+      {[{ val: jours, label: 'Jours' }, { val: String(heures).padStart(2,'0'), label: 'Heures' }, { val: String(minutes).padStart(2,'0'), label: 'Minutes' }].map(({ val, label }) => (
         <div key={label} style={{ textAlign: 'center', background: 'rgba(255,105,0,0.1)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 10, padding: '10px 16px' }}>
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#FF6900' }}>{String(val).padStart(2, '0')}</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: '#FF6900' }}>{val}</div>
           <div style={{ fontSize: 10, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>{label}</div>
         </div>
       ))}
@@ -552,7 +554,7 @@ export default function ChallengePage() {
           <p>Période : 1er Juillet → 31 Octobre 2026 · Farouk Distribution SARL · BAMAKO RG</p>
         </div>
         <div className="challenge-header-actions">
-          <CountdownTimer />
+          <CountdownTimer joursRestants={dashboard?.periode?.jours_restants} />
           <button onClick={() => refetch()} className="ch-btn ch-btn-secondary">
             <RefreshCw size={14}/> Actualiser
           </button>
