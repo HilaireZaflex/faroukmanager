@@ -11,9 +11,7 @@ const ZONE_COLORS = ['#00d68f', '#FF6900', '#3742fa', '#ffa502', '#ff4757', '#a2
 
 function formatCA(value) {
   if (!value && value !== 0) return '—';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M FCFA`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K FCFA`;
-  return value.toLocaleString() + ' FCFA';
+  return new Intl.NumberFormat('fr-FR').format(Math.round(value)) + ' F';
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
