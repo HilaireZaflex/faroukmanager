@@ -28,6 +28,16 @@ def get_periods(db: Session = Depends(get_db)):
 # MENSUEL
 # ─────────────────────────────────────────────────────────────
 
+@router.get("/nafama/monthly/overview")
+def monthly_overview(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Vue d'ensemble enrichie : KPIs + CA par superviseur/zone/gestionnaire + classement."""
+    return nafama_service.get_monthly_overview(db, annee, mois)
+
+
 @router.get("/nafama/monthly/summary")
 def monthly_summary(
     annee: int = Query(..., description="Année"),

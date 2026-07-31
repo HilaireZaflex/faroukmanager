@@ -5,6 +5,7 @@ Toutes les données viennent de la table nafama_transactions.
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, text
 from app.models.nafama import NafamaTransaction
+from app.models.pdv import PDV
 from typing import Optional, List, Dict, Any
 import math
 
@@ -21,6 +22,143 @@ def _pareto(items: List[Dict], montant_key="ca") -> List[Dict]:
         cumul += i[montant_key]
         i["cumul_pct"] = round(cumul / total * 100, 1)
     return items
+
+
+# ─────────────────────────────────────────────────────────────
+# VUE D'ENSEMBLE ENRICHIE (superviseurs, zones, gestionnaires)
+# ─────────────────────────────────────────────────────────────
+
+def get_monthly_overview(db: Session, annee: int, mois: int) -> Dict[str, Any]:
+    """
+    Vue d'ensemble complète pour le dashboard mensuel :
+    - KPIs principaux
+    - CA par superviseur, zone, gestionnaire
+    - Classement superviseurs
+    """
+    # ── KPIs de base ──
+    row = (
+        db.query(
+            func.count(func.distinct(NafamaTransaction.numero_pdv)).label("nb_pdv"),
+            func.sum(NafamaTransaction.montant).label("ca_total"),
+        )
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
+        .first()
+    )
+    ca_total = int(row.ca_total or 0)
+    nb_pdv = int(row.nb_pdv or 0)
+    ca_moyen = round(ca_total / nb_pdv, 0) if nb_pdv else 0
+
+    # Mois précédent
+    mois_prec = mois - 1 if mois > 1 else 12
+    annee_prec = annee if mois > 1 else annee - 1
+    row_prec = (
+        db.query(func.sum(NafamaTransaction.montant).label("ca"))
+        .filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec)
+        .first()
+    )
+    ca_prec = int(row_prec.ca or 0)
+    evolution = round((ca_total - ca_prec) / ca_prec * 100, 1) if ca_prec else 0
+
+    pdvs_ce_mois = set(
+        r[0] for r in db.query(NafamaTransaction.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
+        .distinct().all()
+    )
+    pdvs_prec = set(
+        r[0] for r in db.query(NafamaTransaction.numero_pdv)
+        .filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec)
+        .distinct().all()
+    )
+    nb_inactifs = len(pdvs_prec - pdvs_ce_mois)
+    nb_nouveaux = len(pdvs_ce_mois - pdvs_prec)
+
+    # ── CA par Superviseur ──
+    sup_rows = (
+        db.query(
+            PDV.superviseur,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(func.distinct(NafamaTransaction.numero_pdv)).label("nb_pdv_actifs"),
+        )
+        .join(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
+        .group_by(PDV.superviseur)
+        .order_by(func.sum(NafamaTransaction.montant).desc())
+        .all()
+    )
+
+    # PDVs inactifs par superviseur (présents M-1 mais absents ce mois)
+    sup_inactifs = {}
+    if pdvs_prec:
+        inactif_set = pdvs_prec - pdvs_ce_mois
+        if inactif_set:
+            inact_rows = (
+                db.query(PDV.superviseur, func.count(PDV.id).label("nb"))
+                .filter(PDV.numero_pdv.in_(inactif_set))
+                .group_by(PDV.superviseur)
+                .all()
+            )
+            sup_inactifs = {r.superviseur: int(r.nb) for r in inact_rows}
+
+    ca_by_superviseur = {r.superviseur: int(r.ca) for r in sup_rows if r.superviseur}
+    classement_superviseurs = [
+        {
+            "superviseur": r.superviseur or "—",
+            "ca_total": int(r.ca),
+            "nb_pdvs": int(r.nb_pdv_actifs),
+            "actifs": int(r.nb_pdv_actifs),
+            "inactifs": sup_inactifs.get(r.superviseur, 0),
+            "ca_moyen": round(int(r.ca) / int(r.nb_pdv_actifs), 0) if r.nb_pdv_actifs else 0,
+        }
+        for r in sup_rows if r.superviseur
+    ]
+
+    # ── CA par Zone ──
+    zone_rows = (
+        db.query(
+            PDV.zone,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(func.distinct(NafamaTransaction.numero_pdv)).label("nb_pdv"),
+        )
+        .join(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
+        .group_by(PDV.zone)
+        .order_by(func.sum(NafamaTransaction.montant).desc())
+        .all()
+    )
+    ca_by_zone = {r.zone or "Inconnue": int(r.ca) for r in zone_rows}
+
+    # ── CA par Gestionnaire ──
+    gest_rows = (
+        db.query(
+            PDV.gestionnaire,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(func.distinct(NafamaTransaction.numero_pdv)).label("nb_pdv"),
+        )
+        .join(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
+        .group_by(PDV.gestionnaire)
+        .order_by(func.sum(NafamaTransaction.montant).desc())
+        .all()
+    )
+    ca_by_gestionnaire = {(r.gestionnaire or "—"): int(r.ca) for r in gest_rows}
+
+    return {
+        # KPIs
+        "ca_total": ca_total,
+        "nb_pdv_actifs": nb_pdv,
+        "ca_moyen": int(ca_moyen),
+        "evolution_pct": evolution,
+        "ca_mois_precedent": ca_prec,
+        "nb_pdv_inactifs": nb_inactifs,
+        "nb_nouveaux_pdv": nb_nouveaux,
+        "annee": annee,
+        "mois": mois,
+        # Graphiques
+        "ca_by_superviseur": ca_by_superviseur,
+        "ca_by_zone": ca_by_zone,
+        "ca_by_gestionnaire": ca_by_gestionnaire,
+        "classement_superviseurs": classement_superviseurs,
+    }
 
 
 # ─────────────────────────────────────────────────────────────

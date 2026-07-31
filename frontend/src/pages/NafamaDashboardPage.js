@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Cell, ComposedChart
+  LineChart, Line, Cell, ComposedChart, PieChart, Pie, Legend
 } from 'recharts';
 import {
-  ChevronLeft, ChevronRight, Home, Trophy, BarChart3,
-  TrendingUp, TrendingDown, Battery, Target
+  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity,
+  DollarSign, Store, AlertTriangle
 } from 'lucide-react';
+import KPICard from '../components/common/KPICard';
 import api from '../services/api';
 
 const COLOR_PRIMARY = '#00d68f';
@@ -19,18 +20,18 @@ const ZONE_COLORS = ['#00d68f', '#FF6900', '#3742fa', '#ffa502', '#ff4757', '#a2
 
 function formatCA(value) {
   if (!value && value !== 0) return '—';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M FCFA`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K FCFA`;
-  return value.toLocaleString() + ' FCFA';
+  return new Intl.NumberFormat('fr-FR').format(Math.round(value)) + ' FCFA';
 }
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', fontSize: 12 }}>
-      <p style={{ fontWeight: 700, marginBottom: 6 }}>{label}</p>
+    <div style={{ background: '#1a1a2e', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 10, padding: '10px 14px', fontSize: 12 }}>
+      <p style={{ color: '#aaa', fontSize: 12, marginBottom: 4 }}>{label}</p>
       {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }}>{p.name}: {typeof p.value === 'number' && p.dataKey !== 'cumul_pct' ? formatCA(p.value) : `${p.value}%`}</p>
+        <p key={i} style={{ color: p.color || COLOR_PRIMARY, fontWeight: 700, fontSize: 13 }}>
+          {p.dataKey === 'cumul_pct' ? `${p.value}%` : formatCA(p.value)}
+        </p>
       ))}
     </div>
   );
@@ -46,42 +47,220 @@ function EmptyTab({ message = 'Aucune donnée disponible. Importez le fichier NA
   );
 }
 
+// ─── Composant Accordéon (identique OMY) ─────────────────────────────────
+function AccordionSection({ title, defaultOpen = true, children, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px', background: open ? 'rgba(0,214,143,0.08)' : 'rgba(255,255,255,0.03)',
+        border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14, fontWeight: 700,
+        transition: 'background 0.2s',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {title}
+          {badge && <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(0,214,143,0.2)', color: COLOR_PRIMARY }}>{badge}</span>}
+        </span>
+        <span style={{ fontSize: 18, transition: 'transform 0.2s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', color: COLOR_PRIMARY }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ padding: '20px 20px 16px 20px', background: 'rgba(255,255,255,0.01)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Vue d'ensemble mensuelle ──────────────────────────────────────────────
 function TabOverview({ annee, mois }) {
   const { data, isLoading } = useQuery(
     ['nafama-overview', annee, mois],
-    () => api.get(`/nafama/monthly/summary?annee=${annee}&mois=${mois}`).then(r => r.data),
+    () => api.get(`/nafama/monthly/overview?annee=${annee}&mois=${mois}`).then(r => r.data),
     { staleTime: 300000, retry: false }
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data || !data.nb_pdv_actifs) return <EmptyTab />;
 
-  const kpis = [
-    { label: 'CA Total', value: formatCA(data.ca_total), icon: '💰', color: COLOR_PRIMARY },
-    { label: 'PDVs Actifs', value: data.nb_pdv_actifs, icon: '✅', color: '#3742fa' },
-    { label: 'CA Moyen / PDV', value: formatCA(data.ca_moyen), icon: '📊', color: '#ffa502' },
-    { label: 'Évolution vs M-1', value: `${data.evolution_pct > 0 ? '+' : ''}${data.evolution_pct}%`, icon: data.evolution_pct >= 0 ? '📈' : '📉', color: data.evolution_pct >= 0 ? '#00d68f' : '#ff4757' },
-    { label: 'PDVs Inactifs', value: data.nb_pdv_inactifs, icon: '😴', color: '#ff4757' },
-    { label: 'Nouveaux PDVs', value: data.nb_nouveaux_pdv, icon: '🆕', color: '#a29bfe' },
-  ];
+  const evolution = data.evolution_pct || 0;
+
+  // Préparer données graphiques
+  const caByZone = Object.entries(data.ca_by_zone || {})
+    .map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca }))
+    .sort((a, b) => b.ca - a.ca);
+
+  const caBySup = Object.entries(data.ca_by_superviseur || {})
+    .map(([sup, ca]) => ({ sup, ca }))
+    .sort((a, b) => b.ca - a.ca)
+    .slice(0, 8);
+
+  const caByGest = Object.entries(data.ca_by_gestionnaire || {})
+    .filter(([g]) => g && g !== '—')
+    .map(([gest, ca]) => ({ gest, ca }))
+    .sort((a, b) => b.ca - a.ca)
+    .slice(0, 6);
+
+  const classement = data.classement_superviseurs || [];
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
-        {kpis.map((k, i) => (
-          <div key={i} className="card" style={{ textAlign: 'center', borderTop: `3px solid ${k.color}` }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>{k.icon}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.value}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{k.label}</div>
+      {/* ══ SECTION 1 : Volume Financier & Activité Réseau ══ */}
+      <AccordionSection
+        title="💰 Volume Financier & Activité Réseau"
+        defaultOpen={true}
+        badge={`${MOIS_NOMS[mois]} ${annee}`}
+      >
+        <div style={{ fontSize: 12, color: COLOR_PRIMARY, fontWeight: 700, marginBottom: 10 }}>💰 Volume Financier</div>
+        <div className="grid-3-kpi mb-24">
+          <KPICard
+            title="CA Total"
+            formatted={formatCA(data.ca_total)}
+            icon={DollarSign}
+            color={COLOR_PRIMARY}
+            loading={isLoading}
+            subtitle={`${MOIS_NOMS[mois]} ${annee}`}
+          />
+          <KPICard
+            title="CA Moyen / PDV"
+            formatted={formatCA(data.ca_moyen)}
+            icon={DollarSign}
+            color="#ffa502"
+            loading={isLoading}
+            subtitle={`Sur ${data.nb_pdv_actifs} PDVs actifs`}
+          />
+          <KPICard
+            title="Évolution vs M-1"
+            formatted={`${evolution >= 0 ? '+' : ''}${evolution}%`}
+            icon={evolution >= 0 ? TrendingUp : TrendingDown}
+            color={evolution >= 0 ? '#00d68f' : '#ff4757'}
+            loading={isLoading}
+            subtitle={`CA M-1 : ${formatCA(data.ca_mois_precedent)}`}
+          />
+        </div>
+
+        <div style={{ fontSize: 12, color: '#3742fa', fontWeight: 700, marginBottom: 10 }}>📊 Activité Réseau</div>
+        <div className="grid-3-kpi mb-8">
+          <KPICard
+            title="PDVs Actifs"
+            value={data.nb_pdv_actifs}
+            icon={Store}
+            color="#3742fa"
+            loading={isLoading}
+            subtitle={`${MOIS_NOMS[mois]} ${annee}`}
+          />
+          <KPICard
+            title="PDVs Inactifs"
+            value={data.nb_pdv_inactifs}
+            icon={AlertTriangle}
+            color="#ff4757"
+            loading={isLoading}
+            subtitle="Actifs M-1 mais absents ce mois"
+          />
+          <KPICard
+            title="Nouveaux PDVs"
+            value={data.nb_nouveaux_pdv}
+            icon={Activity}
+            color="#a29bfe"
+            loading={isLoading}
+            subtitle="Absents M-1, actifs ce mois"
+          />
+        </div>
+      </AccordionSection>
+
+      {/* ══ SECTION 2 : Graphiques & Classement ══ */}
+      <AccordionSection title="📈 Graphiques & Classement" defaultOpen={true}>
+
+        {/* Graphique CA par Zone */}
+        {caByZone.length > 0 && (
+          <div className="card mb-16" style={{ padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700 }}>📍 CA par Zone — {MOIS_NOMS[mois]} {annee}</h3>
+              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'rgba(0,214,143,0.15)', color: COLOR_PRIMARY, fontWeight: 600 }}>{caByZone.length} zones</span>
+            </div>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={caByZone} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis dataKey="zone" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(1)}M`} width={55} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="ca" name="CA" radius={[6,6,0,0]}>
+                  {caByZone.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        ))}
-      </div>
-      <div className="card" style={{ padding: '16px 20px' }}>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-          CA mois précédent : <strong style={{ color: '#fff' }}>{formatCA(data.ca_mois_precedent)}</strong>
-        </p>
-      </div>
+        )}
+
+        {/* Graphiques CA par Superviseur + Gestionnaire */}
+        <div style={{ display: 'grid', gridTemplateColumns: caByGest.length ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 16 }}>
+          {caBySup.length > 0 && (
+            <div className="card" style={{ padding: '16px 20px' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>👤 CA par Superviseur</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={caBySup} layout="vertical" margin={{ top: 5, right: 20, left: 70, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(1)}M`} />
+                  <YAxis type="category" dataKey="sup" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="ca" name="CA" fill={COLOR_PRIMARY} radius={[0,6,6,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {caByGest.length > 0 && (
+            <div className="card" style={{ padding: '16px 20px' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>🧑‍💼 CA par Gestionnaire</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={caByGest} layout="vertical" margin={{ top: 5, right: 20, left: 70, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(1)}M`} />
+                  <YAxis type="category" dataKey="gest" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="ca" name="CA" fill="#a29bfe" radius={[0,6,6,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Classement Superviseurs */}
+        {classement.length > 0 && (
+          <div className="card" style={{ padding: '16px 20px' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs — {MOIS_NOMS[mois]} {annee}</h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>PDVs Actifs</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA Total</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Moy./PDV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classement.map((s, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : '#aaa' }}>
+                        {i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.superviseur}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f', fontWeight: 600 }}>{s.actifs}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'center', color: s.inactifs > 0 ? '#ff4757' : '#666', fontWeight: s.inactifs > 0 ? 600 : 400 }}>{s.inactifs}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(s.ca_total)}</td>
+                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(s.ca_moyen)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </AccordionSection>
     </div>
   );
 }
