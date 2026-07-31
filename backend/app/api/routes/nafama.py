@@ -110,6 +110,24 @@ def monthly_inactive(
     return nafama_service.get_monthly_inactive_pdv(db, annee, mois)
 
 
+@router.get("/nafama/monthly/progression")
+def monthly_progression(
+    annee: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Historique mensuel complet de tous les PDVs NAFAMA pour l'année."""
+    return nafama_service.get_monthly_progression(db, annee)
+
+
+@router.get("/nafama/weekly/progression")
+def weekly_progression(
+    annee: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Historique hebdomadaire complet de tous les PDVs NAFAMA pour l'année."""
+    return nafama_service.get_weekly_progression(db, annee)
+
+
 @router.get("/nafama/monthly/declining")
 def monthly_declining(
     annee: int = Query(...),

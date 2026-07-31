@@ -5,6 +5,7 @@ import {
   LineChart, Line, Cell, ComposedChart, AreaChart, Area, RadialBarChart, RadialBar
 } from 'recharts';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { AreaChart as ReAreaChart, Area as ReArea } from 'recharts';
 import api from '../services/api';
 
 const COLOR_PRIMARY = '#00d68f';
@@ -1082,6 +1083,183 @@ function TabDecliningPDVs({ annee, mois }) {
   );
 }
 
+// ─── Progression mensuelle ────────────────────────────────────────────────
+function TabProgression({ annee }) {
+  const [selectedPDV, setSelectedPDV] = useState(null);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
+  const PAGE_SIZE = 20;
+
+  const { data: progression, isLoading } = useQuery(
+    ['nafama-progression', annee],
+    () => api.get(`/nafama/monthly/progression?annee=${annee}`).then(r => r.data),
+    { staleTime: 300000, retry: false }
+  );
+
+  const allPDVs = progression?.pdvs || [];
+
+  const allSorted = allPDVs
+    .filter(p => activeFilter === 'reguliers' ? p.est_regulier : activeFilter === 'hausse' ? p.tendance === 'HAUSSE' : activeFilter === 'baisse' ? p.tendance === 'BAISSE' : true)
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+
+  const totalPages = Math.ceil(allSorted.length / PAGE_SIZE);
+  const displayed = allSorted.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+  const selectedData = selectedPDV ? (selectedPDV.historique_mensuel || []) : [];
+
+  const selectStyle = { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: '#ddd', fontSize: 12, cursor: 'pointer', outline: 'none' };
+
+  if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
+  if (!allPDVs.length) return <EmptyTab />;
+
+  const kpis = [
+    { label: '✅ Réguliers (tous mois)', value: progression?.nb_reguliers || 0, color: COLOR_PRIMARY, filter: 'reguliers' },
+    { label: '📈 Tendance Hausse', value: progression?.nb_hausse || 0, color: '#00d68f', filter: 'hausse' },
+    { label: '📉 Tendance Baisse', value: progression?.nb_baisse || 0, color: '#ff4757', filter: 'baisse' },
+    { label: '🏅 Total PDVs', value: progression?.nb_pdv_total || 0, color: '#ffa502', filter: null },
+  ];
+
+  return (
+    <div>
+      {/* KPIs cliquables */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        {kpis.map((k, i) => (
+          <div key={i} onClick={() => setActiveFilter(f => f === k.filter ? null : k.filter)}
+            style={{ padding: '16px 18px', background: activeFilter === k.filter ? `rgba(0,214,143,0.1)` : 'rgba(0,0,0,0.25)',
+              border: `2px solid ${activeFilter === k.filter ? k.color : 'rgba(255,255,255,0.08)'}`,
+              borderLeft: `4px solid ${k.color}`, borderRadius: 12, cursor: k.filter ? 'pointer' : 'default', transition: 'all 0.2s',
+              transform: activeFilter === k.filter ? 'scale(1.02)' : 'scale(1)' }}>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{k.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: k.color }}>{k.value}</div>
+            {activeFilter === k.filter && k.filter && <div style={{ fontSize: 10, color: k.color, marginTop: 4 }}>✓ Filtre actif</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Meilleur/Pire mois réseau */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div style={{ padding: '14px 18px', background: 'rgba(0,214,143,0.06)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>📈 Meilleur Mois Réseau</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: COLOR_PRIMARY }}>{progression?.meilleur_mois?.label || '—'}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>CA : {formatCA(progression?.meilleur_mois?.ca_total || 0)}</div>
+        </div>
+        <div style={{ padding: '14px 18px', background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.2)', borderRadius: 12 }}>
+          <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>⚠️ Pire Mois Réseau</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#ff4757' }}>{progression?.pire_mois?.label || '—'}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 4 }}>CA : {formatCA(progression?.pire_mois?.ca_total || 0)}</div>
+        </div>
+      </div>
+
+      {/* Courbe PDV sélectionné */}
+      {selectedPDV && selectedData.length > 0 && (
+        <div style={{ marginBottom: 16, padding: '18px 20px', background: 'linear-gradient(135deg, rgba(0,214,143,0.06) 0%, rgba(0,0,0,0) 60%)', borderRadius: 14, border: '1px solid rgba(0,214,143,0.25)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div>
+              <h3 style={{ fontWeight: 700, fontSize: 14 }}>📊 Évolution — {selectedPDV.numero_pdv}</h3>
+              <p style={{ fontSize: 11, color: '#8a8a9a', marginTop: 3 }}>{selectedPDV.superviseur} · {selectedPDV.zone} · Top10: {selectedPDV.nb_fois_top10}x · Top50: {selectedPDV.nb_fois_top50}x</p>
+            </div>
+            <button onClick={() => setSelectedPDV(null)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 18, borderRadius: 8, width: 32, height: 32 }}>✕</button>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={selectedData}>
+              <defs>
+                <linearGradient id="nafamaProgGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#00d68f" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#00d68f" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 9 }} tickFormatter={v => `${(v/1000).toFixed(0)}K`} width={45} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Area type="monotone" dataKey="ca" name="CA" stroke={COLOR_PRIMARY} fill="url(#nafamaProgGrad)" strokeWidth={2.5} dot={{ r: 4, fill: COLOR_PRIMARY, stroke: '#0a0a1a', strokeWidth: 2 }} activeDot={{ r: 6 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Barre de recherche */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 12, padding: '10px 14px' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#8a8a9a' }}>🔍</span>
+          <input type="text" placeholder="PDV, numéro, superviseur..."
+            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+            style={{ ...selectStyle, width: '100%', paddingLeft: 30, boxSizing: 'border-box', background: 'transparent', border: 'none' }} />
+        </div>
+        {(search || activeFilter) && <button onClick={() => { setSearch(''); setActiveFilter(null); setPage(1); }} style={{ padding: '7px 10px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 8, color: '#ff4757', cursor: 'pointer', fontSize: 13 }}>✕</button>}
+      </div>
+
+      {/* Tableau */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>📋 Progression PDVs — {annee}</span>
+          <span style={{ fontSize: 12, color: COLOR_PRIMARY }}>{allSorted.length} PDVs</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#FFD700' }}>Top 10</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#a29bfe' }}>Top 50</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA Max</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ff4757' }}>CA Min</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Tendance</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Courbe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayed.map((pdv, i) => {
+                const isSelected = selectedPDV?.numero_pdv === pdv.numero_pdv;
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isSelected ? 'rgba(0,214,143,0.04)' : 'transparent' }}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#666', fontWeight: 700 }}>{(page-1)*PAGE_SIZE + i + 1}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>{pdv.numero_pdv}</div>
+                      <div style={{ fontSize: 10, color: '#8a8a9a' }}>{pdv.nom !== pdv.numero_pdv ? pdv.nom : ''}</div>
+                    </td>
+                    <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{pdv.zone}</td>
+                    <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{pdv.superviseur}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#FFD700' }}>{pdv.nb_fois_top10}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#a29bfe' }}>{pdv.nb_fois_top50}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(pdv.ca_max)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ff4757' }}>{formatCA(pdv.ca_min)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        background: pdv.tendance === 'HAUSSE' ? 'rgba(0,214,143,0.12)' : pdv.tendance === 'BAISSE' ? 'rgba(255,71,87,0.12)' : 'rgba(255,255,255,0.06)',
+                        color: pdv.tendance === 'HAUSSE' ? COLOR_PRIMARY : pdv.tendance === 'BAISSE' ? '#ff4757' : '#8a8a9a' }}>
+                        {pdv.tendance === 'HAUSSE' ? '📈' : pdv.tendance === 'BAISSE' ? '📉' : '➡️'} {pdv.variation_globale > 0 ? '+' : ''}{pdv.variation_globale}%
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <button onClick={() => setSelectedPDV(prev => prev?.numero_pdv === pdv.numero_pdv ? null : pdv)}
+                        style={{ cursor: 'pointer', background: isSelected ? 'rgba(0,214,143,0.2)' : 'rgba(0,214,143,0.08)', border: `1px solid ${isSelected ? 'rgba(0,214,143,0.5)' : 'rgba(0,214,143,0.2)'}`, borderRadius: 7, color: COLOR_PRIMARY, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
+                        {isSelected ? '✕' : '📊'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <span style={{ fontSize: 12, color: '#8a8a9a' }}>Page {page} / {totalPages} · {allSorted.length} PDVs</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1} style={{ padding: '6px 14px', background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: COLOR_PRIMARY, cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 12, opacity: page === 1 ? 0.4 : 1 }}>← Préc.</button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages} style={{ padding: '6px 14px', background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: COLOR_PRIMARY, cursor: page === totalPages ? 'not-allowed' : 'pointer', fontSize: 12, opacity: page === totalPages ? 0.4 : 1 }}>Suiv. →</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page Principale Mensuelle ─────────────────────────────────────────────
 export default function NafamaDashboardPage() {
   const now = new Date();
@@ -1119,12 +1297,13 @@ export default function NafamaDashboardPage() {
   };
 
   const tabs = [
-    { id: 'overview',  label: "🏠 Vue d'ensemble" },
-    { id: 'top',       label: '🏆 Top PDVs' },
-    { id: 'pareto',    label: '📊 Pareto' },
-    { id: 'evolution', label: '📈 Évolution' },
-    { id: 'inactifs',  label: '😴 Inactifs' },
-    { id: 'declining', label: '📉 En Baisse' },
+    { id: 'overview',     label: "🏠 Vue d'ensemble" },
+    { id: 'top',          label: '🏆 Top PDVs' },
+    { id: 'pareto',       label: '📊 Pareto' },
+    { id: 'evolution',    label: '📈 Évolution' },
+    { id: 'inactifs',     label: '😴 Inactifs' },
+    { id: 'declining',    label: '📉 En Baisse' },
+    { id: 'progression',  label: '🚀 Progression' },
   ];
 
   return (
@@ -1161,7 +1340,8 @@ export default function NafamaDashboardPage() {
         {activeTab === 'pareto'    && <TabPareto annee={annee} mois={mois} />}
         {activeTab === 'evolution' && <TabEvolution annee={annee} mois={mois} />}
         {activeTab === 'inactifs'  && <TabInactivePDVs annee={annee} mois={mois} />}
-        {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} />}
+        {activeTab === 'declining'   && <TabDecliningPDVs annee={annee} mois={mois} />}
+        {activeTab === 'progression' && <TabProgression annee={annee} />}
       </div>
     </div>
   );

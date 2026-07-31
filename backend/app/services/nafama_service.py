@@ -1299,6 +1299,239 @@ def get_weekly_declining_pdv(db: Session, annee: int, semaine: int, seuil_pct: f
 
 
 # ─────────────────────────────────────────────────────────────
+# PROGRESSION (historique complet par PDV)
+# ─────────────────────────────────────────────────────────────
+
+def get_monthly_progression(db: Session, annee: int) -> Dict[str, Any]:
+    """
+    Historique mensuel complet de chaque PDV pour l'année donnée.
+    Pour chaque PDV : historique mois par mois, CA max/min, nb fois top10/top50,
+    meilleur mois, pire mois, tendance.
+    """
+    MOIS_ABR = ['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+
+    # Tous les PDVs actifs cette année avec leur CA par mois
+    rows = (
+        db.query(
+            NafamaTransaction.numero_pdv,
+            NafamaTransaction.mois,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(NafamaTransaction.id).label("nb_jours"),
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+        )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee)
+        .group_by(NafamaTransaction.numero_pdv, NafamaTransaction.mois,
+                  PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .order_by(NafamaTransaction.numero_pdv, NafamaTransaction.mois)
+        .all()
+    )
+
+    # Grouper par PDV
+    pdv_data = {}
+    for r in rows:
+        key = r.numero_pdv
+        if key not in pdv_data:
+            pdv_data[key] = {
+                "numero_pdv": r.numero_pdv,
+                "nom": r.nom or r.numero_pdv,
+                "zone": r.zone or "—",
+                "quartier": r.quartier or "—",
+                "superviseur": r.superviseur or "—",
+                "gestionnaire": r.gestionnaire or "—",
+                "historique_mensuel": [],
+            }
+        pdv_data[key]["historique_mensuel"].append({
+            "mois": r.mois,
+            "label": MOIS_ABR[r.mois],
+            "ca": int(r.ca),
+            "nb_jours": int(r.nb_jours),
+        })
+
+    # Calculer le rang par mois (top 10 et top 50)
+    ca_par_mois = {}
+    for pdv_id, info in pdv_data.items():
+        for h in info["historique_mensuel"]:
+            m = h["mois"]
+            if m not in ca_par_mois:
+                ca_par_mois[m] = []
+            ca_par_mois[m].append((pdv_id, h["ca"]))
+
+    nb_fois_top10 = {k: 0 for k in pdv_data}
+    nb_fois_top50 = {k: 0 for k in pdv_data}
+    for m, pdv_cas in ca_par_mois.items():
+        sorted_pdvs = sorted(pdv_cas, key=lambda x: x[1], reverse=True)
+        for i, (pdv_id, _) in enumerate(sorted_pdvs):
+            if i < 10:
+                nb_fois_top10[pdv_id] = nb_fois_top10.get(pdv_id, 0) + 1
+            if i < 50:
+                nb_fois_top50[pdv_id] = nb_fois_top50.get(pdv_id, 0) + 1
+
+    # Stats par PDV
+    pdvs = []
+    ca_reseau_par_mois = {}
+    for pdv_id, info in pdv_data.items():
+        hist = info["historique_mensuel"]
+        cas = [h["ca"] for h in hist if h["ca"] > 0]
+        ca_max = max(cas) if cas else 0
+        ca_min = min(cas) if cas else 0
+        mois_meilleur = next((h["label"] for h in hist if h["ca"] == ca_max), "—") if ca_max else "—"
+        mois_pire = next((h["label"] for h in hist if h["ca"] == ca_min), "—") if ca_min else "—"
+        est_regulier = len(cas) >= len(ca_par_mois)
+
+        # Tendance : comparer 1er et dernier mois actif
+        if len(cas) >= 2:
+            premiere = hist[0]["ca"]
+            derniere = hist[-1]["ca"]
+            tendance = "HAUSSE" if derniere > premiere else "BAISSE" if derniere < premiere else "STABLE"
+            variation_globale = round((derniere - premiere) / premiere * 100, 1) if premiere > 0 else 0
+        else:
+            tendance = "STABLE"
+            variation_globale = 0
+
+        for h in hist:
+            m = h["mois"]
+            ca_reseau_par_mois[m] = ca_reseau_par_mois.get(m, 0) + h["ca"]
+
+        pdvs.append({
+            **info,
+            "ca_max": ca_max,
+            "ca_min": ca_min,
+            "mois_meilleur_ca": mois_meilleur,
+            "mois_pire_ca": mois_pire,
+            "nb_fois_top10": nb_fois_top10.get(pdv_id, 0),
+            "nb_fois_top50": nb_fois_top50.get(pdv_id, 0),
+            "est_regulier": est_regulier,
+            "tendance": tendance,
+            "variation_globale": variation_globale,
+            "nb_mois_actifs": len(cas),
+        })
+
+    pdvs.sort(key=lambda x: x["ca_max"], reverse=True)
+
+    # Meilleur / pire mois du réseau
+    meilleur_mois = max(ca_reseau_par_mois, key=ca_reseau_par_mois.get) if ca_reseau_par_mois else None
+    pire_mois = min(ca_reseau_par_mois, key=ca_reseau_par_mois.get) if ca_reseau_par_mois else None
+
+    return {
+        "pdvs": pdvs,
+        "nb_pdv_total": len(pdvs),
+        "nb_reguliers": sum(1 for p in pdvs if p["est_regulier"]),
+        "nb_hausse": sum(1 for p in pdvs if p["tendance"] == "HAUSSE"),
+        "nb_baisse": sum(1 for p in pdvs if p["tendance"] == "BAISSE"),
+        "meilleur_mois": {"label": MOIS_ABR[meilleur_mois], "ca_total": ca_reseau_par_mois[meilleur_mois]} if meilleur_mois else None,
+        "pire_mois": {"label": MOIS_ABR[pire_mois], "ca_total": ca_reseau_par_mois[pire_mois]} if pire_mois else None,
+        "annee": annee,
+    }
+
+
+def get_weekly_progression(db: Session, annee: int) -> Dict[str, Any]:
+    """Historique hebdomadaire complet de chaque PDV pour l'année donnée."""
+    rows = (
+        db.query(
+            NafamaTransaction.numero_pdv,
+            NafamaTransaction.semaine,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            func.count(NafamaTransaction.id).label("nb_jours"),
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+        )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
+        .filter(NafamaTransaction.annee == annee)
+        .group_by(NafamaTransaction.numero_pdv, NafamaTransaction.semaine,
+                  PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .order_by(NafamaTransaction.numero_pdv, NafamaTransaction.semaine)
+        .all()
+    )
+
+    pdv_data = {}
+    for r in rows:
+        key = r.numero_pdv
+        if key not in pdv_data:
+            pdv_data[key] = {
+                "numero_pdv": r.numero_pdv,
+                "nom": r.nom or r.numero_pdv,
+                "zone": r.zone or "—",
+                "quartier": r.quartier or "—",
+                "superviseur": r.superviseur or "—",
+                "gestionnaire": r.gestionnaire or "—",
+                "historique_hebdo": [],
+            }
+        pdv_data[key]["historique_hebdo"].append({
+            "semaine": r.semaine,
+            "label": f"S{r.semaine}",
+            "ca": int(r.ca),
+            "nb_jours": int(r.nb_jours),
+        })
+
+    ca_par_sem = {}
+    for pdv_id, info in pdv_data.items():
+        for h in info["historique_hebdo"]:
+            s = h["semaine"]
+            if s not in ca_par_sem:
+                ca_par_sem[s] = []
+            ca_par_sem[s].append((pdv_id, h["ca"]))
+
+    nb_fois_top10 = {k: 0 for k in pdv_data}
+    nb_fois_top50 = {k: 0 for k in pdv_data}
+    for s, pdv_cas in ca_par_sem.items():
+        sorted_pdvs = sorted(pdv_cas, key=lambda x: x[1], reverse=True)
+        for i, (pdv_id, _) in enumerate(sorted_pdvs):
+            if i < 10: nb_fois_top10[pdv_id] = nb_fois_top10.get(pdv_id, 0) + 1
+            if i < 50: nb_fois_top50[pdv_id] = nb_fois_top50.get(pdv_id, 0) + 1
+
+    ca_reseau_par_sem = {}
+    pdvs = []
+    for pdv_id, info in pdv_data.items():
+        hist = info["historique_hebdo"]
+        cas = [h["ca"] for h in hist if h["ca"] > 0]
+        ca_max = max(cas) if cas else 0
+        ca_min = min(cas) if cas else 0
+        sem_meilleur = next((h["label"] for h in hist if h["ca"] == ca_max), "—") if ca_max else "—"
+        sem_pire = next((h["label"] for h in hist if h["ca"] == ca_min), "—") if ca_min else "—"
+        est_regulier = len(cas) >= len(ca_par_sem)
+        if len(cas) >= 2:
+            premiere = hist[0]["ca"]
+            derniere = hist[-1]["ca"]
+            tendance = "HAUSSE" if derniere > premiere else "BAISSE" if derniere < premiere else "STABLE"
+            variation_globale = round((derniere - premiere) / premiere * 100, 1) if premiere > 0 else 0
+        else:
+            tendance = "STABLE"
+            variation_globale = 0
+        for h in hist:
+            s = h["semaine"]
+            ca_reseau_par_sem[s] = ca_reseau_par_sem.get(s, 0) + h["ca"]
+
+        pdvs.append({
+            **info,
+            "ca_max": ca_max,
+            "ca_min": ca_min,
+            "sem_meilleure_ca": sem_meilleur,
+            "sem_pire_ca": sem_pire,
+            "nb_fois_top10": nb_fois_top10.get(pdv_id, 0),
+            "nb_fois_top50": nb_fois_top50.get(pdv_id, 0),
+            "est_regulier": est_regulier,
+            "tendance": tendance,
+            "variation_globale": variation_globale,
+            "nb_semaines_actives": len(cas),
+        })
+
+    pdvs.sort(key=lambda x: x["ca_max"], reverse=True)
+    meilleur_sem = max(ca_reseau_par_sem, key=ca_reseau_par_sem.get) if ca_reseau_par_sem else None
+    pire_sem = min(ca_reseau_par_sem, key=ca_reseau_par_sem.get) if ca_reseau_par_sem else None
+
+    return {
+        "pdvs": pdvs,
+        "nb_pdv_total": len(pdvs),
+        "nb_reguliers": sum(1 for p in pdvs if p["est_regulier"]),
+        "nb_hausse": sum(1 for p in pdvs if p["tendance"] == "HAUSSE"),
+        "nb_baisse": sum(1 for p in pdvs if p["tendance"] == "BAISSE"),
+        "meilleure_semaine": {"label": f"S{meilleur_sem}", "ca_total": ca_reseau_par_sem[meilleur_sem]} if meilleur_sem else None,
+        "pire_semaine": {"label": f"S{pire_sem}", "ca_total": ca_reseau_par_sem[pire_sem]} if pire_sem else None,
+        "annee": annee,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
 # METADATA : semaines et mois disponibles
 # ─────────────────────────────────────────────────────────────
 
