@@ -2,13 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Cell, ComposedChart, PieChart, Pie, Legend
+  LineChart, Line, Cell, ComposedChart, AreaChart, Area, RadialBarChart, RadialBar
 } from 'recharts';
-import {
-  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Activity,
-  DollarSign, Store, AlertTriangle
-} from 'lucide-react';
-import KPICard from '../components/common/KPICard';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 
 const COLOR_PRIMARY = '#00d68f';
@@ -47,28 +43,51 @@ function EmptyTab({ message = 'Aucune donnée disponible. Importez le fichier NA
   );
 }
 
-// ─── Composant Accordéon (identique OMY) ─────────────────────────────────
-function AccordionSection({ title, defaultOpen = true, children, badge }) {
+// ─── Accordéon NAFAMA (style propre vert) ────────────────────────────────
+function NafamaSection({ title, defaultOpen = true, children, badge }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ marginBottom: 16, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'hidden' }}>
+    <div style={{ marginBottom: 20 }}>
       <button onClick={() => setOpen(!open)} style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 20px', background: open ? 'rgba(0,214,143,0.08)' : 'rgba(255,255,255,0.03)',
-        border: 'none', cursor: 'pointer', color: '#fff', fontSize: 14, fontWeight: 700,
-        transition: 'background 0.2s',
+        padding: '12px 18px',
+        background: open
+          ? 'linear-gradient(90deg, rgba(0,214,143,0.12) 0%, rgba(0,214,143,0.03) 100%)'
+          : 'rgba(255,255,255,0.02)',
+        border: 'none',
+        borderLeft: `3px solid ${open ? COLOR_PRIMARY : 'rgba(0,214,143,0.2)'}`,
+        borderRadius: '0 10px 10px 0',
+        cursor: 'pointer', color: '#fff', fontSize: 14, fontWeight: 700,
+        transition: 'all 0.25s',
       }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {title}
-          {badge && <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'rgba(0,214,143,0.2)', color: COLOR_PRIMARY }}>{badge}</span>}
+          {badge && (
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 20,
+              background: 'rgba(0,214,143,0.15)', color: COLOR_PRIMARY, border: '1px solid rgba(0,214,143,0.3)' }}>
+              {badge}
+            </span>
+          )}
         </span>
-        <span style={{ fontSize: 18, transition: 'transform 0.2s', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', color: COLOR_PRIMARY }}>▾</span>
+        <span style={{ fontSize: 14, color: COLOR_PRIMARY, transform: open ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.25s' }}>▼</span>
       </button>
       {open && (
-        <div style={{ padding: '20px 20px 16px 20px', background: 'rgba(255,255,255,0.01)' }}>
+        <div style={{ paddingTop: 16 }}>
           {children}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── KPI Card style NAFAMA (design original) ─────────────────────────────
+function NafamaKPI({ label, value, icon, color, sub }) {
+  return (
+    <div className="card" style={{ textAlign: 'center', borderTop: `3px solid ${color}`, padding: '18px 12px' }}>
+      <div style={{ fontSize: 26, marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{label}</div>
+      {sub && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{sub}</div>}
     </div>
   );
 }
@@ -86,7 +105,7 @@ function TabOverview({ annee, mois }) {
 
   const evolution = data.evolution_pct || 0;
 
-  // Préparer données graphiques
+  // Données graphiques
   const caByZone = Object.entries(data.ca_by_zone || {})
     .map(([zone, ca]) => ({ zone: zone.replace('Bamako ', 'Bko '), ca }))
     .sort((a, b) => b.ca - a.ca);
@@ -96,171 +115,127 @@ function TabOverview({ annee, mois }) {
     .sort((a, b) => b.ca - a.ca)
     .slice(0, 8);
 
-  const caByGest = Object.entries(data.ca_by_gestionnaire || {})
-    .filter(([g]) => g && g !== '—')
-    .map(([gest, ca]) => ({ gest, ca }))
-    .sort((a, b) => b.ca - a.ca)
-    .slice(0, 6);
-
   const classement = data.classement_superviseurs || [];
+  const totalCA = data.ca_total || 1;
 
   return (
     <div>
       {/* ══ SECTION 1 : Volume Financier & Activité Réseau ══ */}
-      <AccordionSection
+      <NafamaSection
         title="💰 Volume Financier & Activité Réseau"
         defaultOpen={true}
         badge={`${MOIS_NOMS[mois]} ${annee}`}
       >
-        <div style={{ fontSize: 12, color: COLOR_PRIMARY, fontWeight: 700, marginBottom: 10 }}>💰 Volume Financier</div>
-        <div className="grid-3-kpi mb-24">
-          <KPICard
-            title="CA Total"
-            formatted={formatCA(data.ca_total)}
-            icon={DollarSign}
-            color={COLOR_PRIMARY}
-            loading={isLoading}
-            subtitle={`${MOIS_NOMS[mois]} ${annee}`}
-          />
-          <KPICard
-            title="CA Moyen / PDV"
-            formatted={formatCA(data.ca_moyen)}
-            icon={DollarSign}
-            color="#ffa502"
-            loading={isLoading}
-            subtitle={`Sur ${data.nb_pdv_actifs} PDVs actifs`}
-          />
-          <KPICard
-            title="Évolution vs M-1"
-            formatted={`${evolution >= 0 ? '+' : ''}${evolution}%`}
-            icon={evolution >= 0 ? TrendingUp : TrendingDown}
+        {/* Sous-titre Volume */}
+        <div style={{ fontSize: 11, color: COLOR_PRIMARY, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, paddingLeft: 4 }}>
+          Volume Financier
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
+          <NafamaKPI label="CA Total" value={formatCA(data.ca_total)} icon="💰" color={COLOR_PRIMARY} sub={`${MOIS_NOMS[mois]} ${annee}`} />
+          <NafamaKPI label="CA Moyen / PDV" value={formatCA(data.ca_moyen)} icon="📊" color="#ffa502" sub={`${data.nb_pdv_actifs} PDVs actifs`} />
+          <NafamaKPI
+            label="Évolution vs M-1"
+            value={`${evolution >= 0 ? '+' : ''}${evolution}%`}
+            icon={evolution >= 0 ? '📈' : '📉'}
             color={evolution >= 0 ? '#00d68f' : '#ff4757'}
-            loading={isLoading}
-            subtitle={`CA M-1 : ${formatCA(data.ca_mois_precedent)}`}
+            sub={`M-1 : ${formatCA(data.ca_mois_precedent)}`}
           />
         </div>
 
-        <div style={{ fontSize: 12, color: '#3742fa', fontWeight: 700, marginBottom: 10 }}>📊 Activité Réseau</div>
-        <div className="grid-3-kpi mb-8">
-          <KPICard
-            title="PDVs Actifs"
-            value={data.nb_pdv_actifs}
-            icon={Store}
-            color="#3742fa"
-            loading={isLoading}
-            subtitle={`${MOIS_NOMS[mois]} ${annee}`}
-          />
-          <KPICard
-            title="PDVs Inactifs"
-            value={data.nb_pdv_inactifs}
-            icon={AlertTriangle}
-            color="#ff4757"
-            loading={isLoading}
-            subtitle="Actifs M-1 mais absents ce mois"
-          />
-          <KPICard
-            title="Nouveaux PDVs"
-            value={data.nb_nouveaux_pdv}
-            icon={Activity}
-            color="#a29bfe"
-            loading={isLoading}
-            subtitle="Absents M-1, actifs ce mois"
-          />
+        {/* Sous-titre Activité */}
+        <div style={{ fontSize: 11, color: '#3742fa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, paddingLeft: 4 }}>
+          Activité Réseau
         </div>
-      </AccordionSection>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          <NafamaKPI label="PDVs Actifs" value={data.nb_pdv_actifs} icon="✅" color="#3742fa" sub={`${MOIS_NOMS[mois]} ${annee}`} />
+          <NafamaKPI label="PDVs Inactifs" value={data.nb_pdv_inactifs} icon="😴" color="#ff4757" sub="Actifs M-1 absents" />
+          <NafamaKPI label="Nouveaux PDVs" value={data.nb_nouveaux_pdv} icon="🆕" color="#a29bfe" sub="Apparus ce mois" />
+        </div>
+      </NafamaSection>
 
       {/* ══ SECTION 2 : Graphiques & Classement ══ */}
-      <AccordionSection title="📈 Graphiques & Classement" defaultOpen={true}>
+      <NafamaSection title="📈 Graphiques & Classement" defaultOpen={true}>
 
-        {/* Graphique CA par Zone */}
+        {/* AreaChart CA par Zone — style NAFAMA */}
         {caByZone.length > 0 && (
-          <div className="card mb-16" style={{ padding: '16px 20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700 }}>📍 CA par Zone — {MOIS_NOMS[mois]} {annee}</h3>
-              <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'rgba(0,214,143,0.15)', color: COLOR_PRIMARY, fontWeight: 600 }}>{caByZone.length} zones</span>
+          <div style={{ background: 'linear-gradient(135deg, rgba(0,214,143,0.06) 0%, rgba(0,0,0,0) 60%)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 14, padding: '18px 20px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>📍 CA par Zone</h3>
+              <span style={{ fontSize: 11, color: COLOR_PRIMARY }}>{MOIS_NOMS[mois]} {annee}</span>
             </div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={caByZone} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={caByZone} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="nafamaZoneGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#00d68f" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#00d68f" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                <XAxis dataKey="zone" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(1)}M`} width={55} />
+                <XAxis dataKey="zone" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#8a8a9a', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(0)}M`} width={40} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="ca" name="CA" stroke={COLOR_PRIMARY} strokeWidth={2.5} fill="url(#nafamaZoneGrad)" dot={{ r: 5, fill: COLOR_PRIMARY, strokeWidth: 2, stroke: '#0a0a1a' }} activeDot={{ r: 7 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Classement Superviseurs — style NAFAMA (barres de progression) */}
+        {classement.length > 0 && (
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '18px 20px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700 }}>🏆 Classement Superviseurs</h3>
+              <span style={{ fontSize: 11, color: '#8a8a9a' }}>{MOIS_NOMS[mois]} {annee}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {classement.map((s, i) => {
+                const pct = Math.round(s.ca_total / totalCA * 100 * 10) / 10;
+                const maxCA = classement[0]?.ca_total || 1;
+                const barPct = Math.round(s.ca_total / maxCA * 100);
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
+                return (
+                  <div key={i} style={{ padding: '10px 14px', background: i < 3 ? `rgba(0,214,143,${0.06 - i * 0.015})` : 'rgba(255,255,255,0.01)', borderRadius: 10, border: `1px solid ${i < 3 ? 'rgba(0,214,143,0.15)' : 'rgba(255,255,255,0.04)'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontSize: 16, minWidth: 24 }}>{medal || <span style={{ fontSize: 12, color: '#666', fontWeight: 700 }}>{i+1}</span>}</span>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{s.superviseur}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: COLOR_PRIMARY }}>{formatCA(s.ca_total)}</span>
+                    </div>
+                    {/* Barre de progression */}
+                    <div style={{ height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${barPct}%`, background: `linear-gradient(90deg, ${COLOR_PRIMARY}, #00b377)`, borderRadius: 4, transition: 'width 0.6s ease' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5, fontSize: 11, color: '#666' }}>
+                      <span>✅ {s.actifs} actifs {s.inactifs > 0 ? <span style={{ color: '#ff4757' }}>· 😴 {s.inactifs} inactifs</span> : ''}</span>
+                      <span style={{ color: '#8a8a9a' }}>{pct}% du CA total · Moy. {formatCA(s.ca_moyen)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* CA par Superviseur — LineChart style NAFAMA */}
+        {caBySup.length > 0 && (
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '18px 20px' }}>
+            <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>👤 Volume par Superviseur</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={caBySup} margin={{ top: 5, right: 10, left: 0, bottom: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis dataKey="sup" tick={{ fill: '#8a8a9a', fontSize: 9 }} axisLine={false} tickLine={false} angle={-35} textAnchor="end" interval={0} />
+                <YAxis tick={{ fill: '#8a8a9a', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(0)}M`} width={35} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="ca" name="CA" radius={[6,6,0,0]}>
-                  {caByZone.map((_, i) => <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />)}
+                  {caBySup.map((_, i) => (
+                    <Cell key={i} fill={i === 0 ? COLOR_PRIMARY : i === 1 ? '#00b377' : i === 2 ? '#009966' : `rgba(0,214,143,${0.5 - i * 0.05})`} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
-
-        {/* Graphiques CA par Superviseur + Gestionnaire */}
-        <div style={{ display: 'grid', gridTemplateColumns: caByGest.length ? '1fr 1fr' : '1fr', gap: 16, marginBottom: 16 }}>
-          {caBySup.length > 0 && (
-            <div className="card" style={{ padding: '16px 20px' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>👤 CA par Superviseur</h3>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={caBySup} layout="vertical" margin={{ top: 5, right: 20, left: 70, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(1)}M`} />
-                  <YAxis type="category" dataKey="sup" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="ca" name="CA" fill={COLOR_PRIMARY} radius={[0,6,6,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {caByGest.length > 0 && (
-            <div className="card" style={{ padding: '16px 20px' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>🧑‍💼 CA par Gestionnaire</h3>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={caByGest} layout="vertical" margin={{ top: 5, right: 20, left: 70, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1_000_000).toFixed(1)}M`} />
-                  <YAxis type="category" dataKey="gest" tick={{ fill: '#ccc', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="ca" name="CA" fill="#a29bfe" radius={[0,6,6,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        {/* Classement Superviseurs */}
-        {classement.length > 0 && (
-          <div className="card" style={{ padding: '16px 20px' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs — {MOIS_NOMS[mois]} {annee}</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>PDVs Actifs</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA Total</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Moy./PDV</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classement.map((s, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : '#aaa' }}>
-                        {i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}
-                      </td>
-                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.superviseur}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f', fontWeight: 600 }}>{s.actifs}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'center', color: s.inactifs > 0 ? '#ff4757' : '#666', fontWeight: s.inactifs > 0 ? 600 : 400 }}>{s.inactifs}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(s.ca_total)}</td>
-                      <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(s.ca_moyen)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </AccordionSection>
+      </NafamaSection>
     </div>
   );
 }
