@@ -412,6 +412,112 @@ function TabCourbes({ pdv }) {
   );
 }
 
+// ============ ONGLET NAFAMA ============
+function TabNafama({ numeroPdv }) {
+
+  const { data: monthly, isLoading: loadM } = useQuery(
+    ['nafama-pdv-monthly', numeroPdv],
+    () => api.get(`/nafama/pdv/${numeroPdv}/monthly-history`).then(r => r.data),
+    { staleTime: 300000, enabled: !!numeroPdv, retry: false }
+  );
+  const { data: weekly, isLoading: loadW } = useQuery(
+    ['nafama-pdv-weekly', numeroPdv],
+    () => api.get(`/nafama/pdv/${numeroPdv}/weekly-history`).then(r => r.data),
+    { staleTime: 300000, enabled: !!numeroPdv, retry: false }
+  );
+
+  const fmtCA = v => v ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' F' : '—';
+  const isLoading = loadM || loadW;
+
+  if (isLoading) return <div style={{ textAlign:'center', padding:40, color:'#8a8a9a' }}>Chargement des données NAFAMA...</div>;
+  if (!monthly?.length && !weekly?.length) return (
+    <div style={{ textAlign:'center', padding:60, color:'#8a8a9a' }}>
+      <div style={{ fontSize:40, marginBottom:12 }}>🟢</div>
+      <p style={{ fontSize:15, fontWeight:600 }}>Ce PDV n'a pas de transactions NAFAMA enregistrées.</p>
+    </div>
+  );
+
+  const caMax = monthly?.length ? Math.max(...monthly.map(h => h.ca)) : 0;
+  const caTotal = monthly?.reduce((s, h) => s + h.ca, 0) || 0;
+  const nbMoisActifs = monthly?.length || 0;
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:20 }}>
+        {[
+          { label:'CA Total NAFAMA', value: fmtCA(caTotal), color:'#00d68f' },
+          { label:'CA Max (meilleur mois)', value: fmtCA(caMax), color:'#ffa502' },
+          { label:'Mois Actifs', value: nbMoisActifs, color:'#a29bfe' },
+        ].map((k,i) => (
+          <div key={i} style={{ padding:'16px 18px', background:'rgba(0,0,0,0.25)', border:`1px solid rgba(0,214,143,0.15)`, borderLeft:`4px solid ${k.color}`, borderRadius:12 }}>
+            <div style={{ fontSize:11, color:'#8a8a9a', textTransform:'uppercase', letterSpacing:0.8, marginBottom:6 }}>{k.label}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:k.color }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Historique Mensuel */}
+      {monthly?.length > 0 && (
+        <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'hidden', marginBottom:16 }}>
+          <div style={{ padding:'12px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+            <span style={{ fontSize:13, fontWeight:700 }}>📅 Historique Mensuel NAFAMA</span>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <thead>
+                <tr style={{ background:'rgba(255,255,255,0.03)' }}>
+                  <th style={{ padding:'10px 14px', textAlign:'left', color:'#8a8a9a' }}>Période</th>
+                  <th style={{ padding:'10px 14px', textAlign:'right', color:'#00d68f' }}>CA NAFAMA</th>
+                  <th style={{ padding:'10px 14px', textAlign:'center', color:'#8a8a9a' }}>Jours actifs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthly.map((h,i) => (
+                  <tr key={i} style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding:'10px 14px', fontWeight:600 }}>{h.label}</td>
+                    <td style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, color:'#00d68f' }}>{fmtCA(h.ca)}</td>
+                    <td style={{ padding:'10px 14px', textAlign:'center', color:'#8a8a9a' }}>{h.nb_jours}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Historique Hebdomadaire */}
+      {weekly?.length > 0 && (
+        <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'hidden' }}>
+          <div style={{ padding:'12px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)' }}>
+            <span style={{ fontSize:13, fontWeight:700 }}>📆 Historique Hebdomadaire NAFAMA</span>
+          </div>
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <thead>
+                <tr style={{ background:'rgba(255,255,255,0.03)' }}>
+                  <th style={{ padding:'10px 14px', textAlign:'left', color:'#8a8a9a' }}>Semaine</th>
+                  <th style={{ padding:'10px 14px', textAlign:'right', color:'#00d68f' }}>CA NAFAMA</th>
+                  <th style={{ padding:'10px 14px', textAlign:'center', color:'#8a8a9a' }}>Jours actifs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {weekly.map((h,i) => (
+                  <tr key={i} style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding:'10px 14px', fontWeight:600 }}>{h.label} · {h.annee}</td>
+                    <td style={{ padding:'10px 14px', textAlign:'right', fontWeight:700, color:'#00d68f' }}>{fmtCA(h.ca)}</td>
+                    <td style={{ padding:'10px 14px', textAlign:'center', color:'#8a8a9a' }}>{h.nb_jours}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ ONGLET 4: ACTIONS TERRAIN ============
 function TabActionsTerrain({ pdv }) {
   const queryClient = useQueryClient();
@@ -585,6 +691,7 @@ export default function PDVDetailPage() {
     { id: 'infos', label: 'ℹ️ Informations' },
     { id: 'performances', label: '📊 Performances' },
     { id: 'courbes', label: '📈 Courbes' },
+    { id: 'nafama', label: '🟢 NAFAMA' },
     { id: 'actions', label: '🎯 Actions Terrain' },
     { id: 'historique', label: '📜 Historique du PDV' },
   ];
@@ -643,6 +750,7 @@ export default function PDVDetailPage() {
         {activeTab === 'infos' && <TabInformations pdv={pdv} />}
         {activeTab === 'performances' && <TabPerformances pdv={pdv} />}
         {activeTab === 'courbes' && <TabCourbes pdv={pdv} />}
+        {activeTab === 'nafama' && <TabNafama numeroPdv={pdv?.numero_pdv} />}
         {activeTab === 'actions' && <TabActionsTerrain pdv={pdv} />}
       </div>
 

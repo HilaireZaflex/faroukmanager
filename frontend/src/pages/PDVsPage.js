@@ -338,12 +338,40 @@ export default function PDVsPage() {
   const { data: statsBase } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
   const { data: dashboardMonthly } = useQuery(['pdv-dashboard-monthly', annee, mois, zone, typePdv, service], () =>
     api.get('/dashboard/monthly', { params: { annee, mois, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}), service } }).then(r => r.data),
-    { staleTime: 0, enabled: periodeType === 'mensuel' && !!lastAvailable });
+    { staleTime: 0, enabled: periodeType === 'mensuel' && !!lastAvailable && service !== 'NAFAMA' });
   const { data: dashboardWeekly } = useQuery(['pdv-dashboard-weekly', lastSemaineAnnee, lastSemaine, zone, typePdv, service], () =>
     api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine, ...(zone ? { zone } : {}), ...(typePdv ? { type_pdv: typePdv } : {}), service } }).then(r => r.data),
-    { staleTime: 0, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
-  
-  const activeDash = periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly;
+    { staleTime: 0, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine && service !== 'NAFAMA' });
+
+  // NAFAMA : données depuis nos endpoints dédiés
+  const { data: nafamaPeriods } = useQuery(
+    'nafama-periods-pdv',
+    () => api.get('/nafama/periods').then(r => r.data),
+    { staleTime: 300000, enabled: service === 'NAFAMA' }
+  );
+  const nafamaMois = nafamaPeriods?.mois || [];
+  const nafamaLastMois = nafamaMois.length ? nafamaMois[nafamaMois.length - 1] : null;
+  const nafamaAnnee = nafamaLastMois?.annee || annee;
+  const nafamaMoisNum = nafamaLastMois?.mois || mois;
+  const nafamaSemaines = nafamaPeriods?.semaines || [];
+  const nafamaLastSem = nafamaSemaines.length ? nafamaSemaines[nafamaSemaines.length - 1] : null;
+
+  const { data: nafamaSummaryM } = useQuery(
+    ['nafama-pdvpage-monthly', nafamaAnnee, nafamaMoisNum],
+    () => api.get(`/nafama/monthly/summary?annee=${nafamaAnnee}&mois=${nafamaMoisNum}`).then(r => r.data),
+    { staleTime: 300000, enabled: service === 'NAFAMA' && periodeType === 'mensuel' && !!nafamaLastMois }
+  );
+  const { data: nafamaSummaryW } = useQuery(
+    ['nafama-pdvpage-weekly', nafamaLastSem?.annee, nafamaLastSem?.semaine],
+    () => api.get(`/nafama/weekly/summary?annee=${nafamaLastSem?.annee}&semaine=${nafamaLastSem?.semaine}`).then(r => r.data),
+    { staleTime: 300000, enabled: service === 'NAFAMA' && periodeType === 'hebdo' && !!nafamaLastSem }
+  );
+
+  const activeDash = service === 'NAFAMA'
+    ? (periodeType === 'mensuel'
+        ? { total_pdvs: nafamaSummaryM?.nb_pdv_actifs || 0, active_pdvs: nafamaSummaryM?.nb_pdv_actifs || 0, inactive_pdvs: nafamaSummaryM?.nb_pdv_inactifs || 0, pdvs_sans_donnees: 0 }
+        : { total_pdvs: nafamaSummaryW?.nb_pdv_actifs || 0, active_pdvs: nafamaSummaryW?.nb_pdv_actifs || 0, inactive_pdvs: nafamaSummaryW?.nb_pdv_inactifs || 0, pdvs_sans_donnees: 0 })
+    : (periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly);
 
   // Stats dynamiques selon TOUS les filtres actifs (zone, type, statut)
   const { data: dynamicStatsRaw } = useQuery(
@@ -460,9 +488,14 @@ export default function PDVsPage() {
             {s.label}
           </button>
         ))}
-        {service !== 'OMY' && (
+        {service === 'NAFAMA' && (
+          <span style={{ fontSize:11, color:'#a29bfe', fontStyle:'italic', marginLeft:8 }}>
+            🟢 Données NAFAMA disponibles — Avr→Jul 2026
+          </span>
+        )}
+        {service === 'KAABU' && (
           <span style={{ fontSize:11, color:'var(--text-secondary)', fontStyle:'italic', marginLeft:8 }}>
-            ⚠️ Données {service} non encore importées — affichage en attente
+            ⚠️ Données KAABU non encore importées — affichage en attente
           </span>
         )}
       </div>
