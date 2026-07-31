@@ -44,6 +44,24 @@ function EmptyTab({ message = 'Aucune donnée disponible. Importez le fichier NA
   );
 }
 
+// ─── Hook tri colonnes (pattern Commissions) ─────────────────────────────
+function useSortable(defaultCol, defaultDir = 'desc') {
+  const [sortCol, setSortCol] = React.useState(defaultCol);
+  const [sortDir, setSortDir] = React.useState(defaultDir);
+  const thSort = (col, label, color, align = 'right') => (
+    <th onClick={() => { if (sortCol === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setSortCol(col); setSortDir('desc'); } }}
+      style={{ padding: '10px 12px', textAlign: align, color: sortCol === col ? (color || COLOR_PRIMARY) : '#8a8a9a', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+      {label} {sortCol === col ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}
+    </th>
+  );
+  const sortFn = (a, b) => {
+    const va = a[sortCol]; const vb = b[sortCol];
+    if (typeof va === 'string') return sortDir === 'desc' ? vb?.localeCompare(va||'') : va?.localeCompare(vb||'');
+    return sortDir === 'desc' ? (vb||0) - (va||0) : (va||0) - (vb||0);
+  };
+  return { sortCol, sortDir, thSort, sortFn };
+}
+
 // ─── Accordéon NAFAMA (style propre vert) ────────────────────────────────
 function NafamaSection({ title, defaultOpen = true, children, badge }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -249,6 +267,7 @@ function TabTopPDVs({ annee, mois }) {
   const [supFilter, setSupFilter] = useState('');
   const [quarFilter, setQuarFilter] = useState('');
   const [sortBy, setSortBy] = useState('ca_desc');
+  const { thSort, sortFn } = useSortable('ca');
   const [selectedPDV, setSelectedPDV] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -409,17 +428,17 @@ function TabTopPDVs({ annee, mois }) {
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>#</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>PDV</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY, fontWeight: 600 }}>CA</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Zone</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Superviseur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>Gestionnaire</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>Évolution</th>
+                {thSort('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                {thSort('ca', 'CA', COLOR_PRIMARY, 'right')}
+                {thSort('zone', 'Zone', '#8a8a9a', 'left')}
+                {thSort('superviseur', 'Superviseur', '#8a8a9a', 'left')}
+                {thSort('gestionnaire', 'Gestionnaire', '#8a8a9a', 'left')}
+                {thSort('evolution_pct', 'Évolution', '#8a8a9a', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>Courbe</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((pdv, i) => {
+              {[...filtered].sort(sortFn).map((pdv, i) => {
                 const evol = pdv.evolution_pct;
                 const isSelected = selectedPDV === pdv.numero_pdv;
                 return (
@@ -466,6 +485,7 @@ function TabPareto({ annee, mois }) {
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
   const [quarFilter, setQuarFilter] = useState('');
+  const { thSort: thSortP, sortFn: sortFnP } = useSortable('ca');
 
   const { data, isLoading } = useQuery(
     ['nafama-pareto', annee, mois],
@@ -590,17 +610,17 @@ function TabPareto({ annee, mois }) {
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>% CA</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>Cumul %</th>
+                {thSortP('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                {thSortP('zone', 'Zone', '#8a8a9a', 'left')}
+                {thSortP('superviseur', 'Superviseur', '#8a8a9a', 'left')}
+                {thSortP('ca', 'CA', COLOR_PRIMARY, 'right')}
+                {thSortP('pct_ca', '% CA', '#8a8a9a', 'right')}
+                {thSortP('cumul_pct', 'Cumul %', '#ffa502', 'right')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Impact</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((pdv, i) => (
+              {[...filtered].sort(sortFnP).map((pdv, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: pdv.dans_pareto ? 'rgba(0,214,143,0.02)' : 'transparent' }}>
                   <td style={{ padding: '9px 12px', textAlign: 'center', color: '#666', fontWeight: 700 }}>{i + 1}</td>
                   <td style={{ padding: '9px 12px' }}>
@@ -635,6 +655,7 @@ function TabEvolution({ annee, mois }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
+  const { thSort: thSortE, sortFn: sortFnE } = useSortable('ca_actuel');
 
   const { data: graph, isLoading: loadingGraph } = useQuery(
     ['nafama-evolution-graph', annee],
@@ -744,15 +765,15 @@ function TabEvolution({ annee, mois }) {
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                   <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Nom</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA {MOIS_NOMS[mois]}</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>CA {MOIS_ABR[prevMois]} {prevAnnee}</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Variation</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Taux</th>
+                  {thSortE(activeSub === 'pdvs' ? 'numero_pdv' : activeSub === 'superviseurs' ? 'superviseur' : 'gestionnaire', 'Nom', '#8a8a9a', 'left')}
+                  {thSortE('ca_actuel', `CA ${MOIS_NOMS[mois]}`, COLOR_PRIMARY, 'right')}
+                  {thSortE('ca_precedent', `CA ${MOIS_ABR[prevMois]} ${prevAnnee}`, '#ffa502', 'right')}
+                  {thSortE('variation', 'Variation', '#8a8a9a', 'right')}
+                  {thSortE('taux', 'Taux', '#8a8a9a', 'center')}
                 </tr>
               </thead>
               <tbody>
-                {displayed.map((row, i) => (
+                {[...displayed].sort(sortFnE).map((row, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ padding: '9px 12px', textAlign: 'center', color: '#666', fontWeight: 700 }}>{(page-1)*PAGE_SIZE + i + 1}</td>
                     <td style={{ padding: '9px 12px' }}>
@@ -803,6 +824,7 @@ function TabInactivePDVs({ annee, mois }) {
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
+  const { thSort: thSortI, sortFn: sortFnI } = useSortable('ca_dernier_mois');
 
   const { data, isLoading } = useQuery(
     ['nafama-inactifs', annee, mois],
@@ -881,19 +903,19 @@ function TabInactivePDVs({ annee, mois }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaire</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>CA Dernier Mois</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Mois Inactif</th>
+                {thSortI('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                {thSortI('zone', 'Zone', '#8a8a9a', 'left')}
+                {thSortI('superviseur', 'Superviseur', '#8a8a9a', 'left')}
+                {thSortI('gestionnaire', 'Gestionnaire', '#8a8a9a', 'left')}
+                {thSortI('ca_dernier_mois', 'CA Dernier Mois', '#ffa502', 'right')}
+                {thSortI('nb_mois_consecutifs_inactif', 'Mois Inactif', '#8a8a9a', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
               </tr>
             </thead>
             <tbody>
               {displayed.length === 0 ? (
                 <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif avec ces filtres</td></tr>
-              ) : displayed.map((p, i) => {
+              ) : [...displayed].sort(sortFnI).map((p, i) => {
                 const nbMois = p.nb_mois_consecutifs_inactif;
                 const alertColor = nbMois >= 3 ? '#ff4757' : nbMois === 2 ? '#ffa502' : '#8a8a9a';
                 return (
@@ -930,6 +952,7 @@ function TabDecliningPDVs({ annee, mois }) {
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
+  const { thSort: thSortD, sortFn: sortFnD } = useSortable('variation_pct');
 
   const { data, isLoading } = useQuery(
     ['nafama-baisse', annee, mois, seuil],
@@ -1037,12 +1060,12 @@ function TabDecliningPDVs({ annee, mois }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA Actuel</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>CA M-1</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Baisse</th>
+                {thSortD('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                {thSortD('zone', 'Zone', '#8a8a9a', 'left')}
+                {thSortD('superviseur', 'Superviseur', '#8a8a9a', 'left')}
+                {thSortD('ca_actuel', 'CA Actuel', COLOR_PRIMARY, 'right')}
+                {thSortD('ca_precedent', 'CA M-1', '#ffa502', 'right')}
+                {thSortD('variation_pct', 'Baisse', '#ff4757', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Action recommandée</th>
               </tr>
@@ -1052,7 +1075,7 @@ function TabDecliningPDVs({ annee, mois }) {
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : displayed.length === 0 ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV avec ces filtres</td></tr>
-              ) : displayed.map((p, i) => {
+              ) : [...displayed].sort(sortFnD).map((p, i) => {
                 const abs = Math.abs(p.variation_pct);
                 const alertColor = abs > 30 ? '#ff4757' : abs > 15 ? '#ffa502' : '#8a8a9a';
                 return (
@@ -1090,6 +1113,7 @@ function TabProgression({ annee }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const PAGE_SIZE = 20;
+  const { thSort: thSortProg, sortFn: sortFnProg } = useSortable('ca_max');
 
   const { data: progression, isLoading } = useQuery(
     ['nafama-progression', annee],
@@ -1200,19 +1224,19 @@ function TabProgression({ annee }) {
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#FFD700' }}>Top 10</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#a29bfe' }}>Top 50</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA Max</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ff4757' }}>CA Min</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Tendance</th>
+                {thSortProg('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                {thSortProg('zone', 'Zone', '#8a8a9a', 'left')}
+                {thSortProg('superviseur', 'Superviseur', '#8a8a9a', 'left')}
+                {thSortProg('nb_fois_top10', 'Top 10', '#FFD700', 'center')}
+                {thSortProg('nb_fois_top50', 'Top 50', '#a29bfe', 'center')}
+                {thSortProg('ca_max', 'CA Max', COLOR_PRIMARY, 'right')}
+                {thSortProg('ca_min', 'CA Min', '#ff4757', 'right')}
+                {thSortProg('variation_globale', 'Tendance', '#8a8a9a', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Courbe</th>
               </tr>
             </thead>
             <tbody>
-              {displayed.map((pdv, i) => {
+              {[...displayed].sort(sortFnProg).map((pdv, i) => {
                 const isSelected = selectedPDV?.numero_pdv === pdv.numero_pdv;
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isSelected ? 'rgba(0,214,143,0.04)' : 'transparent' }}>
