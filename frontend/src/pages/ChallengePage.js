@@ -612,16 +612,20 @@ function TabDashboard({ dashboard }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Scores globaux — enrichis */}
+      {/* Scores globaux — enrichis avec explications */}
       <div className="ch-card">
         <h3 className="ch-section-title">🏆 Score Global Challenge</h3>
+
+        {/* Jauges */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: '20px 0' }}>
           <ScoreJauge label="Challenge OM" score={scores?.om || 0} color="#FF6900"/>
           <ScoreJauge label="Challenge TELCO" score={scores?.telco || 0} color="#0ea5e9"/>
-          <ScoreJauge label="Indicateurs" score={scoreIndicateurs} color="#FF6900"/>
+          <ScoreJauge label="Indicateurs" score={scoreIndicateurs} color="#22c55e"/>
           <ScoreJauge label="Score Global" score={scoreGlobal} color="#10b981"/>
         </div>
-        <div style={{ textAlign: 'center', marginTop: 8 }}>
+
+        {/* Message global */}
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
           {scoreGlobal >= 95 ? (
             <div style={{ color: '#10b981', fontWeight: 700 }}>🎉 Excellente performance ! Vous êtes sur la bonne voie pour remporter le prix !</div>
           ) : scoreGlobal >= 70 ? (
@@ -629,6 +633,82 @@ function TabDashboard({ dashboard }) {
           ) : (
             <div style={{ color: '#ef4444', fontWeight: 700 }}>🔴 Situation critique — Des actions immédiates sont nécessaires !</div>
           )}
+        </div>
+
+        {/* Explication des scores */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}>
+          <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            💡 Comment sont calculés ces scores ?
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+            {/* Challenge OM */}
+            <div style={{ background: 'rgba(255,105,0,0.06)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900', marginBottom: 8 }}>🟠 Challenge OM (max 40 pts)</div>
+              {[
+                { label: '🏪 PDV Actifs Orange Money', poids: 10 },
+                { label: '👥 Recrutement nouveaux clients OMY', poids: 15 },
+                { label: '📦 Déploiement PLV (affiches, kakémonos)', poids: 15 },
+              ].map((c, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
+                  <span style={{ color: '#94a3b8' }}>{c.label}</span>
+                  <span style={{ color: '#FF6900', fontWeight: 700 }}>{c.poids} pts</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Challenge TELCO */}
+            <div style={{ background: 'rgba(14,165,233,0.06)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#0ea5e9', marginBottom: 8 }}>🔵 Challenge TELCO (max 30 pts)</div>
+              {[
+                { label: '📍 Points de contrôle créés', poids: 15 },
+                { label: '📦 PLV / Note DZ', poids: 15 },
+              ].map((c, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
+                  <span style={{ color: '#94a3b8' }}>{c.label}</span>
+                  <span style={{ color: '#0ea5e9', fontWeight: 700 }}>{c.poids} pts</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Indicateurs */}
+            <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#22c55e', marginBottom: 8 }}>🟢 Indicateurs Award (sur 100)</div>
+              {[
+                { label: '📱 Taux réalisation OMY', val: indData.find(i=>i.nom==='OMY')?.total?.taux_orange },
+                { label: '💳 Taux réalisation KAABU', val: indData.find(i=>i.nom==='KAABU MOBILE')?.total?.taux_orange },
+                { label: '🟢 Taux réalisation NAFAMA', val: indData.find(i=>i.nom==='NAFAMA')?.total?.taux_orange },
+                { label: '🖥️ Taux réalisation TERMINAUX', val: indData.find(i=>i.nom==='TERMINAUX')?.total?.taux_orange },
+                { label: '☀️ Taux réalisation ENERGIE', val: indData.find(i=>i.nom==='ORANGE ENERGIE')?.total?.taux_orange },
+              ].map((c, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
+                  <span style={{ color: '#94a3b8' }}>{c.label}</span>
+                  <span style={{ color: c.val >= 0.95 ? '#22c55e' : c.val >= 0.8 ? '#ffa502' : c.val != null ? '#ff4757' : '#64748b', fontWeight: 700 }}>
+                    {c.val != null ? `${Math.round(c.val*100)}%` : '—'}
+                  </span>
+                </div>
+              ))}
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11, color: '#64748b' }}>
+                → Score = moyenne des taux (plafonnée à 100)
+              </div>
+            </div>
+
+            {/* Score Global */}
+            <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#10b981', marginBottom: 8 }}>🏆 Score Global</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.7 }}>
+                Calcul = moyenne de :<br/>
+                • Score Challenge OM : <strong style={{ color: '#FF6900' }}>{scores?.om || 0}/100</strong><br/>
+                • Score Challenge TELCO : <strong style={{ color: '#0ea5e9' }}>{scores?.telco || 0}/100</strong><br/>
+                • Score Indicateurs : <strong style={{ color: '#22c55e' }}>{scoreIndicateurs}/100</strong>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 13, fontWeight: 900, color: '#10b981' }}>
+                = {scoreGlobal} / 100
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>
+                {scoreGlobal >= 95 ? '🎯 Objectif atteint !' : scoreGlobal >= 80 ? '📈 Bon niveau, continuez !' : '⚡ Des efforts nécessaires'}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
