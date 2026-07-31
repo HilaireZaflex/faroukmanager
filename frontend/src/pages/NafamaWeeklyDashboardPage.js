@@ -763,6 +763,11 @@ function OngletEvolution({ annee, semaine }) {
 
 // ─── Inactifs hebdo ────────────────────────────────────────────────────────
 function OngletInactifs({ annee, semaine }) {
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [search, setSearch] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [supFilter, setSupFilter] = useState('');
+
   const { data, isLoading } = useQuery(
     ['nafama-w-inactifs', annee, semaine],
     () => api.get(`/nafama/weekly/inactive?annee=${annee}&semaine=${semaine}`).then(r => r.data),
@@ -770,21 +775,113 @@ function OngletInactifs({ annee, semaine }) {
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
-  if (!data?.length) return <EmptyTab message="Aucun PDV inactif cette semaine ✅" />;
+  if (!data?.pdvs?.length && !isLoading) return <EmptyTab message="✅ Aucun PDV inactif cette semaine !" />;
+
+  const pdvs = data?.pdvs || [];
+  const zoneList = [...new Set(pdvs.map(p => p.zone).filter(z => z && z !== '—'))].sort();
+  const supList = [...new Set(pdvs.filter(p => !zoneFilter || p.zone === zoneFilter).map(p => p.superviseur).filter(s => s && s !== '—'))].sort();
+
+  const displayed = pdvs
+    .filter(p => activeFilter === 'critique' ? p.nb_semaines_consecutives_inactif >= 3 : activeFilter === 'haute' ? p.nb_semaines_consecutives_inactif === 2 : activeFilter === 'normale' ? p.nb_semaines_consecutives_inactif === 1 : true)
+    .filter(p => !zoneFilter || p.zone === zoneFilter)
+    .filter(p => !supFilter || p.superviseur === supFilter)
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+
+  const selectStyle = { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: '#ddd', fontSize: 12, cursor: 'pointer', outline: 'none', minWidth: 0 };
+
+  const kpis = [
+    { label: 'Total Inactifs', value: data?.total || 0, color: '#ff4757', filter: null },
+    { label: '🔴 Critique (≥3 sem)', value: data?.nb_critique || 0, color: '#ff4757', filter: 'critique' },
+    { label: '🟠 Haute (2 sem)', value: data?.nb_haute || 0, color: '#ffa502', filter: 'haute' },
+    { label: '⚪ Normale (1 sem)', value: data?.nb_normale || 0, color: '#8a8a9a', filter: 'normale' },
+  ];
 
   return (
-    <div className="card">
-      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>😴 PDVs Inactifs — Semaine {semaine} · {annee} ({data.length})</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {data.map((pdv, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 14px', background: 'rgba(255,71,87,0.05)', borderRadius: 8, border: '1px solid rgba(255,71,87,0.15)' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{pdv.numero_pdv}</div>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Semaine préc. : {formatCA(pdv.ca_semaine_precedente)}</div>
-            <div style={{ fontSize: 11, color: '#ff4757', fontWeight: 700 }}>INACTIF</div>
+    <div>
+      {/* KPIs cliquables */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        {kpis.map((k, i) => (
+          <div key={i} onClick={() => setActiveFilter(f => f === k.filter ? null : k.filter)}
+            style={{ padding: '16px 18px', background: activeFilter === k.filter ? `rgba(${k.color === '#ff4757' ? '255,71,87' : k.color === '#ffa502' ? '255,165,2' : '138,138,154'},0.12)` : 'rgba(0,0,0,0.25)',
+              border: `2px solid ${activeFilter === k.filter ? k.color : `rgba(${k.color === '#ff4757' ? '255,71,87' : k.color === '#ffa502' ? '255,165,2' : '138,138,154'},0.2)`}`,
+              borderLeft: `4px solid ${k.color}`, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s',
+              transform: activeFilter === k.filter ? 'scale(1.02)' : 'scale(1)' }}>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{k.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: k.color }}>{k.value}</div>
+            {activeFilter === k.filter && <div style={{ fontSize: 10, color: k.color, marginTop: 4 }}>✓ Filtre actif</div>}
           </div>
         ))}
+      </div>
+
+      {/* Barre de filtres */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 12, padding: '10px 14px' }}>
+        <div style={{ flex: 2, minWidth: 140, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#8a8a9a' }}>🔍</span>
+          <input type="text" placeholder="PDV, numéro, superviseur..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            style={{ ...selectStyle, width: '100%', paddingLeft: 30, boxSizing: 'border-box', background: 'transparent', border: 'none', borderRight: '1px solid rgba(0,214,143,0.12)', borderRadius: 0, paddingRight: 8 }} />
+        </div>
+        <select value={zoneFilter} onChange={e => { setZoneFilter(e.target.value); setSupFilter(''); }} style={selectStyle}>
+          <option value="">📍 Zone</option>
+          {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
+        </select>
+        <select value={supFilter} onChange={e => setSupFilter(e.target.value)} style={selectStyle}>
+          <option value="">👤 Superviseur</option>
+          {supList.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {(search || zoneFilter || supFilter || activeFilter) && (
+          <button onClick={() => { setSearch(''); setZoneFilter(''); setSupFilter(''); setActiveFilter(null); }}
+            style={{ padding: '7px 10px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 8, color: '#ff4757', cursor: 'pointer', fontSize: 13 }}>✕</button>
+        )}
+      </div>
+
+      {/* Tableau */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>😴 PDVs Inactifs — Semaine {semaine} · {annee}</span>
+          <span style={{ fontSize: 12, color: '#ff4757' }}>{displayed.length} PDVs</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaire</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>CA Sem. Préc.</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Sem. Inactif</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayed.length === 0 ? (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif avec ces filtres</td></tr>
+              ) : displayed.map((p, i) => {
+                const nb = p.nb_semaines_consecutives_inactif;
+                const alertColor = nb >= 3 ? '#ff4757' : nb === 2 ? '#ffa502' : '#8a8a9a';
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: nb >= 3 ? 'rgba(255,71,87,0.03)' : 'transparent' }}>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{p.numero_pdv}</div>
+                      <div style={{ fontSize: 10, color: '#8a8a9a' }}>{p.nom !== p.numero_pdv ? p.nom : ''}</div>
+                    </td>
+                    <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.zone}</td>
+                    <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.superviseur}</td>
+                    <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.gestionnaire}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#ffa502' }}>{formatCA(p.ca_semaine_precedente)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 800, color: alertColor, fontSize: 16 }}>{nb}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: `rgba(${nb >= 3 ? '255,71,87' : nb === 2 ? '255,165,2' : '138,138,154'},0.12)`, color: alertColor }}>
+                        {p.alerte}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

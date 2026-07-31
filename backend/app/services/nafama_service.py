@@ -679,8 +679,28 @@ def get_weekly_evolution_detail(db: Session, annee: int, semaine: int) -> Dict[s
     }
 
 
-def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> List[Dict]:
-    """PDVs qui étaient actifs le mois précédent mais absents ce mois."""
+def _get_nb_mois_consecutifs_inactif(db: Session, numero_pdv: str, annee: int, mois: int) -> int:
+    """Compte le nombre de mois consécutifs d'inactivité jusqu'à annee/mois (inclus)."""
+    count = 0
+    a, m = annee, mois
+    for _ in range(12):
+        exists = db.query(NafamaTransaction.id).filter(
+            NafamaTransaction.numero_pdv == numero_pdv,
+            NafamaTransaction.annee == a,
+            NafamaTransaction.mois == m,
+        ).first()
+        if exists:
+            break
+        count += 1
+        m -= 1
+        if m == 0:
+            m = 12
+            a -= 1
+    return count
+
+
+def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, Any]:
+    """PDVs inactifs ce mois — enrichi avec infos PDV, nb mois consécutifs, alerte."""
     mois_prec = mois - 1 if mois > 1 else 12
     annee_prec = annee if mois > 1 else annee - 1
 
@@ -694,19 +714,44 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> List[Dict]:
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca_prec"),
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
         )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec)
-        .group_by(NafamaTransaction.numero_pdv)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
         .all()
     )
 
-    inactifs = [
-        {"numero_pdv": r.numero_pdv, "ca_dernier_mois": int(r.ca_prec)}
-        for r in rows_prec
-        if r.numero_pdv not in pdvs_ce_mois
-    ]
-    inactifs.sort(key=lambda x: x["ca_dernier_mois"], reverse=True)
-    return inactifs
+    pdvs = []
+    for r in rows_prec:
+        if r.numero_pdv not in pdvs_ce_mois:
+            nb = _get_nb_mois_consecutifs_inactif(db, r.numero_pdv, annee, mois)
+            alerte = "🔴 Critique" if nb >= 3 else "🟠 Haute" if nb == 2 else "⚪ Normale"
+            pdvs.append({
+                "numero_pdv": r.numero_pdv,
+                "nom": r.nom or r.numero_pdv,
+                "zone": r.zone or "—",
+                "quartier": r.quartier or "—",
+                "superviseur": r.superviseur or "—",
+                "gestionnaire": r.gestionnaire or "—",
+                "ca_dernier_mois": int(r.ca_prec),
+                "nb_mois_consecutifs_inactif": nb,
+                "alerte": alerte,
+            })
+
+    pdvs.sort(key=lambda x: x["ca_dernier_mois"], reverse=True)
+    critique = [p for p in pdvs if p["nb_mois_consecutifs_inactif"] >= 3]
+    haute = [p for p in pdvs if p["nb_mois_consecutifs_inactif"] == 2]
+    normale = [p for p in pdvs if p["nb_mois_consecutifs_inactif"] == 1]
+
+    return {
+        "pdvs": pdvs,
+        "total": len(pdvs),
+        "nb_critique": len(critique),
+        "nb_haute": len(haute),
+        "nb_normale": len(normale),
+        "annee": annee, "mois": mois,
+    }
 
 
 def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: float = -20.0) -> List[Dict]:
@@ -1054,8 +1099,28 @@ def get_weekly_evolution(db: Session, annee: int) -> List[Dict]:
     ]
 
 
-def get_weekly_inactive_pdv(db: Session, annee: int, semaine: int) -> List[Dict]:
-    """PDVs inactifs cette semaine (actifs la semaine précédente)."""
+def _get_nb_semaines_consecutives_inactif(db: Session, numero_pdv: str, annee: int, semaine: int) -> int:
+    """Compte le nombre de semaines consécutives d'inactivité."""
+    count = 0
+    a, s = annee, semaine
+    for _ in range(20):
+        exists = db.query(NafamaTransaction.id).filter(
+            NafamaTransaction.numero_pdv == numero_pdv,
+            NafamaTransaction.annee == a,
+            NafamaTransaction.semaine == s,
+        ).first()
+        if exists:
+            break
+        count += 1
+        s -= 1
+        if s == 0:
+            s = 52
+            a -= 1
+    return count
+
+
+def get_weekly_inactive_pdv(db: Session, annee: int, semaine: int) -> Dict[str, Any]:
+    """PDVs inactifs cette semaine — enrichi avec infos PDV, nb semaines consécutives, alerte."""
     sem_prec = semaine - 1 if semaine > 1 else 52
     annee_prec_s = annee if semaine > 1 else annee - 1
 
@@ -1065,16 +1130,47 @@ def get_weekly_inactive_pdv(db: Session, annee: int, semaine: int) -> List[Dict]
         .distinct().all()
     )
     rows_prec = (
-        db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca_prec"))
+        db.query(
+            NafamaTransaction.numero_pdv,
+            func.sum(NafamaTransaction.montant).label("ca_prec"),
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+        )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec)
-        .group_by(NafamaTransaction.numero_pdv).all()
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .all()
     )
-    inactifs = [
-        {"numero_pdv": r.numero_pdv, "ca_semaine_precedente": int(r.ca_prec)}
-        for r in rows_prec if r.numero_pdv not in pdvs_sem
-    ]
-    inactifs.sort(key=lambda x: x["ca_semaine_precedente"], reverse=True)
-    return inactifs
+
+    pdvs = []
+    for r in rows_prec:
+        if r.numero_pdv not in pdvs_sem:
+            nb = _get_nb_semaines_consecutives_inactif(db, r.numero_pdv, annee, semaine)
+            alerte = "🔴 Critique" if nb >= 3 else "🟠 Haute" if nb == 2 else "⚪ Normale"
+            pdvs.append({
+                "numero_pdv": r.numero_pdv,
+                "nom": r.nom or r.numero_pdv,
+                "zone": r.zone or "—",
+                "quartier": r.quartier or "—",
+                "superviseur": r.superviseur or "—",
+                "gestionnaire": r.gestionnaire or "—",
+                "ca_semaine_precedente": int(r.ca_prec),
+                "nb_semaines_consecutives_inactif": nb,
+                "alerte": alerte,
+            })
+
+    pdvs.sort(key=lambda x: x["ca_semaine_precedente"], reverse=True)
+    critique = [p for p in pdvs if p["nb_semaines_consecutives_inactif"] >= 3]
+    haute = [p for p in pdvs if p["nb_semaines_consecutives_inactif"] == 2]
+    normale = [p for p in pdvs if p["nb_semaines_consecutives_inactif"] == 1]
+
+    return {
+        "pdvs": pdvs,
+        "total": len(pdvs),
+        "nb_critique": len(critique),
+        "nb_haute": len(haute),
+        "nb_normale": len(normale),
+        "annee": annee, "semaine": semaine,
+    }
 
 
 def get_weekly_declining_pdv(db: Session, annee: int, semaine: int, seuil_pct: float = -20.0) -> List[Dict]:
