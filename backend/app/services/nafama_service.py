@@ -780,18 +780,33 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
     }
 
 
-def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: float = -20.0) -> List[Dict]:
-    """PDVs en baisse significative vs mois précédent."""
+def _get_action_baisse(taux: float) -> str:
+    abs_taux = abs(taux)
+    if abs_taux > 30:
+        return "Visite urgente + appel superviseur"
+    if abs_taux > 15:
+        return "Appel téléphonique + relance"
+    return "Surveillance & suivi régulier"
+
+
+def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: float = -20.0) -> Dict[str, Any]:
+    """PDVs en baisse significative vs mois précédent — enrichi avec infos PDV, alerte, action."""
     mois_prec = mois - 1 if mois > 1 else 12
     annee_prec = annee if mois > 1 else annee - 1
 
-    ca_mois = {
-        r.numero_pdv: int(r.ca)
-        for r in db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
+    # CA actuel avec infos PDV
+    rows_actuel = (
+        db.query(
+            NafamaTransaction.numero_pdv,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+        )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
-        .group_by(NafamaTransaction.numero_pdv).all()
-    }
-    ca_prec = {
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .all()
+    )
+    ca_prec_map = {
         r.numero_pdv: int(r.ca)
         for r in db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
         .filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec)
@@ -799,18 +814,41 @@ def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: flo
     }
 
     declining = []
-    for pdv, ca_curr in ca_mois.items():
-        if pdv in ca_prec and ca_prec[pdv] > 0:
-            pct = (ca_curr - ca_prec[pdv]) / ca_prec[pdv] * 100
+    for r in rows_actuel:
+        ca_curr = int(r.ca)
+        ca_p = ca_prec_map.get(r.numero_pdv, 0)
+        if ca_p > 0:
+            pct = (ca_curr - ca_p) / ca_p * 100
             if pct <= seuil_pct:
+                abs_pct = abs(pct)
+                alerte = "🔴 Critique" if abs_pct > 30 else "🟠 Haute" if abs_pct > 15 else "⚪ Normale"
                 declining.append({
-                    "numero_pdv": pdv,
+                    "numero_pdv": r.numero_pdv,
+                    "nom": r.nom or r.numero_pdv,
+                    "zone": r.zone or "—",
+                    "quartier": r.quartier or "—",
+                    "superviseur": r.superviseur or "—",
+                    "gestionnaire": r.gestionnaire or "—",
                     "ca_actuel": ca_curr,
-                    "ca_precedent": ca_prec[pdv],
+                    "ca_precedent": ca_p,
                     "variation_pct": round(pct, 1),
+                    "alerte": alerte,
+                    "action": _get_action_baisse(pct),
                 })
+
     declining.sort(key=lambda x: x["variation_pct"])
-    return declining
+    critique = [p for p in declining if abs(p["variation_pct"]) > 30]
+    haute = [p for p in declining if 15 < abs(p["variation_pct"]) <= 30]
+    normale = [p for p in declining if abs(p["variation_pct"]) <= 15]
+
+    return {
+        "pdvs": declining,
+        "total": len(declining),
+        "nb_critique": len(critique),
+        "nb_haute": len(haute),
+        "nb_normale": len(normale),
+        "seuil": seuil_pct,
+    }
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1199,18 +1237,23 @@ def get_weekly_inactive_pdv(db: Session, annee: int, semaine: int) -> Dict[str, 
     }
 
 
-def get_weekly_declining_pdv(db: Session, annee: int, semaine: int, seuil_pct: float = -20.0) -> List[Dict]:
-    """PDVs en baisse vs semaine précédente."""
+def get_weekly_declining_pdv(db: Session, annee: int, semaine: int, seuil_pct: float = -20.0) -> Dict[str, Any]:
+    """PDVs en baisse vs semaine précédente — enrichi avec infos PDV, alerte, action."""
     sem_prec = semaine - 1 if semaine > 1 else 52
     annee_prec_s = annee if semaine > 1 else annee - 1
 
-    ca_sem = {
-        r.numero_pdv: int(r.ca)
-        for r in db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
+    rows_actuel = (
+        db.query(
+            NafamaTransaction.numero_pdv,
+            func.sum(NafamaTransaction.montant).label("ca"),
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+        )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
-        .group_by(NafamaTransaction.numero_pdv).all()
-    }
-    ca_prec = {
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .all()
+    )
+    ca_prec_map = {
         r.numero_pdv: int(r.ca)
         for r in db.query(NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label("ca"))
         .filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec)
@@ -1218,18 +1261,41 @@ def get_weekly_declining_pdv(db: Session, annee: int, semaine: int, seuil_pct: f
     }
 
     declining = []
-    for pdv, ca_curr in ca_sem.items():
-        if pdv in ca_prec and ca_prec[pdv] > 0:
-            pct = (ca_curr - ca_prec[pdv]) / ca_prec[pdv] * 100
+    for r in rows_actuel:
+        ca_curr = int(r.ca)
+        ca_p = ca_prec_map.get(r.numero_pdv, 0)
+        if ca_p > 0:
+            pct = (ca_curr - ca_p) / ca_p * 100
             if pct <= seuil_pct:
+                abs_pct = abs(pct)
+                alerte = "🔴 Critique" if abs_pct > 30 else "🟠 Haute" if abs_pct > 15 else "⚪ Normale"
                 declining.append({
-                    "numero_pdv": pdv,
+                    "numero_pdv": r.numero_pdv,
+                    "nom": r.nom or r.numero_pdv,
+                    "zone": r.zone or "—",
+                    "quartier": r.quartier or "—",
+                    "superviseur": r.superviseur or "—",
+                    "gestionnaire": r.gestionnaire or "—",
                     "ca_actuel": ca_curr,
-                    "ca_precedent": ca_prec[pdv],
+                    "ca_precedent": ca_p,
                     "variation_pct": round(pct, 1),
+                    "alerte": alerte,
+                    "action": _get_action_baisse(pct),
                 })
+
     declining.sort(key=lambda x: x["variation_pct"])
-    return declining
+    critique = [p for p in declining if abs(p["variation_pct"]) > 30]
+    haute = [p for p in declining if 15 < abs(p["variation_pct"]) <= 30]
+    normale = [p for p in declining if abs(p["variation_pct"]) <= 15]
+
+    return {
+        "pdvs": declining,
+        "total": len(declining),
+        "nb_critique": len(critique),
+        "nb_haute": len(haute),
+        "nb_normale": len(normale),
+        "seuil": seuil_pct,
+    }
 
 
 # ─────────────────────────────────────────────────────────────
