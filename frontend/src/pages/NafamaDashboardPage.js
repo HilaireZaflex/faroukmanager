@@ -460,6 +460,12 @@ function TabTopPDVs({ annee, mois }) {
 
 // ─── Pareto mensuel ────────────────────────────────────────────────────────
 function TabPareto({ annee, mois }) {
+  const [activeFilter, setActiveFilter] = useState(null); // 'fort' | 'faible' | null
+  const [search, setSearch] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [supFilter, setSupFilter] = useState('');
+  const [quarFilter, setQuarFilter] = useState('');
+
   const { data, isLoading } = useQuery(
     ['nafama-pareto', annee, mois],
     () => api.get(`/nafama/monthly/pareto?annee=${annee}&mois=${mois}`).then(r => r.data),
@@ -469,25 +475,155 @@ function TabPareto({ annee, mois }) {
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.items?.length) return <EmptyTab />;
 
-  const chartData = data.items.slice(0, 40);
+  const allItems = data.items || [];
+  const zoneList = [...new Set(allItems.map(p => p.zone).filter(z => z && z !== '—'))].sort();
+  const supList = [...new Set(allItems.filter(p => !zoneFilter || p.zone === zoneFilter).map(p => p.superviseur).filter(s => s && s !== '—'))].sort();
+  const quarList = [...new Set(allItems.filter(p => (!zoneFilter || p.zone === zoneFilter) && (!supFilter || p.superviseur === supFilter)).map(p => p.quartier).filter(q => q && q !== '—'))].sort();
+
+  const filtered = allItems
+    .filter(p => !zoneFilter || p.zone === zoneFilter)
+    .filter(p => !supFilter || p.superviseur === supFilter)
+    .filter(p => !quarFilter || p.quartier === quarFilter)
+    .filter(p => activeFilter === 'fort' ? p.dans_pareto : activeFilter === 'faible' ? !p.dans_pareto : true)
+    .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+
+  const fortCA = allItems.filter(p => p.dans_pareto).reduce((s, p) => s + p.ca, 0);
+  const faibleCA = allItems.filter(p => !p.dans_pareto).reduce((s, p) => s + p.ca, 0);
+  const chartData = allItems.slice(0, 50);
+
+  const selectStyle = { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: '#ddd', fontSize: 12, cursor: 'pointer', outline: 'none', minWidth: 0 };
 
   return (
-    <div className="card">
-      <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>📊 Analyse Pareto — {MOIS_NOMS[mois]} {annee}</h3>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-        <strong style={{ color: COLOR_PRIMARY }}>{data.nb_pdv_pareto} PDVs</strong> ({data.seuil_80_pct}%) représentent 80% du CA · Total : {data.nb_pdv_total} PDVs
-      </p>
-      <ResponsiveContainer width="100%" height={340}>
-        <ComposedChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-          <XAxis dataKey="numero_pdv" tick={{ fontSize: 8 }} />
-          <YAxis yAxisId="left" tickFormatter={v => `${(v/1000).toFixed(0)}K`} tick={{ fontSize: 10 }} />
-          <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} tick={{ fontSize: 10 }} />
-          <Tooltip content={<CustomTooltip />} />
-          <Bar yAxisId="left" dataKey="ca" name="CA" fill={COLOR_PRIMARY} radius={[4,4,0,0]} />
-          <Line yAxisId="right" type="monotone" dataKey="cumul_pct" name="Cumul %" stroke="#ffa502" dot={false} strokeWidth={2} />
-        </ComposedChart>
-      </ResponsiveContainer>
+    <div>
+      {/* KPIs Fort / Faible — cliquables */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+        <div onClick={() => setActiveFilter(f => f === 'fort' ? null : 'fort')}
+          style={{ padding: '18px 20px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s',
+            background: activeFilter === 'fort' ? 'rgba(0,214,143,0.15)' : 'rgba(0,0,0,0.25)',
+            border: `2px solid ${activeFilter === 'fort' ? COLOR_PRIMARY : 'rgba(0,214,143,0.15)'}`,
+            transform: activeFilter === 'fort' ? 'scale(1.02)' : 'scale(1)' }}>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>💪 Fort Impact (Pareto 80%)</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: COLOR_PRIMARY }}>{formatCA(fortCA)}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 6 }}>{data.nb_pdv_pareto} PDVs · {data.seuil_80_pct}% du réseau</div>
+          {activeFilter === 'fort' && <div style={{ fontSize: 11, color: COLOR_PRIMARY, marginTop: 4 }}>✓ Filtre actif — cliquer pour enlever</div>}
+        </div>
+        <div onClick={() => setActiveFilter(f => f === 'faible' ? null : 'faible')}
+          style={{ padding: '18px 20px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s',
+            background: activeFilter === 'faible' ? 'rgba(255,165,2,0.1)' : 'rgba(0,0,0,0.25)',
+            border: `2px solid ${activeFilter === 'faible' ? '#ffa502' : 'rgba(255,165,2,0.15)'}`,
+            transform: activeFilter === 'faible' ? 'scale(1.02)' : 'scale(1)' }}>
+          <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>📉 Faible Impact</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#ffa502' }}>{formatCA(faibleCA)}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 6 }}>Gini : {data.gini_coefficient} · {data.nb_pdv_total - data.nb_pdv_pareto} PDVs</div>
+          {activeFilter === 'faible' && <div style={{ fontSize: 11, color: '#ffa502', marginTop: 4 }}>✓ Filtre actif — cliquer pour enlever</div>}
+        </div>
+      </div>
+
+      {/* Graphique ComposedChart */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(0,214,143,0.05) 0%, rgba(0,0,0,0) 60%)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 14, padding: '18px 20px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <h3 style={{ fontSize: 13, fontWeight: 700 }}>📊 Courbe Pareto — {MOIS_NOMS[mois]} {annee}</h3>
+          <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#8a8a9a' }}>
+            <span>🟢 CA <span style={{ color: COLOR_PRIMARY }}>par PDV</span></span>
+            <span>🟡 Cumul % <span style={{ color: '#ffa502' }}>cumulé</span></span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <defs>
+              <linearGradient id="nafamaParetoGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#00d68f" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#00d68f" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+            <XAxis dataKey="numero_pdv" tick={false} axisLine={false} tickLine={false} />
+            <YAxis yAxisId="left" tick={{ fill: '#8a8a9a', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v/1000).toFixed(0)}K`} width={40} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fill: '#8a8a9a', fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} width={35} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar yAxisId="left" dataKey="ca" name="CA" fill="url(#nafamaParetoGrad)" stroke={COLOR_PRIMARY} strokeWidth={0.5} radius={[3,3,0,0]} />
+            <Line yAxisId="right" type="monotone" dataKey="cumul_pct" name="Cumul %" stroke="#ffa502" dot={false} strokeWidth={2.5} />
+          </ComposedChart>
+        </ResponsiveContainer>
+        {/* Ligne 80% */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: '#8a8a9a' }}>
+          <div style={{ width: 30, height: 2, background: '#ffa502', borderRadius: 2 }} />
+          <span>La ligne jaune atteint 80% au <strong style={{ color: COLOR_PRIMARY }}>{data.nb_pdv_pareto}ème PDV</strong> ({data.seuil_80_pct}% du réseau)</span>
+        </div>
+      </div>
+
+      {/* Barre de filtres */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(0,214,143,0.15)', borderRadius: 12, padding: '10px 14px' }}>
+        <div style={{ flex: 2, minWidth: 140, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#8a8a9a' }}>🔍</span>
+          <input type="text" placeholder="PDV, numéro, superviseur..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            style={{ ...selectStyle, width: '100%', paddingLeft: 30, boxSizing: 'border-box', background: 'transparent', border: 'none', borderRight: '1px solid rgba(0,214,143,0.12)', borderRadius: 0, paddingRight: 8 }} />
+        </div>
+        <select value={zoneFilter} onChange={e => { setZoneFilter(e.target.value); setSupFilter(''); setQuarFilter(''); }} style={selectStyle}>
+          <option value="">📍 Zone</option>
+          {zoneList.map(z => <option key={z} value={z}>{z}</option>)}
+        </select>
+        <select value={supFilter} onChange={e => { setSupFilter(e.target.value); setQuarFilter(''); }} style={selectStyle}>
+          <option value="">👤 Superviseur</option>
+          {supList.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={quarFilter} onChange={e => setQuarFilter(e.target.value)} style={selectStyle}>
+          <option value="">🏘️ Quartier</option>
+          {quarList.map(q => <option key={q} value={q}>{q}</option>)}
+        </select>
+        {(search || zoneFilter || supFilter || quarFilter || activeFilter) && (
+          <button onClick={() => { setSearch(''); setZoneFilter(''); setSupFilter(''); setQuarFilter(''); setActiveFilter(null); }}
+            style={{ padding: '7px 10px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 8, color: '#ff4757', cursor: 'pointer', fontSize: 13 }}>✕</button>
+        )}
+      </div>
+
+      {/* Tableau Pareto */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>📋 Liste PDVs — {MOIS_NOMS[mois]} {annee}</span>
+          <span style={{ fontSize: 12, color: COLOR_PRIMARY }}>{filtered.length} PDVs affichés</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: COLOR_PRIMARY }}>CA</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>% CA</th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>Cumul %</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((pdv, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: pdv.dans_pareto ? 'rgba(0,214,143,0.02)' : 'transparent' }}>
+                  <td style={{ padding: '9px 12px', textAlign: 'center', color: '#666', fontWeight: 700 }}>{i + 1}</td>
+                  <td style={{ padding: '9px 12px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 12 }}>{pdv.numero_pdv}</div>
+                    <div style={{ fontSize: 10, color: '#8a8a9a' }}>{pdv.nom !== pdv.numero_pdv ? pdv.nom : ''}</div>
+                  </td>
+                  <td style={{ padding: '9px 12px', color: '#ccc', fontSize: 11 }}>{pdv.zone}</td>
+                  <td style={{ padding: '9px 12px', color: '#ccc', fontSize: 11 }}>{pdv.superviseur}</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(pdv.ca)}</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', color: '#8a8a9a' }}>{pdv.pct_ca}%</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: pdv.cumul_pct <= 80 ? '#ffa502' : '#555' }}>{pdv.cumul_pct}%</td>
+                  <td style={{ padding: '9px 12px', textAlign: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
+                      background: pdv.dans_pareto ? 'rgba(0,214,143,0.15)' : 'rgba(255,165,2,0.1)',
+                      color: pdv.dans_pareto ? COLOR_PRIMARY : '#ffa502' }}>
+                      {pdv.dans_pareto ? '💪 Fort' : '📉 Faible'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

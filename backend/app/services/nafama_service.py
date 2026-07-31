@@ -342,31 +342,74 @@ def get_pdv_weekly_history(db: Session, numero_pdv: str) -> List[Dict]:
     ]
 
 
+def _gini(values: List[int]) -> float:
+    """Calcule le coefficient de Gini (0=égalité parfaite, 1=inégalité totale)."""
+    if not values or len(values) < 2:
+        return 0.0
+    vals = sorted(values)
+    n = len(vals)
+    cumul = sum((2 * (i + 1) - n - 1) * v for i, v in enumerate(vals))
+    total = sum(vals) * n
+    return round(cumul / total, 3) if total else 0.0
+
+
 def get_monthly_pareto(db: Session, annee: int, mois: int) -> Dict[str, Any]:
-    """Analyse Pareto mensuelle : quels % de PDVs font 80% du CA."""
+    """Analyse Pareto mensuelle enrichie avec infos PDV, Gini, fort/faible impact."""
     rows = (
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca"),
+            PDV.nom,
+            PDV.zone,
+            PDV.quartier,
+            PDV.superviseur,
+            PDV.gestionnaire,
         )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
-        .group_by(NafamaTransaction.numero_pdv)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
         .order_by(func.sum(NafamaTransaction.montant).desc())
         .all()
     )
     if not rows:
-        return {"items": [], "seuil_80_pct": 0, "nb_pdv_total": 0}
+        return {"items": [], "seuil_80_pct": 0, "nb_pdv_total": 0, "nb_pdv_pareto": 0, "gini_coefficient": 0}
 
-    items = [{"numero_pdv": r.numero_pdv, "ca": int(r.ca)} for r in rows]
-    items = _pareto(items)
-    total_pdv = len(items)
-    seuil_80 = next((i + 1 for i, it in enumerate(items) if it["cumul_pct"] >= 80), total_pdv)
+    ca_total = sum(int(r.ca) for r in rows)
+    total_pdv = len(rows)
+    seuil_80 = 0
+    cumul = 0
+    items = []
+    for i, r in enumerate(rows):
+        ca = int(r.ca)
+        cumul += ca
+        cumul_pct = round(cumul / ca_total * 100, 1) if ca_total else 0
+        if seuil_80 == 0 and cumul_pct >= 80:
+            seuil_80 = i + 1
+        pct_ca = round(ca / ca_total * 100, 2) if ca_total else 0
+        items.append({
+            "numero_pdv": r.numero_pdv,
+            "nom": r.nom or r.numero_pdv,
+            "zone": r.zone or "—",
+            "quartier": r.quartier or "—",
+            "superviseur": r.superviseur or "—",
+            "gestionnaire": r.gestionnaire or "—",
+            "ca": ca,
+            "pct_ca": pct_ca,
+            "cumul_pct": cumul_pct,
+            "dans_pareto": cumul_pct <= 80,
+        })
+    if seuil_80 == 0:
+        seuil_80 = total_pdv
+
+    gini = _gini([int(r.ca) for r in rows])
 
     return {
         "items": items,
         "seuil_80_pct": round(seuil_80 / total_pdv * 100, 1),
         "nb_pdv_pareto": seuil_80,
         "nb_pdv_total": total_pdv,
+        "ca_total": ca_total,
+        "gini_coefficient": gini,
     }
 
 
@@ -687,30 +730,62 @@ def get_weekly_top_pdv(db: Session, annee: int, semaine: int, limit: int = 20) -
 
 
 def get_weekly_pareto(db: Session, annee: int, semaine: int) -> Dict[str, Any]:
-    """Pareto hebdomadaire."""
+    """Pareto hebdomadaire enrichi avec infos PDV, Gini, fort/faible impact."""
     rows = (
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca"),
+            PDV.nom,
+            PDV.zone,
+            PDV.quartier,
+            PDV.superviseur,
+            PDV.gestionnaire,
         )
+        .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
-        .group_by(NafamaTransaction.numero_pdv)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
         .order_by(func.sum(NafamaTransaction.montant).desc())
         .all()
     )
     if not rows:
-        return {"items": [], "seuil_80_pct": 0, "nb_pdv_total": 0}
+        return {"items": [], "seuil_80_pct": 0, "nb_pdv_total": 0, "nb_pdv_pareto": 0, "gini_coefficient": 0}
 
-    items = [{"numero_pdv": r.numero_pdv, "ca": int(r.ca)} for r in rows]
-    items = _pareto(items)
-    total_pdv = len(items)
-    seuil_80 = next((i + 1 for i, it in enumerate(items) if it["cumul_pct"] >= 80), total_pdv)
+    ca_total = sum(int(r.ca) for r in rows)
+    total_pdv = len(rows)
+    seuil_80 = 0
+    cumul = 0
+    items = []
+    for i, r in enumerate(rows):
+        ca = int(r.ca)
+        cumul += ca
+        cumul_pct = round(cumul / ca_total * 100, 1) if ca_total else 0
+        if seuil_80 == 0 and cumul_pct >= 80:
+            seuil_80 = i + 1
+        pct_ca = round(ca / ca_total * 100, 2) if ca_total else 0
+        items.append({
+            "numero_pdv": r.numero_pdv,
+            "nom": r.nom or r.numero_pdv,
+            "zone": r.zone or "—",
+            "quartier": r.quartier or "—",
+            "superviseur": r.superviseur or "—",
+            "gestionnaire": r.gestionnaire or "—",
+            "ca": ca,
+            "pct_ca": pct_ca,
+            "cumul_pct": cumul_pct,
+            "dans_pareto": cumul_pct <= 80,
+        })
+    if seuil_80 == 0:
+        seuil_80 = total_pdv
+
+    gini = _gini([int(r.ca) for r in rows])
 
     return {
         "items": items,
         "seuil_80_pct": round(seuil_80 / total_pdv * 100, 1),
         "nb_pdv_pareto": seuil_80,
         "nb_pdv_total": total_pdv,
+        "ca_total": ca_total,
+        "gini_coefficient": gini,
     }
 
 
