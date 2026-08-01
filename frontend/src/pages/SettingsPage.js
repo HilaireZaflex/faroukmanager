@@ -391,18 +391,71 @@ function SectionRoles() {
   });
   const [selectedRole, setSelectedRole] = useState('gestionnaire');
   const [permissions, setPermissions] = useState(() => {
-    const saved = localStorage.getItem('fd_permissions');
-    const base = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS));
-    // S'assurer que admin a tout
+    // Initialiser avec DEFAULT_PERMISSIONS — sera enrichi depuis la DB
+    const base = JSON.parse(JSON.stringify(DEFAULT_PERMISSIONS));
     base.admin = Object.fromEntries(ALL_IDS.map(id => [id, true]));
     return base;
   });
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [showAddRole, setShowAddRole] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [newRoleLabel, setNewRoleLabel] = useState('');
   const [newRoleColor, setNewRoleColor] = useState('#4a9eff');
 
+  // ── Charger les permissions depuis la BASE DE DONNÉES au montage ──────────
+  React.useEffect(() => {
+    const loadFromDB = async () => {
+      try {
+        const res = await api.get('/role-permissions');
+        const dbPerms = res.data; // { manager: {menus:[], dashboards:[]}, rc: {...}, ... }
+
+        // Convertir le format DB (sidebar_config) → format local (permissions checkboxes)
+        setPermissions(prev => {
+          const updated = { ...prev };
+          Object.entries(dbPerms).forEach(([roleId, sidebarConfig]) => {
+            if (roleId === 'admin') return;
+            const allMenus = [...(sidebarConfig.menus || []), ...(sidebarConfig.dashboards || [])];
+            // Reconstruire les checkboxes à partir des menus DB
+            const rolePerms = {};
+            FEATURES.forEach(section => {
+              section.items.forEach(item => {
+                if (item.sidebarKey) {
+                  rolePerms[item.id] = allMenus.includes(item.sidebarKey);
+                } else {
+                  rolePerms[item.id] = prev[roleId]?.[item.id] || false;
+                }
+              });
+            });
+            if (Object.keys(rolePerms).length > 0) {
+              updated[roleId] = rolePerms;
+            }
+          });
+          updated.admin = Object.fromEntries(ALL_IDS.map(id => [id, true]));
+          return updated;
+        });
+        setPermissionsLoaded(true);
+      } catch (e) {
+        console.error('Erreur chargement permissions DB:', e);
+        // Fallback localStorage si DB inaccessible
+        const saved = localStorage.getItem('fd_permissions');
+        if (saved) {
+          try {
+            const base = JSON.parse(saved);
+            base.admin = Object.fromEntries(ALL_IDS.map(id => [id, true]));
+            setPermissions(base);
+          } catch {}
+        }
+        setPermissionsLoaded(true);
+      }
+    };
+    loadFromDB();
+  }, []); // eslint-disable-line
+
   const saveAll = async () => {
+    if (!permissionsLoaded) {
+      toast.error('Veuillez attendre le chargement des permissions depuis le serveur');
+      return;
+    }
     // ── Convertir les permissions en format Sidebar ──────────────────────────
     const sidebarPerms = {};
     Object.keys(permissions).forEach(roleId => {
