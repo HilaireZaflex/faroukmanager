@@ -42,18 +42,62 @@ const useAuthStore = create(
       loadPermissions: async () => {
         try {
           const { token } = get();
+          if (!token) return null;
           const baseURL = process.env.REACT_APP_API_BASE_URL || 'https://faroukmanager-backend-production-feb9.up.railway.app/api';
           const res = await fetch(`${baseURL}/my-permissions`, {
             headers: { Authorization: `Bearer ${token}` },
           });
-          if (!res.ok) throw new Error('Failed');
+
+          // Token expiré ou invalide → forcer la déconnexion proprement
+          if (res.status === 401) {
+            console.warn('[Auth] Token expiré — déconnexion automatique');
+            set({ user: null, token: null, isAuthenticated: false, permissions: null });
+            // Rediriger vers login
+            window.location.href = '/login';
+            return null;
+          }
+
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           set({ permissions: data });
           return data;
-        } catch {
+        } catch (err) {
+          console.error('[Auth] Erreur chargement permissions:', err);
+          // NE PAS écraser avec les defaults si on a déjà des permissions valides
+          // Garder les permissions existantes en cas d'erreur réseau temporaire
+          const existing = get().permissions;
+          if (existing) return existing;
+          // Seulement si on n'a jamais eu de permissions, utiliser les defaults
           const fallback = { menus: DEFAULT_MENUS, dashboards: DEFAULT_DASHBOARDS, is_admin: false };
           set({ permissions: fallback });
           return fallback;
+        }
+      },
+
+      // Rafraîchir le token automatiquement (appelé au démarrage)
+      refreshToken: async () => {
+        try {
+          const { token } = get();
+          if (!token) return false;
+          const baseURL = process.env.REACT_APP_API_BASE_URL || 'https://faroukmanager-backend-production-feb9.up.railway.app/api';
+          const res = await fetch(`${baseURL}/auth/refresh`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.status === 401) {
+            // Token vraiment expiré → déconnexion
+            set({ user: null, token: null, isAuthenticated: false, permissions: null });
+            window.location.href = '/login';
+            return false;
+          }
+          if (!res.ok) return false;
+          const data = await res.json();
+          set({ token: data.access_token });
+          console.log('[Auth] Token rafraîchi avec succès');
+          return true;
+        } catch (err) {
+          console.error('[Auth] Erreur refresh token:', err);
+          return false;
         }
       },
 

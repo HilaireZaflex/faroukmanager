@@ -51,15 +51,29 @@ const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hasHydrated     = useAuthStore((state) => state._hasHydrated);
   const loadPermissions = useAuthStore((state) => state.loadPermissions);
+  const refreshToken    = useAuthStore((state) => state.refreshToken);
   const permissions     = useAuthStore((state) => state.permissions);
 
-  // Charger les permissions si pas encore chargées
+  // Au démarrage : refresh token puis charger permissions
   useEffect(() => {
-    // Toujours recharger les permissions depuis le serveur (pas de cache localStorage)
-    if (isAuthenticated) {
-      loadPermissions();
-    }
-  }, [isAuthenticated, loadPermissions]);
+    if (!isAuthenticated) return;
+    const init = async () => {
+      // 1. Rafraîchir le token (renouvelle pour 30j supplémentaires)
+      await refreshToken();
+      // 2. Charger les vraies permissions depuis le serveur
+      await loadPermissions();
+    };
+    init();
+  }, [isAuthenticated]); // eslint-disable-line
+
+  // Refresh token automatique toutes les 6 heures (évite expiration en prod)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      refreshToken();
+    }, 6 * 60 * 60 * 1000); // toutes les 6h
+    return () => clearInterval(interval);
+  }, [isAuthenticated, refreshToken]);
 
   if (!hasHydrated) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#fff', fontSize: '18px' }}>Chargement...</div>;

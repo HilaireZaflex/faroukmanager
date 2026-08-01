@@ -101,6 +101,16 @@ def get_pdv_filters(user: User) -> dict:
         return {'teleconseillere': nom_complet}
     return {}
 
+@router.post("/auth/refresh")
+def refresh_token(current_user: User = Depends(get_current_user)):
+    """Renouvelle le token JWT de l'utilisateur connecté. Appelé automatiquement par le frontend."""
+    new_token = create_access_token(
+        data={"sub": current_user.email},
+        expires_delta=timedelta(days=30)
+    )
+    return {"access_token": new_token, "token_type": "bearer"}
+
+
 @router.post("/auth/login", response_model=Token)
 def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     """Login with email and password"""
@@ -117,7 +127,7 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     
     access_token = create_access_token(
         data={"sub": user.email},
-        expires_delta=timedelta(minutes=480)
+        expires_delta=timedelta(days=30)  # 30 jours — évite les déconnexions intempestives
     )
     
     return {
