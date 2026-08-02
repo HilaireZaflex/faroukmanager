@@ -298,8 +298,12 @@ const KPI_STATUS_MAP = {
 };
 
 function TabDemandes({ onOpen, currentUser, onRefresh }) {
+  const [typeVue, setTypeVue] = useState('OM'); // 'OM' | 'ENERGIA'
   const [prospects, setProspects] = useState([]);
   const [allProspects, setAllProspects] = useState([]);
+  const [energiaProspects, setEnergiaProspects] = useState([]);
+  const [energiaLoading, setEnergiaLoading] = useState(false);
+  const [energiaStats, setEnergiaStats] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: '', search: '', superviseur: '', developpeur: '' });
@@ -329,7 +333,32 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     } finally { setLoading(false); }
   }, [filters.status, filters.search]);
 
+  // Charger les prospects Energia
+  const reloadEnergia = useCallback(async () => {
+    setEnergiaLoading(true);
+    try {
+      const [list, st] = await Promise.all([
+        api.get('/energia/prospects?limit=200').then(r => r.data),
+        api.get('/energia/stats').then(r => r.data),
+      ]);
+      // Filtrer par développeur si rôle developpeur
+      const isDev = ['developpeur', 'DEVELOPPEUR'].includes(currentUser?.role);
+      const devName = isDev ? `${currentUser?.nom||''} ${currentUser?.prenom||''}`.trim().toLowerCase() : '';
+      const filtered = isDev
+        ? (list.items || []).filter(p => {
+            const creator = p.created_by_name || '';
+            return creator.toLowerCase().includes(devName) || String(p.created_by) === String(currentUser?.id);
+          })
+        : (list.items || []);
+      setEnergiaProspects(filtered);
+      setEnergiaStats(st);
+    } catch (e) {
+      console.error('Erreur Energia:', e);
+    } finally { setEnergiaLoading(false); }
+  }, [currentUser]);
+
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { reloadEnergia(); }, [reloadEnergia]);
 
   // Filtrage local — si développeur : seulement ses propres prospects
   const filtered = allProspects.filter(p => {
@@ -403,6 +432,107 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         next="➡️ Prochaine étape : Le RC affecte les demandes aux développeurs (onglet Workflow)"
         color="#0ea5e9"
       />
+
+      {/* ── Sélecteur de type de vue ── */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 5 }}>
+        <button onClick={() => setTypeVue('OM')}
+          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+            background: typeVue === 'OM' ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'transparent',
+            color: typeVue === 'OM' ? '#fff' : '#8a8a9a', transition: 'all 0.2s' }}>
+          📱 Puce Orange Money {displayStats ? `(${displayStats.total || 0})` : ''}
+        </button>
+        <button onClick={() => setTypeVue('ENERGIA')}
+          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+            background: typeVue === 'ENERGIA' ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'transparent',
+            color: typeVue === 'ENERGIA' ? '#fff' : '#8a8a9a', transition: 'all 0.2s' }}>
+          ☀️ Vente ENERGIA {energiaStats ? `(${energiaStats.total || 0})` : ''}
+        </button>
+      </div>
+
+      {/* ══ VUE ENERGIA ══════════════════════════════════════════════════════ */}
+      {typeVue === 'ENERGIA' && (
+        <div>
+          {energiaStats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+              {[
+                { label: 'Total Prospects', value: energiaStats.total, color: '#22c55e', icon: '☀️' },
+                { label: 'DIABARANI', value: energiaStats.diabarani, color: '#ffa502', icon: '🌞' },
+                { label: 'YELEN', value: energiaStats.yelen, color: '#a29bfe', icon: '💡' },
+                { label: 'Prêts à Payer', value: `${energiaStats.prets_payer} (${energiaStats.taux_pret}%)`, color: energiaStats.taux_pret > 50 ? '#22c55e' : '#ff4757', icon: '✅' },
+              ].map((k, i) => (
+                <div key={i} style={{ padding: '16px 18px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)', borderLeft: `4px solid ${k.color}`, borderRadius: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, marginBottom: 6 }}>{k.icon}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: k.color }}>{k.value}</div>
+                  <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>{k.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {energiaLoading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement...</div>
+          ) : energiaProspects.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 60, color: '#8a8a9a' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>☀️</div>
+              <p style={{ fontWeight: 600, fontSize: 15 }}>Aucune prospection Energia enregistrée</p>
+              <p style={{ fontSize: 13, marginTop: 8 }}>Utilisez <strong>+ Nouvelle Prospection → ☀️ Vente ENERGIA</strong></p>
+            </div>
+          ) : (
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>☀️ Prospects Vente ENERGIA</span>
+                <span style={{ fontSize: 12, color: '#22c55e' }}>{energiaProspects.length} prospect(s)</span>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                      {['Réf.','Kit','Client','Téléphone','Quartier','Prêt payer','Date','GPS'].map(h => (
+                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {energiaProspects.map((p, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: 700, color: '#22c55e' }}>{p.reference}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                            background: p.nom_kit === 'DIABARANI' ? 'rgba(255,165,2,0.15)' : 'rgba(162,155,254,0.15)',
+                            color: p.nom_kit === 'DIABARANI' ? '#ffa502' : '#a29bfe' }}>
+                            {p.nom_kit === 'DIABARANI' ? '🌞' : '💡'} {p.nom_kit}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', fontWeight: 600 }}>{p.prenom} {p.nom}</td>
+                        <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{p.telephone}</td>
+                        <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{p.quartier || '—'}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                            background: p.pret_payer_immediatement ? 'rgba(34,197,94,0.15)' : 'rgba(255,71,87,0.15)',
+                            color: p.pret_payer_immediatement ? '#22c55e' : '#ff4757' }}>
+                            {p.pret_payer_immediatement ? '✅ OUI' : '❌ NON'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>
+                          {p.date_prospection ? new Date(p.date_prospection).toLocaleDateString('fr-FR') : '—'}
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          {p.latitude && p.longitude ? (
+                            <a href={`https://maps.google.com/?q=${p.latitude},${p.longitude}`} target="_blank" rel="noopener noreferrer"
+                              style={{ fontSize: 11, color: '#22c55e', textDecoration: 'none' }}>📍 Voir</a>
+                          ) : <span style={{ color: '#555' }}>—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ VUE PUCE OM ══════════════════════════════════════════════════════ */}
+      {typeVue === 'OM' && <>
 
       {/* KPIs cliquables */}
       {displayStats && (
@@ -516,6 +646,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
           </table>
         </div>
       )}
+    </>} {/* fin typeVue OM */}
     </>
   );
 }
