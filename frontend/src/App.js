@@ -43,6 +43,8 @@ const RoleRedirect = () => {
   const user = useAuthStore((state) => state.user);
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   if (role === 'developpeur') return <Navigate to="/prospection" replace />;
+  if (role === 'commercial') return <Navigate to="/prospection" replace />;
+  if (role === 'teleconseillere') return <Navigate to="/omy/dashboard" replace />;
   return <Navigate to="/accueil" replace />;
 };
 

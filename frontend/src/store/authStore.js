@@ -110,6 +110,8 @@ const useAuthStore = create(
         // Commerciaux et Développeurs : uniquement prospection
         if (role === 'commercial') return menuId === 'prospection';
         if (role === 'developpeur') return menuId === 'prospection';
+        // Téléconseillères : uniquement les dashboards + pdvs
+        if (role === 'teleconseillere') return ['pdvs'].includes(menuId);
         if (!permissions) return DEFAULT_MENUS.includes(menuId);
         return (permissions.menus || DEFAULT_MENUS).includes(menuId);
       },
@@ -123,6 +125,8 @@ const useAuthStore = create(
         if (role === 'commercial') return false;
         if (role === 'developpeur') return false;
         if (role === 'admin') return true;
+        // Téléconseillères : uniquement OMY, NAFAMA, KAABU
+        if (role === 'teleconseillere') return ['omy', 'nafama', 'kaabu'].includes(dashId);
         if (!permissions) return DEFAULT_DASHBOARDS.includes(dashId);
         return (permissions.dashboards || DEFAULT_DASHBOARDS).includes(dashId);
       },

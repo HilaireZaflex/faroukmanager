@@ -52,6 +52,7 @@ function MobileBottomBar({ onMenuOpen, pathname }) {
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   const isCommercial = role === 'commercial';
   const isDeveloppeur = role === 'developpeur';
+  const isTelec = role === 'teleconseillere';
 
   // Commerciaux et Développeurs : Prospection + bouton Déconnexion uniquement
   if (isCommercial || isDeveloppeur) {
@@ -63,6 +64,31 @@ function MobileBottomBar({ onMenuOpen, pathname }) {
         </a>
         <button className="mbb-item" onClick={() => { useAuthStore.getState().logout(); window.location.href = '/login'; }}
           style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontFamily: 'inherit' }}>
+          <span className="mbb-icon">🚪</span>
+          <span className="mbb-label">Déco.</span>
+        </button>
+      </nav>
+    );
+  }
+
+  // Téléconseillères : PDV + Dashboards + Déco
+  if (isTelec) {
+    return (
+      <nav className="mobile-bottom-bar">
+        <a href="/pdvs" className={`mbb-item${pathname.startsWith('/pdvs') ? ' mbb-active' : ''}`}>
+          <span className="mbb-icon">🏪</span>
+          <span className="mbb-label">Mes PDVs</span>
+        </a>
+        <a href="/omy/dashboard" className={`mbb-item${pathname.startsWith('/omy') ? ' mbb-active' : ''}`}>
+          <span className="mbb-icon">📊</span>
+          <span className="mbb-label">OMY</span>
+        </a>
+        <a href="/nafama/dashboard" className={`mbb-item${pathname.startsWith('/nafama') ? ' mbb-active' : ''}`}>
+          <span className="mbb-icon">📈</span>
+          <span className="mbb-label">NAFAMA</span>
+        </a>
+        <button className="mbb-item" onClick={() => { useAuthStore.getState().logout(); window.location.href = '/login'; }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontFamily: 'inherit' }}>
           <span className="mbb-icon">🚪</span>
           <span className="mbb-label">Déco.</span>
         </button>
