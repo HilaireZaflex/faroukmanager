@@ -49,10 +49,12 @@ export default function Layout({ children }) {
 
 function MobileBottomBar({ onMenuOpen, pathname }) {
   const user = useAuthStore(s => s.user);
-  const isCommercial = user?.role === 'COMMERCIAL' || user?.role === 'commercial';
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const isCommercial = role === 'commercial';
+  const isDeveloppeur = role === 'developpeur';
 
-  // Commerciaux : Prospection + bouton Déconnexion
-  if (isCommercial) {
+  // Commerciaux et Développeurs : Prospection + bouton Déconnexion uniquement
+  if (isCommercial || isDeveloppeur) {
     return (
       <nav className="mobile-bottom-bar">
         <a href="/prospection" className={`mbb-item${pathname.startsWith('/prospection') ? ' mbb-active' : ''}`} style={{ flex: 2 }}>
