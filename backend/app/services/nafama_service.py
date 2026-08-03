@@ -730,11 +730,11 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
             db.query(
                 NafamaTransaction.numero_pdv,
                 func.sum(NafamaTransaction.montant).label("ca"),
-                PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+                PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere,
             )
             .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
             .filter(NafamaTransaction.annee == a, NafamaTransaction.mois == m)
-            .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+            .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere)
             .all()
         )
         for r in rows:
@@ -747,6 +747,7 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
                     "quartier": r.quartier or "—",
                     "superviseur": r.superviseur or "—",
                     "gestionnaire": r.gestionnaire or "—",
+                    "teleconseillere": r.teleconseillere or "",
                 }
 
     pdvs = []
@@ -760,6 +761,7 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
             "quartier": info["quartier"],
             "superviseur": info["superviseur"],
             "gestionnaire": info["gestionnaire"],
+            "teleconseillere": info.get("teleconseillere", ""),
             "ca_dernier_mois": info["ca_dernier_mois"],
             "nb_mois_consecutifs_inactif": nb,
             "alerte": alerte,
@@ -799,11 +801,11 @@ def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: flo
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca"),
-            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere,
         )
         .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
-        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere)
         .all()
     )
     ca_prec_map = {
@@ -829,6 +831,7 @@ def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: flo
                     "quartier": r.quartier or "—",
                     "superviseur": r.superviseur or "—",
                     "gestionnaire": r.gestionnaire or "—",
+                    "teleconseillere": r.teleconseillere or "",
                     "ca_actuel": ca_curr,
                     "ca_precedent": ca_p,
                     "variation_pct": round(pct, 1),
@@ -1197,11 +1200,11 @@ def get_weekly_inactive_pdv(db: Session, annee: int, semaine: int) -> Dict[str, 
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca_prec"),
-            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere,
         )
         .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee_prec_s, NafamaTransaction.semaine == sem_prec)
-        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere)
         .all()
     )
 
@@ -1217,6 +1220,7 @@ def get_weekly_inactive_pdv(db: Session, annee: int, semaine: int) -> Dict[str, 
                 "quartier": r.quartier or "—",
                 "superviseur": r.superviseur or "—",
                 "gestionnaire": r.gestionnaire or "—",
+                "teleconseillere": r.teleconseillere or "",
                 "ca_semaine_precedente": int(r.ca_prec),
                 "nb_semaines_consecutives_inactif": nb,
                 "alerte": alerte,
@@ -1246,11 +1250,11 @@ def get_weekly_declining_pdv(db: Session, annee: int, semaine: int, seuil_pct: f
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca"),
-            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire,
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere,
         )
         .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.semaine == semaine)
-        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere)
         .all()
     )
     ca_prec_map = {
@@ -1276,6 +1280,7 @@ def get_weekly_declining_pdv(db: Session, annee: int, semaine: int, seuil_pct: f
                     "quartier": r.quartier or "—",
                     "superviseur": r.superviseur or "—",
                     "gestionnaire": r.gestionnaire or "—",
+                    "teleconseillere": r.teleconseillere or "",
                     "ca_actuel": ca_curr,
                     "ca_precedent": ca_p,
                     "variation_pct": round(pct, 1),
