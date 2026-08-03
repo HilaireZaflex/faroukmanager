@@ -1243,7 +1243,14 @@ export default function NafamaWeeklyDashboardPage() {
   const now = new Date();
   const [annee, setAnnee] = useState(now.getFullYear());
   const [semaine, setSemaine] = useState(1);
-  const [activeTab, setActiveTab] = useState('overview');
+
+  // Détection téléconseillère
+  const user = useAuthStore(s => s.user);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const isTelec = role === 'teleconseillere';
+  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+
+  const [activeTab, setActiveTab] = useState(isTelec ? 'inactifs' : 'overview');
 
   // Charger les périodes disponibles depuis la nouvelle API NAFAMA
   const { data: periods } = useQuery(
@@ -1274,7 +1281,7 @@ export default function NafamaWeeklyDashboardPage() {
     if (semaine >= 52) { setSemaine(1); setAnnee(a => a + 1); } else setSemaine(s => s + 1);
   };
 
-  const tabs = [
+  const allTabsNW = [
     { key: 'overview',    label: "🏠 Vue d'ensemble" },
     { key: 'top',         label: '🏆 Top PDVs' },
     { key: 'pareto',      label: '📊 Pareto' },
@@ -1283,6 +1290,9 @@ export default function NafamaWeeklyDashboardPage() {
     { key: 'baisse',      label: '📉 En Baisse' },
     { key: 'progression', label: '🚀 Progression' },
   ];
+  const tabs = isTelec
+    ? allTabsNW.filter(t => ['inactifs', 'baisse'].includes(t.key))
+    : allTabsNW;
 
   return (
     <div className="page">
@@ -1315,8 +1325,8 @@ export default function NafamaWeeklyDashboardPage() {
       {activeTab === 'top'       && <OngletTop annee={annee} semaine={semaine} />}
       {activeTab === 'pareto'    && <OngletPareto annee={annee} semaine={semaine} />}
       {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} />}
-      {activeTab === 'inactifs'  && <OngletInactifs annee={annee} semaine={semaine} />}
-      {activeTab === 'baisse'      && <OngletBaisse annee={annee} semaine={semaine} />}
+      {activeTab === 'inactifs'  && <OngletInactifs annee={annee} semaine={semaine} teleFilter={teleName} />}
+      {activeTab === 'baisse'      && <OngletBaisse annee={annee} semaine={semaine} teleFilter={teleName} />}
       {activeTab === 'progression' && <OngletProgression annee={annee} />}
     </div>
   );

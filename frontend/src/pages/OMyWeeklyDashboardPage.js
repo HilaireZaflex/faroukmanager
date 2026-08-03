@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../store/authStore';
 import { Search } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -568,7 +569,7 @@ function OngletEvolution({ annee, semaine, criterion }) {
 }
 
 // ─── ONGLET 5 : PDV INACTIFS ─────────────────────────────────────────────────
-function OngletInactifs({ annee, semaine, criterion }) {
+function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery(
@@ -701,7 +702,7 @@ function OngletInactifs({ annee, semaine, criterion }) {
 }
 
 // ─── ONGLET 6 : PDV EN BAISSE ─────────────────────────────────────────────────
-function OngletBaisse({ annee, semaine, criterion }) {
+function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
   const [seuil, setSeuil] = useState(-10);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
@@ -1165,6 +1166,12 @@ function OngletProgression({ annee, semaine, criterion }) {
 export default function OMyWeeklyDashboardPage() {
   const now = new Date();
   const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+  // Détection téléconseillère
+  const user = useAuthStore(s => s.user);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const isTelec = role === 'teleconseillere';
+  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
   const defaultSemaine = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
 
   const [annee, setAnnee] = useState(now.getFullYear());
@@ -1180,7 +1187,7 @@ export default function OMyWeeklyDashboardPage() {
       setSemaine(lastAvail.last_week.semaine);
     }
   }, [lastAvail]);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(isTelec ? 'inactifs' : 'overview');
   const [criterion, setCriterion] = useState('montant_transaction');
 
   // Charger la dernière semaine disponible et l'utiliser par défaut
@@ -1204,7 +1211,7 @@ export default function OMyWeeklyDashboardPage() {
   const prevWeek = () => { const ns=semaine<=1?52:semaine-1; const na=semaine<=1?annee-1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
   const nextWeek = () => { const ns=semaine>=52?1:semaine+1; const na=semaine>=52?annee+1:annee; if(isSemDispo(na,ns)){setSemaine(ns);setAnnee(na);} };
 
-  const tabs = [
+  const allTabsW = [
     { key: 'overview', label: '🏠 Vue d\'ensemble', icon: Home },
     { key: 'top', label: '🏆 Suivi des Top', icon: Trophy },
     { key: 'pareto', label: '📊 Rapport Pareto', icon: BarChart3 },
@@ -1213,6 +1220,9 @@ export default function OMyWeeklyDashboardPage() {
     { key: 'baisse', label: '📉 PDV en Baisse', icon: TrendingDown },
     { key: 'progression', label: '🎯 Progression', icon: Target },
   ];
+  const tabs = isTelec
+    ? allTabsW.filter(t => ['inactifs', 'baisse'].includes(t.key))
+    : allTabsW;
 
   return (
     <div className="page">
@@ -1262,8 +1272,8 @@ export default function OMyWeeklyDashboardPage() {
       {activeTab === 'top' && <OngletSuiviTop annee={annee} semaine={semaine} criterion={criterion} />}
       {activeTab === 'pareto' && <OngletPareto annee={annee} semaine={semaine} criterion={criterion} />}
       {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} />}
+      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} teleFilter={teleName} />}
+      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} teleFilter={teleName} />}
       {activeTab === 'progression' && <OngletProgression annee={annee} semaine={semaine} criterion={criterion} />}
     </div>
   );
