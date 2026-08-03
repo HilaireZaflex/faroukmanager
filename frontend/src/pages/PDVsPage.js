@@ -5,6 +5,7 @@ import { Search, Download, Plus, Store, ChevronRight, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import useAuthStore from '../store/authStore';
 import './PDVsPage.css';
 
 const STATUT_CONFIG = {
@@ -302,6 +303,12 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
 export default function PDVsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Détection téléconseillère
+  const user = useAuthStore(s => s.user);
+  const isTelec = (user?.role || '').toLowerCase().replace('userrole.', '') === 'teleconseillere';
+  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+
   const [periodeType, setPeriodeType] = useState('mensuel');
   const [selectedMois, setSelectedMois] = useState(null);
   const [selectedSemaine, setSelectedSemaine] = useState(null);
@@ -319,6 +326,8 @@ export default function PDVsPage() {
   if (zone) params.zone = zone;
   if (statut) params.statut = statut;
   if (typePdv) params.type_pdv = typePdv;
+  // Téléconseillère : filtrer uniquement ses PDVs
+  if (isTelec && teleName) params.teleconseillere = teleName;
 
   const { data: pdvs = [], isLoading } = useQuery(
     ['pdvs', params],

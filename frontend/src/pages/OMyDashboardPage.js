@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useAuthStore from '../store/authStore';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { useHierarchicalFilters, HierarchicalFilters } from '../hooks/useHierarchicalFilters';
@@ -914,7 +915,7 @@ function TabEvolution({ annee, mois, criterion }) {
 }
 
 // ============ TAB 5: PDV Inactifs ============
-function TabInactivePDVs({ annee, mois, criterion }) {
+function TabInactivePDVs({ annee, mois, criterion, teleFilter }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const { data: inactifs, isLoading } = useQuery(
@@ -923,7 +924,11 @@ function TabInactivePDVs({ annee, mois, criterion }) {
     { staleTime: 300000 }
   );
 
-  const pdvs = inactifs?.pdvs || [];
+  const allPdvs = inactifs?.pdvs || [];
+  // Filtrer par téléconseillère si rôle teleconseillere
+  const pdvs = teleFilter
+    ? allPdvs.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvs;
   const displayedPdvs = pdvs
     .filter(p => {
       if (activeFilter === 'critique') return p.nb_mois_consecutifs_inactif >= 3;
@@ -1061,7 +1066,7 @@ function TabInactivePDVs({ annee, mois, criterion }) {
 }
 
 // ============ TAB 6: PDV en Baisse ============
-function TabDecliningPDVs({ annee, mois, criterion }) {
+function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [seuil, setSeuil] = useState(-10);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
@@ -1071,7 +1076,11 @@ function TabDecliningPDVs({ annee, mois, criterion }) {
     () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),
     { staleTime: 300000 }
   );
-  const pdvs = data?.pdvs || [];
+  const allPdvs = data?.pdvs || [];
+  // Filtrer par téléconseillère si rôle teleconseillere
+  const pdvs = teleFilter
+    ? allPdvs.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvs;
   const displayedPdvs = pdvs
     .filter(p => {
       const abs = Math.abs(p.taux_baisse || 0);
@@ -1544,8 +1553,16 @@ export default function OMyDashboardPage() {
   const now = new Date();
   const [annee, setAnnee] = useState(2026);
   const [mois, setMois] = useState(4); // Dernier mois avec données
-  const [activeTab, setActiveTab] = useState('overview');
   const [criterion, setCriterion] = useState('montant_transaction');
+
+  // Détection téléconseillère
+  const user = useAuthStore(s => s.user);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const isTelec = role === 'teleconseillere';
+  // Nom complet de la téléconseillère pour filtrer ses PDVs
+  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+
+  const [activeTab, setActiveTab] = useState(isTelec ? 'inactifs' : 'overview');
 
   // Charger le dernier mois disponible
   const { data: lastAvailable } = useQuery(
@@ -1580,7 +1597,8 @@ export default function OMyDashboardPage() {
   const canGoPrev = isMoisDispo(mois === 1 ? annee - 1 : annee, mois === 1 ? 12 : mois - 1);
   const canGoNext = isMoisDispo(mois === 12 ? annee + 1 : annee, mois === 12 ? 1 : mois + 1);
 
-  const tabs = [
+  // Onglets : téléconseillères voient seulement Inactifs et En Baisse
+  const allTabs = [
     { id: 'overview',    label: '🏠 Vue d\'ensemble', icon: Home },
     { id: 'top',         label: '🏆 Suivi des Top',   icon: Trophy },
     { id: 'pareto',      label: '📊 Rapport Pareto',  icon: BarChart3 },
@@ -1589,6 +1607,9 @@ export default function OMyDashboardPage() {
     { id: 'declining',   label: '📉 PDV en Baisse',   icon: TrendingDown },
     { id: 'progression', label: '🎯 Progression',     icon: Target },
   ];
+  const tabs = isTelec
+    ? allTabs.filter(t => ['inactifs', 'declining'].includes(t.id))
+    : allTabs;
 
   return (
     <div className="page dashboard-page">
@@ -1638,8 +1659,8 @@ export default function OMyDashboardPage() {
         {activeTab === 'top' && <TabTopPDVs annee={annee} mois={mois} criterion={criterion} />}
         {activeTab === 'pareto' && <TabPareto annee={annee} mois={mois} criterion={criterion} />}
         {activeTab === 'evolution' && <TabEvolution annee={annee} mois={mois} criterion={criterion} />}
-        {activeTab === 'inactifs' && <TabInactivePDVs annee={annee} mois={mois} criterion={criterion} />}
-        {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} criterion={criterion} />}
+        {activeTab === 'inactifs' && <TabInactivePDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleName} />}
+        {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleName} />}
         {activeTab === 'progression' && <TabProgression annee={annee} criterion={criterion} />}
       </div>
     </div>

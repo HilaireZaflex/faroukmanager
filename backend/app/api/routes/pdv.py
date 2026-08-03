@@ -440,6 +440,7 @@ def list_pdvs(
     zone: Optional[str] = Query(None),
     superviseur: Optional[str] = Query(None),
     gestionnaire: Optional[str] = Query(None),
+    teleconseillere: Optional[str] = Query(None),
     type_pdv: Optional[str] = Query(None),
     statut: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
@@ -468,6 +469,8 @@ def list_pdvs(
         query = query.filter(PDV.superviseur.ilike(f"%{superviseur}%"))
     if gestionnaire and 'gestionnaire' not in user_filters:
         query = query.filter(PDV.gestionnaire.ilike(f"%{gestionnaire}%"))
+    if teleconseillere:
+        query = query.filter(PDV.teleconseillere.ilike(f"%{teleconseillere}%"))
     if type_pdv:
         query = query.filter(PDV.type_pdv == type_pdv)
     if statut:

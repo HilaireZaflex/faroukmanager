@@ -7,6 +7,7 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { AreaChart as ReAreaChart, Area as ReArea } from 'recharts';
 import api from '../services/api';
+import useAuthStore from '../store/authStore';
 
 const COLOR_PRIMARY = '#00d68f';
 const MOIS_NOMS = {
@@ -819,7 +820,7 @@ function TabEvolution({ annee, mois }) {
 }
 
 // ─── Inactifs mensuel ──────────────────────────────────────────────────────
-function TabInactivePDVs({ annee, mois }) {
+function TabInactivePDVs({ annee, mois, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
@@ -833,9 +834,13 @@ function TabInactivePDVs({ annee, mois }) {
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
-  if (!data?.pdvs?.length && !isLoading) return <EmptyTab message="✅ Aucun PDV inactif ce mois !" />;
 
-  const pdvs = data?.pdvs || [];
+  const allPdvs = data?.pdvs || [];
+  const pdvs = teleFilter
+    ? allPdvs.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvs;
+  if (!pdvs.length && !isLoading) return <EmptyTab message="✅ Aucun PDV inactif ce mois !" />;
+
   const zoneList = [...new Set(pdvs.map(p => p.zone).filter(z => z && z !== '—'))].sort();
   const supList = [...new Set(pdvs.filter(p => !zoneFilter || p.zone === zoneFilter).map(p => p.superviseur).filter(s => s && s !== '—'))].sort();
 
@@ -946,7 +951,7 @@ function TabInactivePDVs({ annee, mois }) {
 }
 
 // ─── En Baisse mensuel ─────────────────────────────────────────────────────
-function TabDecliningPDVs({ annee, mois }) {
+function TabDecliningPDVs({ annee, mois, teleFilter }) {
   const [seuil, setSeuil] = useState(10);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
@@ -960,7 +965,11 @@ function TabDecliningPDVs({ annee, mois }) {
     { staleTime: 300000, retry: false }
   );
 
-  const pdvs = data?.pdvs || [];
+  const allPdvs = data?.pdvs || [];
+  // Filtrer par téléconseillère si rôle teleconseillere
+  const pdvs = teleFilter
+    ? allPdvs.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvs;
   const zoneList = [...new Set(pdvs.map(p => p.zone).filter(z => z && z !== '—'))].sort();
   const supList = [...new Set(pdvs.filter(p => !zoneFilter || p.zone === zoneFilter).map(p => p.superviseur).filter(s => s && s !== '—'))].sort();
 
@@ -1289,7 +1298,14 @@ export default function NafamaDashboardPage() {
   const now = new Date();
   const [annee, setAnnee] = useState(now.getFullYear());
   const [mois, setMois] = useState(now.getMonth() + 1);
-  const [activeTab, setActiveTab] = useState('overview');
+
+  // Détection téléconseillère
+  const user = useAuthStore(s => s.user);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const isTelec = role === 'teleconseillere';
+  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+
+  const [activeTab, setActiveTab] = useState(isTelec ? 'inactifs' : 'overview');
 
   // Charger les périodes disponibles depuis la nouvelle API NAFAMA
   const { data: periods } = useQuery(
@@ -1320,7 +1336,7 @@ export default function NafamaDashboardPage() {
     if (mois === 12) { setMois(1); setAnnee(a => a + 1); } else setMois(m => m + 1);
   };
 
-  const tabs = [
+  const allTabs = [
     { id: 'overview',     label: "🏠 Vue d'ensemble" },
     { id: 'top',          label: '🏆 Top PDVs' },
     { id: 'pareto',       label: '📊 Pareto' },
@@ -1329,6 +1345,9 @@ export default function NafamaDashboardPage() {
     { id: 'declining',    label: '📉 En Baisse' },
     { id: 'progression',  label: '🚀 Progression' },
   ];
+  const tabs = isTelec
+    ? allTabs.filter(t => ['inactifs', 'declining'].includes(t.id))
+    : allTabs;
 
   return (
     <div className="page dashboard-page">
@@ -1363,8 +1382,8 @@ export default function NafamaDashboardPage() {
         {activeTab === 'top'       && <TabTopPDVs annee={annee} mois={mois} />}
         {activeTab === 'pareto'    && <TabPareto annee={annee} mois={mois} />}
         {activeTab === 'evolution' && <TabEvolution annee={annee} mois={mois} />}
-        {activeTab === 'inactifs'  && <TabInactivePDVs annee={annee} mois={mois} />}
-        {activeTab === 'declining'   && <TabDecliningPDVs annee={annee} mois={mois} />}
+        {activeTab === 'inactifs'  && <TabInactivePDVs annee={annee} mois={mois} teleFilter={teleName} />}
+        {activeTab === 'declining'   && <TabDecliningPDVs annee={annee} mois={mois} teleFilter={teleName} />}
         {activeTab === 'progression' && <TabProgression annee={annee} />}
       </div>
     </div>
