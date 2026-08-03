@@ -817,10 +817,10 @@ function OngletInactifs({ annee, semaine, teleFilter }) {
   const selectStyle = { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: '#ddd', fontSize: 12, cursor: 'pointer', outline: 'none', minWidth: 0 };
 
   const kpis = [
-    { label: 'Total Inactifs', value: data?.total || 0, color: '#ff4757', filter: null },
-    { label: '🔴 Critique (≥3 sem)', value: data?.nb_critique || 0, color: '#ff4757', filter: 'critique' },
-    { label: '🟠 Haute (2 sem)', value: data?.nb_haute || 0, color: '#ffa502', filter: 'haute' },
-    { label: '⚪ Normale (1 sem)', value: data?.nb_normale || 0, color: '#8a8a9a', filter: 'normale' },
+    { label: 'Total Inactifs', value: pdvs.length, color: '#ff4757', filter: null },
+    { label: '🔴 Critique (≥3 sem)', value: pdvs.filter(p => p.nb_semaines_consecutives_inactif >= 3).length, color: '#ff4757', filter: 'critique' },
+    { label: '🟠 Haute (2 sem)', value: pdvs.filter(p => p.nb_semaines_consecutives_inactif === 2).length, color: '#ffa502', filter: 'haute' },
+    { label: '⚪ Normale (1 sem)', value: pdvs.filter(p => p.nb_semaines_consecutives_inactif === 1).length, color: '#8a8a9a', filter: 'normale' },
   ];
 
   return (
@@ -951,10 +951,10 @@ function OngletBaisse({ annee, semaine, teleFilter }) {
   const selectStyle = { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,214,143,0.2)', borderRadius: 8, color: '#ddd', fontSize: 12, cursor: 'pointer', outline: 'none', minWidth: 0 };
 
   const kpis = [
-    { label: `Total en Baisse (≥${seuil}%)`, value: data?.total || 0, color: '#ff4757', filter: null },
-    { label: '🔴 Critique (>30%)', value: data?.nb_critique || 0, color: '#ff4757', filter: 'critique' },
-    { label: '🟠 Haute (15-30%)', value: data?.nb_haute || 0, color: '#ffa502', filter: 'haute' },
-    { label: '⚪ Normale (≤15%)', value: data?.nb_normale || 0, color: '#8a8a9a', filter: 'normale' },
+    { label: `Total en Baisse (≥${seuil}%)`, value: pdvs.length, color: '#ff4757', filter: null },
+    { label: '🔴 Critique (>30%)', value: pdvs.filter(p => Math.abs(p.variation_pct) > 30).length, color: '#ff4757', filter: 'critique' },
+    { label: '🟠 Haute (15-30%)', value: pdvs.filter(p => Math.abs(p.variation_pct) > 15 && Math.abs(p.variation_pct) <= 30).length, color: '#ffa502', filter: 'haute' },
+    { label: '⚪ Normale (≤15%)', value: pdvs.filter(p => Math.abs(p.variation_pct) <= 15).length, color: '#8a8a9a', filter: 'normale' },
   ];
 
   if (!data?.pdvs?.length && !isLoading) return (
