@@ -66,166 +66,175 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
 
       <nav className="sidebar-nav">
 
-        {/* ── ACCUEIL — masqué pour les commerciaux ── */}
-        {role !== 'commercial' && role !== 'developpeur' && nl('/accueil', Home, 'Accueil', true)}
-
-        {/* ── DASHBOARDS ── */}
-        {(canD('omy') || canD('nafama') || canD('kaabu')) && (
+        {/* ══ VUE DÉVELOPPEUR — uniquement Prospection ══════════════════════ */}
+        {role === 'developpeur' ? (
           <>
-            {!collapsed && <div className="nav-section-label">Dashboards</div>}
-            {collapsed && <div className="nav-divider"/>}
+            {nl('/prospection', UserPlus, 'Prospection OM')}
+          </>
+        ) : (
+          <>
+            {/* ── ACCUEIL — masqué pour commerciaux ── */}
+            {role !== 'commercial' && nl('/accueil', Home, 'Accueil', true)}
+
+            {/* ── DASHBOARDS ── */}
+            {(canD('omy') || canD('nafama') || canD('kaabu')) && (
+              <>
+                {!collapsed && <div className="nav-section-label">Dashboards</div>}
+                {collapsed && <div className="nav-divider"/>}
+              </>
+            )}
+
+            {/* OMY */}
+            {canD('omy') && <>
+              <div className={`nav-item${location.pathname.startsWith('/omy') ? ' active' : ''}`}
+                onClick={() => collapsed ? navigate('/omy/dashboard') : setOmyOpen(v => !v)}
+                title={collapsed ? 'Gestion OMY' : ''}>
+                <LayoutDashboard size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/omy') ? '#FF6900' : '' }}/>
+                {!collapsed && <>
+                  <span className="nav-label" style={{ flex: 1 }}>
+                    <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#4a9eff', marginRight:7, verticalAlign:'middle' }}/>
+                    OMY
+                  </span>
+                  <ChevronDown size={12} style={{ transform: (omyOpen || location.pathname.startsWith('/omy')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
+                </>}
+              </div>
+              {(omyOpen || location.pathname.startsWith('/omy')) && !collapsed && (
+                <div className="nav-submenu">
+                  <NavLink to="/omy/dashboard" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <LayoutDashboard size={12} className="nav-icon"/><span className="nav-label">Mensuel</span>
+                  </NavLink>
+                  <NavLink to="/omy/dashboard/weekly" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <CalendarDays size={12} className="nav-icon"/><span className="nav-label">Hebdomadaire</span>
+                  </NavLink>
+                </div>
+              )}
+            </>}
+
+            {/* NAFAMA */}
+            {canD('nafama') && <>
+              <div className={`nav-item${location.pathname.startsWith('/nafama') ? ' active' : ''}`}
+                onClick={() => collapsed ? navigate('/nafama/dashboard') : setNafamaOpen(v => !v)}
+                title={collapsed ? 'Gestion NAFAMA' : ''}>
+                <LayoutDashboard size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/nafama') ? '#FF6900' : '' }}/>
+                {!collapsed && <>
+                  <span className="nav-label" style={{ flex: 1 }}>
+                    <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#00d68f', marginRight:7, verticalAlign:'middle' }}/>
+                    NAFAMA
+                  </span>
+                  <ChevronDown size={12} style={{ transform: (nafamaOpen || location.pathname.startsWith('/nafama')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
+                </>}
+              </div>
+              {(nafamaOpen || location.pathname.startsWith('/nafama')) && !collapsed && (
+                <div className="nav-submenu">
+                  <NavLink to="/nafama/dashboard" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <LayoutDashboard size={12} className="nav-icon"/><span className="nav-label">Mensuel</span>
+                  </NavLink>
+                  <NavLink to="/nafama/dashboard/weekly" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <CalendarDays size={12} className="nav-icon"/><span className="nav-label">Hebdomadaire</span>
+                  </NavLink>
+                </div>
+              )}
+            </>}
+
+            {/* KAABU */}
+            {canD('kaabu') && <>
+              <div className={`nav-item${location.pathname.startsWith('/kaabu') ? ' active' : ''}`}
+                onClick={() => collapsed ? navigate('/kaabu/dashboard') : setKaabuOpen(v => !v)}
+                title={collapsed ? 'Gestion KAABU' : ''}>
+                <LayoutDashboard size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/kaabu') ? '#FF6900' : '' }}/>
+                {!collapsed && <>
+                  <span className="nav-label" style={{ flex: 1 }}>
+                    <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#a855f7', marginRight:7, verticalAlign:'middle' }}/>
+                    KAABU
+                  </span>
+                  <ChevronDown size={12} style={{ transform: (kaabuOpen || location.pathname.startsWith('/kaabu')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
+                </>}
+              </div>
+              {(kaabuOpen || location.pathname.startsWith('/kaabu')) && !collapsed && (
+                <div className="nav-submenu">
+                  <NavLink to="/kaabu/dashboard" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <LayoutDashboard size={12} className="nav-icon"/><span className="nav-label">Mensuel</span>
+                  </NavLink>
+                  <NavLink to="/kaabu/dashboard/weekly" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <CalendarDays size={12} className="nav-icon"/><span className="nav-label">Hebdomadaire</span>
+                  </NavLink>
+                </div>
+              )}
+            </>}
+
+            {/* ── GESTION ── */}
+            <div className="nav-divider"/>
+            {!collapsed && <div className="nav-section-label">Gestion</div>}
+
+            {can('challenge')   && nl('/challenge',    Trophy,      '🏆 Orange Awards 2026')}
+            {can('pdvs')        && nl('/pdvs',         Store,       'Points de Vente')}
+            {can('prospection') && nl('/prospection',  UserPlus,    'Prospection OM')}
+            {can('indicateurs') && nl('/indicateurs',  Activity,    'Indicateurs')}
+            {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}
+            {can('evaluations') && nl('/evaluations',  Star,        'Évaluations')}
+            {can('alerts')      && nl('/alerts',       Bell,        'Alertes')}
+            {can('reseau')      && nl('/reseau',       Network,     'Gestion du Réseau')}
+
+            {/* ── INTELLIGENCE ── */}
+            {can('ia') && <>
+              <div className="nav-divider"/>
+              {!collapsed && <div className="nav-section-label">Intelligence</div>}
+              <div className={`nav-item${onIA ? ' active' : ''}`}
+                onClick={() => collapsed ? navigate('/ia') : setIaOpen(v => !v)}
+                title={collapsed ? 'Intelligence IA' : ''}>
+                <Brain size={17} className="nav-icon" style={{ color: onIA ? '#FF6900' : '' }}/>
+                {!collapsed && <>
+                  <span className="nav-label" style={{ flex: 1 }}>Intelligence IA</span>
+                  <ChevronDown size={12} style={{ transform: (iaOpen || onIA) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
+                </>}
+              </div>
+              {(iaOpen || onIA) && !collapsed && (
+                <div className="nav-submenu">
+                  <NavLink to="/ia" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <TrendingUp size={12} className="nav-icon"/><span className="nav-label">Tableau de Bord IA</span>
+                  </NavLink>
+                  <NavLink to="/ia/whatif" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <Wand2 size={12} className="nav-icon"/><span className="nav-label">Simulateur Et Si ?</span>
+                  </NavLink>
+                </div>
+              )}
+            </>}
+
+            {can('carte') && nl('/carte', Map, 'Carte Interactive')}
+
+            {/* Récupérations */}
+            {can('recovery') && <>
+              <div className={`nav-item${location.pathname.startsWith('/recovery') ? ' active' : ''}`}
+                onClick={() => collapsed ? navigate('/recovery') : setRecoveryOpen(v => !v)}
+                title={collapsed ? 'Récupérations' : ''}>
+                <RefreshCw size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/recovery') ? '#FF6900' : '' }}/>
+                {!collapsed && <>
+                  <span className="nav-label" style={{ flex: 1 }}>Récupérations</span>
+                  <ChevronDown size={12} style={{ transform: (recoveryOpen || location.pathname.startsWith('/recovery')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
+                </>}
+              </div>
+              {(recoveryOpen || location.pathname.startsWith('/recovery')) && !collapsed && (
+                <div className="nav-submenu">
+                  <NavLink to="/recovery" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <RefreshCw size={12} className="nav-icon"/><span className="nav-label">Aperçu Général</span>
+                  </NavLink>
+                  <NavLink to="/recovery/liste" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
+                    <AlertTriangle size={12} className="nav-icon"/><span className="nav-label">Liste à Récupérer</span>
+                  </NavLink>
+                </div>
+              )}
+            </>}
+
+            {/* ── OUTILS ── */}
+            {(can('import') || can('reports') || can('settings')) && <>
+              <div className="nav-divider"/>
+              {!collapsed && <div className="nav-section-label">Outils</div>}
+              {can('import')   && nl('/import',   Upload,   'Import Données')}
+              {can('reports')  && nl('/reports',  FileText, 'Rapports')}
+              {can('settings') && nl('/settings', Settings, 'Paramètres')}
+            </>}
           </>
         )}
-
-        {/* OMY */}
-        {canD('omy') && <>
-          <div className={`nav-item${location.pathname.startsWith('/omy') ? ' active' : ''}`}
-            onClick={() => collapsed ? navigate('/omy/dashboard') : setOmyOpen(v => !v)}
-            title={collapsed ? 'Gestion OMY' : ''}>
-            <LayoutDashboard size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/omy') ? '#FF6900' : '' }}/>
-            {!collapsed && <>
-              <span className="nav-label" style={{ flex: 1 }}>
-                <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#4a9eff', marginRight:7, verticalAlign:'middle' }}/>
-                OMY
-              </span>
-              <ChevronDown size={12} style={{ transform: (omyOpen || location.pathname.startsWith('/omy')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
-            </>}
-          </div>
-          {(omyOpen || location.pathname.startsWith('/omy')) && !collapsed && (
-            <div className="nav-submenu">
-              <NavLink to="/omy/dashboard" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <LayoutDashboard size={12} className="nav-icon"/><span className="nav-label">Mensuel</span>
-              </NavLink>
-              <NavLink to="/omy/dashboard/weekly" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <CalendarDays size={12} className="nav-icon"/><span className="nav-label">Hebdomadaire</span>
-              </NavLink>
-            </div>
-          )}
-        </>}
-
-        {/* NAFAMA */}
-        {canD('nafama') && <>
-          <div className={`nav-item${location.pathname.startsWith('/nafama') ? ' active' : ''}`}
-            onClick={() => collapsed ? navigate('/nafama/dashboard') : setNafamaOpen(v => !v)}
-            title={collapsed ? 'Gestion NAFAMA' : ''}>
-            <LayoutDashboard size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/nafama') ? '#FF6900' : '' }}/>
-            {!collapsed && <>
-              <span className="nav-label" style={{ flex: 1 }}>
-                <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#00d68f', marginRight:7, verticalAlign:'middle' }}/>
-                NAFAMA
-              </span>
-              <ChevronDown size={12} style={{ transform: (nafamaOpen || location.pathname.startsWith('/nafama')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
-            </>}
-          </div>
-          {(nafamaOpen || location.pathname.startsWith('/nafama')) && !collapsed && (
-            <div className="nav-submenu">
-              <NavLink to="/nafama/dashboard" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <LayoutDashboard size={12} className="nav-icon"/><span className="nav-label">Mensuel</span>
-              </NavLink>
-              <NavLink to="/nafama/dashboard/weekly" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <CalendarDays size={12} className="nav-icon"/><span className="nav-label">Hebdomadaire</span>
-              </NavLink>
-            </div>
-          )}
-        </>}
-
-        {/* KAABU */}
-        {canD('kaabu') && <>
-          <div className={`nav-item${location.pathname.startsWith('/kaabu') ? ' active' : ''}`}
-            onClick={() => collapsed ? navigate('/kaabu/dashboard') : setKaabuOpen(v => !v)}
-            title={collapsed ? 'Gestion KAABU' : ''}>
-            <LayoutDashboard size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/kaabu') ? '#FF6900' : '' }}/>
-            {!collapsed && <>
-              <span className="nav-label" style={{ flex: 1 }}>
-                <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#a855f7', marginRight:7, verticalAlign:'middle' }}/>
-                KAABU
-              </span>
-              <ChevronDown size={12} style={{ transform: (kaabuOpen || location.pathname.startsWith('/kaabu')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
-            </>}
-          </div>
-          {(kaabuOpen || location.pathname.startsWith('/kaabu')) && !collapsed && (
-            <div className="nav-submenu">
-              <NavLink to="/kaabu/dashboard" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <LayoutDashboard size={12} className="nav-icon"/><span className="nav-label">Mensuel</span>
-              </NavLink>
-              <NavLink to="/kaabu/dashboard/weekly" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <CalendarDays size={12} className="nav-icon"/><span className="nav-label">Hebdomadaire</span>
-              </NavLink>
-            </div>
-          )}
-        </>}
-
-        {/* ── GESTION ── */}
-        <div className="nav-divider"/>
-        {!collapsed && <div className="nav-section-label">Gestion</div>}
-
-        {can('challenge')   && nl('/challenge',    Trophy,      '🏆 Orange Awards 2026')}
-        {can('pdvs')        && nl('/pdvs',        Store,       'Points de Vente')}
-        {can('prospection') && nl('/prospection', UserPlus,    'Prospection OM')}
-        {can('indicateurs') && nl('/indicateurs', Activity,    'Indicateurs')}
-        {can('commissions') && nl('/commissions', DollarSign,  'Commissions')}
-        {can('evaluations') && nl('/evaluations', Star,        'Évaluations')}
-        {can('alerts')      && nl('/alerts',      Bell,        'Alertes')}
-        {can('reseau')      && nl('/reseau',      Network,     'Gestion du Réseau')}
-
-        {/* ── INTELLIGENCE ── */}
-        {can('ia') && <>
-          <div className="nav-divider"/>
-          {!collapsed && <div className="nav-section-label">Intelligence</div>}
-          <div className={`nav-item${onIA ? ' active' : ''}`}
-            onClick={() => collapsed ? navigate('/ia') : setIaOpen(v => !v)}
-            title={collapsed ? 'Intelligence IA' : ''}>
-            <Brain size={17} className="nav-icon" style={{ color: onIA ? '#FF6900' : '' }}/>
-            {!collapsed && <>
-              <span className="nav-label" style={{ flex: 1 }}>Intelligence IA</span>
-              <ChevronDown size={12} style={{ transform: (iaOpen || onIA) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
-            </>}
-          </div>
-          {(iaOpen || onIA) && !collapsed && (
-            <div className="nav-submenu">
-              <NavLink to="/ia" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <TrendingUp size={12} className="nav-icon"/><span className="nav-label">Tableau de Bord IA</span>
-              </NavLink>
-              <NavLink to="/ia/whatif" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <Wand2 size={12} className="nav-icon"/><span className="nav-label">Simulateur Et Si ?</span>
-              </NavLink>
-            </div>
-          )}
-        </>}
-
-        {can('carte') && nl('/carte', Map, 'Carte Interactive')}
-
-        {/* Récupérations */}
-        {can('recovery') && <>
-          <div className={`nav-item${location.pathname.startsWith('/recovery') ? ' active' : ''}`}
-            onClick={() => collapsed ? navigate('/recovery') : setRecoveryOpen(v => !v)}
-            title={collapsed ? 'Récupérations' : ''}>
-            <RefreshCw size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/recovery') ? '#FF6900' : '' }}/>
-            {!collapsed && <>
-              <span className="nav-label" style={{ flex: 1 }}>Récupérations</span>
-              <ChevronDown size={12} style={{ transform: (recoveryOpen || location.pathname.startsWith('/recovery')) ? 'rotate(180deg)' : 'none', transition: '0.2s', opacity: 0.4 }}/>
-            </>}
-          </div>
-          {(recoveryOpen || location.pathname.startsWith('/recovery')) && !collapsed && (
-            <div className="nav-submenu">
-              <NavLink to="/recovery" end className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <RefreshCw size={12} className="nav-icon"/><span className="nav-label">Aperçu Général</span>
-              </NavLink>
-              <NavLink to="/recovery/liste" className={({isActive}) => `nav-item${isActive ? ' active' : ''}`}>
-                <AlertTriangle size={12} className="nav-icon"/><span className="nav-label">Liste à Récupérer</span>
-              </NavLink>
-            </div>
-          )}
-        </>}
-
-        {/* ── OUTILS ── */}
-        {(can('import') || can('reports') || can('settings')) && <>
-          <div className="nav-divider"/>
-          {!collapsed && <div className="nav-section-label">Outils</div>}
-          {can('import')   && nl('/import',   Upload,   'Import Données')}
-          {can('reports')  && nl('/reports',  FileText, 'Rapports')}
-          {can('settings') && nl('/settings', Settings, 'Paramètres')}
-        </>}
 
       </nav>
 
