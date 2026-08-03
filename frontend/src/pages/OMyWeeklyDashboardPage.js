@@ -716,7 +716,11 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
     () => api.get('/dashboard/weekly-declining', { params: { annee, semaine, seuil } }).then(r => r.data),
     { staleTime: 60000 }
   );
-  const pdvs = data?.pdvs || [];
+  const allPdvsBaisse = data?.pdvs || [];
+  // Filtrer par téléconseillère si rôle teleconseillere
+  const pdvs = teleFilter
+    ? allPdvsBaisse.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvsBaisse;
   const displayedPdvs = pdvs
     .filter(p => {
       if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
@@ -1175,7 +1179,6 @@ export default function OMyWeeklyDashboardPage() {
   const user = useAuthStore(s => s.user);
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   const isTelec = role === 'teleconseillere';
-  const teleName = isTelec ? `${user?.prenom || ''} ${user?.nom || ''}`.trim() : null;
   const teleNom = isTelec ? (user?.nom || '').trim() : null;
   const defaultSemaine = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
 
