@@ -1,4 +1,4 @@
-// v2026-08-03-accueil-tc
+// v2026-08-03-accueil-tc-build2
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from 'react-query';
