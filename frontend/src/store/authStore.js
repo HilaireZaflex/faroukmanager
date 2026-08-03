@@ -107,8 +107,9 @@ const useAuthStore = create(
         if (!user) return false;
         const role = (user.role || '').toLowerCase().replace('userrole.', '');
         if (role === 'admin') return true;
-        // Commerciaux : uniquement prospection
+        // Commerciaux et Développeurs : uniquement prospection
         if (role === 'commercial') return menuId === 'prospection';
+        if (role === 'developpeur') return menuId === 'prospection';
         if (!permissions) return DEFAULT_MENUS.includes(menuId);
         return (permissions.menus || DEFAULT_MENUS).includes(menuId);
       },
@@ -118,8 +119,9 @@ const useAuthStore = create(
         const { user, permissions } = get();
         if (!user) return false;
         const role = (user.role || '').toLowerCase().replace('userrole.', '');
-        // Commerciaux : aucun dashboard
+        // Commerciaux et Développeurs : aucun dashboard
         if (role === 'commercial') return false;
+        if (role === 'developpeur') return false;
         if (role === 'admin') return true;
         if (!permissions) return DEFAULT_DASHBOARDS.includes(dashId);
         return (permissions.dashboards || DEFAULT_DASHBOARDS).includes(dashId);
