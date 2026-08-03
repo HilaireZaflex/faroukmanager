@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Cell, ComposedChart, AreaChart, Area
 } from 'recharts';
+import useAuthStore from '../store/authStore';
 import api from '../services/api';
 
 const COLOR_PRIMARY = '#00d68f';

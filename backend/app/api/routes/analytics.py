@@ -13,6 +13,10 @@ import math
 
 router = APIRouter()
 
+# Cache local pour predictions et forecast
+_predictions_cache = {}
+_predictions_cache_time = {}
+
 @router.get("/analytics/health-scores")
 def get_health_scores(
     db: Session = Depends(get_db),
@@ -248,6 +252,7 @@ def get_gini_coefficient(db: Session = Depends(get_db)):
     gini = 0
     for i, ca in enumerate(cas_values):
         cumsum += ca
+        
         gini += (n - i) * ca
     
     gini = (2 * gini) / (n * total_ca) - (n + 1) / n
