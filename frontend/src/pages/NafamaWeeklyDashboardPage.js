@@ -784,6 +784,7 @@ function OngletEvolution({ annee, semaine }) {
 // ─── Inactifs hebdo ────────────────────────────────────────────────────────
 function OngletInactifs({ annee, semaine, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
+  const [appelPDV, setAppelPDV] = useState(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
@@ -919,6 +920,7 @@ function OngletInactifs({ annee, semaine, teleFilter }) {
 // ─── En Baisse hebdo ───────────────────────────────────────────────────────
 function OngletBaisse({ annee, semaine, teleFilter }) {
   const [seuil, setSeuil] = useState(10);
+  const [appelPDV, setAppelPDV] = useState(null);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');

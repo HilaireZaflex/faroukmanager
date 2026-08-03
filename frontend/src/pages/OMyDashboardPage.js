@@ -1056,6 +1056,7 @@ function TabInactivePDVs({ annee, mois, criterion, teleFilter }) {
                     <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: alert.color }}>
                       {p.nb_mois_consecutifs_inactif || 1}
                     </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)} style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>📞</button></td>
                   </tr>
                 );
               })}
@@ -1063,6 +1064,7 @@ function TabInactivePDVs({ annee, mois, criterion, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
     </div>
   );
 }
@@ -1252,6 +1254,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: '#aaa' }}>{getAction(p.taux_baisse)}</td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><button onClick={() => setAppelPDV2(p)} style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>📞</button></td>
                   </tr>
                 );
               })}
@@ -1259,6 +1262,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV2 && <AppelTCModal pdv={appelPDV2} indicateur="OMY" onClose={() => setAppelPDV2(null)} onSaved={() => setAppelPDV2(null)} />}
     </div>
   );
 }
