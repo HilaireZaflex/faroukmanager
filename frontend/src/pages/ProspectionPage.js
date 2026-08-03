@@ -360,6 +360,14 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { reloadEnergia(); }, [reloadEnergia]);
 
+  const deleteEnergia = async (id) => {
+    if (!window.confirm('Supprimer ce prospect Energia ? Cette action est irréversible.')) return;
+    try {
+      await api.delete('/energia/prospects/' + id);
+      reloadEnergia();
+    } catch (e) { alert('Erreur suppression : ' + (e?.response?.data?.detail || e.message)); }
+  };
+
   // Filtrage local — si développeur : seulement ses propres prospects
   const filtered = allProspects.filter(p => {
     // Filtre développeur : ne voir que ses propres prospects
@@ -486,7 +494,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      {['Réf.','Kit','Client','Téléphone','Quartier','Prêt payer','Date','GPS'].map(h => (
+                      {['Réf.','Kit','Client','Téléphone','Quartier','Prêt payer','Date','GPS',...(canDelete?['Action']:[])].map(h => (
                         <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -521,6 +529,14 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                               style={{ fontSize: 11, color: '#22c55e', textDecoration: 'none' }}>📍 Voir</a>
                           ) : <span style={{ color: '#555' }}>—</span>}
                         </td>
+                        {canDelete && (
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <button onClick={() => deleteEnergia(p.id)}
+                              style={{ background: 'rgba(255,71,87,0.15)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                              🗑️
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
