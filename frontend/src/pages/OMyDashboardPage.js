@@ -1027,11 +1027,12 @@ function TabInactivePDVs({ annee, mois, criterion, teleFilter }) {
                 <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Mois Inactif</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : displayedPdvs.length === 0 ? (
                 <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif ce mois</td></tr>
               ) : displayedPdvs.map((p, i) => {
@@ -1223,13 +1224,14 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#ff4757' }}>Baisse</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Action</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : displayedPdvs.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse ce mois</td></tr>
+                <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse ce mois</td></tr>
               ) : displayedPdvs.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
