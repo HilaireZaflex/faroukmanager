@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
+import AppelTCModal from '../components/common/AppelTCModal';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Cell, ComposedChart, AreaChart, Area, RadialBarChart, RadialBar
@@ -646,6 +647,9 @@ function TabPareto({ annee, mois }) {
           </table>
         </div>
       </div>
+      {appelPDV && (
+        <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />
+      )}
     </div>
   );
 }
@@ -825,6 +829,7 @@ function TabInactivePDVs({ annee, mois, teleFilter }) {
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
+  const [appelPDV, setAppelPDV] = useState(null);
   const { thSort: thSortI, sortFn: sortFnI } = useSortable('ca_dernier_mois');
 
   const { data, isLoading } = useQuery(
@@ -916,11 +921,12 @@ function TabInactivePDVs({ annee, mois, teleFilter }) {
                 {thSortI('ca_dernier_mois', 'CA Dernier Mois', '#ffa502', 'right')}
                 {thSortI('nb_mois_consecutifs_inactif', 'Mois Inactif', '#8a8a9a', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>📞</th>
               </tr>
             </thead>
             <tbody>
               {displayed.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif avec ces filtres</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif avec ces filtres</td></tr>
               ) : [...displayed].sort(sortFnI).map((p, i) => {
                 const nbMois = p.nb_mois_consecutifs_inactif;
                 const alertColor = nbMois >= 3 ? '#ff4757' : nbMois === 2 ? '#ffa502' : '#8a8a9a';
@@ -940,6 +946,12 @@ function TabInactivePDVs({ annee, mois, teleFilter }) {
                         {p.alerte}
                       </span>
                     </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <button onClick={() => setAppelPDV(p)}
+                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                        📞
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -947,6 +959,9 @@ function TabInactivePDVs({ annee, mois, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV && (
+        <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />
+      )}
     </div>
   );
 }
@@ -954,6 +969,7 @@ function TabInactivePDVs({ annee, mois, teleFilter }) {
 // ─── En Baisse mensuel ─────────────────────────────────────────────────────
 function TabDecliningPDVs({ annee, mois, teleFilter }) {
   const [seuil, setSeuil] = useState(10);
+  const [appelPDV, setAppelPDV] = useState(null);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
@@ -1079,6 +1095,7 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
                 {thSortD('variation_pct', 'Baisse', '#ff4757', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Action recommandée</th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>📞</th>
               </tr>
             </thead>
             <tbody>
@@ -1106,6 +1123,12 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#8a8a9a' }}>{p.action}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <button onClick={() => setAppelPDV(p)}
+                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>
+                        📞
+                      </button>
+                    </td>
                   </tr>
                 );
               })}

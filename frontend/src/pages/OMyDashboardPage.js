@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useAuthStore from '../store/authStore';
 import { useQuery } from 'react-query';
+import AppelTCModal from '../components/common/AppelTCModal';
 import { useNavigate } from 'react-router-dom';
 import { useHierarchicalFilters, HierarchicalFilters } from '../hooks/useHierarchicalFilters';
 import { Search } from 'lucide-react';
@@ -918,6 +919,7 @@ function TabEvolution({ annee, mois, criterion }) {
 function TabInactivePDVs({ annee, mois, criterion, teleFilter }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
+  const [appelPDV, setAppelPDV] = useState(null); // TC: PDV sélectionné pour appel
   const { data: inactifs, isLoading } = useQuery(
     ['inactifs', annee, mois],
     () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
@@ -1071,6 +1073,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
 
+  const [appelPDV2, setAppelPDV2] = useState(null); // TC: PDV sélectionné pour appel
   const { data, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
     () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),

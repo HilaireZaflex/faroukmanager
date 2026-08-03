@@ -55,10 +55,12 @@ from app.api.routes.challenge import router as challenge_router
 from app.api.routes.nafama import router as nafama_router
 from app.api.routes.energia import router as energia_router
 from app.api.routes.indicateurs_award import router as award_router
+from app.api.routes.appels_tc import router as appels_tc_router
 app.include_router(challenge_router, prefix="/api", tags=["Challenge Orange Awards"])
 app.include_router(nafama_router, prefix="/api", tags=["NAFAMA"])
 app.include_router(energia_router, prefix="/api", tags=["Vente Energia"])
 app.include_router(award_router, prefix="/api", tags=["Indicateurs Award"])
+app.include_router(appels_tc_router, prefix="/api", tags=["Appels TC"])
 app.include_router(auth.router, prefix="/api", tags=["Authentification"])
 app.include_router(pdv.router, prefix="/api", tags=["PDV"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
