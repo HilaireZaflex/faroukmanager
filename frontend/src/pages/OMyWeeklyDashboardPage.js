@@ -666,6 +666,7 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
                 <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <th style={{ padding: '12px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Sem. Inactif</th>
               </tr>
             </thead>

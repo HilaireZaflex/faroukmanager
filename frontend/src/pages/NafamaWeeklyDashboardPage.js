@@ -880,6 +880,7 @@ function OngletInactifs({ annee, semaine, teleFilter }) {
                 {thSortI('ca_semaine_precedente', 'CA Sem. Préc.', '#ffa502', 'right')}
                 {thSortI('nb_semaines_consecutives_inactif', 'Sem. Inactif', '#8a8a9a', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+              <th style={{ padding: '10px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
               </tr>
             </thead>
             <tbody>
@@ -1042,6 +1043,7 @@ function OngletBaisse({ annee, semaine, teleFilter }) {
                 {thSortD('ca_precedent', 'CA S-1', '#ffa502', 'right')}
                 {thSortD('variation_pct', 'Baisse', '#ff4757', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+              <th style={{ padding: '10px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Action recommandée</th>
               </tr>
             </thead>
