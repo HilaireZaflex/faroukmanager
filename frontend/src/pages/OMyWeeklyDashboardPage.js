@@ -1191,14 +1191,15 @@ export default function OMyWeeklyDashboardPage() {
       setSemaine(lastAvail.last_week.semaine);
     }
   }, [lastAvail]);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(null);
 
-  // Ajuster l'onglet par défaut pour les téléconseillères après chargement user
   useEffect(() => {
-    if (isTelec && ['overview','top','pareto','evolution','progression'].includes(activeTab)) {
+    if (activeTab === null) {
+      setActiveTab(isTelec ? 'inactifs' : 'overview');
+    } else if (isTelec && ['overview','top','pareto','evolution','progression'].includes(activeTab)) {
       setActiveTab('inactifs');
     }
-  }, [isTelec]); // eslint-disable-line
+  }, [isTelec, activeTab]);
   const [criterion, setCriterion] = useState('montant_transaction');
 
   // Charger la dernière semaine disponible et l'utiliser par défaut

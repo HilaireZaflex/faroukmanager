@@ -1305,14 +1305,17 @@ export default function NafamaDashboardPage() {
   const isTelec = role === 'teleconseillere';
   const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
 
-  const [activeTab, setActiveTab] = useState('overview');
+  // Onglet par défaut selon le rôle — null pendant le chargement pour éviter le flash
+  const [activeTab, setActiveTab] = useState(null);
 
-  // Ajuster l'onglet par défaut pour les téléconseillères après chargement user
+  // Définir l'onglet par défaut une fois le user chargé
   useEffect(() => {
-    if (isTelec && ['overview','top','pareto','evolution','progression'].includes(activeTab)) {
+    if (activeTab === null) {
+      setActiveTab(isTelec ? 'inactifs' : 'overview');
+    } else if (isTelec && ['overview','top','pareto','evolution','progression'].includes(activeTab)) {
       setActiveTab('inactifs');
     }
-  }, [isTelec]); // eslint-disable-line
+  }, [isTelec, activeTab]);
 
   // Charger les périodes disponibles depuis la nouvelle API NAFAMA
   const { data: periods } = useQuery(
@@ -1385,11 +1388,12 @@ export default function NafamaDashboardPage() {
       </div>
 
       <div>
-        {activeTab === 'overview'  && <TabOverview annee={annee} mois={mois} />}
-        {activeTab === 'top'       && <TabTopPDVs annee={annee} mois={mois} />}
-        {activeTab === 'pareto'    && <TabPareto annee={annee} mois={mois} />}
-        {activeTab === 'evolution' && <TabEvolution annee={annee} mois={mois} />}
-        {activeTab === 'inactifs'  && <TabInactivePDVs annee={annee} mois={mois} teleFilter={teleName} />}
+        {!activeTab && <div className="loading-spinner" style={{ margin: '60px auto' }} />}
+        {activeTab === 'overview'    && <TabOverview annee={annee} mois={mois} />}
+        {activeTab === 'top'         && <TabTopPDVs annee={annee} mois={mois} />}
+        {activeTab === 'pareto'      && <TabPareto annee={annee} mois={mois} />}
+        {activeTab === 'evolution'   && <TabEvolution annee={annee} mois={mois} />}
+        {activeTab === 'inactifs'    && <TabInactivePDVs annee={annee} mois={mois} teleFilter={teleName} />}
         {activeTab === 'declining'   && <TabDecliningPDVs annee={annee} mois={mois} teleFilter={teleName} />}
         {activeTab === 'progression' && <TabProgression annee={annee} />}
       </div>
