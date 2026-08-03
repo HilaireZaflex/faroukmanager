@@ -20,6 +20,7 @@ def get_stats(
     zone: str = Query(None, description="Filtrer par zone"),
     type_pdv: str = Query(None, description="Filtrer par type PDV"),
     superviseur: str = Query(None, description="Filtrer par superviseur"),
+    teleconseillere: str = Query(None, description="Filtrer par téléconseillère"),
     db: Session = Depends(get_db)
 ):
     """Statistiques globales du réseau PDV — M1"""
@@ -34,6 +35,8 @@ def get_stats(
         except: pass
     if superviseur:
         query = query.filter(PDV.superviseur == superviseur)
+    if teleconseillere:
+        query = query.filter(PDV.teleconseillere.ilike(f"%{teleconseillere}%"))
     pdvs = query.all()
 
     total = len([p for p in pdvs if p.statut != PDVStatut.DESACTIVE])

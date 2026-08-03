@@ -395,21 +395,20 @@ export default function PDVsPage() {
     { staleTime: 0, cacheTime: 0 }
   );
 
-  // Pour les TC : charger TOUS leurs PDVs pour les KPIs (sans pagination)
-  const { data: allTelecPdvs = [] } = useQuery(
-    ['pdvs-telec-all', teleNom],
-    () => api.get('/pdvs', { params: { limit: 2000, teleconseillere: teleNom } }).then(r => r.data),
-    { staleTime: 300000, enabled: isTelec && !!teleNom }
+  // Pour les TC : stats filtrées depuis l'API stats avec teleconseillere
+  const { data: telecStats } = useQuery(
+    ['pdvs-stats-telec', teleNom],
+    () => api.get('/pdvs/stats', { params: { teleconseillere: teleNom } }).then(r => r.data),
+    { staleTime: 300000, enabled: !!teleNom }
   );
 
-  // KPIs dynamiques — pour TC: calculés depuis TOUS leurs PDVs, sinon depuis activeDash
+  // KPIs dynamiques — pour TC: depuis /pdvs/stats filtré, sinon depuis activeDash
   const dynamicStats = isTelec ? {
-    // TC : KPIs calculés depuis la liste complète (pas paginée)
-    total_pdvs: allTelecPdvs.length,
-    actifs: allTelecPdvs.filter(p => p.statut === 'actif' || p.est_actif).length,
-    inactifs: allTelecPdvs.filter(p => p.statut === 'inactif' || !p.est_actif).length,
-    en_recuperation: allTelecPdvs.filter(p => p.statut === 'en_recuperation').length,
-    nouvelles_creations: 0,
+    total_pdvs: telecStats?.total_pdvs ?? 0,
+    actifs: telecStats?.actifs ?? 0,
+    inactifs: telecStats?.inactifs ?? 0,
+    en_recuperation: telecStats?.en_recuperation ?? 0,
+    nouvelles_creations: telecStats?.nouvelles_creations ?? 0,
   } : {
     total_pdvs: activeDash?.total_pdvs ?? dynamicStatsRaw?.total_pdvs ?? 0,
     actifs: activeDash?.active_pdvs ?? dynamicStatsRaw?.actifs ?? 0,
