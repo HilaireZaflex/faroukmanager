@@ -20,6 +20,7 @@ import ImportPage from './pages/ImportPage';
 import IAPage from './pages/IAPage';
 import WhatIfPage from './pages/WhatIfPage';
 import AccueilPage from './pages/AccueilPage';
+import AccueilTCPage from './pages/AccueilTCPage';
 import ChallengePage from './pages/ChallengePage';
 import CartePage from './pages/CartePage';
 import RecoveryListePage from './pages/RecoveryListePage';
@@ -44,7 +45,7 @@ const RoleRedirect = () => {
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   if (role === 'developpeur') return <Navigate to="/prospection" replace />;
   if (role === 'commercial') return <Navigate to="/prospection" replace />;
-  if (role === 'teleconseillere') return <Navigate to="/omy/dashboard" replace />;
+  if (role === 'teleconseillere') return <Navigate to="/accueil-tc" replace />;
   return <Navigate to="/accueil" replace />;
 };
 
@@ -148,6 +149,7 @@ function App() {
               <Routes>
                 {/* ── Routes libres (toujours accessibles) ── */}
                 <Route path="/accueil" element={<AccueilPage />} />
+                <Route path="/accueil-tc" element={<AccueilTCPage />} />
                 <Route path="/challenge" element={<MenuRoute menuId="challenge"><ChallengePage /></MenuRoute>} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
                 <Route path="/omy/dashboard/weekly" element={<OMyWeeklyDashboardPage />} />
