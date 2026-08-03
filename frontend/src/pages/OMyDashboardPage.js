@@ -1559,8 +1559,9 @@ export default function OMyDashboardPage() {
   const user = useAuthStore(s => s.user);
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   const isTelec = role === 'teleconseillere';
-  // Nom complet de la téléconseillère pour filtrer ses PDVs
-  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+  // Format PDV: "PRENOM NOM" (ex: KADIATOU DIA) → on filtre par NOM seul (user.nom)
+  const teleName = isTelec ? `${user?.prenom || ''} ${user?.nom || ''}`.trim() : null;
+  const teleNom = isTelec ? (user?.nom || '').trim() : null;
 
   const [activeTab, setActiveTab] = useState(null);
 
@@ -1667,8 +1668,8 @@ export default function OMyDashboardPage() {
         {activeTab === 'top' && <TabTopPDVs annee={annee} mois={mois} criterion={criterion} />}
         {activeTab === 'pareto' && <TabPareto annee={annee} mois={mois} criterion={criterion} />}
         {activeTab === 'evolution' && <TabEvolution annee={annee} mois={mois} criterion={criterion} />}
-        {activeTab === 'inactifs' && <TabInactivePDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleName} />}
-        {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleName} />}
+        {activeTab === 'inactifs' && <TabInactivePDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleNom} />}
+        {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleNom} />}
         {activeTab === 'progression' && <TabProgression annee={annee} criterion={criterion} />}
       </div>
     </div>

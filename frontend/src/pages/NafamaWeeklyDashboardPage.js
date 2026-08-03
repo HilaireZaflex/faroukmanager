@@ -1258,7 +1258,8 @@ export default function NafamaWeeklyDashboardPage() {
   const user = useAuthStore(s => s.user);
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   const isTelec = role === 'teleconseillere';
-  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+  const teleName = isTelec ? `${user?.prenom || ''} ${user?.nom || ''}`.trim() : null;
+  const teleNom = isTelec ? (user?.nom || '').trim() : null;
 
   const [activeTab, setActiveTab] = useState(null);
 
@@ -1343,8 +1344,8 @@ export default function NafamaWeeklyDashboardPage() {
       {activeTab === 'top'       && <OngletTop annee={annee} semaine={semaine} />}
       {activeTab === 'pareto'    && <OngletPareto annee={annee} semaine={semaine} />}
       {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} />}
-      {activeTab === 'inactifs'  && <OngletInactifs annee={annee} semaine={semaine} teleFilter={teleName} />}
-      {activeTab === 'baisse'      && <OngletBaisse annee={annee} semaine={semaine} teleFilter={teleName} />}
+      {activeTab === 'inactifs'  && <OngletInactifs annee={annee} semaine={semaine} teleFilter={teleNom} />}
+      {activeTab === 'baisse'      && <OngletBaisse annee={annee} semaine={semaine} teleFilter={teleNom} />}
       {activeTab === 'progression' && <OngletProgression annee={annee} />}
     </div>
   );

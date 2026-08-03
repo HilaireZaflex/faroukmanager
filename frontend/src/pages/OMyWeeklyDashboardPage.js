@@ -1175,7 +1175,8 @@ export default function OMyWeeklyDashboardPage() {
   const user = useAuthStore(s => s.user);
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   const isTelec = role === 'teleconseillere';
-  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+  const teleName = isTelec ? `${user?.prenom || ''} ${user?.nom || ''}`.trim() : null;
+  const teleNom = isTelec ? (user?.nom || '').trim() : null;
   const defaultSemaine = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
 
   const [annee, setAnnee] = useState(now.getFullYear());
@@ -1284,8 +1285,8 @@ export default function OMyWeeklyDashboardPage() {
       {activeTab === 'top' && <OngletSuiviTop annee={annee} semaine={semaine} criterion={criterion} />}
       {activeTab === 'pareto' && <OngletPareto annee={annee} semaine={semaine} criterion={criterion} />}
       {activeTab === 'evolution' && <OngletEvolution annee={annee} semaine={semaine} criterion={criterion} />}
-      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} teleFilter={teleName} />}
-      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} teleFilter={teleName} />}
+      {activeTab === 'inactifs' && <OngletInactifs annee={annee} semaine={semaine} criterion={criterion} teleFilter={teleNom} />}
+      {activeTab === 'baisse' && <OngletBaisse annee={annee} semaine={semaine} criterion={criterion} teleFilter={teleNom} />}
       {activeTab === 'progression' && <OngletProgression annee={annee} semaine={semaine} criterion={criterion} />}
     </div>
   );

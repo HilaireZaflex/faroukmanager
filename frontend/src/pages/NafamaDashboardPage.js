@@ -1303,7 +1303,12 @@ export default function NafamaDashboardPage() {
   const user = useAuthStore(s => s.user);
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   const isTelec = role === 'teleconseillere';
-  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+  // Format dans PDV : "PRENOM NOM" (ex: KADIATOU DIA)
+  // Format dans user : nom=DIA, prenom=KADIATOU
+  // On cherche par NOM seul (plus fiable) ou PRENOM NOM
+  const teleName = isTelec ? `${user?.prenom || ''} ${user?.nom || ''}`.trim() : null;
+  // Fallback: nom seul pour matching partiel
+  const teleNom = isTelec ? (user?.nom || '').trim() : null;
 
   // Onglet par défaut selon le rôle — null pendant le chargement pour éviter le flash
   const [activeTab, setActiveTab] = useState(null);
@@ -1393,8 +1398,8 @@ export default function NafamaDashboardPage() {
         {activeTab === 'top'         && <TabTopPDVs annee={annee} mois={mois} />}
         {activeTab === 'pareto'      && <TabPareto annee={annee} mois={mois} />}
         {activeTab === 'evolution'   && <TabEvolution annee={annee} mois={mois} />}
-        {activeTab === 'inactifs'    && <TabInactivePDVs annee={annee} mois={mois} teleFilter={teleName} />}
-        {activeTab === 'declining'   && <TabDecliningPDVs annee={annee} mois={mois} teleFilter={teleName} />}
+        {activeTab === 'inactifs'    && <TabInactivePDVs annee={annee} mois={mois} teleFilter={teleNom} />}
+        {activeTab === 'declining'   && <TabDecliningPDVs annee={annee} mois={mois} teleFilter={teleNom} />}
         {activeTab === 'progression' && <TabProgression annee={annee} />}
       </div>
     </div>
