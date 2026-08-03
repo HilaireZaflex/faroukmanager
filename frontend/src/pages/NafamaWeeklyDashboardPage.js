@@ -1259,7 +1259,14 @@ export default function NafamaWeeklyDashboardPage() {
   const isTelec = role === 'teleconseillere';
   const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
 
-  const [activeTab, setActiveTab] = useState(isTelec ? 'inactifs' : 'overview');
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Ajuster l'onglet par défaut pour les téléconseillères après chargement user
+  useEffect(() => {
+    if (isTelec && (activeTab === 'overview' || activeTab === 'top' || activeTab === 'pareto' || activeTab === 'evolution' || activeTab === 'progression')) {
+      setActiveTab('inactifs');
+    }
+  }, [isTelec]); // eslint-disable-line
 
   // Charger les périodes disponibles depuis la nouvelle API NAFAMA
   const { data: periods } = useQuery(

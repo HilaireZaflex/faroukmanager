@@ -1562,7 +1562,14 @@ export default function OMyDashboardPage() {
   // Nom complet de la téléconseillère pour filtrer ses PDVs
   const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
 
-  const [activeTab, setActiveTab] = useState(isTelec ? 'inactifs' : 'overview');
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Ajuster l'onglet par défaut pour les téléconseillères après chargement user
+  useEffect(() => {
+    if (isTelec && ['overview','top','pareto','evolution','progression'].includes(activeTab)) {
+      setActiveTab('inactifs');
+    }
+  }, [isTelec]); // eslint-disable-line
 
   // Charger le dernier mois disponible
   const { data: lastAvailable } = useQuery(
