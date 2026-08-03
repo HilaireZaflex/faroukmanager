@@ -781,11 +781,12 @@ function OngletEvolution({ annee, semaine }) {
 }
 
 // ─── Inactifs hebdo ────────────────────────────────────────────────────────
-function OngletInactifs({ annee, semaine }) {
+function OngletInactifs({ annee, semaine, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
+  // Note: teleFilter est utilisé pour filtrer les données par téléconseillère
   const { thSort: thSortI, sortFn: sortFnI } = useSortable('ca_semaine_precedente');
 
   const { data, isLoading } = useQuery(
@@ -795,9 +796,14 @@ function OngletInactifs({ annee, semaine }) {
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
-  if (!data?.pdvs?.length && !isLoading) return <EmptyTab message="✅ Aucun PDV inactif cette semaine !" />;
 
-  const pdvs = data?.pdvs || [];
+  const allPdvs = data?.pdvs || [];
+  // Filtrer par téléconseillère
+  const pdvs = teleFilter
+    ? allPdvs.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvs;
+  if (!pdvs.length && !isLoading) return <EmptyTab message="✅ Aucun PDV inactif cette semaine !" />;
+
   const zoneList = [...new Set(pdvs.map(p => p.zone).filter(z => z && z !== '—'))].sort();
   const supList = [...new Set(pdvs.filter(p => !zoneFilter || p.zone === zoneFilter).map(p => p.superviseur).filter(s => s && s !== '—'))].sort();
 
@@ -908,7 +914,7 @@ function OngletInactifs({ annee, semaine }) {
 }
 
 // ─── En Baisse hebdo ───────────────────────────────────────────────────────
-function OngletBaisse({ annee, semaine }) {
+function OngletBaisse({ annee, semaine, teleFilter }) {
   const [seuil, setSeuil] = useState(10);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
@@ -922,7 +928,10 @@ function OngletBaisse({ annee, semaine }) {
     { staleTime: 60000, retry: false }
   );
 
-  const pdvs = data?.pdvs || [];
+  const allPdvsB = data?.pdvs || [];
+  const pdvs = teleFilter
+    ? allPdvsB.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvsB;
   const zoneList = [...new Set(pdvs.map(p => p.zone).filter(z => z && z !== '—'))].sort();
   const supList = [...new Set(pdvs.filter(p => !zoneFilter || p.zone === zoneFilter).map(p => p.superviseur).filter(s => s && s !== '—'))].sort();
 

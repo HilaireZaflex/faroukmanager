@@ -577,7 +577,11 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
     () => api.get('/dashboard/weekly-inactive', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 60000 }
   );
-  const pdvs = data?.pdvs || [];
+  const allPdvsInact = data?.pdvs || [];
+  // Filtrer par téléconseillère si rôle teleconseillere
+  const pdvs = teleFilter
+    ? allPdvsInact.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
+    : allPdvsInact;
   const displayedPdvs = pdvs
     .filter(p => {
       if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
