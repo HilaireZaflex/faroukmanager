@@ -1147,9 +1147,28 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
       )}
       <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #22c55e' }}>
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.reference} — {p.prenom} {p.nom}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
           📞 {p.telephone_principal} · 📍 {p.quartier || '—'}
         </div>
+        {/* Développeur qui a soumis la demande */}
+        {p.submitted_by && (
+          <div style={{ fontSize: 12, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ background: 'rgba(55,66,250,0.15)', color: '#5f6cf5', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+              👤 Soumis par : {p.submitted_by.prenom || ''} {p.submitted_by.nom || ''}
+            </span>
+            {p.submitted_by.zone && (
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>· {p.submitted_by.zone}</span>
+            )}
+          </div>
+        )}
+        {/* Développeur de visite */}
+        {p.visit_assigned_to && (
+          <div style={{ fontSize: 12, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ background: 'rgba(255,105,0,0.12)', color: '#FF6900', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+              🔍 Visite effectuée par : {p.visit_assigned_to.prenom || ''} {p.visit_assigned_to.nom || ''}
+            </span>
+          </div>
+        )}
         <div className="action-bar">
           <select value={devId} onChange={e => setDevId(e.target.value)} style={{ flex: 1 }}>
             <option value="">— Choisir un développeur activateur —</option>
