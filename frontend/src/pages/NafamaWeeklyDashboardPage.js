@@ -903,6 +903,7 @@ function OngletInactifs({ annee, semaine, teleFilter }) {
                         {p.alerte}
                       </span>
                     </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)} style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>📞</button></td>
                   </tr>
                 );
               })}
@@ -910,6 +911,7 @@ function OngletInactifs({ annee, semaine, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
     </div>
   );
 }
@@ -1066,6 +1068,7 @@ function OngletBaisse({ annee, semaine, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#8a8a9a' }}>{p.action}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)} style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>📞</button></td>
                   </tr>
                 );
               })}
@@ -1244,6 +1247,7 @@ function OngletProgression({ annee }) {
           </div>
         )}
       </div>
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
     </div>
   );
 }

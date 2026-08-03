@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import AppelTCModal from '../components/common/AppelTCModal';
 import { Search } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -571,6 +572,7 @@ function OngletEvolution({ annee, semaine, criterion }) {
 // ─── ONGLET 5 : PDV INACTIFS ─────────────────────────────────────────────────
 function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
+  const [appelPDV, setAppelPDV] = useState(null);
   const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery(
     ['weekly-inactive', annee, semaine],
@@ -694,6 +696,12 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
                     <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: alert.color }}>
                       {p.nb_semaines_consecutives_inactif || 1}
                     </td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      <button onClick={() => setAppelPDV(p)}
+                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                        📞
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -701,6 +709,7 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
     </div>
   );
 }
@@ -708,6 +717,7 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
 // ─── ONGLET 6 : PDV EN BAISSE ─────────────────────────────────────────────────
 function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
   const [seuil, setSeuil] = useState(-10);
+  const [appelPDV, setAppelPDV] = useState(null);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
 
@@ -877,6 +887,12 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: '#aaa' }}>{getAction(p.taux_baisse)}</td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      <button onClick={() => setAppelPDV(p)}
+                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                        📞
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -884,6 +900,7 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
     </div>
   );
 }
