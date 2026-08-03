@@ -307,7 +307,9 @@ export default function PDVsPage() {
   // Détection téléconseillère
   const user = useAuthStore(s => s.user);
   const isTelec = (user?.role || '').toLowerCase().replace('userrole.', '') === 'teleconseillere';
-  const teleName = isTelec ? `${user?.nom || ''} ${user?.prenom || ''}`.trim() : null;
+  // Utiliser le NOM seul pour le filtre (format PDV: "PRENOM NOM", ex: "KADIATOU DIA" → filtre par "DIA")
+  const teleNom = isTelec ? (user?.nom || '').trim() : null;
+  const teleName = teleNom; // alias pour params
 
   const [periodeType, setPeriodeType] = useState('mensuel');
   const [selectedMois, setSelectedMois] = useState(null);
@@ -393,12 +395,15 @@ export default function PDVsPage() {
     { staleTime: 0, cacheTime: 0 }
   );
 
-  // KPIs dynamiques — réagissent à zone, type, statut, service ET période
-  // - total_pdvs : total réseau filtré (backend filtre par zone/type)
-  // - actifs : PDVs avec transactions ce mois/semaine (activeDash)
-  // - inactifs : PDVs sans transactions ce mois/semaine (activeDash)
-  // - en_recuperation, nouvelles_creations : depuis /pdvs/stats (filtré par zone/type/statut)
-  const dynamicStats = {
+  // KPIs dynamiques — pour TC: calculés depuis pdvs filtrés, sinon depuis activeDash
+  const dynamicStats = isTelec ? {
+    // TC : KPIs calculés depuis leur liste PDV uniquement
+    total_pdvs: pdvs.length,
+    actifs: pdvs.filter(p => p.statut === 'actif' || p.est_actif).length,
+    inactifs: pdvs.filter(p => p.statut === 'inactif' || !p.est_actif).length,
+    en_recuperation: pdvs.filter(p => p.statut === 'en_recuperation').length,
+    nouvelles_creations: 0,
+  } : {
     total_pdvs: activeDash?.total_pdvs ?? dynamicStatsRaw?.total_pdvs ?? 0,
     actifs: activeDash?.active_pdvs ?? dynamicStatsRaw?.actifs ?? 0,
     inactifs: (activeDash?.inactive_pdvs ?? 0) + (activeDash?.pdvs_sans_donnees ?? 0),
