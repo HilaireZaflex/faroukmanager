@@ -835,6 +835,17 @@ function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
               Soumis le {new Date(p.submitted_at).toLocaleDateString('fr-FR')}
               {p.type_local && ` · ${p.type_local}`}
             </div>
+            {/* Développeur qui a soumis la demande - identique à l'étape 4 */}
+            {p.submitted_by && (
+              <div style={{ fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ background: 'rgba(55,66,250,0.15)', color: '#5f6cf5', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+                  👤 Soumis par : {p.submitted_by.prenom || ''} {p.submitted_by.nom || ''}
+                </span>
+                {p.submitted_by.zone && (
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>· {p.submitted_by.zone}</span>
+                )}
+              </div>
+            )}
             {p.notes && (
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, fontStyle: 'italic' }}>
                 📝 {p.notes.substring(0, 120)}{p.notes.length > 120 ? '…' : ''}
