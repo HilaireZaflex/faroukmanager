@@ -754,8 +754,8 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
                 created_by=activated_by,
                 prospect_reference=p.reference,
                 prospect_id=p.id,
-                # Ancien gérant
-                ancien_nom_gerant=existing_pdv.nom_gerant,
+                # Ancien gérant — le champ s'appelle 'nom' dans le modèle PDV
+                ancien_nom_gerant=existing_pdv.nom or getattr(existing_pdv, 'nom_gerant', None),
                 ancien_telephone=existing_pdv.telephone,
                 ancien_superviseur=existing_pdv.superviseur,
                 ancien_gestionnaire=existing_pdv.gestionnaire,
