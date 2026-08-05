@@ -270,15 +270,21 @@ def get_repartition_agents(
             if p.status in (ProspectStatus.REFUSEE_DEV, "REFUSEE_DEV"):
                 visites_par_agent[nom_visit]["refusees"] += 1
 
-        # Activations
-        aa = load_user(p.activation_assigned_to_id) if hasattr(p, 'activation_assigned_to_id') else None
-        if not aa and hasattr(p, 'activation_assigned_to'):
-            aa = p.activation_assigned_to
-        nom_act = get_user_name(aa)
-        if nom_act:
-            activations_par_agent[nom_act] = activations_par_agent.get(nom_act, {"total": 0, "activees": 0})
-            activations_par_agent[nom_act]["total"] += 1
-            if p.status in (ProspectStatus.PUCE_ACTIVEE, "PUCE_ACTIVEE"):
+        # Activations — utiliser submitted_by si activation_assigned_to est null
+        # (dans ce workflow, c'est souvent le même développeur)
+        if p.status in (ProspectStatus.PUCE_ACTIVEE, "PUCE_ACTIVEE"):
+            aa = load_user(p.activation_assigned_to_id) if hasattr(p, 'activation_assigned_to_id') else None
+            if not aa and hasattr(p, 'activation_assigned_to'):
+                aa = p.activation_assigned_to
+            # Fallback sur submitted_by si activation_assigned_to est null
+            if not aa and hasattr(p, 'submitted_by_id') and p.submitted_by_id:
+                aa = load_user(p.submitted_by_id)
+            if not aa and hasattr(p, 'submitted_by'):
+                aa = p.submitted_by
+            nom_act = get_user_name(aa)
+            if nom_act:
+                activations_par_agent[nom_act] = activations_par_agent.get(nom_act, {"total": 0, "activees": 0})
+                activations_par_agent[nom_act]["total"] += 1
                 activations_par_agent[nom_act]["activees"] += 1
 
     # Formatter pour le frontend
