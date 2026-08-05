@@ -670,18 +670,24 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                     <td>
                       <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
                       {/* Badge délai dépassé pour PUCE_ATTRIBUEE */}
-                      {p.status === 'PUCE_ATTRIBUEE' && p.puce_assigned_at && (() => {
-                        const jours = Math.floor((Date.now() - new Date(p.puce_assigned_at).getTime()) / 86400000);
+                      {p.status === 'PUCE_ATTRIBUEE' && p.submitted_at && (() => {
+                        // Calculer depuis submitted_at (date de soumission de la demande)
+                        const jours = Math.floor((Date.now() - new Date(p.submitted_at).getTime()) / 86400000);
                         if (jours < 1) return null;
-                        const urgent = jours >= 3;
+                        const urgent = jours >= 5;
+                        const warning = jours >= 2;
                         return (
                           <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 5,
-                            background: urgent ? 'rgba(255,71,87,0.1)' : 'rgba(255,165,2,0.1)',
-                            border: `1px solid ${urgent ? 'rgba(255,71,87,0.3)' : 'rgba(255,165,2,0.3)'}`,
+                            background: urgent ? 'rgba(255,71,87,0.12)' : warning ? 'rgba(255,165,2,0.1)' : 'rgba(255,193,7,0.08)',
+                            border: `1px solid ${urgent ? 'rgba(255,71,87,0.35)' : warning ? 'rgba(255,165,2,0.3)' : 'rgba(255,193,7,0.25)'}`,
                             borderRadius: 6, padding: '3px 8px', width: 'fit-content' }}>
-                            <span style={{ fontSize: 12 }}>{urgent ? '🔴' : '🟠'}</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: urgent ? '#ff4757' : '#ffa502' }}>
-                              {urgent ? `Urgent ! En attente depuis ${jours}j` : `En attente depuis ${jours}j`}
+                            <span style={{ fontSize: 12 }}>{urgent ? '🔴' : warning ? '🟠' : '🟡'}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: urgent ? '#ff4757' : warning ? '#ffa502' : '#fbbf24' }}>
+                              {urgent
+                                ? `⚡ Urgent ! En attente depuis ${jours} jours`
+                                : warning
+                                ? `⏰ En attente depuis ${jours} jour${jours > 1 ? 's' : ''}`
+                                : `🕐 Soumis il y a ${jours} jour${jours > 1 ? 's' : ''}`}
                             </span>
                           </div>
                         );
