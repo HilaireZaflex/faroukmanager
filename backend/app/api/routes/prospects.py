@@ -214,6 +214,95 @@ def assign_puce(
     return svc.assign_puce(db, prospect_id, payload, current_user)
 
 
+@router.get("/stats/repartition-agents")
+def get_repartition_agents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Répartition des prospects par agent pour tous les types d'activités."""
+    from app.models.prospect import Prospect as ProspectModel, ProspectStatus
+    from app.models.user import User as UserModel
+    from sqlalchemy import func, case
+
+    prospects = db.query(ProspectModel).all()
+
+    # Helper pour extraire le nom complet
+    def get_user_name(user_obj):
+        if not user_obj: return None
+        return f"{user_obj.nom or ''} {user_obj.prenom or ''}".strip() or None
+
+    # Charger les users liés
+    def load_user(user_id):
+        if not user_id: return None
+        return db.query(UserModel).filter(UserModel.id == user_id).first()
+
+    # 1. Prospections soumises par agent
+    prospections_par_agent = {}
+    visites_par_agent = {}
+    activations_par_agent = {}
+    activites_par_agent = {}  # total toutes activités
+    taux_succes = {}  # ratio activée / soumise
+
+    for p in prospects:
+        # Prospections soumises
+        sb = load_user(p.submitted_by_id) if hasattr(p, 'submitted_by_id') else None
+        if not sb and hasattr(p, 'submitted_by'):
+            sb = p.submitted_by
+        nom_sub = get_user_name(sb)
+        if nom_sub:
+            prospections_par_agent[nom_sub] = prospections_par_agent.get(nom_sub, {"total": 0, "activees": 0, "refusees": 0})
+            prospections_par_agent[nom_sub]["total"] += 1
+            if p.status in (ProspectStatus.PUCE_ACTIVEE, "PUCE_ACTIVEE"):
+                prospections_par_agent[nom_sub]["activees"] += 1
+            if p.status in (ProspectStatus.REFUSEE_RC, ProspectStatus.REFUSEE_DEV, "REFUSEE_RC", "REFUSEE_DEV"):
+                prospections_par_agent[nom_sub]["refusees"] += 1
+
+        # Visites terrain
+        va = load_user(p.visit_assigned_to_id) if hasattr(p, 'visit_assigned_to_id') else None
+        if not va and hasattr(p, 'visit_assigned_to'):
+            va = p.visit_assigned_to
+        nom_visit = get_user_name(va)
+        if nom_visit:
+            visites_par_agent[nom_visit] = visites_par_agent.get(nom_visit, {"total": 0, "validees": 0, "refusees": 0})
+            visites_par_agent[nom_visit]["total"] += 1
+            if p.status in (ProspectStatus.VALIDEE_DEV, ProspectStatus.APPROUVEE_RC, ProspectStatus.PUCE_ATTRIBUEE, ProspectStatus.PUCE_ACTIVEE, "VALIDEE_DEV", "APPROUVEE_RC", "PUCE_ATTRIBUEE", "PUCE_ACTIVEE"):
+                visites_par_agent[nom_visit]["validees"] += 1
+            if p.status in (ProspectStatus.REFUSEE_DEV, "REFUSEE_DEV"):
+                visites_par_agent[nom_visit]["refusees"] += 1
+
+        # Activations
+        aa = load_user(p.activation_assigned_to_id) if hasattr(p, 'activation_assigned_to_id') else None
+        if not aa and hasattr(p, 'activation_assigned_to'):
+            aa = p.activation_assigned_to
+        nom_act = get_user_name(aa)
+        if nom_act:
+            activations_par_agent[nom_act] = activations_par_agent.get(nom_act, {"total": 0, "activees": 0})
+            activations_par_agent[nom_act]["total"] += 1
+            if p.status in (ProspectStatus.PUCE_ACTIVEE, "PUCE_ACTIVEE"):
+                activations_par_agent[nom_act]["activees"] += 1
+
+    # Formatter pour le frontend
+    def fmt_list(d, key_nom="agent", sort_key="total"):
+        return sorted([
+            {key_nom: k, **v}
+            for k, v in d.items() if k
+        ], key=lambda x: -x.get(sort_key, 0))
+
+    # Stats globales par statut
+    statuts = {}
+    for p in prospects:
+        s = p.status.value if hasattr(p.status, 'value') else str(p.status)
+        statuts[s] = statuts.get(s, 0) + 1
+
+    return {
+        "total_prospects": len(prospects),
+        "par_statut": statuts,
+        "prospections": fmt_list(prospections_par_agent),
+        "visites": fmt_list(visites_par_agent),
+        "activations": fmt_list(activations_par_agent),
+    }
+
+
 @router.post("/{prospect_id}/confirm-refus-dev")
 def confirm_refus_dev(
     prospect_id: int,

@@ -2,6 +2,10 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery } from 'react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Cell, PieChart, Pie, Legend, RadialBarChart, RadialBar,
+} from 'recharts';
+import {
   Plus, RefreshCw, MapPin, User as UserIcon,
   CheckCircle, XCircle, Clock, Send, Search,
 } from 'lucide-react';
@@ -173,7 +177,8 @@ export default function ProspectionPage() {
   const allTabs = [
     { id: 'demandes',   label: '📋 Demandes',           show: true },
     { id: 'workflow',   label: '🔄 Workflow',            show: isAdminOrRC || isDev },
-    { id: 'activation', label: '⚡ Activation',          show: !isCommercial },
+    { id: 'activation',   label: '⚡ Activation',          show: !isCommercial },
+    { id: 'repartition', label: '📊 Répartition Agents',  show: isAdmin || isRC },
   ];
   const tabs = allTabs.filter(t => t.show);
   const safeTab = tabs.find(t => t.id === activeTab) ? activeTab : 'demandes';
@@ -263,7 +268,8 @@ export default function ProspectionPage() {
       <div>
         {safeTab === 'demandes'   && <TabDemandes key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
         {safeTab === 'workflow'   && <TabWorkflow key={`${refreshKey}-${stepFromUrl}`} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh} initialStep={stepFromUrl}/>}
-        {safeTab === 'activation' && <TabActivation key={refreshKey} currentUser={user} onRefresh={refresh}/>}
+        {safeTab === 'activation'   && <TabActivation key={refreshKey} currentUser={user} onRefresh={refresh}/>}
+        {safeTab === 'repartition' && <TabRepartition />}
       </div>
 
       {modalCreate && (
@@ -1856,6 +1862,154 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         </form>
       </div>
     </>
+  );
+}
+
+
+// =============================================================================
+// ONGLET RÉPARTITION PAR AGENT
+// =============================================================================
+const COLORS_CHART = ['#FF6900','#3742fa','#22c55e','#ffa502','#a29bfe','#00d68f','#ff4757','#fd79a8','#0ea5e9','#f59e0b'];
+
+function AgentBar({ data, valueKey }) {
+  if (!data?.length) return <div style={{ textAlign: 'center', padding: '30px', color: '#8a8a9a', fontSize: 13 }}>📭 Aucune donnée</div>;
+  const max = Math.max(...data.map(d => d[valueKey] || 0)) || 1;
+  return (
+    <div>
+      {data.map((d, i) => {
+        const val = d[valueKey] || 0;
+        const pct = Math.round(val / max * 100);
+        const clr = COLORS_CHART[i % COLORS_CHART.length];
+        return (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: clr + '20', border: '2px solid ' + clr + '50', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: clr }}>{i + 1}</div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{d.agent}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {d.activees !== undefined && <span style={{ fontSize: 11, color: '#22c55e' }}>✅ {d.activees}</span>}
+                {d.refusees !== undefined && d.refusees > 0 && <span style={{ fontSize: 11, color: '#ff4757' }}>❌ {d.refusees}</span>}
+                {d.validees !== undefined && <span style={{ fontSize: 11, color: '#00d68f' }}>✔ {d.validees}</span>}
+                <span style={{ fontWeight: 800, color: clr, fontSize: 16, minWidth: 24, textAlign: 'right' }}>{val}</span>
+              </div>
+            </div>
+            <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: pct + '%', background: 'linear-gradient(90deg,' + clr + ',' + clr + '99)', borderRadius: 6, transition: 'width 0.8s ease' }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TabRepartition() {
+  const { data, isLoading } = useQuery('repartition-agents',
+    () => api.get('/prospects/stats/repartition-agents').then(r => r.data),
+    { staleTime: 60000 }
+  );
+  if (isLoading) return <div style={{ textAlign: 'center', padding: '60px', color: '#8a8a9a' }}><div className="loading-spinner" style={{ margin: '0 auto 16px' }}/><p>Chargement...</p></div>;
+  const prospections = data?.prospections || [];
+  const visites = data?.visites || [];
+  const activations = data?.activations || [];
+  const parStatut = data?.par_statut || {};
+  const total = data?.total_prospects || 0;
+  const statutData = Object.entries(parStatut).map(([s, v]) => ({
+    name: s.replace(/_/g,' '), value: v,
+    color: s==='PUCE_ACTIVEE'?'#22c55e':s==='PUCE_ATTRIBUEE'?'#00d68f':s==='REFUSEE_RC'?'#ff4757':s==='REFUSEE_DEV'?'#ffa502':s==='EN_VISITE'?'#3742fa':'#8a8a9a',
+  }));
+  const cardStyle = { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '20px 24px' };
+  const badge = (txt, clr) => <span style={{ fontSize: 11, color: clr, background: clr+'18', padding: '3px 10px', borderRadius: 20 }}>{txt}</span>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {[
+          { icon: '📋', label: 'Total Demandes', value: total, color: '#3742fa' },
+          { icon: '👥', label: 'Agents Prospecteurs', value: prospections.length, color: '#FF6900' },
+          { icon: '🔍', label: 'Agents Visiteurs', value: visites.length, color: '#ffa502' },
+          { icon: '✅', label: 'Agents Activateurs', value: activations.length || 0, color: '#22c55e' },
+        ].map((k, i) => (
+          <div key={i} style={{ ...cardStyle, textAlign: 'center', borderTop: '3px solid '+k.color, padding: '16px' }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>{k.icon}</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+      {/* Statuts + Prospections */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, color: '#fff' }}>🎯 Répartition par Statut</h3>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <ResponsiveContainer width={150} height={150}>
+              <PieChart>
+                <Pie data={statutData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value">
+                  {statutData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ flex: 1 }}>
+              {statutData.map((s, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: s.color }} />
+                    <span style={{ fontSize: 11, color: '#aaa', textTransform: 'capitalize' }}>{s.name.toLowerCase()}</span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: s.color }}>{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>📋 Prospections par Agent</h3>
+            {badge(prospections.length + ' agents', '#FF6900')}
+          </div>
+          <AgentBar data={prospections} valueKey="total" />
+        </div>
+      </div>
+      {/* Visites + Activations */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>🔍 Visites Terrain par Agent</h3>
+            {badge(visites.length + ' agents', '#ffa502')}
+          </div>
+          <AgentBar data={visites} valueKey="total" />
+        </div>
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>⚡ Activations par Agent</h3>
+            {badge(activations.length + ' agents', '#22c55e')}
+          </div>
+          {activations.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#8a8a9a', fontSize: 13 }}><div style={{ fontSize: 28, marginBottom: 8 }}>⚡</div>Aucune activation encore</div>
+          ) : <AgentBar data={activations} valueKey="total" />}
+        </div>
+      </div>
+      {/* BarChart comparatif */}
+      {prospections.length > 0 && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, color: '#fff' }}>📊 Activités par Agent — Vue Globale</h3>
+          <ResponsiveContainer width="100%" height={270}>
+            <BarChart data={prospections.map(p => ({ agent: p.agent.split(' ')[0], Prospections: p.total, Visites: visites.find(v => v.agent===p.agent)?.total||0, Activées: p.activees||0 }))} margin={{ top: 5, right: 20, left: 0, bottom: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="agent" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} angle={-20} textAnchor="end" interval={0} />
+              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
+              <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 12 }} />
+              <Legend wrapperStyle={{ paddingTop: 10, fontSize: 12 }} />
+              <Bar dataKey="Prospections" fill="#FF6900" radius={[4,4,0,0]} />
+              <Bar dataKey="Visites" fill="#ffa502" radius={[4,4,0,0]} />
+              <Bar dataKey="Activées" fill="#22c55e" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
   );
 }
 
