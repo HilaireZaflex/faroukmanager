@@ -64,7 +64,8 @@ ALLOWED_TRANSITIONS: Dict[ProspectStatus, List[ProspectStatus]] = {
         ProspectStatus.ANNULEE,
     ],
     ProspectStatus.REFUSEE_DEV: [
-        ProspectStatus.EN_VISITE,        # réaffectation 2ème opinion
+        ProspectStatus.EN_VISITE,        # réaffectation 2ème opinion par RC
+        ProspectStatus.REFUSEE_RC,       # RC confirme le refus → état terminal
         ProspectStatus.ANNULEE,
     ],
     ProspectStatus.VALIDEE_DEV: [

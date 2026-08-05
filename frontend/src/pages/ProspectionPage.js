@@ -706,13 +706,15 @@ function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
   const developers = users;
 
   // Filtres par étape
-  const nouvelles = prospects.filter(p => p.status === 'NOUVELLE' || p.status === 'REFUSEE_DEV');
+  const nouvelles = prospects.filter(p => p.status === 'NOUVELLE');
+  const refuseesDev = prospects.filter(p => p.status === 'REFUSEE_DEV');
+  const etape2Count = nouvelles.length + refuseesDev.length;
   const enVisite = prospects.filter(p => p.status === 'EN_VISITE');
   const validesDev = prospects.filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC', 'REFUSEE_RC'].includes(p.status));
   const approuveesRC = prospects.filter(p => p.status === 'APPROUVEE_RC');
 
   const workflowTabs = [
-    { id: 'etape2', label: '📤 Étape 2 — Attribution visite',   count: nouvelles.length, show: isRC },
+    { id: 'etape2', label: '📤 Étape 2 — Attribution visite',   count: etape2Count, show: isRC },
     { id: 'etape3', label: '🔍 Étape 3 — Décision Dev',         count: enVisite.length,  show: isDev || isRC },
     { id: 'etape4', label: '👔 Étape 4 — Validation RC',        count: validesDev.length, show: isRC },
     { id: 'etape5', label: '📦 Étape 5 — Attribution activation', count: approuveesRC.length, show: isRC },
@@ -737,6 +739,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
           {workflowStep === 'etape2' && (
             <Etape2Attribution
               prospects={nouvelles}
+              refuseesDev={refuseesDev}
               developers={developers}
               onDone={reload}
               onOpen={onOpen}
@@ -771,7 +774,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
 }
 
 // ── Étape 2 : RC affecte les demandes NOUVELLES aux développeurs ──────────────
-function Etape2Attribution({ prospects, developers, onDone, onOpen }) {
+function Etape2Attribution({ prospects, refuseesDev = [], developers, onDone, onOpen }) {
   return (
     <>
       <StepLegend
@@ -781,14 +784,105 @@ function Etape2Attribution({ prospects, developers, onDone, onOpen }) {
         next="➡️ Après attribution : le développeur effectue la visite et donne sa décision (Étape 3)"
         color="#f59e0b"
       />
+
+      {/* ── Refus Dev à confirmer ── */}
+      {refuseesDev.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 12, marginBottom: 12 }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#ff4757' }}>{refuseesDev.length} demande{refuseesDev.length > 1 ? 's' : ''} refusée{refuseesDev.length > 1 ? 's' : ''} par le développeur</div>
+              <div style={{ fontSize: 12, color: '#8a8a9a' }}>Confirmer le refus définitif ou réaffecter à un autre développeur</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {refuseesDev.map(p => <RefusDevCard key={p.id} prospect={p} developers={developers} onDone={onDone} onOpen={onOpen} />)}
+          </div>
+        </div>
+      )}
+
+      {/* ── Nouvelles demandes ── */}
       {prospects.length === 0 ? (
-        <div className="empty-state">✅ Aucune demande en attente d'attribution.</div>
+        <div className="empty-state">✅ Aucune nouvelle demande en attente d'attribution.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {prospects.map(p => <Attribution2Card key={p.id} prospect={p} developers={developers} onDone={onDone} onOpen={onOpen}/>)}
         </div>
       )}
     </>
+  );
+}
+
+// ── Carte Refus Dev : RC confirme ou réaffecte ────────────────────────────────
+function RefusDevCard({ prospect: p, developers, onDone, onOpen }) {
+  const [devId, setDevId] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const confirmerRefus = async () => {
+    if (!window.confirm('Confirmer le refus définitif ? Cette demande quittera le workflow.')) return;
+    setBusy(true);
+    try {
+      await api.post(`/prospects/${p.id}/confirm-refus-dev`, {});
+      onDone();
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusy(false); }
+  };
+
+  const reaffecter = async () => {
+    if (!devId) return alert('Choisissez un développeur');
+    setBusy(true);
+    try {
+      let payload;
+      if (devId.startsWith('user_')) {
+        payload = { developer_id: parseInt(devId.replace('user_', '')) };
+      } else {
+        const dev = developers.find(d => d.id === devId);
+        payload = { developer_nom: `${dev?.nom || ''} ${dev?.prenom || ''}`.trim() };
+      }
+      await api.post(`/prospects/${p.id}/assign-visit`, payload);
+      onDone();
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ background: 'rgba(255,71,87,0.04)', border: '1px solid rgba(255,71,87,0.2)', borderLeft: '4px solid #ff4757', borderRadius: 10, padding: '14px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{p.reference} — {p.prenom} {p.nom}</div>
+          <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 2 }}>📞 {p.telephone_principal} · 📍 {p.quartier || '—'}</div>
+          {p.visit_assigned_to && (
+            <div style={{ fontSize: 12, color: '#ff4757', marginTop: 4 }}>
+              ❌ Refusé par : {p.visit_assigned_to.prenom || ''} {p.visit_assigned_to.nom || ''}
+            </div>
+          )}
+          {p.submitted_by && (
+            <div style={{ fontSize: 11, color: '#5f6cf5', marginTop: 4 }}>
+              👤 Soumis par : {p.submitted_by.prenom || ''} {p.submitted_by.nom || ''}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,71,87,0.15)', color: '#ff4757' }}>❌ Refusé Dev</span>
+          <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button onClick={confirmerRefus} disabled={busy}
+          style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#ff4757', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: busy ? 0.7 : 1, whiteSpace: 'nowrap' }}>
+          ✅ Confirmer le refus
+        </button>
+        <select value={devId} onChange={e => setDevId(e.target.value)}
+          style={{ flex: 1, padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 12 }}>
+          <option value="">— Réaffecter à un autre développeur —</option>
+          {developers.map(d => <option key={d.id} value={d.id}>{d.nom} {d.prenom || ''}{d.zone ? ` · ${d.zone}` : ''}</option>)}
+        </select>
+        <button onClick={reaffecter} disabled={!devId || busy}
+          style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: devId && !busy ? '#0ea5e9' : 'rgba(14,165,233,0.3)', color: '#fff', fontWeight: 700, fontSize: 12, cursor: devId ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}>
+          🔄 Réaffecter
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -214,6 +214,37 @@ def assign_puce(
     return svc.assign_puce(db, prospect_id, payload, current_user)
 
 
+@router.post("/{prospect_id}/confirm-refus-dev", response_model=ProspectOut)
+def confirm_refus_dev(
+    prospect_id: int,
+    payload: dict = Body(default={"motif": ""}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """RC confirme le refus du développeur → REFUSEE_RC (état terminal, sort du workflow)."""
+    import app.services.prospection_service as svc
+    from app.models.prospect import ProspectStatus
+    p = db.query(svc.Prospect).filter(svc.Prospect.id == prospect_id).first()
+    if not p:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Prospect non trouvé")
+    if p.status.value != "REFUSEE_DEV":
+        from fastapi import HTTPException
+        raise HTTPException(400, f"Impossible : statut actuel est '{p.status.value}', pas 'REFUSEE_DEV'")
+    motif = (payload or {}).get("motif", "")
+    from_status = p.status
+    p.status = ProspectStatus.REFUSEE_RC
+    svc._log_history(db, p, current_user,
+        decision_type="CONFIRMATION_REFUS_DEV",
+        from_status=from_status,
+        to_status=ProspectStatus.REFUSEE_RC,
+        comment=motif or "RC a confirmé le refus du développeur"
+    )
+    db.commit()
+    db.refresh(p)
+    return p
+
+
 @router.post("/{prospect_id}/cancel-visit", response_model=ProspectOut)
 def cancel_visit(
     prospect_id: int,
