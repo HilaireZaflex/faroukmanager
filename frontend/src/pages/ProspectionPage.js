@@ -909,6 +909,8 @@ function Etape3DecisionDev({ prospects, currentUser, onDone, onOpen }) {
 function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cancelMotif, setCancelMotif] = useState('');
+  const [showCancelForm, setShowCancelForm] = useState(false);
   const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC'].includes(currentUser?.role);
   const isAssignedById = p.visit_assigned_to?.id === currentUser?.id;
   // Vérifier aussi par nom dans les notes (cas dev réseau sans visit_assigned_to_id)
@@ -922,6 +924,18 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
   const canDecide = isAdmin || isAssignedById || isAssignedByName ||
     // Si le backend lui a déjà retourné ce prospect, c'est qu'il est assigné
     ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role);
+
+  const cancelVisit = async () => {
+    if (!cancelMotif.trim()) return alert('Veuillez indiquer un motif d\'annulation');
+    setBusy(true);
+    try {
+      await api.post(`/prospects/${p.id}/cancel-visit`, { motif: cancelMotif });
+      setShowCancelForm(false);
+      setCancelMotif('');
+      onDone();
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusy(false); }
+  };
 
   const [success, setSuccess] = useState(null); // {approved: bool}
   const { fetchNotifications } = useNotifStore();
@@ -971,6 +985,34 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
           </div>
           <button className="btn-secondary" style={{ fontSize: 11 }} onClick={() => onOpen(p)}>Voir détails</button>
         </div>
+
+        {/* ── Annulation attribution visite (RC/Admin) ── */}
+        {isAdmin && !success && (
+          <div style={{ marginTop: 10 }}>
+            {!showCancelForm ? (
+              <button onClick={() => setShowCancelForm(true)}
+                style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(255,71,87,0.35)', background: 'rgba(255,71,87,0.07)', color: '#ff4757', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ↩️ Annuler l'attribution de visite
+              </button>
+            ) : (
+              <div style={{ background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 10, padding: '12px 14px', marginTop: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#ff4757', marginBottom: 8 }}>↩️ Annuler l'attribution</div>
+                <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 8 }}>La demande reviendra à <strong style={{ color: '#fff' }}>Nouvelle</strong> et le développeur sera libéré.</div>
+                <textarea value={cancelMotif} onChange={e => setCancelMotif(e.target.value)}
+                  placeholder="Motif obligatoire (ex: mauvaise affectation, erreur de zone…)"
+                  rows={2} style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 8 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setShowCancelForm(false)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#8a8a9a', cursor: 'pointer', fontSize: 12 }}>Retour</button>
+                  <button onClick={cancelVisit} disabled={busy || !cancelMotif.trim()}
+                    style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: busy || !cancelMotif.trim() ? 'rgba(255,71,87,0.3)' : '#ff4757', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>
+                    {busy ? '⏳...' : '✅ Confirmer'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {canDecide && (
           <>
             <textarea

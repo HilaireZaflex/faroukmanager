@@ -58,6 +58,7 @@ ALLOWED_TRANSITIONS: Dict[ProspectStatus, List[ProspectStatus]] = {
         ProspectStatus.ANNULEE,
     ],
     ProspectStatus.EN_VISITE: [
+        ProspectStatus.NOUVELLE,          # annulation visite par RC/Admin → retour à NOUVELLE
         ProspectStatus.VALIDEE_DEV,
         ProspectStatus.REFUSEE_DEV,
         ProspectStatus.ANNULEE,
@@ -901,6 +902,54 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
 # ─────────────────────────────────────────────────────────────────────────────
 # WORKFLOW - Annulation (à tout moment, sauf états terminaux)
 # ─────────────────────────────────────────────────────────────────────────────
+def cancel_visit(db: Session, prospect_id: int, motif: str, current_user: User) -> Prospect:
+    """
+    RC ou Admin annule l'attribution d'une visite terrain.
+    Le prospect repasse à NOUVELLE avec le développeur désaffecté.
+    """
+    _ensure_role(current_user, [UserRole.RC, UserRole.ADMIN], "annuler une visite")
+    p = _get_prospect_or_404(db, prospect_id)
+
+    if p.status != ProspectStatus.EN_VISITE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Impossible d'annuler : le prospect est en état '{p.status.value}', pas 'EN_VISITE'.",
+        )
+
+    ancien_dev = p.visit_assigned_to
+    from_status = p.status
+
+    # Revenir à NOUVELLE + désaffecter le développeur
+    p.status = ProspectStatus.NOUVELLE
+    p.visit_assigned_to_id = None
+    p.sla_visit_due_at = None
+
+    _log_history(
+        db, p, current_user,
+        decision_type="ANNULATION_VISITE",
+        from_status=from_status,
+        to_status=ProspectStatus.NOUVELLE,
+        comment=motif or "Annulation de l'attribution de visite par le RC",
+    )
+
+    db.commit()
+    db.refresh(p)
+
+    # Notifier le développeur désaffecté
+    try:
+        if ancien_dev:
+            _notify(db,
+                user_ids=[ancien_dev.id],
+                title="⚠️ Visite annulée",
+                message=f"La visite du prospect {p.reference} vous a été retirée. Motif: {motif or 'Non précisé'}",
+                type="VISITE_ANNULEE",
+            )
+    except Exception:
+        pass
+
+    return p
+
+
 def cancel_prospect(db: Session, prospect_id: int, payload: CancelRequest, current_user: User) -> Prospect:
     _ensure_role(
         current_user,

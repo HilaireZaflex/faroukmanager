@@ -214,6 +214,19 @@ def assign_puce(
     return svc.assign_puce(db, prospect_id, payload, current_user)
 
 
+@router.post("/{prospect_id}/cancel-visit", response_model=ProspectOut)
+def cancel_visit(
+    prospect_id: int,
+    payload: dict = Body(default={"motif": ""}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """RC ou Admin annule l'attribution de visite — retour à NOUVELLE."""
+    from app.services.prospection_service import cancel_visit as svc_cancel_visit
+    motif = payload.get("motif", "") if payload else ""
+    return svc_cancel_visit(db, prospect_id, motif, current_user)
+
+
 @router.post("/{prospect_id}/activate", response_model=ProspectOut)
 def activate_puce(
     prospect_id: int,
