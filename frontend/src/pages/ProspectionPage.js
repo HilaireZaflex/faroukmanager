@@ -1979,8 +1979,8 @@ function AgentSection({ title, data, valueKey, color }) {
                   <span style={{ fontWeight: 800, color: clr, fontSize: 15 }}>{val}</span>
                 </div>
               </div>
-              <div style={{ height: 7, background: 'rgba(255,255,255,0.06)', borderRadius: 6, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: pct+'%', background: clr, borderRadius: 6, transition: 'width 0.8s ease' }} />
+              <div style={{ height: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: pct+'%', background: clr, borderRadius: 8, transition: 'width 0.8s ease' }} />
               </div>
             </div>
           );
