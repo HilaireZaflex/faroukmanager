@@ -1915,7 +1915,7 @@ function TabRepartition() {
 
   const periodes = [
     { key: 'tout',           label: '📅 Toute la période' },
-    { key: 'aujourd_hui',   label: '☀️ Aujourd'hui' },
+    { key: 'aujourd_hui',   label: "☀️ Aujourd'hui" },
     { key: 'cette_semaine', label: '📆 Cette semaine' },
     { key: 'ce_mois',       label: '🗓️ Ce mois' },
     { key: 'ce_trimestre',  label: '📊 Ce trimestre' },
