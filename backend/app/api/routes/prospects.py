@@ -214,36 +214,32 @@ def assign_puce(
     return svc.assign_puce(db, prospect_id, payload, current_user)
 
 
-@router.post("/{prospect_id}/confirm-refus-dev", response_model=ProspectOut)
+@router.post("/{prospect_id}/confirm-refus-dev")
 def confirm_refus_dev(
     prospect_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """RC confirme le refus du développeur → REFUSEE_RC (état terminal, sort du workflow)."""
-    import app.services.prospection_service as svc
-    from app.models.prospect import ProspectStatus, Prospect as ProspectModel
+    from app.models.prospect import Prospect as ProspectModel
+    from sqlalchemy import text
+
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
-    # Accepter REFUSEE_DEV peu importe la casse
+
     current_status = p.status.value if hasattr(p.status, 'value') else str(p.status)
     if current_status not in ("REFUSEE_DEV", "refusee_dev"):
         raise HTTPException(400, f"Statut actuel: '{current_status}'. Attendu: 'REFUSEE_DEV'")
-    from_status = p.status
-    p.status = ProspectStatus.REFUSEE_RC
-    try:
-        svc._log_history(db, p, current_user,
-            decision_type="CONFIRMATION_REFUS_DEV",
-            from_status=from_status,
-            to_status=ProspectStatus.REFUSEE_RC,
-            comment="RC a confirmé le refus du développeur"
-        )
-    except Exception:
-        pass  # Non bloquant
+
+    # Mise à jour directe en SQL pour éviter tout conflit de statut
+    db.execute(
+        text("UPDATE prospects SET status = 'REFUSEE_RC' WHERE id = :id"),
+        {"id": prospect_id}
+    )
     db.commit()
     db.refresh(p)
-    return p
+    return {"success": True, "id": p.id, "status": "REFUSEE_RC", "reference": p.reference}
 
 
 @router.post("/{prospect_id}/cancel-visit", response_model=ProspectOut)
