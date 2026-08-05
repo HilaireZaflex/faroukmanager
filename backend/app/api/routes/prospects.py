@@ -216,15 +216,56 @@ def assign_puce(
 
 @router.get("/stats/repartition-agents")
 def get_repartition_agents(
+    date_debut: Optional[str] = Query(None, description="Date début (YYYY-MM-DD)"),
+    date_fin: Optional[str] = Query(None, description="Date fin (YYYY-MM-DD)"),
+    periode: Optional[str] = Query(None, description="aujourd_hui|cette_semaine|ce_mois|ce_trimestre|tout"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Répartition des prospects par agent pour tous les types d'activités."""
+    """Répartition des prospects par agent pour tous les types d'activités avec filtres date/période."""
     from app.models.prospect import Prospect as ProspectModel, ProspectStatus
     from app.models.user import User as UserModel
     from sqlalchemy import func, case
+    from datetime import date, timedelta, datetime
 
-    prospects = db.query(ProspectModel).all()
+    today = date.today()
+    dt_debut = None
+    dt_fin = None
+
+    if periode == "aujourd_hui":
+        dt_debut = dt_fin = today
+    elif periode == "cette_semaine":
+        dt_debut = today - timedelta(days=today.weekday())
+        dt_fin = today
+    elif periode == "ce_mois":
+        dt_debut = today.replace(day=1); dt_fin = today
+    elif periode == "ce_trimestre":
+        m = ((today.month - 1) // 3) * 3 + 1
+        dt_debut = today.replace(month=m, day=1); dt_fin = today
+    
+    if date_debut and not dt_debut:
+        try: dt_debut = datetime.strptime(date_debut, "%Y-%m-%d").date()
+        except: pass
+    if date_fin and not dt_fin:
+        try: dt_fin = datetime.strptime(date_fin, "%Y-%m-%d").date()
+        except: pass
+
+    query = db.query(ProspectModel)
+    if dt_debut:
+        query = query.filter(func.date(ProspectModel.submitted_at) >= dt_debut)
+    if dt_fin:
+        query = query.filter(func.date(ProspectModel.submitted_at) <= dt_fin)
+
+    prospects = query.all()
+
+    periode_label = {
+        "aujourd_hui": f"Aujourd'hui ({today.strftime('%d/%m/%Y')})",
+        "cette_semaine": f"Cette semaine ({(today - timedelta(days=today.weekday())).strftime('%d/%m')} → {today.strftime('%d/%m')})",
+        "ce_mois": f"Ce mois ({today.strftime('%B %Y')})",
+        "ce_trimestre": "Ce trimestre",
+    }.get(periode or "", f"{date_debut or '...'} → {date_fin or '...'}" if (date_debut or date_fin) else "Toute la période")
+    
+    periode_info = {"debut": dt_debut.isoformat() if dt_debut else None, "fin": dt_fin.isoformat() if dt_fin else None, "label": periode_label}
 
     # Helper pour extraire le nom complet
     def get_user_name(user_obj):
@@ -306,6 +347,7 @@ def get_repartition_agents(
         "prospections": fmt_list(prospections_par_agent),
         "visites": fmt_list(visites_par_agent),
         "activations": fmt_list(activations_par_agent),
+        "periode": periode_info,
     }
 
 

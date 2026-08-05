@@ -1909,17 +1909,92 @@ function AgentBar({ data, valueKey }) {
 }
 
 function TabRepartition() {
-  const { data, isLoading } = useQuery('repartition-agents',
-    () => api.get('/prospects/stats/repartition-agents').then(r => r.data),
-    { staleTime: 60000 }
+  const [periode, setPeriode] = React.useState('tout');
+  const [dateDebut, setDateDebut] = React.useState('');
+  const [dateFin, setDateFin] = React.useState('');
+
+  const periodes = [
+    { key: 'tout',           label: '📅 Toute la période' },
+    { key: 'aujourd_hui',   label: '☀️ Aujourd'hui' },
+    { key: 'cette_semaine', label: '📆 Cette semaine' },
+    { key: 'ce_mois',       label: '🗓️ Ce mois' },
+    { key: 'ce_trimestre',  label: '📊 Ce trimestre' },
+    { key: 'custom',        label: '🔧 Dates personnalisées' },
+  ];
+
+  const buildParams = () => {
+    if (periode === 'custom') {
+      const p = {};
+      if (dateDebut) p.date_debut = dateDebut;
+      if (dateFin) p.date_fin = dateFin;
+      return p;
+    }
+    if (periode === 'tout') return {};
+    return { periode };
+  };
+
+  const { data, isLoading } = useQuery(['repartition-agents', periode, dateDebut, dateFin],
+    () => api.get('/prospects/stats/repartition-agents', { params: buildParams() }).then(r => r.data),
+    { staleTime: 30000 }
   );
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#8a8a9a' }}>Chargement des statistiques...</div>;
   const prospections = data?.prospections || [];
   const visites = data?.visites || [];
   const activations = data?.activations || [];
   const total = data?.total_prospects || 0;
+  const periodeLabel = data?.periode?.label || 'Toute la période';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* ── Filtres Période ── */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '16px 20px' }}>
+        <div style={{ fontSize: 12, color: '#8a8a9a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>
+          🗓️ Période d'analyse — <span style={{ color: '#FF6900' }}>{periodeLabel}</span>
+        </div>
+        {/* Boutons de période rapide */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: periode === 'custom' ? 14 : 0 }}>
+          {[
+            { key: 'tout',           label: 'Tout' },
+            { key: 'aujourd_hui',    label: "☀️ Aujourd'hui" },
+            { key: 'cette_semaine',  label: '📆 Cette semaine' },
+            { key: 'ce_mois',        label: '🗓️ Ce mois' },
+            { key: 'ce_trimestre',   label: '📊 Ce trimestre' },
+            { key: 'custom',         label: '🔧 Personnalisé' },
+          ].map(p => (
+            <button key={p.key} onClick={() => setPeriode(p.key)}
+              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all 0.2s',
+                background: periode === p.key ? '#FF6900' : 'rgba(255,255,255,0.05)',
+                color: periode === p.key ? '#fff' : '#8a8a9a',
+                boxShadow: periode === p.key ? '0 4px 12px rgba(255,105,0,0.3)' : 'none',
+              }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {/* Dates personnalisées */}
+        {periode === 'custom' && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Du :</label>
+              <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
+                style={{ padding: '7px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, colorScheme: 'dark' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Au :</label>
+              <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
+                style={{ padding: '7px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, colorScheme: 'dark' }} />
+            </div>
+            {(dateDebut || dateFin) && (
+              <button onClick={() => { setDateDebut(''); setDateFin(''); }}
+                style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.1)', color: '#ff4757', cursor: 'pointer', fontSize: 12 }}>
+                ✕ Effacer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         {[
           { icon: '📋', label: 'Total Demandes', value: total, color: '#3742fa' },
