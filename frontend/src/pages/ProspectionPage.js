@@ -411,7 +411,10 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     .map(p => `${p.visit_assigned_to.nom} ${p.visit_assigned_to.prenom||''}`.trim())
   )].sort();
 
-  const canDelete = ['admin', 'manager', 'rc'].includes(currentUser?.role);
+  const canDelete = ['admin', 'manager', 'rc', 'ADMIN', 'MANAGER', 'RC', 'UserRole.admin', 'UserRole.manager', 'UserRole.rc'].includes(currentUser?.role) ||
+    (currentUser?.role || '').toLowerCase().replace('userrole.', '') === 'rc' ||
+    (currentUser?.role || '').toLowerCase().replace('userrole.', '') === 'admin' ||
+    (currentUser?.role || '').toLowerCase().replace('userrole.', '') === 'manager';
 
   const handleDelete = (e, p) => { e.stopPropagation(); setConfirmDelete(p); };
   const doDelete = async () => {
