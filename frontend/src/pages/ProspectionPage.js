@@ -926,7 +926,6 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
     ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role);
 
   const cancelVisit = async () => {
-    if (!cancelMotif.trim()) return alert('Veuillez indiquer un motif d\'annulation');
     setBusy(true);
     try {
       await api.post(`/prospects/${p.id}/cancel-visit`, { motif: cancelMotif });
@@ -999,12 +998,12 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#ff4757', marginBottom: 8 }}>↩️ Annuler l'attribution</div>
                 <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 8 }}>La demande reviendra à <strong style={{ color: '#fff' }}>Nouvelle</strong> et le développeur sera libéré.</div>
                 <textarea value={cancelMotif} onChange={e => setCancelMotif(e.target.value)}
-                  placeholder="Motif obligatoire (ex: mauvaise affectation, erreur de zone…)"
+                  placeholder="Motif optionnel (ex: mauvaise affectation, erreur de zone…)"
                   rows={2} style={{ width: '100%', padding: '8px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 8 }} />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => setShowCancelForm(false)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#8a8a9a', cursor: 'pointer', fontSize: 12 }}>Retour</button>
-                  <button onClick={cancelVisit} disabled={busy || !cancelMotif.trim()}
-                    style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: busy || !cancelMotif.trim() ? 'rgba(255,71,87,0.3)' : '#ff4757', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>
+                  <button onClick={cancelVisit} disabled={busy}
+                    style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: busy ? 'rgba(255,71,87,0.3)' : '#ff4757', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>
                     {busy ? '⏳...' : '✅ Confirmer'}
                   </button>
                 </div>
