@@ -389,6 +389,118 @@ function TabCourbes({ pdv }) {
   );
 }
 
+// ============ ONGLET APPELS TC ============
+function TabAppelsTc({ numeroPdv, nomPdv }) {
+  const { useQuery } = require('react-query');
+  const api = require('../services/api').default;
+
+  const STATUT_ICONS = {
+    JOIGNABLE_PROMESSE: '✅', JOIGNABLE_PAS_INTERESSE: '📞',
+    JOIGNABLE_DEJA_ACTIF: '🔄', NON_JOIGNABLE_HORS_ZONE: '📵',
+    NON_JOIGNABLE_PAS_REPONSE: '🔕', NUMERO_INCORRECT: '❌',
+    PDV_FERME: '🏪', RAPPEL_PROGRAMME: '📅',
+  };
+  const STATUT_COLORS = {
+    JOIGNABLE_PROMESSE: '#22c55e', JOIGNABLE_DEJA_ACTIF: '#00d68f',
+    JOIGNABLE_PAS_INTERESSE: '#ffa502', RAPPEL_PROGRAMME: '#a29bfe',
+    NON_JOIGNABLE_HORS_ZONE: '#ff4757', NON_JOIGNABLE_PAS_REPONSE: '#ff4757',
+    NUMERO_INCORRECT: '#ff4757', PDV_FERME: '#8a8a9a',
+  };
+
+  const { data: appels, isLoading } = useQuery(
+    ['appels-tc-pdv-detail', numeroPdv],
+    () => api.get(`/appels-tc/pdv/${numeroPdv}`).then(r => r.data),
+    { staleTime: 30000, enabled: !!numeroPdv, retry: false }
+  );
+
+  if (isLoading) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement...</div>;
+
+  const statsCounts = {};
+  (appels || []).forEach(a => {
+    statsCounts[a.statut] = (statsCounts[a.statut] || 0) + 1;
+  });
+
+  const positifs = (statsCounts['JOIGNABLE_PROMESSE'] || 0) + (statsCounts['JOIGNABLE_DEJA_ACTIF'] || 0);
+  const total = (appels || []).length;
+  const tauxJoign = total > 0 ? Math.round(positifs / total * 100) : 0;
+
+  return (
+    <div>
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        {[
+          { label: 'Total Appels', value: total, color: '#3742fa', icon: '📞' },
+          { label: 'Joignables', value: positifs, color: '#22c55e', icon: '✅' },
+          { label: 'Non Joignables', value: (statsCounts['NON_JOIGNABLE_PAS_REPONSE'] || 0) + (statsCounts['NON_JOIGNABLE_HORS_ZONE'] || 0), color: '#ff4757', icon: '📵' },
+          { label: 'Taux Joignabilité', value: `${tauxJoign}%`, color: tauxJoign >= 50 ? '#22c55e' : '#ffa502', icon: '📊' },
+        ].map((k, i) => (
+          <div key={i} style={{ padding: '14px 16px', background: 'rgba(0,0,0,0.25)', border: `1px solid rgba(255,255,255,0.07)`, borderLeft: `4px solid ${k.color}`, borderRadius: 12, textAlign: 'center' }}>
+            <div style={{ fontSize: 22, marginBottom: 6 }}>{k.icon}</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Liste des appels */}
+      {!appels?.length ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8a8a9a' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📵</div>
+          <p style={{ fontWeight: 600, fontSize: 15 }}>Aucun appel TC enregistré pour ce PDV</p>
+          <p style={{ fontSize: 13, marginTop: 8 }}>Les téléconseillères n'ont pas encore appelé ce PDV.</p>
+        </div>
+      ) : (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>📞 Historique des Appels TC — {nomPdv || numeroPdv}</span>
+            <span style={{ fontSize: 12, color: '#3742fa' }}>{total} appel{total > 1 ? 's' : ''}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {appels.map((a, i) => {
+              const color = STATUT_COLORS[a.statut] || '#8a8a9a';
+              const icon = STATUT_ICONS[a.statut] || '📞';
+              return (
+                <div key={i} style={{ display: 'flex', gap: 14, padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                  {/* Timeline dot */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${color}20`, border: `2px solid ${color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{icon}</div>
+                    {i < appels.length - 1 && <div style={{ width: 2, flex: 1, background: 'rgba(255,255,255,0.06)', marginTop: 4 }} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                      <div>
+                        <span style={{ fontWeight: 700, fontSize: 13, color }}>{a.statut_label}</span>
+                        <span style={{ marginLeft: 10, fontSize: 11, padding: '2px 7px', borderRadius: 5, background: a.indicateur === 'OMY' ? 'rgba(255,105,0,0.2)' : a.indicateur === 'NAFAMA' ? 'rgba(0,214,143,0.2)' : 'rgba(162,155,254,0.2)', color: a.indicateur === 'OMY' ? '#FF6900' : a.indicateur === 'NAFAMA' ? '#00d68f' : '#a29bfe', fontWeight: 700 }}>{a.indicateur}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#8a8a9a', textAlign: 'right' }}>
+                        <div>{new Date(a.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                        <div>{new Date(a.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#a29bfe', marginBottom: a.commentaire ? 6 : 0 }}>
+                      👤 {a.tc_nom || '—'}
+                    </div>
+                    {a.commentaire && (
+                      <div style={{ fontSize: 12, color: '#94a3b8', background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px', borderLeft: `3px solid ${color}40` }}>
+                        💬 {a.commentaire}
+                      </div>
+                    )}
+                    {a.date_rappel && (
+                      <div style={{ fontSize: 11, color: '#a29bfe', marginTop: 6 }}>
+                        📅 Rappel prévu : {new Date(a.date_rappel).toLocaleDateString('fr-FR')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ ONGLET NAFAMA ============
 function TabNafama({ numeroPdv }) {
 
@@ -669,6 +781,7 @@ export default function PDVDetailPage() {
     { id: 'performances', label: '📊 Performances' },
     { id: 'courbes', label: '📈 Courbes' },
     { id: 'nafama', label: '🟢 NAFAMA' },
+    { id: 'appels', label: '📞 Appels TC' },
     { id: 'actions', label: '🎯 Actions Terrain' },
     { id: 'historique', label: '📜 Historique du PDV' },
   ];
@@ -728,6 +841,7 @@ export default function PDVDetailPage() {
         {activeTab === 'performances' && <TabPerformances pdv={pdv} />}
         {activeTab === 'courbes' && <TabCourbes pdv={pdv} />}
         {activeTab === 'nafama' && <TabNafama numeroPdv={pdv?.numero_pdv} />}
+        {activeTab === 'appels' && <TabAppelsTc numeroPdv={pdv?.numero_pdv} nomPdv={pdv?.nom} />}
         {activeTab === 'actions' && <TabActionsTerrain pdv={pdv} />}
       </div>
 

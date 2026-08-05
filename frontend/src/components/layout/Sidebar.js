@@ -169,6 +169,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {can('challenge')   && nl('/challenge',    Trophy,      '🏆 Orange Awards 2026')}
             {can('pdvs')        && nl('/pdvs',         Store,       'Points de Vente')}
             {can('prospection') && nl('/prospection',  UserPlus,    'Prospection OM')}
+            {(role === 'admin' || role === 'rc' || role === 'manager') && nl('/suivi-tc', Bell, '📞 Suivi TC')}
             {can('indicateurs') && nl('/indicateurs',  Activity,    'Indicateurs')}
             {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}
             {can('evaluations') && nl('/evaluations',  Star,        'Évaluations')}

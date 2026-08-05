@@ -163,6 +163,124 @@ def get_appels_stats(
     }
 
 
+@router.get("/appels-tc/dashboard-admin")
+def get_dashboard_admin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Dashboard admin complet : stats par TC, par statut, par indicateur, tendance."""
+    from datetime import date, timedelta
+    from sqlalchemy import cast, Date as SADate
+
+    today = date.today()
+    hier = today - timedelta(days=1)
+    semaine = today - timedelta(days=7)
+    mois = today - timedelta(days=30)
+
+    # ── Stats globales ──
+    total = db.query(func.count(AppelTC.id)).scalar()
+    aujourd_hui = db.query(func.count(AppelTC.id)).filter(
+        func.date(AppelTC.created_at) == today
+    ).scalar()
+    cette_semaine = db.query(func.count(AppelTC.id)).filter(
+        AppelTC.created_at >= semaine
+    ).scalar()
+    ce_mois = db.query(func.count(AppelTC.id)).filter(
+        AppelTC.created_at >= mois
+    ).scalar()
+
+    # ── Statuts positifs (joignable + promesse) ──
+    positifs = db.query(func.count(AppelTC.id)).filter(
+        AppelTC.statut.in_(["JOIGNABLE_PROMESSE", "JOIGNABLE_DEJA_ACTIF"])
+    ).scalar()
+    negatifs = db.query(func.count(AppelTC.id)).filter(
+        AppelTC.statut.in_(["NON_JOIGNABLE_HORS_ZONE", "NON_JOIGNABLE_PAS_REPONSE", "PDV_FERME"])
+    ).scalar()
+    rappels_en_attente = db.query(func.count(AppelTC.id)).filter(
+        AppelTC.statut == "RAPPEL_PROGRAMME",
+        AppelTC.date_rappel <= today,
+    ).scalar()
+
+    # ── Par TC ──
+    par_tc = db.query(
+        AppelTC.tc_user_id,
+        AppelTC.tc_nom,
+        func.count(AppelTC.id).label("total"),
+        func.count(func.nullif(AppelTC.statut.in_(["JOIGNABLE_PROMESSE", "JOIGNABLE_DEJA_ACTIF"]), False)).label("positifs"),
+        func.max(AppelTC.created_at).label("dernier_appel"),
+    ).group_by(AppelTC.tc_user_id, AppelTC.tc_nom).all()
+
+    # Stats par statut pour chaque TC
+    par_tc_detail = []
+    for row in par_tc:
+        stats_statut = db.query(
+            AppelTC.statut, func.count(AppelTC.id).label("count")
+        ).filter(AppelTC.tc_user_id == row.tc_user_id).group_by(AppelTC.statut).all()
+
+        aujourd_hui_tc = db.query(func.count(AppelTC.id)).filter(
+            AppelTC.tc_user_id == row.tc_user_id,
+            func.date(AppelTC.created_at) == today
+        ).scalar()
+
+        taux_joignabilite = round(int(row.positifs or 0) / int(row.total) * 100, 1) if row.total else 0
+
+        par_tc_detail.append({
+            "tc_user_id": row.tc_user_id,
+            "tc_nom": row.tc_nom,
+            "total": int(row.total),
+            "positifs": int(row.positifs or 0),
+            "taux_joignabilite": taux_joignabilite,
+            "aujourd_hui": int(aujourd_hui_tc or 0),
+            "dernier_appel": row.dernier_appel.isoformat() if row.dernier_appel else None,
+            "par_statut": {r.statut.value: int(r.count) for r in stats_statut},
+        })
+
+    par_tc_detail.sort(key=lambda x: x["total"], reverse=True)
+
+    # ── Par indicateur ──
+    par_indicateur = db.query(
+        AppelTC.indicateur, func.count(AppelTC.id).label("count")
+    ).group_by(AppelTC.indicateur).all()
+
+    # ── Par statut global ──
+    par_statut = db.query(
+        AppelTC.statut, func.count(AppelTC.id).label("count")
+    ).group_by(AppelTC.statut).all()
+
+    # ── Tendance 7 jours ──
+    tendance = []
+    for i in range(6, -1, -1):
+        jour = today - timedelta(days=i)
+        cnt = db.query(func.count(AppelTC.id)).filter(
+            func.date(AppelTC.created_at) == jour
+        ).scalar()
+        tendance.append({
+            "date": jour.isoformat(),
+            "label": jour.strftime("%a %d"),
+            "count": int(cnt or 0),
+        })
+
+    return {
+        "global": {
+            "total": int(total or 0),
+            "aujourd_hui": int(aujourd_hui or 0),
+            "cette_semaine": int(cette_semaine or 0),
+            "ce_mois": int(ce_mois or 0),
+            "positifs": int(positifs or 0),
+            "negatifs": int(negatifs or 0),
+            "rappels_en_attente": int(rappels_en_attente or 0),
+            "taux_joignabilite": round(int(positifs or 0) / int(total) * 100, 1) if total else 0,
+        },
+        "par_tc": par_tc_detail,
+        "par_indicateur": {r.indicateur.value: int(r.count) for r in par_indicateur if r.indicateur},
+        "par_statut": [
+            {"statut": r.statut.value, "label": STATUT_LABELS.get(r.statut.value, ""), "count": int(r.count)}
+            for r in par_statut if r.statut
+        ],
+        "tendance_7j": tendance,
+    }
+
+
 @router.delete("/appels-tc/{appel_id}")
 def delete_appel(
     appel_id: int,
