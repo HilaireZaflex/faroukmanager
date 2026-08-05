@@ -1956,9 +1956,23 @@ function TabRepartition() {
 
 function AgentSection({ title, data, valueKey, color }) {
   const max = data.length ? Math.max(...data.map(d => d[valueKey]||0)) : 1;
+  const totalVal = data.reduce((s, d) => s + (d[valueKey]||0), 0);
+  const hasActivees = data.some(d => d.activees !== undefined);
+  const hasRefusees = data.some(d => d.refusees > 0);
+  const hasValidees = data.some(d => d.validees !== undefined);
   return (
     <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '20px 24px' }}>
-      <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, color: '#fff' }}>{title}</h3>
+      <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, color: '#fff' }}>{title}</h3>
+      {/* Légende */}
+      {data.length > 0 && (hasActivees || hasRefusees || hasValidees) && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14, padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+          <span style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600 }}>Légende :</span>
+          <span style={{ fontSize: 11, color: '#8a8a9a' }}><span style={{ fontWeight: 800, color: '#fff' }}>N°</span> = Total</span>
+          {hasActivees && <span style={{ fontSize: 11, color: '#8a8a9a' }}>✅ = Activées</span>}
+          {hasRefusees && <span style={{ fontSize: 11, color: '#8a8a9a' }}>❌ = Refusées</span>}
+          {hasValidees && <span style={{ fontSize: 11, color: '#8a8a9a' }}>✔ = Validées</span>}
+        </div>
+      )}
       {!data.length ? <div style={{ color: '#8a8a9a', fontSize: 13, textAlign: 'center', padding: '20px' }}>📭 Aucune donnée</div> :
         data.map((d, i) => {
           const val = d[valueKey]||0;
@@ -1986,6 +2000,13 @@ function AgentSection({ title, data, valueKey, color }) {
           );
         })
       }
+      {/* Total en bas */}
+      {data.length > 0 && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#8a8a9a', fontWeight: 600 }}>TOTAL — {data.length} agent{data.length > 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>{totalVal}</span>
+        </div>
+      )}
     </div>
   );
 }
