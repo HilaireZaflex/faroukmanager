@@ -709,9 +709,9 @@ function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
   const approuveesRC = prospects.filter(p => p.status === 'APPROUVEE_RC');
 
   const workflowTabs = [
-    { id: 'etape2', label: '📤 Étape 2 — Attribution visite', count: nouvelles.length, show: isRC },
-    { id: 'etape3', label: '🔍 Étape 3 — Décision Dev', count: enVisite.length, show: isDev },
-    { id: 'etape4', label: '👔 Étape 4 — Validation RC', count: validesDev.length, show: isRC },
+    { id: 'etape2', label: '📤 Étape 2 — Attribution visite',   count: nouvelles.length, show: isRC },
+    { id: 'etape3', label: '🔍 Étape 3 — Décision Dev',         count: enVisite.length,  show: isDev || isRC },
+    { id: 'etape4', label: '👔 Étape 4 — Validation RC',        count: validesDev.length, show: isRC },
     { id: 'etape5', label: '📦 Étape 5 — Attribution activation', count: approuveesRC.length, show: isRC },
   ].filter(t => t.show);
 
