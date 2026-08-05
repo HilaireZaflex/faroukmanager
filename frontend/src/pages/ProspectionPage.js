@@ -442,7 +442,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     const mapped = KPI_STATUS_MAP[kpiKey];
     if (!mapped || mapped === '__NONE__') return;
     if (mapped === '__ALL__') { setFilters(f => ({ ...f, status: '' })); return; }
-    if (mapped === '__SLA__') { setFilters(f => ({ ...f, status: f.status === 'EN_VISITE' ? '' : 'EN_VISITE' })); return; }
+    if (mapped === '__SLA__') { setFilters(f => ({ ...f, status: f.status === 'PUCE_ATTRIBUEE' ? '' : 'PUCE_ATTRIBUEE' })); return; }
     setFilters(f => ({ ...f, status: f.status === mapped ? '' : mapped }));
   };
 
@@ -588,7 +588,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
             const mapped = KPI_STATUS_MAP[key];
             const isClickable = !!mapped && mapped !== '__NONE__';
             const isActive = mapped === '__ALL__' ? !filters.status :
-                             mapped === '__SLA__' ? filters.status === 'EN_VISITE' :
+                             mapped === '__SLA__' ? filters.status === 'PUCE_ATTRIBUEE' :
                              filters.status === mapped;
             return (
               <div key={key}
