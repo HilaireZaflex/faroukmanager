@@ -437,7 +437,18 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   // Clic sur un KPI → filtre par statut correspondant
   const handleKpiClick = (kpiKey) => {
+    if (kpiKey === 'total') {
+      // Total = effacer tous les filtres de statut
+      setFilters(f => ({ ...f, status: '' }));
+      return;
+    }
+    if (kpiKey === 'sla_en_retard') {
+      // Délais dépassés = filtrer les prospects EN_VISITE (en attente depuis longtemps)
+      setFilters(f => ({ ...f, status: f.status === 'EN_VISITE' ? '' : 'EN_VISITE' }));
+      return;
+    }
     const status = KPI_STATUS_MAP[kpiKey] || '';
+    if (!status) return;
     setFilters(f => ({ ...f, status: f.status === status ? '' : status }));
   };
 
