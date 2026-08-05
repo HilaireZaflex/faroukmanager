@@ -667,7 +667,26 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                     <td>{p.telephone_principal}</td>
                     <td>{p.quartier || '—'}</td>
                     <td>{p.fait_om ? '✅ Oui' : '➖ Non'}</td>
-                    <td><span className="status-badge" style={{ background: st.color }}>{st.label}</span></td>
+                    <td>
+                      <span className="status-badge" style={{ background: st.color }}>{st.label}</span>
+                      {/* Badge délai dépassé pour PUCE_ATTRIBUEE */}
+                      {p.status === 'PUCE_ATTRIBUEE' && p.puce_assigned_at && (() => {
+                        const jours = Math.floor((Date.now() - new Date(p.puce_assigned_at).getTime()) / 86400000);
+                        if (jours < 1) return null;
+                        const urgent = jours >= 3;
+                        return (
+                          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 5,
+                            background: urgent ? 'rgba(255,71,87,0.1)' : 'rgba(255,165,2,0.1)',
+                            border: `1px solid ${urgent ? 'rgba(255,71,87,0.3)' : 'rgba(255,165,2,0.3)'}`,
+                            borderRadius: 6, padding: '3px 8px', width: 'fit-content' }}>
+                            <span style={{ fontSize: 12 }}>{urgent ? '🔴' : '🟠'}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: urgent ? '#ff4757' : '#ffa502' }}>
+                              {urgent ? `Urgent ! En attente depuis ${jours}j` : `En attente depuis ${jours}j`}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </td>
                     <td>{new Date(p.submitted_at).toLocaleDateString('fr-FR')}</td>
                     {canDelete && (
                       <td onClick={e => e.stopPropagation()}>
