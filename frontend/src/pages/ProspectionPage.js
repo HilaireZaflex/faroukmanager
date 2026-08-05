@@ -710,7 +710,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
   const refuseesDev = prospects.filter(p => p.status === 'REFUSEE_DEV');
   const etape2Count = nouvelles.length + refuseesDev.length;
   const enVisite = prospects.filter(p => p.status === 'EN_VISITE');
-  const validesDev = prospects.filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC', 'REFUSEE_RC'].includes(p.status));
+  const validesDev = prospects.filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC'].includes(p.status));
   const approuveesRC = prospects.filter(p => p.status === 'APPROUVEE_RC');
 
   const workflowTabs = [
