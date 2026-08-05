@@ -301,10 +301,11 @@ export default function ProspectionPage() {
 const KPI_STATUS_MAP = {
   nouvelles:       'NOUVELLE',
   en_visite:       'EN_VISITE',
-  en_attente_rc:   'VISITE_VALIDEE',
+  en_attente_rc:   'VALIDEE_DEV',
   puce_attribuees: 'PUCE_ATTRIBUEE',
   activees:        'PUCE_ACTIVEE',
-  refusees:        'REFUSE',
+  refusees:        'REFUSEE_RC',
+  sla_en_retard:   '',  // filtre spécial géré séparément
 };
 
 function TabDemandes({ onOpen, currentUser, onRefresh }) {
@@ -575,7 +576,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
             { key: 'activees',        label: '⚡ Activées',      value: displayStats.activees,               variant: 'ok' },
             { key: 'refusees',        label: '🚫 Refusées',      value: displayStats.refusees,               variant: null },
             ...(!isDeveloppeur ? [
-              { key: 'sla_en_retard',   label: '⚠️ SLA retard',   value: displayStats.sla_en_retard, variant: 'warn' },
+              { key: 'sla_en_retard',   label: '⏰ Délais dépassés',   value: displayStats.sla_en_retard, variant: 'warn' },
               { key: 'taux_activation', label: 'Taux activation',  value: `${displayStats.taux_activation||0}%`, variant: 'ok' },
             ] : []),
           ].map(({ key, label, value, variant }) => {
