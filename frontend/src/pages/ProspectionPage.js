@@ -817,12 +817,13 @@ function Etape2Attribution({ prospects, refuseesDev = [], developers, onDone, on
 function RefusDevCard({ prospect: p, developers, onDone, onOpen }) {
   const [devId, setDevId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const confirmerRefus = async () => {
-    if (!window.confirm('Confirmer le refus définitif ? Cette demande quittera le workflow.')) return;
     setBusy(true);
+    setShowConfirmModal(false);
     try {
-      await api.post(`/prospects/${p.id}/confirm-refus-dev`, {});
+      await api.post(`/prospects/${p.id}/confirm-refus-dev`);
       onDone();
     } catch (e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
@@ -868,9 +869,9 @@ function RefusDevCard({ prospect: p, developers, onDone, onOpen }) {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={confirmerRefus} disabled={busy}
+        <button onClick={() => setShowConfirmModal(true)} disabled={busy}
           style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#ff4757', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: busy ? 0.7 : 1, whiteSpace: 'nowrap' }}>
-          ✅ Confirmer le refus
+          {busy ? '⏳...' : '✅ Confirmer le refus'}
         </button>
         <select value={devId} onChange={e => setDevId(e.target.value)}
           style={{ flex: 1, padding: '8px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 12 }}>
@@ -882,6 +883,43 @@ function RefusDevCard({ prospect: p, developers, onDone, onOpen }) {
           🔄 Réaffecter
         </button>
       </div>
+
+      {/* ── Modal de confirmation personnalisé ── */}
+      {showConfirmModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}
+          onClick={() => setShowConfirmModal(false)}>
+          <div style={{ background: 'linear-gradient(135deg, #1a0a0a 0%, #1a1a2e 100%)', border: '2px solid rgba(255,71,87,0.4)', borderRadius: 20, padding: '32px 36px', maxWidth: 440, width: '90%', boxShadow: '0 24px 80px rgba(255,71,87,0.2)', textAlign: 'center' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Icône */}
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,71,87,0.15)', border: '2px solid rgba(255,71,87,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 20px' }}>⚠️</div>
+            {/* Titre */}
+            <h3 style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginBottom: 10 }}>Confirmer le refus définitif ?</h3>
+            {/* Infos prospect */}
+            <div style={{ background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.2)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, textAlign: 'left' }}>
+              <div style={{ fontWeight: 700, color: '#fff', marginBottom: 4 }}>{p.reference} — {p.prenom} {p.nom}</div>
+              {p.visit_assigned_to && (
+                <div style={{ fontSize: 12, color: '#ff4757' }}>❌ Refusé par : {p.visit_assigned_to.prenom || ''} {p.visit_assigned_to.nom || ''}</div>
+              )}
+            </div>
+            {/* Message */}
+            <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 24, lineHeight: 1.6 }}>
+              Cette action est <strong style={{ color: '#ff4757' }}>irréversible</strong>.<br/>
+              La demande passera au statut <strong style={{ color: '#fff' }}>Refusée RC</strong> et quittera le workflow.
+            </p>
+            {/* Boutons */}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button onClick={() => setShowConfirmModal(false)}
+                style={{ padding: '10px 24px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                Annuler
+              </button>
+              <button onClick={confirmerRefus}
+                style={{ padding: '10px 28px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#ff4757,#c0392b)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 20px rgba(255,71,87,0.4)' }}>
+                ✅ Oui, confirmer le refus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
