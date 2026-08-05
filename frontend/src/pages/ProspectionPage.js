@@ -299,13 +299,15 @@ export default function ProspectionPage() {
 // =============================================================================
 // Mapping KPI → statut pour filtrage par clic
 const KPI_STATUS_MAP = {
+  total:           '__ALL__',     // spécial: efface le filtre
   nouvelles:       'NOUVELLE',
   en_visite:       'EN_VISITE',
   en_attente_rc:   'VALIDEE_DEV',
   puce_attribuees: 'PUCE_ATTRIBUEE',
   activees:        'PUCE_ACTIVEE',
   refusees:        'REFUSEE_RC',
-  sla_en_retard:   '',  // filtre spécial géré séparément
+  sla_en_retard:   '__SLA__',    // spécial: filtre EN_VISITE
+  taux_activation: '__NONE__',   // non filtrable
 };
 
 function TabDemandes({ onOpen, currentUser, onRefresh }) {
@@ -437,19 +439,11 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   // Clic sur un KPI → filtre par statut correspondant
   const handleKpiClick = (kpiKey) => {
-    if (kpiKey === 'total') {
-      // Total = effacer tous les filtres de statut
-      setFilters(f => ({ ...f, status: '' }));
-      return;
-    }
-    if (kpiKey === 'sla_en_retard') {
-      // Délais dépassés = filtrer les prospects EN_VISITE (en attente depuis longtemps)
-      setFilters(f => ({ ...f, status: f.status === 'EN_VISITE' ? '' : 'EN_VISITE' }));
-      return;
-    }
-    const status = KPI_STATUS_MAP[kpiKey] || '';
-    if (!status) return;
-    setFilters(f => ({ ...f, status: f.status === status ? '' : status }));
+    const mapped = KPI_STATUS_MAP[kpiKey];
+    if (!mapped || mapped === '__NONE__') return;
+    if (mapped === '__ALL__') { setFilters(f => ({ ...f, status: '' })); return; }
+    if (mapped === '__SLA__') { setFilters(f => ({ ...f, status: f.status === 'EN_VISITE' ? '' : 'EN_VISITE' })); return; }
+    setFilters(f => ({ ...f, status: f.status === mapped ? '' : mapped }));
   };
 
   return (
@@ -591,8 +585,11 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
               { key: 'taux_activation', label: 'Taux activation',  value: `${displayStats.taux_activation||0}%`, variant: 'ok' },
             ] : []),
           ].map(({ key, label, value, variant }) => {
-            const isClickable = !!KPI_STATUS_MAP[key];
-            const isActive = filters.status === KPI_STATUS_MAP[key];
+            const mapped = KPI_STATUS_MAP[key];
+            const isClickable = !!mapped && mapped !== '__NONE__';
+            const isActive = mapped === '__ALL__' ? !filters.status :
+                             mapped === '__SLA__' ? filters.status === 'EN_VISITE' :
+                             filters.status === mapped;
             return (
               <div key={key}
                 onClick={() => isClickable && handleKpiClick(key)}
