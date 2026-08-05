@@ -12,7 +12,7 @@ Endpoints couvrant le cycle de vie complet d'une demande de puce :
 """
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Body
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
