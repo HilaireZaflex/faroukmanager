@@ -35,6 +35,7 @@ from app.models.nafama import NafamaTransaction
 from app.models.prospect_energia import ProspectEnergia
 from app.models.indicateur_award import IndicateurAward
 from app.models.appel_tc import AppelTC
+from app.models.kaabu import KaabuTransaction
 from app.models.indicator import (
     Indicator, IndicatorVersion, IndicatorScore,
     IndicatorCategory, IndicatorMethod, IndicatorPeriod, IndicatorStatus,

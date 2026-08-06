@@ -22,6 +22,7 @@ import WhatIfPage from './pages/WhatIfPage';
 import AccueilPage from './pages/AccueilPage';
 import AccueilTCPage from './pages/AccueilTCPage';
 import SuiviTCPage from './pages/SuiviTCPage';
+import KaabuDashboardPage from './pages/KaabuDashboardPage';
 import ChallengePage from './pages/ChallengePage';
 import CartePage from './pages/CartePage';
 import RecoveryListePage from './pages/RecoveryListePage';
@@ -151,6 +152,7 @@ function App() {
                 {/* ── Routes libres (toujours accessibles) ── */}
                 <Route path="/accueil" element={<AccueilPage />} />
                 <Route path="/accueil-tc" element={<AccueilTCPage />} />
+                <Route path="/kaabu/dashboard" element={<KaabuDashboardPage />} />
                 <Route path="/suivi-tc" element={<SuiviTCPage />} />
                 <Route path="/challenge" element={<MenuRoute menuId="challenge"><ChallengePage /></MenuRoute>} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
