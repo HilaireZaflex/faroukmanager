@@ -111,20 +111,6 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             </>}
 
             {/* NAFAMA */}
-            {canD('kaabu') && <>
-              <div className={`nav-item${location.pathname.startsWith('/kaabu') ? ' active' : ''}`}
-                onClick={() => navigate('/kaabu/dashboard')}
-                title={collapsed ? 'KAABU Mobile' : ''}>
-                <LayoutDashboard size={17} className="nav-icon" style={{ color: location.pathname.startsWith('/kaabu') ? '#FF6900' : '' }}/>
-                {!collapsed && <>
-                  <span className="nav-label" style={{ flex: 1 }}>
-                    <span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#FF6900', marginRight:7, verticalAlign:'middle' }}/>
-                    KAABU
-                  </span>
-                </>}
-              </div>
-            </>}
-
             {canD('nafama') && <>
               <div className={`nav-item${location.pathname.startsWith('/nafama') ? ' active' : ''}`}
                 onClick={() => collapsed ? navigate('/nafama/dashboard') : setNafamaOpen(v => !v)}
