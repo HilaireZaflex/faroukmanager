@@ -475,15 +475,20 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     const mapped = KPI_STATUS_MAP[kpiKey];
     if (!mapped || mapped === '__NONE__') return;
 
-    // Charger TOUS les prospects depuis l'API avec le bon filtre statut
-    const params = { limit: 2000 };
-    if (mapped !== '__ALL__' && mapped !== '__SLA__') params.status = mapped;
-    if (mapped === '__SLA__') params.status = 'PUCE_ATTRIBUEE';
-
+    // Charger TOUS les prospects depuis l'API par lots de 200 (limite API)
+    const statusFilter = mapped === '__SLA__' ? 'PUCE_ATTRIBUEE' : (mapped !== '__ALL__' ? mapped : '');
     let allData = [];
     try {
-      // chargement...
-      allData = await prospectService.list(params);
+      let skip = 0;
+      while (true) {
+        const params = { limit: 200, skip };
+        if (statusFilter) params.status = statusFilter;
+        const batch = await prospectService.list(params);
+        if (!batch?.length) break;
+        allData = allData.concat(batch);
+        if (batch.length < 200) break;
+        skip += 200;
+      }
       
     } catch (e) {
       
