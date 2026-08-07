@@ -430,22 +430,37 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     return true;
   });
 
-  // KPIs recalculés depuis filtered (respecte filtre développeur + filtre période)
-  const filteredStats = stats ? {
-    ...stats,
-    total: filtered.length,
-    nouvelles: filtered.filter(p => p.status === 'NOUVELLE').length,
-    en_visite: filtered.filter(p => p.status === 'EN_VISITE').length,
-    en_attente_rc: filtered.filter(p => p.status === 'VALIDEE_DEV').length,
-    puce_attribuees: filtered.filter(p => p.status === 'PUCE_ATTRIBUEE').length,
-    activees: filtered.filter(p => p.status === 'PUCE_ACTIVEE').length,
-    refusees: filtered.filter(p => p.status === 'REFUSEE_RC').length,
-    sla_en_retard: filtered.filter(p => p.status === 'PUCE_ATTRIBUEE').length,
-    taux_activation: filtered.length > 0 ? Math.round(filtered.filter(p => p.status === 'PUCE_ACTIVEE').length / filtered.length * 100) : 0,
+  // KPIs = depuis allProspects avec SEULEMENT filtre période + dev (PAS filtre statut)
+  const kpiBase = allProspects.filter(p => {
+    if (isDeveloppeur) {
+      const assignedName = p.visit_assigned_to ? `${p.visit_assigned_to.nom||''} ${p.visit_assigned_to.prenom||''}`.trim().toLowerCase() : '';
+      const submittedName = p.submitted_by ? `${p.submitted_by.nom||''} ${p.submitted_by.prenom||''}`.trim().toLowerCase() : '';
+      if (assignedName !== devFullName && submittedName !== devFullName) return false;
+    }
+    if (filterDebut || filterFin) {
+      const dateP = p.submitted_at ? p.submitted_at.slice(0,10) : null;
+      if (!dateP) return false;
+      if (filterDebut && dateP < filterDebut) return false;
+      if (filterFin && dateP > filterFin) return false;
+    }
+    return true;
+  });
+
+  const periodeActive = periode !== 'tout' || filterDebut || filterFin;
+  const filteredStats = (periodeActive || isDeveloppeur) && kpiBase.length > 0 ? {
+    ...(stats || {}),
+    total: kpiBase.length,
+    nouvelles: kpiBase.filter(p => p.status === 'NOUVELLE').length,
+    en_visite: kpiBase.filter(p => p.status === 'EN_VISITE').length,
+    en_attente_rc: kpiBase.filter(p => p.status === 'VALIDEE_DEV').length,
+    puce_attribuees: kpiBase.filter(p => p.status === 'PUCE_ATTRIBUEE').length,
+    activees: kpiBase.filter(p => p.status === 'PUCE_ACTIVEE').length,
+    refusees: kpiBase.filter(p => p.status === 'REFUSEE_RC').length,
+    sla_en_retard: kpiBase.filter(p => p.status === 'PUCE_ATTRIBUEE').length,
+    taux_activation: kpiBase.length > 0 ? Math.round(kpiBase.filter(p => p.status === 'PUCE_ACTIVEE').length / kpiBase.length * 100) : 0,
   } : null;
 
-  // Toujours utiliser les stats filtrées (période + dev + recherche)
-  const displayStats = filteredStats;
+  const displayStats = filteredStats || stats;
 
   // Extraire superviseurs et développeurs uniques depuis la liste
   const superviseurs = [...new Set(allProspects
