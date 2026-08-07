@@ -740,11 +740,18 @@ def get_en_baisse_mensuel(db, annee, mois, seuil_pct=-20.0, teleconseillere=None
 def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
     import pandas as pd
 
-    df = pd.read_excel(filepath, sheet_name='SOURCE')
+    # Lire la feuille SOURCE (essayer plusieurs noms)
+    try:
+        df = pd.read_excel(filepath, sheet_name='SOURCE')
+    except:
+        xl = pd.ExcelFile(filepath)
+        df = pd.read_excel(filepath, sheet_name=xl.sheet_names[0])
+
     df.columns = [c.strip() for c in df.columns]
 
-    # Renommer les colonnes
+    # Renommer les colonnes — supporte les 2 formats de fichier KAABU
     col_map = {
+        # Format DASHBOARD SUIVI KAABU
         'NUMERO PDV': 'numero_pdv',
         'CATEGORIE': 'categorie',
         'volume_Cashin': 'volume_cashin',
@@ -767,12 +774,72 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
         'COACH-DISTRI OML  ': 'coach_distri',
         'DEVELOPPEUR ': 'developpeur',
         "AGENT D'OPERATION  SPECIALE": 'agent_operation_speciale',
+        # Format DONNEES KAABU (simplifié)
+        'Montant_Cashin': 'montant_cashin',
+        'Montant_Cashout': 'montant_cashout',
     }
     df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
     df = df.dropna(subset=['numero_pdv'])
     df['numero_pdv'] = df['numero_pdv'].astype(str).str.strip()
     df['semaine'] = df['semaine'].astype(str).str.strip()
-    df['annee'] = pd.to_numeric(df['annee'], errors='coerce').fillna(2026).astype(int)
+
+    # Gérer l'année : depuis colonne ou déterminer depuis semaine (2026 par défaut)
+    if 'annee' in df.columns:
+        df['annee'] = pd.to_numeric(df['annee'], errors='coerce').fillna(2026).astype(int)
+    else:
+        df['annee'] = 2026
+
+    # Calculer VOLUME KAABU si manquant (= vol_cashin + vol_cashout)
+    if 'volume_kaabu' not in df.columns:
+        vc = pd.to_numeric(df.get('volume_cashin', 0), errors='coerce').fillna(0)
+        vco = pd.to_numeric(df.get('volume_cashout', 0), errors='coerce').fillna(0)
+        df['volume_kaabu'] = (vc + vco).astype(int)
+
+    # Calculer Montant Global si manquant (= montant_cashin + montant_cashout)
+    if 'montant_global' not in df.columns:
+        mc = pd.to_numeric(df.get('montant_cashin', 0), errors='coerce').fillna(0)
+        mco = pd.to_numeric(df.get('montant_cashout', 0), errors='coerce').fillna(0)
+        df['montant_global'] = (mc + mco).astype(int)
+
+    # ── Enrichissement depuis la table PDV (zone, superviseur, gestionnaire, etc.) ──
+    from app.models.pdv import PDV as PDVModel
+    pdv_info = {
+        str(p.numero_pdv).strip(): {
+            'superviseur': p.superviseur,
+            'groupe': p.zone,          # Zone → groupe dans KAABU
+            'teleconseillere': p.teleconseillere,
+            'coach_distri': None,
+            'developpeur': p.developpeur,
+            'localite': p.commune,
+            'quartier': p.quartier,
+            'segment': p.segment,
+            'type_pdv': str(p.type_pdv.value) if p.type_pdv and hasattr(p.type_pdv, 'value') else None,
+            'sous_zone': p.sous_zone,
+            'gestionnaire': p.gestionnaire,
+        }
+        for p in db.query(PDVModel).all()
+        if p.numero_pdv
+    }
+
+    # Appliquer l'enrichissement ligne par ligne
+    for col_kaabu, col_pdv in [
+        ('superviseur', 'superviseur'), ('groupe', 'groupe'),
+        ('teleconseillere', 'teleconseillere'), ('coach_distri', 'coach_distri'),
+        ('developpeur', 'developpeur'), ('localite', 'localite'),
+        ('quartier', 'quartier'), ('segment', 'segment'),
+    ]:
+        if col_kaabu not in df.columns:
+            df[col_kaabu] = df['numero_pdv'].map(lambda x: pdv_info.get(x, {}).get(col_pdv))
+        else:
+            # Compléter les valeurs manquantes depuis la base PDV
+            mask = df[col_kaabu].isna() | (df[col_kaabu] == '')
+            df.loc[mask, col_kaabu] = df.loc[mask, 'numero_pdv'].map(
+                lambda x: pdv_info.get(x, {}).get(col_pdv)
+            )
+
+    # Situation login : "ACTIF" si volume > 0, "INACTIF" sinon
+    if 'situation_login' not in df.columns:
+        df['situation_login'] = df['volume_kaabu'].apply(lambda v: 'ACTIF' if float(v or 0) > 0 else 'INACTIF')
 
     # Déterminer est_actif depuis SITUATION LOGIN
     def is_actif(situation):

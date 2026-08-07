@@ -35,7 +35,9 @@ class KaabuTransaction(Base):
 
     # Hiérarchie
     superviseur = Column(String, nullable=True, index=True)
-    groupe = Column(String, nullable=True, index=True)         # GRP 1, GRP 2... = Gestionnaire
+    groupe = Column(String, nullable=True, index=True)         # Zone (ZONE A, ZONE B...) 
+    gestionnaire = Column(String, nullable=True, index=True)   # Gestionnaire de groupe
+    sous_zone = Column(String, nullable=True, index=True)      # Sous-zone
     teleconseillere = Column(String, nullable=True, index=True)
     coach_distri = Column(String, nullable=True, index=True)
     developpeur = Column(String, nullable=True, index=True)
