@@ -152,6 +152,7 @@ function App() {
                 <Route path="/accueil" element={<AccueilPage />} />
                 <Route path="/accueil-tc" element={<AccueilTCPage />} />
                 <Route path="/kaabu/dashboard" element={<KaabuDashboardPage />} />
+                <Route path="/kaabu/dashboard/weekly" element={<KaabuDashboardPage />} />
                 <Route path="/suivi-tc" element={<SuiviTCPage />} />
                 <Route path="/challenge" element={<MenuRoute menuId="challenge"><ChallengePage /></MenuRoute>} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
