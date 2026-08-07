@@ -203,6 +203,7 @@ function ImportSection({ icon: Icon, title, description, endpoint, label, templa
     formData.append('file', f);
     const response = await api.post(endpoint, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 600000, // 10 minutes pour les gros fichiers (65K lignes)
     });
     return response.data;
   }, {

@@ -868,7 +868,7 @@ async def import_export_orange(
     mode='mensuel' → agrège par (PDV, mois)
     mode='hebdo'   → agrège par (PDV, semaine ISO)
     """
-    import openpyxl
+    import pandas as pd
     from io import BytesIO
     from datetime import datetime
     from collections import defaultdict
@@ -878,18 +878,18 @@ async def import_export_orange(
 
     content = await file.read()
 
+    # ── Lecture rapide avec pandas (10x plus vite qu'openpyxl ligne par ligne) ──
     try:
-        wb = openpyxl.load_workbook(BytesIO(content), data_only=True, read_only=True)
-        ws = wb.active
+        df = pd.read_excel(BytesIO(content), dtype=str)
     except Exception as e:
         raise HTTPException(400, f"Impossible de lire le fichier : {e}")
 
-    # Lecture entêtes
-    headers = []
-    for cell in next(ws.iter_rows(min_row=1, max_row=1, values_only=True)):
-        headers.append(str(cell or '').strip().lower())
+    if df.empty:
+        raise HTTPException(400, "Le fichier est vide")
 
-    # Mapping colonnes
+    # Normaliser les noms de colonnes
+    df.columns = [str(c).strip().lower() for c in df.columns]
+
     aliases = {
         'numero revendeur': 'numero', 'grade': 'grade', 'service': 'service',
         'nombre transction': 'nb_trans', 'nombre transaction': 'nb_trans',
@@ -897,86 +897,94 @@ async def import_export_orange(
         'commission pdg': 'comm_pdg', 'commission revendeur': 'comm_rev',
         'date transaction': 'date',
     }
-    col = {}
-    for i, h in enumerate(headers):
-        key = aliases.get(h)
-        if key:
-            col[key] = i
+    rename_map = {k: v for k, v in aliases.items() if k in df.columns}
+    df = df.rename(columns=rename_map)
 
     required = ['numero', 'service', 'nb_trans', 'mt_trans', 'date']
-    missing = [r for r in required if r not in col]
+    missing = [r for r in required if r not in df.columns]
     if missing:
-        raise HTTPException(400, f"Colonnes manquantes : {missing}. Trouvées : {headers}")
+        raise HTTPException(400, f"Colonnes manquantes : {missing}. Trouvées : {list(df.columns)}")
 
-    # Helpers
-    def _f(val):
-        try: return float(str(val or 0).replace(' ', '').replace(',', '.'))
-        except: return 0.0
-    def _i(val):
-        try: return int(float(str(val or 0)))
-        except: return 0
-    def _date(val):
-        s = str(val or '').strip()
-        for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y'):
-            try: return datetime.strptime(s, fmt)
-            except: continue
-        return None
+    # Helpers vectorisés
+    def _safe_num(series):
+        return pd.to_numeric(series.str.replace(' ', '', regex=False).str.replace(',', '.', regex=False), errors='coerce').fillna(0.0)
+
+    def _parse_dates(series):
+        for fmt in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y'):
+            try:
+                return pd.to_datetime(series, format=fmt, errors='coerce')
+            except: pass
+        return pd.to_datetime(series, infer_datetime_format=True, errors='coerce')
+
+    # Parser toutes les dates en une fois
+    df['_date'] = _parse_dates(df['date'])
+    df = df.dropna(subset=['_date', 'numero'])
+    df['numero'] = df['numero'].str.strip()
+    df['service'] = df['service'].str.strip().str.upper().fillna('')
+    df['nb_trans'] = _safe_num(df['nb_trans']).astype(int)
+    df['mt_trans'] = _safe_num(df['mt_trans'])
+    df['trans_ca'] = _safe_num(df['trans_ca']) if 'trans_ca' in df.columns else 0.0
+    df['comm_pdg'] = _safe_num(df['comm_pdg']) if 'comm_pdg' in df.columns else 0.0
+    df['comm_rev'] = _safe_num(df['comm_rev']) if 'comm_rev' in df.columns else 0.0
+
+    df['_annee'] = df['_date'].dt.year
+    df['_mois'] = df['_date'].dt.month
+    df['_semaine'] = df['_date'].dt.isocalendar().week.astype(int)
+
+    # Filtrer par période si spécifié
+    if annee: df = df[df['_annee'] == annee]
+    if mois and mode == 'mensuel': df = df[df['_mois'] == mois]
+    if semaine and mode == 'hebdo': df = df[df['_semaine'] == semaine]
+
+    total = len(df)
+    if total == 0:
+        return {"created": 0, "updated": 0, "errors": 0, "total": 0,
+                "message": "Aucune ligne ne correspond à la période sélectionnée."}
+
+    # Catégoriser les services
+    cashin_svcs = {'CASHIN', 'CASH IN', 'DEPOT', 'CASHIN_REVERSAL'}
+    df['_is_cashin'] = df['service'].isin(cashin_svcs)
+
+    # Grouper par PDV + période (agrégation pandas = ultra rapide)
+    group_keys = ['numero', '_annee', '_mois'] if mode == 'mensuel' else ['numero', '_annee', '_semaine']
+
+    cashin_df = df[df['_is_cashin']].groupby(group_keys).agg(
+        nb_depots=('nb_trans', 'sum'), mt_depots=('mt_trans', 'sum')).reset_index()
+    cashout_df = df[~df['_is_cashin']].groupby(group_keys).agg(
+        nb_retraits=('nb_trans', 'sum'), mt_retraits=('mt_trans', 'sum')).reset_index()
+    extras_df = df.groupby(group_keys).agg(
+        trans_ca=('trans_ca', 'sum'), comm_pdg=('comm_pdg', 'sum'), comm_rev=('comm_rev', 'sum')).reset_index()
+
+    merged = pd.merge(cashin_df, cashout_df, on=group_keys, how='outer').fillna(0)
+    merged = pd.merge(merged, extras_df, on=group_keys, how='outer').fillna(0)
 
     # Chargement PDV
     pdv_map = {str(p.numero_pdv).strip(): p.id for p in db.query(PDV).all()}
 
     # Agrégation
-    data = defaultdict(lambda: {
-        'nb_depots': 0, 'mt_depots': 0.0, 'nb_retraits': 0, 'mt_retraits': 0.0,
-        'trans_ca': 0.0, 'comm_pdg': 0.0, 'comm_rev': 0.0,
-    })
-
-    skipped_date = skipped_pdv = total = 0
+    data = {}
     not_found = set()
+    skipped_pdv = 0
 
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if not row or row[col['numero']] is None:
-            continue
-        total += 1
-        numero = str(row[col['numero']]).strip()
-        d = _date(row[col['date']])
-        if d is None:
-            skipped_date += 1
-            continue
+    for _, row in merged.iterrows():
+        numero = str(row['numero']).strip()
+        annee_v = int(row['_annee'])
+        periode_v = int(row['_mois'] if mode == 'mensuel' else row['_semaine'])
+        pdv_id = pdv_map.get(numero)
+        if pdv_id is None:
+            not_found.add(numero); skipped_pdv += 1; continue
+        data[(pdv_id, annee_v, periode_v)] = {
+            'nb_depots': int(row.get('nb_depots', 0)),
+            'mt_depots': float(row.get('mt_depots', 0)),
+            'nb_retraits': int(row.get('nb_retraits', 0)),
+            'mt_retraits': float(row.get('mt_retraits', 0)),
+            'trans_ca': float(row.get('trans_ca', 0)),
+            'comm_pdg': float(row.get('comm_pdg', 0)),
+            'comm_rev': float(row.get('comm_rev', 0)),
+        }
 
-        annee_row = d.year
-        if annee and annee_row != annee:
-            continue
-        mois_row = d.month
-        if mois and mois_row != mois:
-            continue
-        sem_row = d.isocalendar()[1]
-        if semaine and sem_row != semaine:
-            continue
+    skipped_date = 0  # pandas dropna gère ça
 
-        key = (numero, annee_row, mois_row) if mode == 'mensuel' else (numero, annee_row, sem_row)
-        svc = str(row[col['service']] or '').strip().upper()
-        nb = _i(row[col['nb_trans']])
-        mt = _f(row[col['mt_trans']])
-        ca = _f(row[col['trans_ca']]) if 'trans_ca' in col else 0.0
-        cpdg = _f(row[col['comm_pdg']]) if 'comm_pdg' in col else 0.0
-        crev = _f(row[col['comm_rev']]) if 'comm_rev' in col else 0.0
-
-        rec = data[key]
-        rec['trans_ca'] += ca
-        rec['comm_pdg'] += cpdg
-        rec['comm_rev'] += crev
-        # CASHIN = dépôts (argent envoyé au PDV)
-        if svc in ('CASHIN', 'CASH IN', 'DEPOT', 'CASHIN_REVERSAL'):
-            rec['nb_depots'] += nb; rec['mt_depots'] += mt
-        # CASHOUT + toutes variantes = retraits (argent récupéré du PDV)
-        elif svc in ('CASHOUT', 'CASH OUT', 'B2BCASHOUT', 'TXNCORRECT',
-                     'CASHOUT_REVERSAL', 'RETRAIT', 'B2B_CASHOUT',
-                     'CASHOUT_CORRECTION', 'CORRECTION'):
-            rec['nb_retraits'] += nb; rec['mt_retraits'] += mt
-        else:
-            # Tout autre service inconnu → compté dans les opérations totales
-            rec['nb_retraits'] += nb; rec['mt_retraits'] += mt
 
     # Upsert en base
     created = updated = 0
