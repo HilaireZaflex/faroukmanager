@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://faroukmanage
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 600000, // 10 minutes - nécessaire pour les gros imports (fichiers 30-40MB)
   headers: {
     'Content-Type': 'application/json',
   },
