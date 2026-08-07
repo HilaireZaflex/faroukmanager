@@ -1039,58 +1039,53 @@ async def import_export_orange(
     db.commit()
 
     # ── Créer des entrées est_actif=False pour les PDVs absents ──────────────
-    # Collecter toutes les périodes importées
     inactif_created = 0
-    if mode == 'mensuel':
-        # Pour chaque (annee, mois) importé, créer des entrées inactives pour les PDVs absents
-        periodes = set((annee_v, periode_v) for (_, annee_v, periode_v) in data.keys())
-        for (annee_v, mois_v) in periodes:
-            pdv_ids_actifs = {
-                pdv_map[num] for (num, a, m) in data.keys()
-                if a == annee_v and m == mois_v and num in pdv_map
-            }
-            all_pdv_ids = set(pdv_map.values())
-            pdv_ids_absents = all_pdv_ids - pdv_ids_actifs
-            for pid in pdv_ids_absents:
+    # Collecter les périodes et PDVs actifs depuis merged
+    pdv_actifs_par_periode = {}  # {(annee, periode): set of pdv_ids}
+    for _, row in merged.iterrows():
+        numero = str(row['numero']).strip()
+        pdv_id = pdv_map.get(numero)
+        if pdv_id is None:
+            continue
+        annee_v = int(row['_annee'])
+        periode_v = int(row['_mois'] if mode == 'mensuel' else row['_semaine'])
+        key = (annee_v, periode_v)
+        if key not in pdv_actifs_par_periode:
+            pdv_actifs_par_periode[key] = set()
+        pdv_actifs_par_periode[key].add(pdv_id)
+
+    all_pdv_ids = set(pdv_map.values())
+    for (annee_v, periode_v), pdv_ids_actifs in pdv_actifs_par_periode.items():
+        pdv_ids_absents = all_pdv_ids - pdv_ids_actifs
+        for pid in pdv_ids_absents:
+            if mode == 'mensuel':
                 existing = db.query(MonthlyPerformance).filter_by(
-                    pdv_id=pid, annee=annee_v, mois=mois_v
+                    pdv_id=pid, annee=annee_v, mois=periode_v
                 ).first()
                 if not existing:
                     db.add(MonthlyPerformance(
-                        pdv_id=pid, annee=annee_v, mois=mois_v,
+                        pdv_id=pid, annee=annee_v, mois=periode_v,
                         nb_depots=0, montant_depots=0.0,
                         nb_retraits=0, montant_retraits=0.0,
                         nb_operations=0, montant_transaction=0.0,
                         montant_ca=0.0, commission_pdg=0.0,
                         commission_revendeur=0.0, ratio_ca_transaction=0.0,
-                        est_actif=False, ca=0.0,
-                    indicateur=service.upper(),
+                        est_actif=False, ca=0.0, indicateur=service.upper(),
                     ))
                     inactif_created += 1
-    else:
-        # Hebdo: pour chaque (annee, semaine) importée
-        periodes = set((annee_v, periode_v) for (_, annee_v, periode_v) in data.keys())
-        for (annee_v, sem_v) in periodes:
-            pdv_ids_actifs = {
-                pdv_map[num] for (num, a, s) in data.keys()
-                if a == annee_v and s == sem_v and num in pdv_map
-            }
-            all_pdv_ids = set(pdv_map.values())
-            pdv_ids_absents = all_pdv_ids - pdv_ids_actifs
-            for pid in pdv_ids_absents:
+            else:
                 existing = db.query(WeeklyPerformance).filter_by(
-                    pdv_id=pid, annee=annee_v, semaine=sem_v
+                    pdv_id=pid, annee=annee_v, semaine=periode_v
                 ).first()
                 if not existing:
                     db.add(WeeklyPerformance(
-                        pdv_id=pid, annee=annee_v, semaine=sem_v,
+                        pdv_id=pid, annee=annee_v, semaine=periode_v,
                         nb_depots=0, montant_depots=0.0,
                         nb_retraits=0, montant_retraits=0.0,
                         nb_operations=0, montant_transaction=0.0,
                         montant_ca=0.0, commission_pdg=0.0,
                         commission_revendeur=0.0, ratio_ca_transaction=0.0,
-                        est_actif=False, ca=0.0,
-                    indicateur=service.upper(),
+                        est_actif=False, ca=0.0, indicateur=service.upper(),
                     ))
                     inactif_created += 1
 
