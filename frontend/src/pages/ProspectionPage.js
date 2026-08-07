@@ -428,9 +428,11 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         `${p.submitted_by?.nom} ${p.submitted_by?.prenom||''}`.toLowerCase() !== filters.superviseur.toLowerCase()) return false;
     if (filters.developpeur && p.visit_assigned_to &&
         `${p.visit_assigned_to?.nom} ${p.visit_assigned_to?.prenom||''}`.toLowerCase() !== filters.developpeur.toLowerCase()) return false;
-    // Filtre par zone du PDV activé
-    if (filters.zone && p.activated_pdv) {
-      const pdvZone = (p.activated_pdv?.zone || p.zone || '').toLowerCase();
+    // Filtre par zone (seulement pour PUCE_ACTIVEE et PUCE_ATTRIBUEE)
+    if (filters.zone) {
+      // On ne filtre que si le prospect est activé ou attribué (on connaît la zone)
+      if (!['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status)) return false;
+      const pdvZone = (p.activated_pdv?.zone || p.pdv_zone || '').toLowerCase();
       if (!pdvZone.includes(filters.zone.toLowerCase())) return false;
     }
     return true;
@@ -819,6 +821,8 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
           placeholder="Rechercher (réf, nom, téléphone, quartier)..."
           value={filters.search}
           onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}/>
+
+
         <select value={filters.zone} onChange={e => setFilters(f => ({ ...f, zone: e.target.value }))}
           style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 8, color: filters.zone ? '#FF6900' : '#8a8a9a', fontSize: 13, cursor: 'pointer', minWidth: 140 }}>
           <option value="">📍 Toutes les zones</option>
@@ -826,7 +830,6 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
             <option key={z} value={z}>{z}</option>
           ))}
         </select>
-
         <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} style={{ flex: 1, minWidth: 130 }}>
           <option value="">— Tous statuts —</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
@@ -2270,6 +2273,32 @@ function TabRepartition() {
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
               <span style={{ fontSize: 12, color: '#aaa' }}>{s.replace(/_/g,' ')}</span>
               <span style={{ fontSize: 13, fontWeight: 800, color: s==='PUCE_ACTIVEE'?'#22c55e':s==='REFUSEE_RC'?'#ff4757':'#ffa502' }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Répartition par Zone — Activations seulement */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '20px 24px' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, color: '#fff' }}>📍 Activations & Taux par Zone</h3>
+        <p style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 16 }}>
+          Utilise le filtre <strong style={{ color: '#FF6900' }}>📍 Zone</strong> dans l'onglet Demandes pour voir les {(data?.par_statut?.PUCE_ACTIVEE || 0) + (data?.par_statut?.PUCE_ATTRIBUEE || 0)} activations par zone.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            { zone: 'ZONE A', color: '#FF6900' },
+            { zone: 'ZONE B', color: '#3742fa' },
+            { zone: 'ZONE C', color: '#22c55e' },
+            { zone: 'ZONE D', color: '#ffa502' },
+            { zone: 'ZONE E', color: '#a29bfe' },
+            { zone: 'AU BUREAU', color: '#8a8a9a' },
+          ].map((z, i) => (
+            <div key={z.zone} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${z.color}25`, borderLeft: `4px solid ${z.color}`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontWeight: 800, color: z.color, fontSize: 13, minWidth: 80 }}>{z.zone}</span>
+              <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 4 }}>
+                <div style={{ height: '100%', width: `${(6 - i) * 14}%`, background: z.color, borderRadius: 4 }} />
+              </div>
+              <span style={{ fontSize: 11, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Voir dans Demandes →</span>
             </div>
           ))}
         </div>
