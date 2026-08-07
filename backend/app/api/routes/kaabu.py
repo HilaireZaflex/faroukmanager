@@ -19,6 +19,68 @@ def get_periods(db: Session = Depends(get_db), current_user: User = Depends(get_
     return kaabu_service.get_available_periods(db)
 
 
+@router.get("/kaabu/periods-mensuel")
+def get_periods_mensuel(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_available_periods_mensuel(db)
+
+
+@router.get("/kaabu/mensuel/vue-ensemble")
+def vue_ensemble_mensuel(annee: int = Query(...), mois: int = Query(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_vue_ensemble_mensuel(db, annee, mois)
+
+
+@router.get("/kaabu/mensuel/superviseurs")
+def superviseurs_mensuel(annee: int = Query(...), mois: int = Query(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_par_superviseur_mensuel(db, annee, mois)
+
+
+@router.get("/kaabu/mensuel/gestionnaires")
+def gestionnaires_mensuel(annee: int = Query(...), mois: int = Query(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_par_gestionnaire_mensuel(db, annee, mois)
+
+
+@router.get("/kaabu/mensuel/coaches")
+def coaches_mensuel(annee: int = Query(...), mois: int = Query(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_par_coach_mensuel(db, annee, mois)
+
+
+@router.get("/kaabu/mensuel/teleconseilleres")
+def telecons_mensuel(annee: int = Query(...), mois: int = Query(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_par_teleconseillere_mensuel(db, annee, mois)
+
+
+@router.get("/kaabu/mensuel/developpeurs")
+def devs_mensuel(annee: int = Query(...), mois: int = Query(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_par_developpeur_mensuel(db, annee, mois)
+
+
+@router.get("/kaabu/mensuel/hors-zone")
+def hors_zone_mensuel(annee: int = Query(...), mois: int = Query(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_hors_zone_mensuel(db, annee, mois)
+
+
+@router.get("/kaabu/mensuel/inactifs")
+def inactifs_mensuel(annee: int = Query(...), mois: int = Query(...),
+    teleconseillere: Optional[str] = Query(None),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_inactifs_mensuel(db, annee, mois, teleconseillere)
+
+
+@router.get("/kaabu/mensuel/en-baisse")
+def en_baisse_mensuel(annee: int = Query(...), mois: int = Query(...),
+    seuil: float = Query(-20.0),
+    teleconseillere: Optional[str] = Query(None),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return kaabu_service.get_en_baisse_mensuel(db, annee, mois, seuil, teleconseillere)
+
+
 @router.get("/kaabu/vue-ensemble")
 def vue_ensemble(annee: int = Query(...), semaine: str = Query(...),
                  db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
