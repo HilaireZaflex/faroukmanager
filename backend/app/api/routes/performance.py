@@ -1095,13 +1095,25 @@ async def import_export_orange(
                     inactif_created += 1
 
     db.commit()
-    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── Import automatique des commissions depuis le même fichier ──────────
+    comm_result = {}
+    if mode == 'mensuel' and annee and mois:
+        try:
+            from app.services import commission_service as comm_svc
+            period_key = f"{annee}-{str(mois).zfill(2)}"
+            comm_result = comm_svc.import_orange_export(
+                db, content, file.filename or "export_orange.xlsx",
+                period_key, current_user.id
+            )
+        except Exception as e:
+            comm_result = {"error": str(e)}
 
     return {
         "success": True,
         "mode": mode,
         "total_lignes": total,
-        "pdv_periodes_traitees": len(data),
+        "pdv_periodes_traitees": created + updated,
         "created": created,
         "updated": updated,
         "inactifs_crees": inactif_created,
@@ -1109,4 +1121,5 @@ async def import_export_orange(
         "skipped_date": skipped_date,
         "pdv_non_trouves": len(not_found),
         "exemples_non_trouves": list(not_found)[:10],
+        "commissions": comm_result,
     }
