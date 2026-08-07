@@ -961,10 +961,11 @@ async def import_export_orange(
     # Chargement PDV
     pdv_map = {str(p.numero_pdv).strip(): p.id for p in db.query(PDV).all()}
 
-    # Agrégation
-    data = {}
-    not_found = set()
+    # Agrégation et upsert en base
+    skipped_date = 0  # pandas dropna gère ça
     skipped_pdv = 0
+    not_found = set()
+    created = updated = 0
 
     for _, row in merged.iterrows():
         numero = str(row['numero']).strip()
@@ -973,26 +974,16 @@ async def import_export_orange(
         pdv_id = pdv_map.get(numero)
         if pdv_id is None:
             not_found.add(numero); skipped_pdv += 1; continue
-        data[(pdv_id, annee_v, periode_v)] = {
-            'nb_depots': int(row.get('nb_depots', 0)),
-            'mt_depots': float(row.get('mt_depots', 0)),
-            'nb_retraits': int(row.get('nb_retraits', 0)),
-            'mt_retraits': float(row.get('mt_retraits', 0)),
-            'trans_ca': float(row.get('trans_ca', 0)),
-            'comm_pdg': float(row.get('comm_pdg', 0)),
-            'comm_rev': float(row.get('comm_rev', 0)),
+
+        rec = {
+            'nb_depots': int(float(row.get('nb_depots', 0) or 0)),
+            'mt_depots': float(row.get('mt_depots', 0) or 0),
+            'nb_retraits': int(float(row.get('nb_retraits', 0) or 0)),
+            'mt_retraits': float(row.get('mt_retraits', 0) or 0),
+            'trans_ca': float(row.get('trans_ca', 0) or 0),
+            'comm_pdg': float(row.get('comm_pdg', 0) or 0),
+            'comm_rev': float(row.get('comm_rev', 0) or 0),
         }
-
-    skipped_date = 0  # pandas dropna gère ça
-
-
-    # Upsert en base
-    created = updated = 0
-    for (numero, annee_v, periode_v), rec in data.items():
-        pdv_id = pdv_map.get(numero)
-        if pdv_id is None:
-            not_found.add(numero); skipped_pdv += 1
-            continue
 
         mt_total = rec['mt_depots'] + rec['mt_retraits']
         nb_ops   = rec['nb_depots'] + rec['nb_retraits']
