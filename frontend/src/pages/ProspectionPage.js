@@ -472,16 +472,33 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     const mapped = KPI_STATUS_MAP[kpiKey];
     if (!mapped || mapped === '__NONE__') return;
 
-    let dataToExport = [];
-    if (mapped === '__ALL__') {
-      dataToExport = filtered;
-    } else if (mapped === '__SLA__') {
-      dataToExport = filtered.filter(p => p.status === 'PUCE_ATTRIBUEE');
-    } else {
-      dataToExport = filtered.filter(p => p.status === mapped);
+    // Charger TOUS les prospects depuis l'API avec le bon filtre statut
+    const params = { limit: 2000 };
+    if (mapped !== '__ALL__' && mapped !== '__SLA__') params.status = mapped;
+    if (mapped === '__SLA__') params.status = 'PUCE_ATTRIBUEE';
+
+    let allData = [];
+    try {
+      toast.loading('📥 Chargement...', { id: 'export-load' });
+      allData = await prospectService.list(params);
+      toast.dismiss('export-load');
+    } catch (e) {
+      toast.dismiss('export-load');
+      return alert('Erreur chargement : ' + errMsg(e));
     }
 
-    if (!dataToExport.length) return alert('Aucune donnée à exporter pour ce filtre.');
+    // Appliquer filtre période côté client
+    let dataToExport = allData.filter(p => {
+      if (filterDebut || filterFin) {
+        const dateP = p.submitted_at ? p.submitted_at.slice(0,10) : null;
+        if (!dateP) return false;
+        if (filterDebut && dateP < filterDebut) return false;
+        if (filterFin && dateP > filterFin) return false;
+      }
+      return true;
+    });
+
+    if (!dataToExport.length) return toast.error('Aucune donnée pour ce filtre et cette période.');
 
     const label = {
       '__ALL__': 'Tous les prospects',
