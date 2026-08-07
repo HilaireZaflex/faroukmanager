@@ -437,6 +437,81 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     catch (err) { alert('Erreur suppression : ' + errMsg(err)); }
   };
 
+  // Export Excel des prospects du statut sélectionné
+  const exportExcel = async (kpiKey) => {
+    const mapped = KPI_STATUS_MAP[kpiKey];
+    if (!mapped || mapped === '__NONE__') return;
+
+    let dataToExport = [];
+    if (mapped === '__ALL__') {
+      dataToExport = filtered;
+    } else if (mapped === '__SLA__') {
+      dataToExport = filtered.filter(p => p.status === 'PUCE_ATTRIBUEE');
+    } else {
+      dataToExport = filtered.filter(p => p.status === mapped);
+    }
+
+    if (!dataToExport.length) return alert('Aucune donnée à exporter pour ce filtre.');
+
+    const label = {
+      '__ALL__': 'Tous les prospects',
+      NOUVELLE: 'Nouvelles demandes',
+      EN_VISITE: 'En visite terrain',
+      VALIDEE_DEV: 'Validées développeur',
+      PUCE_ATTRIBUEE: 'Puces attribuées',
+      PUCE_ACTIVEE: 'Puces activées',
+      REFUSEE_RC: 'Refusées RC',
+      '__SLA__': 'Délais dépassés',
+    }[mapped] || mapped;
+
+    // Préparer les données pour Excel
+    const rows = dataToExport.map(p => ({
+      'Référence': p.reference || '',
+      'Statut': p.status || '',
+      'Nom': p.nom || '',
+      'Prénom': p.prenom || '',
+      'Téléphone Principal': p.telephone_principal || '',
+      'Téléphone Secondaire': p.telephone_secondaire || '',
+      'Quartier': p.quartier || '',
+      'Adresse': p.adresse || '',
+      'Type Local': p.type_local || '',
+      'N° Puce': p.puce_numero || '',
+      'ID PDV Activé': p.activated_pdv_id || '',
+      'Pièce Identité Type': p.piece_identite_type || '',
+      'Pièce Identité N°': p.piece_identite_numero || '',
+      'Fait OM': p.fait_om ? 'Oui' : 'Non',
+      'CA Mensuel OM': p.om_ca_mensuel || '',
+      'Commission Mensuelle OM': p.om_commission_mensuelle || '',
+      'Ancienne Puce': p.om_ancienne_puce || '',
+      'Capital Démarrage': p.capital_demarrage || '',
+      'Source Financement': p.source_financement || '',
+      'Latitude': p.latitude || '',
+      'Longitude': p.longitude || '',
+      'Soumis Par': p.submitted_by ? `${p.submitted_by.prenom || ''} ${p.submitted_by.nom || ''}`.trim() : '',
+      'Date Soumission': p.submitted_at ? new Date(p.submitted_at).toLocaleDateString('fr-FR') : '',
+      'Dev Visite': p.visit_assigned_to ? `${p.visit_assigned_to.prenom || ''} ${p.visit_assigned_to.nom || ''}`.trim() : '',
+      'Date Visite': p.visit_assigned_at ? new Date(p.visit_assigned_at).toLocaleDateString('fr-FR') : '',
+      'Décision Dev': p.dev_decision_comment || '',
+      'Date Décision Dev': p.dev_decision_at ? new Date(p.dev_decision_at).toLocaleDateString('fr-FR') : '',
+      'RC Décision Par': p.rc_decision_by ? `${p.rc_decision_by.prenom || ''} ${p.rc_decision_by.nom || ''}`.trim() : '',
+      'Commentaire RC': p.rc_decision_comment || '',
+      'Date Activation': p.activated_at ? new Date(p.activated_at).toLocaleDateString('fr-FR') : '',
+      'Notes': p.notes || '',
+    }));
+
+    // Générer le fichier Excel
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Ajuster les largeurs de colonnes
+    const colWidths = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length, 15) }));
+    ws['!cols'] = colWidths;
+    XLSX.utils.book_append_sheet(wb, ws, label.slice(0, 31));
+
+    const filename = `Prospection_${label.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    toast.success(`✅ Export réussi : ${rows.length} prospects exportés`);
+  };
+
   // Clic sur un KPI → filtre par statut correspondant
   const handleKpiClick = (kpiKey) => {
     const mapped = KPI_STATUS_MAP[kpiKey];
@@ -590,14 +665,24 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
             const isActive = mapped === '__ALL__' ? !filters.status :
                              mapped === '__SLA__' ? filters.status === 'PUCE_ATTRIBUEE' :
                              filters.status === mapped;
+            const exportCount = mapped === '__ALL__' ? filtered.length :
+                                mapped === '__SLA__' ? filtered.filter(p => p.status === 'PUCE_ATTRIBUEE').length :
+                                mapped && mapped !== '__NONE__' ? filtered.filter(p => p.status === mapped).length : 0;
             return (
-              <div key={key}
-                onClick={() => isClickable && handleKpiClick(key)}
-                style={{ cursor: isClickable ? 'pointer' : 'default', transition: 'all 0.15s',
+              <div key={key} style={{ position: 'relative', cursor: isClickable ? 'pointer' : 'default', transition: 'all 0.15s',
                   outline: isActive ? '2px solid #FF6900' : 'none', borderRadius: 10,
-                  transform: isActive ? 'scale(1.03)' : 'scale(1)',
-                }}>
+                  transform: isActive ? 'scale(1.03)' : 'scale(1)' }}
+                onClick={() => isClickable && handleKpiClick(key)}>
                 <Stat label={label} value={value} variant={isActive ? 'ok' : variant}/>
+                {/* Bouton export Excel */}
+                {isClickable && exportCount > 0 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); exportExcel(key); }}
+                    title={`📥 Exporter ${exportCount} prospects en Excel`}
+                    style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,214,143,0.15)', border: '1px solid rgba(0,214,143,0.35)', borderRadius: 6, color: '#00d68f', padding: '3px 7px', cursor: 'pointer', fontSize: 11, fontWeight: 700, lineHeight: 1, zIndex: 2 }}>
+                    📥
+                  </button>
+                )}
               </div>
             );
           })}
