@@ -364,6 +364,84 @@ function TabEnBaisseMensuel({ annee, mois, teleFilter }) {
   );
 }
 
+// ─── Zone Tab Mensuel ─────────────────────────────────────────────────────────
+function ZoneMensuelTab({ endpoint, mois, annee }) {
+  const ZONE_COLORS = { 'ZONE A': '#FF6900', 'ZONE B': '#3742fa', 'ZONE C': '#22c55e', 'ZONE D': '#ffa502', 'ZONE E': '#a29bfe', 'AU BUREAU': '#8a8a9a' };
+  const { data: rawData, isLoading } = useQuery(
+    [endpoint, mois, annee],
+    () => api.get(`${endpoint}?annee=${annee}&mois=${mois}`).then(r => r.data),
+    { staleTime: 300000 }
+  );
+  if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
+  const data = Array.isArray(rawData) ? rawData : [];
+  if (!data.length) return <div style={{ textAlign: 'center', padding: '60px', color: '#8a8a9a' }}>📭 Aucune donnée de zone.</div>;
+
+  const sorted = [...data].sort((a, b) => (b.montant || 0) - (a.montant || 0));
+  const totalMontant = sorted.reduce((s, d) => s + (d.montant || 0), 0) || 1;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+        {sorted.map((z, i) => {
+          const zoneColor = ZONE_COLORS[z.groupe] || COLORS[i % COLORS.length];
+          const pct = Math.round((z.montant || 0) / totalMontant * 100);
+          return (
+            <div key={i} style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: `2px solid ${zoneColor}30`, borderRadius: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+                <div style={{ width: 12, height: 12, borderRadius: '50%', background: zoneColor, flexShrink: 0 }} />
+                <span style={{ fontWeight: 800, fontSize: 14, color: '#fff', flex: 1 }}>{z.groupe || '—'}</span>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#22c55e' }}>✅ {fmtVol(z.actifs)} / {fmtVol(z.total_pdv)}</span>
+                  <TauxBadge taux={z.taux} />
+                  <span style={{ fontSize: 14, fontWeight: 800, color: zoneColor }}>{fmtVol(z.volume)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#ffa502' }}>{fmtN(z.montant)} F</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>{pct}% du CA</span>
+                </div>
+              </div>
+              <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${zoneColor},${zoneColor}99)`, borderRadius: 4, transition: 'width 0.6s' }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>📍 Toutes les Zones — {MOIS_NOMS[mois]} {annee}</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                {['#','Zone','Total PDVs','Actifs','Taux','Volume KAABU','CA (FCFA)','Part %'].map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: h === 'Zone' || h === '#' ? 'left' : 'right', color: '#8a8a9a', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((d, i) => {
+                const zoneColor = ZONE_COLORS[d.groupe] || COLORS[i % COLORS.length];
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px' }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: zoneColor }} /></td>
+                    <td style={{ padding: '10px 12px', fontWeight: 700, color: zoneColor }}>{d.groupe || '—'}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{fmtVol(d.total_pdv)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#22c55e', fontWeight: 600 }}>{fmtVol(d.actifs)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}><TauxBadge taux={d.taux} /></td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR }}>{fmtVol(d.volume)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>{fmtN(d.montant)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{fmtPct(d.part_vente)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PAGE PRINCIPALE MENSUELLE ────────────────────────────────────────────────
 export default function KaabuMensuelPage() {
   const [activeTab, setActiveTab] = useState(null);
@@ -395,7 +473,7 @@ export default function KaabuMensuelPage() {
   const allTabs = [
     { id: 'overview',      label: "🏠 Vue d'ensemble",    show: true },
     { id: 'superviseurs',  label: '👔 Superviseurs',       show: true },
-    { id: 'gestionnaires', label: '👥 Gestionnaires',      show: true },
+    { id: 'gestionnaires', label: '📍 Par Zone',             show: true },
     { id: 'coaches',       label: '🎯 Coaches',            show: !isTelec },
     { id: 'telecons',      label: '📞 Téléconseillères',   show: !isTelec },
     { id: 'developpeurs',  label: '👷 Développeurs',       show: !isTelec },
@@ -437,7 +515,7 @@ export default function KaabuMensuelPage() {
       {!activeTab && <div className="loading-spinner" style={{ margin:'60px auto' }}/>}
       {activeTab==='overview'     && <TabOverviewMensuel annee={annee} mois={mois} />}
       {activeTab==='superviseurs' && <ClassementMensuel endpoint="/kaabu/mensuel/superviseurs" colNom="superviseur" nomLabel="Superviseur" mois={mois} annee={annee} />}
-      {activeTab==='gestionnaires'&& <ClassementMensuel endpoint="/kaabu/mensuel/gestionnaires" colNom="groupe" nomLabel="Gestionnaire" mois={mois} annee={annee} />}
+      {activeTab==='gestionnaires'&& <ZoneMensuelTab endpoint="/kaabu/mensuel/gestionnaires" mois={mois} annee={annee} />}
       {activeTab==='coaches'      && <ClassementMensuel endpoint="/kaabu/mensuel/coaches" colNom="coach_distri" nomLabel="Coach" mois={mois} annee={annee} />}
       {activeTab==='telecons'     && <ClassementMensuel endpoint="/kaabu/mensuel/teleconseilleres" colNom="teleconseillere" nomLabel="Téléconseillère" mois={mois} annee={annee} />}
       {activeTab==='developpeurs' && <ClassementMensuel endpoint="/kaabu/mensuel/developpeurs" colNom="developpeur" nomLabel="Développeur" mois={mois} annee={annee} />}

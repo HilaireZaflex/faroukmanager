@@ -525,6 +525,119 @@ function ImportModal({ onClose, onSuccess }) {
   );
 }
 
+// ─── Zone Tab : affiche par Zone + Gestionnaire + Sous-Zone ───────────────────
+function ZoneTab({ endpoint, semaine, annee }) {
+  const [activeZone, setActiveZone] = useState(null);
+  const [sortCol, setSortCol] = useState('montant');
+  const [sortDir, setSortDir] = useState('desc');
+
+  const { data: rawData, isLoading } = useQuery(
+    [endpoint, semaine, annee],
+    () => api.get(`${endpoint}?annee=${annee}&semaine=${semaine}`).then(r => r.data),
+    { staleTime: 300000 }
+  );
+
+  if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
+  const data = Array.isArray(rawData) ? rawData : [];
+  if (!data.length) return <EmptyKaabu msg="Aucune donnée de zone pour cette semaine." />;
+
+  const thS = (col, lbl, color = '#8a8a9a', align = 'right') => (
+    <th onClick={() => { if (sortCol === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc'); else { setSortCol(col); setSortDir('desc'); } }}
+      style={{ padding: '10px 12px', textAlign: align, color: sortCol === col ? COLOR : color, cursor: 'pointer', userSelect: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>
+      {lbl} {sortCol === col ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}
+    </th>
+  );
+
+  const sorted = [...data].sort((a, b) => {
+    const va = a[sortCol] ?? 0; const vb = b[sortCol] ?? 0;
+    if (typeof va === 'string') return sortDir === 'desc' ? vb.localeCompare(va) : va.localeCompare(vb);
+    return sortDir === 'desc' ? vb - va : va - vb;
+  });
+
+  const totalMontant = sorted.reduce((s, d) => s + (d.montant || 0), 0) || 1;
+  const ZONE_COLORS = { 'ZONE A': '#FF6900', 'ZONE B': '#3742fa', 'ZONE C': '#22c55e', 'ZONE D': '#ffa502', 'ZONE E': '#a29bfe', 'AU BUREAU': '#8a8a9a' };
+
+  return (
+    <div>
+      {/* Barres par zone */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+        {sorted.map((z, i) => {
+          const zoneColor = ZONE_COLORS[z.groupe] || COLORS[i % COLORS.length];
+          const pct = Math.round((z.montant || 0) / totalMontant * 100);
+          const isActive = activeZone === z.groupe;
+          return (
+            <div key={i} onClick={() => setActiveZone(isActive ? null : z.groupe)}
+              style={{ padding: '14px 18px', background: isActive ? `rgba(255,105,0,0.08)` : 'rgba(255,255,255,0.02)',
+                border: `2px solid ${isActive ? zoneColor : `${zoneColor}30`}`, borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+                <div style={{ width: 12, height: 12, borderRadius: '50%', background: zoneColor, flexShrink: 0 }} />
+                <span style={{ fontWeight: 800, fontSize: 14, color: '#fff', flex: 1 }}>{z.groupe || '—'}</span>
+                <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#22c55e' }}>✅ {fmtVol(z.actifs)} actifs / {fmtVol(z.total_pdv)}</span>
+                  <TauxBadge taux={z.taux} />
+                  <span style={{ fontSize: 14, fontWeight: 800, color: zoneColor }}>{fmtVol(z.volume)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#ffa502' }}>{fmtN(z.montant)} F</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>{pct}% du CA</span>
+                </div>
+              </div>
+              <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${zoneColor},${zoneColor}99)`, borderRadius: 4, transition: 'width 0.6s' }} />
+              </div>
+              {isActive && <div style={{ marginTop: 8, fontSize: 11, color: '#64748b' }}>▼ Cliquer pour fermer · Semaines {semaine} · {annee}</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tableau détail */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>
+            📍 {activeZone ? `Zone : ${activeZone}` : 'Toutes les Zones'} — {semaine} · {annee}
+          </span>
+          <span style={{ fontSize: 12, color: COLOR }}>{sorted.length} zones</span>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
+                {thS('groupe', 'Zone', '#8a8a9a', 'left')}
+                {thS('total_pdv', 'Total PDVs')}
+                {thS('actifs', 'Actifs', '#22c55e')}
+                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Taux</th>
+                {thS('volume', 'Volume KAABU', COLOR)}
+                {thS('montant', 'CA (FCFA)', '#ffa502')}
+                {thS('part_vente', 'Part %', '#8a8a9a')}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((d, i) => {
+                const zoneColor = ZONE_COLORS[d.groupe] || COLORS[i % COLORS.length];
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: activeZone === d.groupe ? `${zoneColor}08` : 'transparent', cursor: 'pointer' }}
+                    onClick={() => setActiveZone(activeZone === d.groupe ? null : d.groupe)}>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: zoneColor, margin: '0 auto' }} />
+                    </td>
+                    <td style={{ padding: '10px 12px', fontWeight: 700, color: zoneColor }}>{d.groupe || '—'}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{fmtVol(d.total_pdv)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#22c55e', fontWeight: 600 }}>{fmtVol(d.actifs)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}><TauxBadge taux={d.taux} /></td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR }}>{fmtVol(d.volume)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#ffa502' }}>{fmtN(d.montant)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#64748b' }}>{fmtPct(d.part_vente)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 export default function KaabuDashboardPage() {
   const [activeTab, setActiveTab] = useState(null);
@@ -558,7 +671,7 @@ export default function KaabuDashboardPage() {
   const allTabs = [
     { id: 'overview',      label: "🏠 Vue d'ensemble",    show: true },
     { id: 'superviseurs',  label: '👔 Superviseurs',       show: true },
-    { id: 'gestionnaires', label: '👥 Gestionnaires',      show: true },
+    { id: 'gestionnaires', label: '📍 Par Zone',             show: true },
     { id: 'coaches',       label: '🎯 Coaches',            show: !isTelec },
     { id: 'telecons',      label: '📞 Téléconseillères',   show: !isTelec },
     { id: 'developpeurs',  label: '👷 Développeurs',       show: !isTelec },
@@ -622,7 +735,7 @@ export default function KaabuDashboardPage() {
       {!activeTab&&<div className="loading-spinner" style={{ margin:'60px auto' }}/>}
       {activeTab==='overview'     &&<TabOverview annee={annee} semaine={semaine}/>}
       {activeTab==='superviseurs' &&<ClassementKaabu endpoint="/kaabu/superviseurs" colNom="superviseur" nomLabel="Superviseur" semaine={semaine} annee={annee}/>}
-      {activeTab==='gestionnaires'&&<ClassementKaabu endpoint="/kaabu/gestionnaires" colNom="groupe" nomLabel="Gestionnaire" semaine={semaine} annee={annee}/>}
+      {activeTab==='gestionnaires'&&<ZoneTab endpoint="/kaabu/gestionnaires" semaine={semaine} annee={annee}/>}
       {activeTab==='coaches'      &&<ClassementKaabu endpoint="/kaabu/coaches" colNom="coach" nomLabel="Coach" semaine={semaine} annee={annee}/>}
       {activeTab==='telecons'     &&<ClassementKaabu endpoint="/kaabu/teleconseilleres" colNom="teleconseillere" nomLabel="Téléconseillère" semaine={semaine} annee={annee}/>}
       {activeTab==='developpeurs' &&<ClassementKaabu endpoint="/kaabu/developpeurs" colNom="developpeur" nomLabel="Développeur" semaine={semaine} annee={annee}/>}
