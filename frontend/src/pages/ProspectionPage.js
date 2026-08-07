@@ -482,11 +482,11 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
     let allData = [];
     try {
-      toast.loading('📥 Chargement...', { id: 'export-load' });
+      // chargement...
       allData = await prospectService.list(params);
-      toast.dismiss('export-load');
+      
     } catch (e) {
-      toast.dismiss('export-load');
+      
       return alert('Erreur chargement : ' + errMsg(e));
     }
 
@@ -501,7 +501,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       return true;
     });
 
-    if (!dataToExport.length) return toast.error('Aucune donnée pour ce filtre et cette période.');
+    if (!dataToExport.length) return alert('Aucune donnée à exporter pour ce filtre et cette période.');
 
     const label = {
       '__ALL__': 'Tous les prospects',
@@ -559,7 +559,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
     const filename = `Prospection_${label.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0,10)}.xlsx`;
     XLSX.writeFile(wb, filename);
-    toast.success(`✅ Export réussi : ${rows.length} prospects exportés`);
+    alert(`✅ Export réussi : ${rows.length} prospect(s) exportés`);
   };
 
   // Clic sur un KPI → filtre par statut correspondant
