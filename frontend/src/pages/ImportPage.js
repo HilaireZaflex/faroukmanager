@@ -77,6 +77,78 @@ function UploadZone({ onFile, accept = '.xlsx,.xls,.csv' }) {
 }
 
 // ─── Result Card ───────────────────────────────────────────────────────────
+// ─── Modal de succès import ────────────────────────────────────────────────
+function ImportSuccessModal({ result, label, fileName, onClose }) {
+  if (!result) return null;
+  const created = result.created ?? result.imported ?? result.inserted ?? 0;
+  const updated = result.updated ?? 0;
+  const errors = result.errors?.length ?? (typeof result.errors === 'number' ? result.errors : 0);
+  const total = result.total ?? result.total_lignes ?? result.total_rows ?? (created + updated);
+  const now = new Date();
+  const horodatage = now.toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' }) + ' à ' + now.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}
+      onClick={onClose}>
+      <div style={{ background:'linear-gradient(135deg,#0f0f1e 0%,#1a1a2e 100%)', border:'2px solid rgba(0,214,143,0.4)', borderRadius:24, padding:'36px 40px', maxWidth:500, width:'90%', boxShadow:'0 32px 80px rgba(0,214,143,0.15)', textAlign:'center' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Animation succès */}
+        <div style={{ width:80, height:80, borderRadius:'50%', background:'linear-gradient(135deg,#00d68f,#00b377)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:38, boxShadow:'0 8px 32px rgba(0,214,143,0.4)' }}>
+          ✅
+        </div>
+
+        <h2 style={{ fontSize:22, fontWeight:900, color:'#fff', marginBottom:6 }}>Import Réussi !</h2>
+        <p style={{ fontSize:13, color:'#00d68f', fontWeight:600, marginBottom:20 }}>{label}</p>
+
+        {/* Infos fichier */}
+        <div style={{ background:'rgba(0,214,143,0.08)', border:'1px solid rgba(0,214,143,0.2)', borderRadius:12, padding:'12px 16px', marginBottom:20, textAlign:'left' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+            <span style={{ fontSize:16 }}>📁</span>
+            <span style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{fileName}</span>
+          </div>
+          <div style={{ fontSize:11, color:'#64748b' }}>Importé le {horodatage}</div>
+        </div>
+
+        {/* KPIs résultat */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:20 }}>
+          {[
+            { icon:'🆕', label:'Créés / Ajoutés', value:created, color:'#00d68f', bg:'rgba(0,214,143,0.1)' },
+            { icon:'🔄', label:'Mis à jour', value:updated, color:'#ffa502', bg:'rgba(255,165,2,0.1)' },
+            { icon: errors > 0 ? '⚠️' : '✅', label:'Erreurs', value:errors, color:errors > 0 ? '#ff4757' : '#00d68f', bg:errors > 0 ? 'rgba(255,71,87,0.1)' : 'rgba(0,214,143,0.08)' },
+          ].map((k,i) => (
+            <div key={i} style={{ padding:'14px 8px', background:k.bg, borderRadius:12, border:`1px solid ${k.color}25` }}>
+              <div style={{ fontSize:22, marginBottom:6 }}>{k.icon}</div>
+              <div style={{ fontSize:24, fontWeight:900, color:k.color }}>{k.value.toLocaleString('fr-FR')}</div>
+              <div style={{ fontSize:11, color:'#8a8a9a', marginTop:4 }}>{k.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Total */}
+        {total > 0 && (
+          <div style={{ background:'rgba(255,255,255,0.03)', borderRadius:10, padding:'10px 16px', marginBottom:20, fontSize:13, color:'#8a8a9a' }}>
+            📊 <strong style={{ color:'#fff' }}>{total.toLocaleString('fr-FR')}</strong> lignes traitées au total
+            {result.pdv_non_trouves > 0 && <span> · <span style={{ color:'#ffa502' }}>{result.pdv_non_trouves} PDVs non trouvés</span></span>}
+            {result.pdvs_uniques > 0 && <span> · <span style={{ color:'#00d68f' }}>{result.pdvs_uniques} PDVs uniques</span></span>}
+          </div>
+        )}
+
+        {/* Message d'info */}
+        <p style={{ fontSize:12, color:'#64748b', marginBottom:24 }}>
+          Tous les dashboards et menus du site ont été mis à jour automatiquement. 🎯
+        </p>
+
+        {/* Bouton fermer */}
+        <button onClick={onClose}
+          style={{ padding:'12px 40px', borderRadius:12, border:'none', background:'linear-gradient(135deg,#00d68f,#00b377)', color:'#fff', fontWeight:800, fontSize:15, cursor:'pointer', boxShadow:'0 4px 20px rgba(0,214,143,0.3)', width:'100%' }}>
+          Parfait, merci ! 👍
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ResultCard({ result, label }) {
   if (!result) return null;
   return (
@@ -85,7 +157,7 @@ function ResultCard({ result, label }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
         <div style={{ textAlign: 'center', padding: 14, background: 'rgba(0,214,143,0.08)', borderRadius: 10, border: '1px solid rgba(0,214,143,0.2)' }}>
           <CheckCircle size={20} style={{ color: 'var(--success)', marginBottom: 6 }} />
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)' }}>{result.created ?? result.imported ?? 0}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--success)' }}>{result.created ?? result.imported ?? result.inserted ?? 0}</div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Créés/Ajoutés</div>
         </div>
         <div style={{ textAlign: 'center', padding: 14, background: 'rgba(255,165,2,0.08)', borderRadius: 10, border: '1px solid rgba(255,165,2,0.2)' }}>
@@ -124,6 +196,7 @@ function ResultCard({ result, label }) {
 function ImportSection({ icon: Icon, title, description, endpoint, label, templateType, color = 'var(--primary)', queryClient }) {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const mutation = useMutation(async (f) => {
     const formData = new FormData();
@@ -135,15 +208,17 @@ function ImportSection({ icon: Icon, title, description, endpoint, label, templa
   }, {
     onSuccess: (data) => {
       setResult(data);
-      toast.success(`Import "${label}" réussi ! ${data.created ?? data.imported ?? 0} lignes traitées.`);
+      setShowSuccessModal(true);
       // Invalider les caches liés
       queryClient.invalidateQueries('pdvs');
       queryClient.invalidateQueries('pdv-stats');
       queryClient.invalidateQueries('dashboard');
       queryClient.invalidateQueries('analytics');
+      queryClient.invalidateQueries('nafama-periods');
+      queryClient.invalidateQueries('kaabu-periods');
     },
     onError: (err) => {
-      toast.error(err?.detail || `Erreur lors de l'import "${label}"`);
+      toast.error(err?.response?.data?.detail || err?.detail || `Erreur lors de l'import "${label}"`);
     }
   });
 
@@ -204,6 +279,9 @@ function ImportSection({ icon: Icon, title, description, endpoint, label, templa
       )}
 
       <ResultCard result={result} label={label} />
+      {showSuccessModal && (
+        <ImportSuccessModal result={result} label={label} fileName={file?.name || 'fichier.xlsx'} onClose={() => setShowSuccessModal(false)} />
+      )}
     </div>
   );
 }
