@@ -323,7 +323,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [energiaStats, setEnergiaStats] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ status: '', search: '', superviseur: '', developpeur: '' });
+  const [filters, setFilters] = useState({ status: '', search: '', superviseur: '', developpeur: '', zone: '' });
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   // Détecter si l'utilisateur est un développeur
@@ -428,6 +428,11 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         `${p.submitted_by?.nom} ${p.submitted_by?.prenom||''}`.toLowerCase() !== filters.superviseur.toLowerCase()) return false;
     if (filters.developpeur && p.visit_assigned_to &&
         `${p.visit_assigned_to?.nom} ${p.visit_assigned_to?.prenom||''}`.toLowerCase() !== filters.developpeur.toLowerCase()) return false;
+    // Filtre par zone du PDV activé
+    if (filters.zone && p.activated_pdv) {
+      const pdvZone = (p.activated_pdv?.zone || p.zone || '').toLowerCase();
+      if (!pdvZone.includes(filters.zone.toLowerCase())) return false;
+    }
     return true;
   });
 
@@ -813,7 +818,15 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         <input
           placeholder="Rechercher (réf, nom, téléphone, quartier)..."
           value={filters.search}
-          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+          onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}/>
+        <select value={filters.zone} onChange={e => setFilters(f => ({ ...f, zone: e.target.value }))}
+          style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 8, color: filters.zone ? '#FF6900' : '#8a8a9a', fontSize: 13, cursor: 'pointer', minWidth: 140 }}>
+          <option value="">📍 Toutes les zones</option>
+          {['ZONE A','ZONE B','ZONE C','ZONE D','ZONE E','AU BUREAU'].map(z => (
+            <option key={z} value={z}>{z}</option>
+          ))}
+        </select>
+        <input style={{ display:'none' }}
           style={{ flex: 2, minWidth: 180 }}
         />
         <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} style={{ flex: 1, minWidth: 130 }}>
@@ -830,7 +843,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
           <option value="">— Développeur —</option>
           {developpeurs.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
-        {(filters.status || filters.search || filters.superviseur || filters.developpeur) && (
+        {(filters.status || filters.search || filters.superviseur || filters.developpeur || filters.zone) && (
           <button onClick={() => setFilters({ status:'', search:'', superviseur:'', developpeur:'' })}
             style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'6px 12px', color:'#94a3b8', cursor:'pointer', fontSize:12, whiteSpace:'nowrap' }}>
             ✕ Réinitialiser
@@ -843,6 +856,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         {filtered.length} demande{filtered.length > 1 ? 's' : ''} affichée{filtered.length > 1 ? 's' : ''}
         {filters.status && <span style={{ color: '#FF6900', marginLeft: 6 }}>· filtrée par statut</span>}
         {filters.superviseur && <span style={{ color: '#FF6900', marginLeft: 6 }}>· superviseur: {filters.superviseur}</span>}
+        {filters.zone && <span style={{ color: '#FF6900', marginLeft: 6 }}>· zone: {filters.zone}</span>}
         {filters.developpeur && <span style={{ color: '#FF6900', marginLeft: 6 }}>· développeur: {filters.developpeur}</span>}
       </div>
 
