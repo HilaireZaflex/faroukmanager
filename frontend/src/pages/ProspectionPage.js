@@ -312,6 +312,9 @@ const KPI_STATUS_MAP = {
 
 function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [typeVue, setTypeVue] = useState('OM'); // 'OM' | 'ENERGIA'
+  const [periode, setPeriode] = useState('tout');
+  const [dateDebut, setDateDebut] = useState('');
+  const [dateFin, setDateFin] = useState('');
   const [prospects, setProspects] = useState([]);
   const [allProspects, setAllProspects] = useState([]);
   const [energiaProspects, setEnergiaProspects] = useState([]);
@@ -381,6 +384,26 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     } catch (e) { alert('Erreur suppression : ' + (e?.response?.data?.detail || e.message)); }
   };
 
+  // Calcul de la plage de dates selon la période
+  const today = new Date();
+  const getPeriodeDates = () => {
+    if (periode === 'aujourd_hui') {
+      const d = today.toISOString().slice(0,10);
+      return { debut: d, fin: d };
+    }
+    if (periode === 'cette_semaine') {
+      const day = today.getDay() || 7;
+      const lundi = new Date(today); lundi.setDate(today.getDate() - day + 1);
+      return { debut: lundi.toISOString().slice(0,10), fin: today.toISOString().slice(0,10) };
+    }
+    if (periode === 'ce_mois') {
+      return { debut: `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-01`, fin: today.toISOString().slice(0,10) };
+    }
+    if (periode === 'custom') return { debut: dateDebut, fin: dateFin };
+    return { debut: null, fin: null };
+  };
+  const { debut: filterDebut, fin: filterFin } = getPeriodeDates();
+
   // Filtrage local — si développeur : seulement ses propres prospects
   const filtered = allProspects.filter(p => {
     // Filtre développeur : ne voir que ses propres prospects
@@ -392,6 +415,13 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         ? `${p.submitted_by.nom || ''} ${p.submitted_by.prenom || ''}`.trim().toLowerCase()
         : '';
       if (assignedName !== devFullName && submittedName !== devFullName) return false;
+    }
+    // Filtre période — basé sur submitted_at
+    if (filterDebut || filterFin) {
+      const dateP = p.submitted_at ? p.submitted_at.slice(0,10) : null;
+      if (!dateP) return false;
+      if (filterDebut && dateP < filterDebut) return false;
+      if (filterFin && dateP > filterFin) return false;
     }
     if (filters.superviseur && p.submitted_by?.role === 'superviseur' &&
         `${p.submitted_by?.nom} ${p.submitted_by?.prenom||''}`.toLowerCase() !== filters.superviseur.toLowerCase()) return false;
@@ -643,6 +673,53 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
       {/* ══ VUE PUCE OM ══════════════════════════════════════════════════════ */}
       {typeVue === 'OM' && <>
+
+      {/* ── Filtre Période ── */}
+      <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 12, padding: '12px 16px', marginBottom: 14 }}>
+        <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+          🗓️ Période d'analyse —{' '}
+          <span style={{ color: '#FF6900' }}>
+            {periode === 'aujourd_hui' ? "Aujourd'hui" : periode === 'cette_semaine' ? 'Cette semaine' : periode === 'ce_mois' ? 'Ce mois' : periode === 'custom' ? `${dateDebut||'...'} → ${dateFin||'...'}` : 'Toute la période'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            { key: 'tout',          label: 'Tout' },
+            { key: 'aujourd_hui',   label: "☀️ Aujourd'hui" },
+            { key: 'cette_semaine', label: '📆 Cette semaine' },
+            { key: 'ce_mois',       label: '🗓️ Ce mois' },
+            { key: 'custom',        label: '🔧 Personnalisé' },
+          ].map(p => (
+            <button key={p.key} onClick={() => setPeriode(p.key)}
+              style={{ padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all 0.2s',
+                background: periode === p.key ? '#FF6900' : 'rgba(255,255,255,0.05)',
+                color: periode === p.key ? '#fff' : '#8a8a9a',
+                boxShadow: periode === p.key ? '0 4px 12px rgba(255,105,0,0.3)' : 'none' }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {periode === 'custom' && (
+          <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Du :</label>
+              <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
+                style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, colorScheme: 'dark' }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Au :</label>
+              <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
+                style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, colorScheme: 'dark' }} />
+            </div>
+            {(dateDebut || dateFin) && (
+              <button onClick={() => { setDateDebut(''); setDateFin(''); }}
+                style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.1)', color: '#ff4757', cursor: 'pointer', fontSize: 12 }}>
+                ✕ Effacer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* KPIs cliquables */}
       {displayStats && (
