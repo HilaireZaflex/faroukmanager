@@ -430,19 +430,22 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     return true;
   });
 
-  // KPIs filtrés pour les développeurs
-  const devStats = isDeveloppeur && stats ? {
+  // KPIs recalculés depuis filtered (respecte filtre développeur + filtre période)
+  const filteredStats = stats ? {
     ...stats,
     total: filtered.length,
     nouvelles: filtered.filter(p => p.status === 'NOUVELLE').length,
     en_visite: filtered.filter(p => p.status === 'EN_VISITE').length,
-    en_attente_rc: filtered.filter(p => p.status === 'VISITE_VALIDEE').length,
+    en_attente_rc: filtered.filter(p => p.status === 'VALIDEE_DEV').length,
     puce_attribuees: filtered.filter(p => p.status === 'PUCE_ATTRIBUEE').length,
     activees: filtered.filter(p => p.status === 'PUCE_ACTIVEE').length,
-    refusees: filtered.filter(p => p.status === 'REFUSE').length,
-  } : stats;
+    refusees: filtered.filter(p => p.status === 'REFUSEE_RC').length,
+    sla_en_retard: filtered.filter(p => p.status === 'PUCE_ATTRIBUEE').length,
+    taux_activation: filtered.length > 0 ? Math.round(filtered.filter(p => p.status === 'PUCE_ACTIVEE').length / filtered.length * 100) : 0,
+  } : null;
 
-  const displayStats = isDeveloppeur ? devStats : stats;
+  // Toujours utiliser les stats filtrées (période + dev + recherche)
+  const displayStats = filteredStats;
 
   // Extraire superviseurs et développeurs uniques depuis la liste
   const superviseurs = [...new Set(allProspects
