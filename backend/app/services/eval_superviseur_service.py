@@ -204,11 +204,12 @@ def generer_pdvs_mystery(db: Session, superviseur: str, nb: int = 5, exclus: Lis
     Exclut les PDVs déjà appelés (injoignables).
     """
     exclus = exclus or []
-    pdvs = db.query(PDV).filter(
+    q = db.query(PDV).filter(
         PDV.superviseur.ilike(f"%{superviseur}%"),
-        PDV.numero_pdv.notin_(exclus) if exclus else True,
-        PDV.telephone.isnot(None),
-    ).all()
+    )
+    if exclus:
+        q = q.filter(PDV.numero_pdv.notin_(exclus))
+    pdvs = q.all()
 
     if len(pdvs) <= nb:
         selected = pdvs
@@ -219,12 +220,14 @@ def generer_pdvs_mystery(db: Session, superviseur: str, nb: int = 5, exclus: Lis
         {
             "numero_pdv": p.numero_pdv,
             "nom": p.nom,
-            "nom_gerant": p.nom_gerant,
-            "numero_flotte": p.telephone,         # Numéro Flotte Orange
-            "numero_personnel": str(int(float(p.numero_personnel))) if p.numero_personnel else None,  # Numéro Personnel
-            "telephone": p.telephone,             # Alias pour compatibilité
+            "nom_gerant": getattr(p, 'nom_gerant', None),
+            # Le numero_pdv EST le numéro flotte Orange (ex: 77995927)
+            "numero_flotte": str(p.numero_pdv) if p.numero_pdv else None,
+            # numero_personnel = numéro personnel du gérant
+            "numero_personnel": str(p.numero_personnel).strip() if p.numero_personnel else None,
+            "telephone": str(p.numero_pdv) if p.numero_pdv else None,  # alias
             "quartier": p.quartier,
-            "localite": p.commune,
+            "localite": getattr(p, 'commune', None),
             "zone": p.zone,
             "superviseur": p.superviseur,
             "teleconseillere": p.teleconseillere,
@@ -239,14 +242,7 @@ def generer_pdvs_presentiel(db: Session, superviseur: str, nb: int = 5) -> List[
     """Génère N PDVs aléatoires pour le test de maîtrise en présentiel."""
     pdvs = db.query(PDV).filter(
         PDV.superviseur.ilike(f"%{superviseur}%"),
-        PDV.adresse.isnot(None),
     ).all()
-
-    if not pdvs:
-        # Fallback: prendre tous les PDVs même sans adresse
-        pdvs = db.query(PDV).filter(
-            PDV.superviseur.ilike(f"%{superviseur}%"),
-        ).all()
 
     if len(pdvs) <= nb:
         selected = pdvs
@@ -257,10 +253,12 @@ def generer_pdvs_presentiel(db: Session, superviseur: str, nb: int = 5) -> List[
         {
             "numero_pdv": p.numero_pdv,
             "nom": p.nom,
-            "telephone": p.telephone,
+            "numero_flotte": str(p.numero_pdv) if p.numero_pdv else None,
+            "numero_personnel": str(p.numero_personnel).strip() if p.numero_personnel else None,
+            "telephone": str(p.numero_pdv) if p.numero_pdv else None,
             "quartier": p.quartier,
-            "adresse": p.adresse or "—",
-            "flotte": p.telephone,
+            "adresse": getattr(p, 'adresse', None) or p.quartier or "—",
+            "flotte": str(p.numero_pdv) if p.numero_pdv else None,
         }
         for p in selected
     ]
