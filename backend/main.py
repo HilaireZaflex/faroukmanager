@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 import asyncio
 import time
 
@@ -28,6 +30,11 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="Système de gestion intelligente du réseau PDV - Orange Mali"
 )
+
+# Servir les fichiers uploadés comme fichiers statiques
+os.makedirs("uploads/energia", exist_ok=True)
+os.makedirs("uploads/prospects", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
