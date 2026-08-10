@@ -342,6 +342,118 @@ def calculer_score(
 
 # ─── Classement tous superviseurs ─────────────────────────────────────────────
 
+@router.post("/eval-superviseurs/lancer-tous")
+def lancer_evaluation_tous(
+    annee: int = Body(...),
+    mois: int = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lance l'évaluation pour TOUS les superviseurs actifs en une fois (J-1)."""
+    superviseurs = [s for s in svc.get_liste_superviseurs(db) if s and s != '#VALUE!']
+    resultats = []
+    for superviseur in superviseurs:
+        try:
+            kpis = svc.get_kpis_superviseur(db, superviseur, annee, mois)
+            if kpis.get('nb_pdv', 0) < 5:
+                continue  # Ignorer superviseurs avec moins de 5 PDVs
+            pdvs_mystery = svc.generer_pdvs_mystery(db, superviseur, 5)
+            pdvs_presentiel = svc.generer_pdvs_presentiel(db, superviseur, 5)
+
+            existing = db.query(EvalSuperviseur).filter(
+                EvalSuperviseur.superviseur == superviseur,
+                EvalSuperviseur.annee == annee,
+                EvalSuperviseur.mois == mois,
+            ).first()
+
+            if existing:
+                existing.kpis_data = kpis
+                existing.score_kpi = kpis['score_kpi_global']
+                existing.pdvs_mystery_generes = pdvs_mystery
+                existing.pdvs_presentiel_generes = pdvs_presentiel
+                existing.statut = 'EN_COURS'
+                existing.mystery_calls = []
+                existing.note_maitrise_pdv = None
+                existing.note_maitrise_zone = None
+                existing.score_final = None
+                existing.created_by = current_user.id
+            else:
+                db.add(EvalSuperviseur(
+                    superviseur=superviseur, annee=annee, mois=mois,
+                    kpis_data=kpis, score_kpi=kpis['score_kpi_global'],
+                    pdvs_mystery_generes=pdvs_mystery,
+                    pdvs_presentiel_generes=pdvs_presentiel,
+                    mystery_calls=[], statut='EN_COURS',
+                    created_by=current_user.id,
+                ))
+            resultats.append({"superviseur": superviseur, "nb_pdv_mystery": len(pdvs_mystery), "score_kpi": kpis['score_kpi_global']})
+        except Exception as e:
+            resultats.append({"superviseur": superviseur, "erreur": str(e)})
+
+    db.commit()
+
+    # Grouper les PDVs mystery par TC pour notification
+    tc_listes = {}
+    for r in resultats:
+        if 'erreur' not in r:
+            eval_obj = db.query(EvalSuperviseur).filter(
+                EvalSuperviseur.superviseur == r['superviseur'],
+                EvalSuperviseur.annee == annee,
+                EvalSuperviseur.mois == mois,
+            ).first()
+            if eval_obj and eval_obj.pdvs_mystery_generes:
+                for pdv in eval_obj.pdvs_mystery_generes:
+                    tc = pdv.get('teleconseillere') or 'Non assignée'
+                    if tc not in tc_listes:
+                        tc_listes[tc] = []
+                    tc_listes[tc].append({
+                        "superviseur": r['superviseur'],
+                        "pdv": pdv,
+                    })
+
+    return {
+        "success": True,
+        "nb_superviseurs": len(resultats),
+        "nb_evalues": len([r for r in resultats if 'erreur' not in r]),
+        "superviseurs": resultats,
+        "tc_listes": tc_listes,  # Liste par TC des PDVs à appeler
+    }
+
+
+@router.get("/eval-superviseurs/ma-liste-mystery")
+def ma_liste_mystery(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne la liste des PDVs à appeler pour la TC connectée."""
+    tc_nom = f"{current_user.nom or ''}".strip()
+    # Chercher dans toutes les évaluations du mois
+    evals = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+        EvalSuperviseur.statut == 'EN_COURS',
+    ).all()
+
+    ma_liste = []
+    for e in evals:
+        for pdv in (e.pdvs_mystery_generes or []):
+            tc = (pdv.get('teleconseillere') or '').lower()
+            if tc_nom.lower() in tc or tc in tc_nom.lower():
+                # Vérifier si déjà appelé
+                call = next((c for c in (e.mystery_calls or []) if c['numero_pdv'] == pdv['numero_pdv']), None)
+                ma_liste.append({
+                    "superviseur": e.superviseur,
+                    "pdv": pdv,
+                    "statut_appel": call['statut'] if call else None,
+                    "notes": call if call else None,
+                    "eval_id": e.id,
+                })
+
+    return {"tc_nom": tc_nom, "total": len(ma_liste), "liste": ma_liste}
+
+
 @router.get("/eval-superviseurs/classement/tous")
 def classement_superviseurs(
     annee: int = Query(...),

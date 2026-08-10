@@ -88,16 +88,22 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     moy_ca_omy = round(ca_omy / nb_actif_omy, 0) if nb_actif_omy else 0
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
+    # Commissions depuis MonthlyPerformance (commission_pdg = commission agent réelle)
     try:
-        from app.models.commission import CommissionEntry
-        period_key = f"{annee}-{str(mois).zfill(2)}"
-        comm_rows = db.query(CommissionEntry).filter(
-            CommissionEntry.superviseur.ilike(f"%{superviseur}%"),
-            CommissionEntry.period_key == period_key,
-            CommissionEntry.period_type == 'MONTHLY',
-        ).all()
-        commission_omy = sum(c.montant_reseau or 0 for c in comm_rows)
-        moy_commission = round(commission_omy / len(comm_rows), 0) if comm_rows else 0
+        comm_perf = db.query(
+            func.sum(MonthlyPerformance.commission_pdg).label("total_comm"),
+            func.count(MonthlyPerformance.id).label("nb")
+        ).filter(
+            MonthlyPerformance.annee == annee,
+            MonthlyPerformance.mois == mois,
+            MonthlyPerformance.indicateur == 'OMY',
+            MonthlyPerformance.pdv_id.in_(
+                db.query(PDV.id).filter(PDV.superviseur.ilike(f"%{superviseur}%"))
+            )
+        ).first()
+        commission_omy = int(comm_perf.total_comm or 0)
+        nb_comm = int(comm_perf.nb or 0)
+        moy_commission = round(commission_omy / nb_comm, 0) if nb_comm else 0
     except Exception as e:
         commission_omy = 0
         moy_commission = 0
@@ -213,9 +219,15 @@ def generer_pdvs_mystery(db: Session, superviseur: str, nb: int = 5, exclus: Lis
         {
             "numero_pdv": p.numero_pdv,
             "nom": p.nom,
-            "telephone": p.telephone,
+            "nom_gerant": p.nom_gerant,
+            "numero_flotte": p.telephone,         # Numéro Flotte Orange
+            "numero_personnel": str(int(float(p.numero_personnel))) if p.numero_personnel else None,  # Numéro Personnel
+            "telephone": p.telephone,             # Alias pour compatibilité
             "quartier": p.quartier,
             "localite": p.commune,
+            "zone": p.zone,
+            "superviseur": p.superviseur,
+            "teleconseillere": p.teleconseillere,
         }
         for p in selected
     ]

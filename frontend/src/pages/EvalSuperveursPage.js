@@ -154,7 +154,11 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>{pdv.nom || pdv.numero_pdv}</div>
-                  <div style={{ fontSize: 11, color: '#8a8a9a' }}>📞 {pdv.telephone || '—'} · {pdv.quartier || pdv.localite || '—'}</div>
+                  <div style={{ fontSize: 11, color: '#8a8a9a', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <span>🟠 <strong style={{ color: '#FF6900' }}>{pdv.numero_flotte || pdv.telephone || '—'}</strong></span>
+                  {pdv.numero_personnel && <span>📱 <strong style={{ color: '#ffa502' }}>{pdv.numero_personnel}</strong></span>}
+                  {(pdv.quartier || pdv.localite) && <span>📍 {pdv.quartier || pdv.localite}</span>}
+                </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {!appele && (
@@ -290,7 +294,10 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
             <div key={i} style={{ padding: '10px 12px', background: 'rgba(255,105,0,0.05)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 12, color: '#FF6900' }}>PDV {i+1}</div>
               <div style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>{p.nom || p.numero_pdv}</div>
-              <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 2 }}>📞 Flotte: <strong style={{ color: '#ffa502' }}>{p.telephone || p.flotte || '—'}</strong></div>
+              <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 2 }}>
+                <div>🟠 Flotte: <strong style={{ color: '#FF6900' }}>{p.telephone || p.numero_flotte || '—'}</strong></div>
+                {p.numero_personnel && <div>📱 Personnel: <strong style={{ color: '#ffa502' }}>{p.numero_personnel}</strong></div>}
+              </div>
               <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>Réponse attendue: {p.adresse || p.quartier || '—'}</div>
             </div>
           ))}
@@ -386,6 +393,24 @@ export default function EvalSuperveursPage() {
           <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
             Période évaluée : <strong style={{ color: '#FF6900' }}>{MOIS_NOMS[mois]} {annee}</strong> · 
             KPIs 70% · Mystery TC 20% · Présentiel 10%
+          </p>
+        </div>
+        <div>
+          <button onClick={() => {
+            if (!window.confirm(`Lancer l'évaluation pour TOUS les superviseurs en ${MOIS_NOMS[mois]} ${annee} ?\nLes TC recevront automatiquement leurs listes de PDVs à appeler.`)) return;
+            api.post('/eval-superviseurs/lancer-tous', { annee, mois })
+              .then(r => {
+                alert(`✅ Évaluation lancée pour ${r.data.nb_evalues} superviseurs !\nLes TC ont reçu leurs listes d'appels.`);
+                qc.invalidateQueries(['eval-classement']);
+                qc.invalidateQueries(['eval-superviseurs-list']);
+              })
+              .catch(e => alert('Erreur: ' + e.message));
+          }}
+            style={{ padding: '12px 24px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 20px rgba(255,105,0,0.35)' }}>
+            🚀 Lancer l'évaluation pour tous les superviseurs
+          </button>
+          <p style={{ fontSize: 11, color: '#64748b', marginTop: 6, textAlign: 'right' }}>
+            J-1 : Lance l'éval + notifie les TC automatiquement
           </p>
         </div>
       </div>
