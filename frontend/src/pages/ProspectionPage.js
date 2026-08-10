@@ -2522,6 +2522,7 @@ function CreateProspectModal({ onClose, onSaved }) {
     piece_identite: '',
     notes: '',
   });
+  const [energiaPieces, setEnergiaPieces] = useState([]); // Array de fichiers images
 
   const [busy, setBusy] = useState(false);
   const [successData, setSuccessData] = useState(null);
@@ -2560,8 +2561,26 @@ function CreateProspectModal({ onClose, onSaved }) {
         piece_identite: energiaData.piece_identite || null,
         notes: energiaData.notes || null,
       };
-      await api.post('/energia/prospects', payload);
+      const resp = await api.post('/energia/prospects', payload);
+      const prospectId = resp.data?.id;
+
+      // Upload des pièces justificatives (multi-images)
+      if (prospectId && energiaPieces.length > 0) {
+        for (const file of energiaPieces) {
+          try {
+            const fd = new FormData();
+            fd.append('file', file);
+            await api.post(`/energia/prospects/${prospectId}/pieces`, fd, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+            });
+          } catch (uploadErr) {
+            console.warn('Erreur upload pièce:', file.name, uploadErr);
+          }
+        }
+      }
+
       setSuccessData({ prenom: energiaData.prenom, nom: energiaData.nom, type: 'ENERGIA' });
+      setEnergiaPieces([]);
       onSaved();
     } catch (err) {
       alert('Erreur : ' + errMsg(err));
@@ -2770,6 +2789,61 @@ function CreateProspectModal({ onClose, onSaved }) {
                 <AFI placeholder="Ex: CNI 123456789 ou RCCM ML-BKO-2024-A-12345" value={energiaData.piece_identite} onChange={e => setE('piece_identite', e.target.value)}/>
               </AFL>
             </ASection>
+
+            {/* PHOTOS DES PIECES */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: 'rgba(34,197,94,0.2) 1px solid' }}>
+                <span style={{ fontSize: 16 }}>📸</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '1px' }}>Photos / Scans des pièces</span>
+                <span style={{ fontSize: 11, color: '#64748b', marginLeft: 4 }}>(optionnel · plusieurs images acceptées)</span>
+              </div>
+              {/* Zone de drop / clic pour sélectionner plusieurs images */}
+              <div
+                onClick={() => document.getElementById('energia-pieces-input').click()}
+                style={{ border: '2px dashed rgba(34,197,94,0.35)', borderRadius: 12, padding: '20px', textAlign: 'center', cursor: 'pointer', background: energiaPieces.length > 0 ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.02)', transition: 'all 0.2s' }}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => {
+                  e.preventDefault();
+                  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+                  setEnergiaPieces(prev => [...prev, ...files]);
+                }}>
+                <input
+                  id="energia-pieces-input"
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const files = Array.from(e.target.files);
+                    setEnergiaPieces(prev => [...prev, ...files]);
+                    e.target.value = '';
+                  }}
+                />
+                {energiaPieces.length === 0 ? (
+                  <div>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>📎</div>
+                    <div style={{ fontSize: 13, color: '#22c55e', fontWeight: 700 }}>Cliquer ou glisser les images ici</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>CNI, RCCM, reçus... · JPG, PNG, PDF · Plusieurs fichiers acceptés</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 13, color: '#22c55e', fontWeight: 700, marginBottom: 8 }}>✅ {energiaPieces.length} fichier{energiaPieces.length > 1 ? 's' : ''} sélectionné{energiaPieces.length > 1 ? 's' : ''}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                      {energiaPieces.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '4px 10px', fontSize: 11 }}>
+                          <span>{f.type.startsWith('image/') ? '🖼️' : '📄'}</span>
+                          <span style={{ color: '#22c55e', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                          <span style={{ color: '#64748b' }}>({(f.size/1024).toFixed(0)}Ko)</span>
+                          <button type="button" onClick={e => { e.stopPropagation(); setEnergiaPieces(prev => prev.filter((_, j) => j !== i)); }}
+                            style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>Cliquer pour ajouter d'autres fichiers</div>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* NOTES */}
             <div style={{ marginBottom: 20 }}>

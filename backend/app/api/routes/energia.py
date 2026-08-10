@@ -148,6 +148,37 @@ def update_energia_prospect(
     return _fmt(p)
 
 
+@router.post("/energia/prospects/{prospect_id}/pieces")
+async def upload_piece_energia(
+    prospect_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload une pièce justificative (image/PDF) pour un prospect Energia."""
+    import os, uuid, shutil
+    from pathlib import Path
+
+    p = db.query(ProspectEnergia).filter(ProspectEnergia.id == prospect_id).first()
+    if not p:
+        raise HTTPException(404, "Prospect Energia non trouvé")
+
+    # Dossier de stockage
+    upload_dir = Path("uploads/energia") / str(prospect_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    # Générer un nom unique
+    ext = os.path.splitext(file.filename or "file")[1] or ".jpg"
+    filename = f"{uuid.uuid4().hex[:8]}{ext}"
+    filepath = upload_dir / filename
+
+    contents = await file.read()
+    with open(filepath, "wb") as f_out:
+        f_out.write(contents)
+
+    return {"success": True, "filename": filename, "path": str(filepath)}
+
+
 @router.delete("/energia/prospects/{prospect_id}")
 def delete_energia_prospect(
     prospect_id: int,
