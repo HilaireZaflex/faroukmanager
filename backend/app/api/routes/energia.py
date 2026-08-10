@@ -2,7 +2,7 @@
 Routes API Vente Energia — Prospection kits solaires DIABARANI / YELEN
 Prefix: /api/energia
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.core.database import get_db
