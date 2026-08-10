@@ -148,6 +148,29 @@ def update_energia_prospect(
     return _fmt(p)
 
 
+@router.get("/energia/prospects/{prospect_id}/pieces")
+def list_pieces_energia(
+    prospect_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lister les pièces justificatives d'un prospect Energia."""
+    import os
+    from pathlib import Path
+    upload_dir = Path("uploads/energia") / str(prospect_id)
+    if not upload_dir.exists():
+        return []
+    files = []
+    for f in sorted(upload_dir.iterdir()):
+        if f.is_file():
+            files.append({
+                "filename": f.name,
+                "size_bytes": f.stat().st_size,
+                "url": f"/uploads/energia/{prospect_id}/{f.name}",
+            })
+    return files
+
+
 @router.post("/energia/prospects/{prospect_id}/pieces")
 async def upload_piece_energia(
     prospect_id: int,

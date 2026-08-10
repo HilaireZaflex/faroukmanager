@@ -314,6 +314,79 @@ const KPI_STATUS_MAP = {
 
 // ─── Modal de modification d'une demande (Commercial/Développeur) ─────────────
 
+
+// ─── Modal affichage pièces Energia ──────────────────────────────────────────
+function PiecesEnergiaModal({ prospect, onClose }) {
+  const { useState: useSt, useEffect: useEff } = React;
+  const [pieces, setPieces] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const BACKEND = 'https://faroukmanager-backend-production-feb9.up.railway.app';
+
+  React.useEffect(() => {
+    api.get(`/energia/prospects/${prospect.id}/pieces`)
+      .then(r => setPieces(r.data || []))
+      .catch(() => setPieces([]))
+      .finally(() => setLoading(false));
+  }, [prospect.id]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={onClose}>
+      <div style={{ background: 'linear-gradient(135deg,#0f0f1e,#1a1a2e)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 16, width: '90%', maxWidth: 640, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(34,197,94,0.2)' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>📎 Pièces Jointes — {prospect.reference}</div>
+            <div style={{ fontSize: 11, color: '#22c55e', marginTop: 2 }}>{prospect.prenom} {prospect.nom} · Kit {prospect.nom_kit}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8', fontSize: 16 }}>✕</button>
+        </div>
+        {/* Contenu */}
+        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement...</div>
+          ) : !pieces.length ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8a8a9a' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
+              <p style={{ fontWeight: 600 }}>Aucune pièce jointe</p>
+              <p style={{ fontSize: 13, marginTop: 8 }}>Le commercial n'a pas encore uploadé de pièces pour ce prospect.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+              {pieces.map((p, i) => {
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(p.filename || '');
+                const fileUrl = `${BACKEND}/uploads/energia/${prospect.id}/${p.filename}`;
+                return (
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, overflow: 'hidden' }}>
+                    {/* Aperçu */}
+                    <div style={{ height: 140, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                      {isImage ? (
+                        <img src={fileUrl} alt={p.filename}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={e => { e.target.style.display='none'; }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 40 }}>📄</span>
+                      )}
+                    </div>
+                    {/* Info */}
+                    <div style={{ padding: '8px 10px' }}>
+                      <div style={{ fontSize: 11, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 6 }}>{p.filename}</div>
+                      <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'block', padding: '5px 8px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 6, color: '#22c55e', fontSize: 11, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
+                        👁️ Voir
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal de modification d'un prospect Energia ─────────────────────────────
 function EditEnergiaModal({ prospect, onClose, onSaved }) {
   const [data, setData] = useState({
@@ -510,6 +583,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [editProspect, setEditProspect] = useState(null); // Prospect en cours de modification
   const [editEnergiaProspect, setEditEnergiaProspect] = useState(null); // Prospect Energia en cours de modification
+  const [viewPiecesEnergia, setViewPiecesEnergia] = useState(null); // Prospect Energia dont on voit les pièces
 
   // Détecter si l'utilisateur est un développeur
   const isDeveloppeur = ['developpeur', 'DEVELOPPEUR'].includes(currentUser?.role);
@@ -851,7 +925,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      {['Réf.','Kit','Client','Téléphone','Quartier','Prêt payer','Date','GPS',...(canDelete?['Action']:[])].map(h => (
+                      {['Réf.','Kit','Client','Téléphone','Quartier','Prêt payer','Date','GPS','📎',...(canDelete?['Action']:[])].map(h => (
                         <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -887,6 +961,12 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                           ) : <span style={{ color: '#555' }}>—</span>}
                         </td>
                         <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <button onClick={() => setViewPiecesEnergia(p)}
+                            style={{ background: 'rgba(255,165,2,0.1)', border: '1px solid rgba(255,165,2,0.3)', borderRadius: 6, color: '#ffa502', padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>
+                            📎
+                          </button>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                           <div style={{ display:'flex', gap:4, justifyContent:'center' }}>
                             <button onClick={() => setEditEnergiaProspect(p)}
                               style={{ background: 'rgba(255,165,2,0.15)', border: '1px solid rgba(255,165,2,0.3)', borderRadius: 6, color: '#ffa502', padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>
@@ -908,6 +988,12 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
             </div>
           )}
         </div>
+      )}
+      {viewPiecesEnergia && (
+        <PiecesEnergiaModal
+          prospect={viewPiecesEnergia}
+          onClose={() => setViewPiecesEnergia(null)}
+        />
       )}
       {editEnergiaProspect && (
         <EditEnergiaModal
