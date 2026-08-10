@@ -512,6 +512,11 @@ export default function EvalSuperveursPage() {
     { onSuccess: () => { qc.invalidateQueries(['eval-sup', selectedSup]); qc.invalidateQueries(['eval-classement']); refetchEval(); setActiveTab('resultats'); } }
   );
 
+  // Détection rôle TC — APRÈS tous les hooks
+  const userAuth = useAuthStore(s => s.user);
+  const roleUser = (userAuth?.role || '').toLowerCase().replace('userrole.', '');
+  const isTelec = roleUser === 'teleconseillere';
+
   const supsFiltres = superviseurs.filter(s => s !== '#VALUE!' && (!searchSup || s.toLowerCase().includes(searchSup.toLowerCase())));
 
   const tabs = [
