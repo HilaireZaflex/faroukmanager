@@ -173,6 +173,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {can('indicateurs') && nl('/indicateurs',  Activity,    'Indicateurs')}
             {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}
             {can('evaluations') && nl('/evaluations',  Star,        'Évaluations')}
+            {can('evaluations') && nl('/evaluations/superviseurs', Star, '↳ Eval. Superviseurs')}
             {can('alerts')      && nl('/alerts',       Bell,        'Alertes')}
             {can('reseau')      && nl('/reseau',       Network,     'Gestion du Réseau')}
 

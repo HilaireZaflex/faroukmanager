@@ -63,12 +63,14 @@ from app.api.routes.nafama import router as nafama_router
 from app.api.routes.energia import router as energia_router
 from app.api.routes.indicateurs_award import router as award_router
 from app.api.routes.appels_tc import router as appels_tc_router
+from app.api.routes.eval_superviseurs import router as eval_sup_router
 from app.api.routes.kaabu import router as kaabu_router
 app.include_router(challenge_router, prefix="/api", tags=["Challenge Orange Awards"])
 app.include_router(nafama_router, prefix="/api", tags=["NAFAMA"])
 app.include_router(energia_router, prefix="/api", tags=["Vente Energia"])
 app.include_router(award_router, prefix="/api", tags=["Indicateurs Award"])
 app.include_router(appels_tc_router, prefix="/api", tags=["Appels TC"])
+app.include_router(eval_sup_router, prefix="/api", tags=["Evaluation Superviseurs"])
 app.include_router(kaabu_router, prefix="/api", tags=["KAABU Mobile"])
 app.include_router(auth.router, prefix="/api", tags=["Authentification"])
 app.include_router(pdv.router, prefix="/api", tags=["PDV"])
