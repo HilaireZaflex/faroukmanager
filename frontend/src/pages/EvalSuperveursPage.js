@@ -524,6 +524,7 @@ export default function EvalSuperveursPage() {
     ] : []),
   ];
 
+  // Vue TC : doit être APRÈS tous les hooks
   if (isTelec) {
     return (
       <div className="page">
@@ -531,11 +532,11 @@ export default function EvalSuperveursPage() {
           <div>
             <h1 className="page-title">📋 Mes Appels Évaluation</h1>
             <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
-              Période : <strong style={{ color: '#FF6900' }}>{MOIS_NOMS[evalMois]} {evalAnnee}</strong> · Appelez les PDVs assignés et renseignez les notes
+              Période : <strong style={{ color: '#FF6900' }}>{MOIS_NOMS[mois]} {annee}</strong> · Appelez les PDVs assignés et renseignez les notes
             </p>
           </div>
         </div>
-        <VueTeleconseillere annee={evalAnnee} mois={evalMois} />
+        <VueTeleconseillere annee={annee} mois={mois} />
       </div>
     );
   }
