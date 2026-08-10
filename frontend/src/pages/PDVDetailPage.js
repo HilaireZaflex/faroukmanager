@@ -389,6 +389,98 @@ function TabCourbes({ pdv }) {
   );
 }
 
+// ============ ONGLET PIÈCES JOINTES ============
+function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
+  const { useQuery } = require('react-query');
+  const api = require('../services/api').default;
+
+  // Charger les pièces du prospect OMY activé via ce PDV
+  const { data: pieces, isLoading } = useQuery(
+    ['pieces-pdv', pdvId, numeroPdv],
+    async () => {
+      // Chercher le prospect activé lié à ce PDV
+      const resp = await api.get(`/prospects?activated_pdv_numero=${numeroPdv}&status=PUCE_ACTIVEE&limit=10`);
+      const prospects = resp.data?.items || resp.data || [];
+      if (!prospects.length) return [];
+      // Charger les pièces du dernier prospect activé
+      const lastProspect = prospects[prospects.length - 1];
+      const piecesResp = await api.get(`/prospects/${lastProspect.id}/attachments`);
+      return piecesResp.data || [];
+    },
+    { staleTime: 60000, enabled: !!numeroPdv, retry: false }
+  );
+
+  const BACKEND = process.env.REACT_APP_API_BASE_URL?.replace('/api', '') || 'https://faroukmanager-backend-production-feb9.up.railway.app';
+  const KIND_LABELS = {
+    PHOTO_LOCAL_FACADE: '🏪 Facade du local',
+    PHOTO_LOCAL_INTERIEUR: '🏠 Intérieur du local',
+    PIECE_IDENTITE: '🪪 Pièce d\'identité',
+    AUTRE: '📎 Autre document',
+  };
+  const KIND_COLORS = {
+    PHOTO_LOCAL_FACADE: '#FF6900',
+    PHOTO_LOCAL_INTERIEUR: '#ffa502',
+    PIECE_IDENTITE: '#3742fa',
+    AUTRE: '#8a8a9a',
+  };
+
+  if (isLoading) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement des pièces...</div>;
+
+  if (!pieces?.length) return (
+    <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8a8a9a' }}>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>📎</div>
+      <p style={{ fontWeight: 600, fontSize: 15 }}>Aucune pièce jointe trouvée</p>
+      <p style={{ fontSize: 13, marginTop: 8 }}>Les pièces sont uploadées lors de l'activation de la puce par le développeur.</p>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16, padding: '10px 16px', background: 'rgba(255,105,0,0.06)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 10, fontSize: 13, color: '#FF6900' }}>
+        📎 <strong>{pieces.length} pièce{pieces.length > 1 ? 's' : ''} jointe{pieces.length > 1 ? 's' : ''}</strong> pour le PDV <strong>{nomPdv || numeroPdv}</strong>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+        {pieces.map((p, i) => {
+          const isImage = p.mime_type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(p.file_name);
+          const isPdf = p.mime_type === 'application/pdf' || /\.pdf$/i.test(p.file_name);
+          const fileUrl = `${BACKEND}/uploads/prospects/${p.file_path?.split('/').pop() || p.file_name}`;
+          const color = KIND_COLORS[p.kind] || '#8a8a9a';
+
+          return (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}30`, borderRadius: 12, overflow: 'hidden', borderTop: `3px solid ${color}` }}>
+              {/* Aperçu */}
+              <div style={{ height: 160, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+                {isImage ? (
+                  <img src={`${BACKEND}/uploads/prospects/${p.file_path?.split('/')?.slice(-2)?.join('/') || p.file_name}`}
+                    alt={p.file_name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                  />
+                ) : null}
+                <div style={{ display: isImage ? 'none' : 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: '#8a8a9a' }}>
+                  <span style={{ fontSize: 40 }}>{isPdf ? '📄' : '📎'}</span>
+                  <span style={{ fontSize: 11 }}>{p.file_name}</span>
+                </div>
+              </div>
+              {/* Info */}
+              <div style={{ padding: '10px 12px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{KIND_LABELS[p.kind] || p.kind}</div>
+                <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.file_name}</div>
+                {p.size_bytes && <div style={{ fontSize: 10, color: '#64748b' }}>{(p.size_bytes / 1024).toFixed(0)} Ko</div>}
+                <a href={`${BACKEND}/uploads/prospects/${p.file_path?.split('/')?.slice(-2)?.join('/') || p.file_name}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'block', marginTop: 8, padding: '6px 10px', background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 7, color, fontSize: 11, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
+                  👁️ Voir / Télécharger
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ============ ONGLET APPELS TC ============
 function TabAppelsTc({ numeroPdv, nomPdv }) {
   const { useQuery } = require('react-query');
@@ -781,6 +873,7 @@ export default function PDVDetailPage() {
     { id: 'performances', label: '📊 Performances' },
     { id: 'courbes', label: '📈 Courbes' },
     { id: 'nafama', label: '🟢 NAFAMA' },
+    { id: 'pieces', label: '📎 Pièces Jointes' },
     { id: 'appels', label: '📞 Appels TC' },
     { id: 'actions', label: '🎯 Actions Terrain' },
     { id: 'historique', label: '📜 Historique du PDV' },
@@ -841,6 +934,7 @@ export default function PDVDetailPage() {
         {activeTab === 'performances' && <TabPerformances pdv={pdv} />}
         {activeTab === 'courbes' && <TabCourbes pdv={pdv} />}
         {activeTab === 'nafama' && <TabNafama numeroPdv={pdv?.numero_pdv} />}
+        {activeTab === 'pieces' && <TabPiecesJointes pdvId={pdv?.id} numeroPdv={pdv?.numero_pdv} nomPdv={pdv?.nom} />}
         {activeTab === 'appels' && <TabAppelsTc numeroPdv={pdv?.numero_pdv} nomPdv={pdv?.nom} />}
         {activeTab === 'actions' && <TabActionsTerrain pdv={pdv} />}
       </div>

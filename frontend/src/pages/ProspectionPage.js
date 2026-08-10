@@ -311,6 +311,189 @@ const KPI_STATUS_MAP = {
   taux_activation: '__NONE__',   // non filtrable
 };
 
+
+// ─── Modal de modification d'une demande (Commercial/Développeur) ─────────────
+
+// ─── Modal de modification d'un prospect Energia ─────────────────────────────
+function EditEnergiaModal({ prospect, onClose, onSaved }) {
+  const [data, setData] = useState({
+    nom_kit: prospect?.nom_kit || '',
+    pret_payer_immediatement: prospect?.pret_payer_immediatement ?? null,
+    date_prospection: prospect?.date_prospection || '',
+    nom: prospect?.nom || '',
+    prenom: prospect?.prenom || '',
+    telephone: prospect?.telephone || '',
+    quartier: prospect?.quartier || '',
+    piece_identite: prospect?.piece_identite || '',
+    notes: prospect?.notes || '',
+  });
+  const [busy, setBusy] = useState(false);
+  const IS = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, width: '100%', boxSizing: 'border-box' };
+  const GREEN = '#22c55e';
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!data.nom_kit) return alert('Veuillez sélectionner un kit');
+    if (!data.nom || !data.prenom || !data.telephone) return alert('Nom, Prénom et Téléphone sont obligatoires');
+    setBusy(true);
+    try {
+      await api.patch(`/energia/prospects/${prospect.id}`, data);
+      onSaved();
+    } catch (err) { alert('Erreur : ' + errMsg(err)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, overflowY: 'auto', padding: '16px' }} onClick={onClose}>
+      <div style={{ background: 'linear-gradient(135deg, #0f0f1e, #1a1a2e)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 16, width: '100%', maxWidth: 560, margin: '0 auto 80px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px 14px', borderBottom: '1px solid rgba(34,197,94,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#22c55e,#16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✏️</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Modifier — {prospect?.reference}</div>
+              <div style={{ fontSize: 11, color: GREEN }}>Vente ENERGIA · {prospect?.nom_kit}</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8', fontSize: 16 }}>✕</button>
+        </div>
+        <form onSubmit={submit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Kit */}
+          <div>
+            <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>Kit *</label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {['DIABARANI','YELEN'].map(kit => (
+                <button key={kit} type="button" onClick={() => setData(d => ({ ...d, nom_kit: kit }))}
+                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: `2px solid ${data.nom_kit===kit?GREEN:'rgba(255,255,255,0.1)'}`, background: data.nom_kit===kit?'rgba(34,197,94,0.12)':'rgba(255,255,255,0.03)', color: data.nom_kit===kit?GREEN:'#94a3b8', fontWeight: 800, cursor: 'pointer' }}>
+                  {kit==='DIABARANI'?'🌞 DIABARANI':'💡 YELEN'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Prêt payer */}
+          <div>
+            <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>Prêt à payer immédiatement ?</label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {[{val:true,label:'✅ OUI',color:'#22c55e'},{val:false,label:'❌ NON',color:'#ef4444'}].map(opt => (
+                <button key={String(opt.val)} type="button" onClick={() => setData(d => ({ ...d, pret_payer_immediatement: opt.val }))}
+                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: `2px solid ${data.pret_payer_immediatement===opt.val?opt.color:'rgba(255,255,255,0.1)'}`, background: data.pret_payer_immediatement===opt.val?opt.color+'20':'rgba(255,255,255,0.03)', color: data.pret_payer_immediatement===opt.val?opt.color:'#94a3b8', fontWeight: 700, cursor: 'pointer' }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Infos client */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {[['nom','Nom *'],['prenom','Prénom *'],['telephone','Téléphone *'],['quartier','Quartier'],['date_prospection','Date'],['piece_identite','Pièce / RCCM']].map(([k,lbl]) => (
+              <div key={k}>
+                <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>{lbl}</label>
+                <input style={IS} type={k==='date_prospection'?'date':'text'} value={data[k]||''} onChange={e => setData(d => ({ ...d, [k]: e.target.value }))} required={lbl.includes('*')} />
+              </div>
+            ))}
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 5, textTransform: 'uppercase' }}>Notes</label>
+            <textarea style={{ ...IS, minHeight: 60, resize: 'vertical' }} value={data.notes||''} onChange={e => setData(d => ({ ...d, notes: e.target.value }))} />
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <button type="button" onClick={onClose} style={{ padding: '9px 20px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Annuler</button>
+            <button type="submit" disabled={busy} style={{ padding: '9px 24px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy?0.7:1 }}>
+              {busy ? '⏳ Enregistrement...' : '💾 Enregistrer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditProspectModal({ prospect, onClose, onSaved }) {
+  const [data, setData] = useState({
+    prenom: prospect?.prenom || '',
+    nom: prospect?.nom || '',
+    telephone_principal: prospect?.telephone_principal || '',
+    telephone_secondaire: prospect?.telephone_secondaire || '',
+    quartier: prospect?.quartier || '',
+    adresse: prospect?.adresse || '',
+    notes: prospect?.notes || '',
+    capital_demarrage: prospect?.capital_demarrage || '',
+    source_financement: prospect?.source_financement || '',
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setData(d => ({ ...d, [k]: v }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.patch(`/prospects/${prospect.id}`, data);
+      onSaved();
+      onClose();
+    } catch (err) { alert('Erreur : ' + errMsg(err)); }
+    finally { setBusy(false); }
+  };
+
+  const IS = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', padding: '8px 12px', fontSize: 13, width: '100%', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1000, overflowY: 'auto', padding: '16px' }} onClick={onClose}>
+      <div style={{ background: 'linear-gradient(135deg, #0f0f1e, #1a1a2e)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 16, width: '100%', maxWidth: 600, margin: '0 auto 80px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px 14px', borderBottom: '1px solid rgba(255,105,0,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#FF6900,#ff9500)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✏️</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>Modifier la demande — {prospect?.reference}</div>
+              <div style={{ fontSize: 11, color: '#FF6900' }}>Informations modifiables</div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#94a3b8', fontSize: 16 }}>✕</button>
+        </div>
+        <form onSubmit={submit} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Prénom *</label>
+              <input style={IS} value={data.prenom} onChange={e => set('prenom', e.target.value)} required />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Nom *</label>
+              <input style={IS} value={data.nom} onChange={e => set('nom', e.target.value)} required />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Téléphone Principal *</label>
+              <input style={IS} value={data.telephone_principal} onChange={e => set('telephone_principal', e.target.value)} required />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Téléphone Secondaire</label>
+              <input style={IS} value={data.telephone_secondaire} onChange={e => set('telephone_secondaire', e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Quartier</label>
+              <input style={IS} value={data.quartier} onChange={e => set('quartier', e.target.value)} placeholder="Quartier..." />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Capital Démarrage</label>
+              <input style={IS} value={data.capital_demarrage} onChange={e => set('capital_demarrage', e.target.value)} placeholder="Montant..." />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Adresse complète</label>
+            <input style={IS} value={data.adresse} onChange={e => set('adresse', e.target.value)} placeholder="Rue, bâtiment, repère..." />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Notes / Observations</label>
+            <textarea style={{ ...IS, minHeight: 70, resize: 'vertical' }} value={data.notes} onChange={e => set('notes', e.target.value)} placeholder="Informations complémentaires..." />
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <button type="button" onClick={onClose} style={{ padding: '9px 20px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Annuler</button>
+            <button type="submit" disabled={busy} style={{ padding: '9px 24px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.7 : 1 }}>
+              {busy ? '⏳ Enregistrement...' : '💾 Enregistrer les modifications'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [typeVue, setTypeVue] = useState('OM'); // 'OM' | 'ENERGIA'
   const [periode, setPeriode] = useState('tout');
@@ -325,6 +508,8 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ status: '', search: '', superviseur: '', developpeur: '', zone: '' });
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editProspect, setEditProspect] = useState(null); // Prospect en cours de modification
+  const [editEnergiaProspect, setEditEnergiaProspect] = useState(null); // Prospect Energia en cours de modification
 
   // Détecter si l'utilisateur est un développeur
   const isDeveloppeur = ['developpeur', 'DEVELOPPEUR'].includes(currentUser?.role);
@@ -701,14 +886,20 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                               style={{ fontSize: 11, color: '#22c55e', textDecoration: 'none' }}>📍 Voir</a>
                           ) : <span style={{ color: '#555' }}>—</span>}
                         </td>
-                        {canDelete && (
-                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                            <button onClick={() => deleteEnergia(p.id)}
-                              style={{ background: 'rgba(255,71,87,0.15)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
-                              🗑️
+                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                          <div style={{ display:'flex', gap:4, justifyContent:'center' }}>
+                            <button onClick={() => setEditEnergiaProspect(p)}
+                              style={{ background: 'rgba(255,165,2,0.15)', border: '1px solid rgba(255,165,2,0.3)', borderRadius: 6, color: '#ffa502', padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>
+                              ✏️
                             </button>
-                          </td>
-                        )}
+                            {canDelete && (
+                              <button onClick={() => deleteEnergia(p.id)}
+                                style={{ background: 'rgba(255,71,87,0.15)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}>
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -717,6 +908,13 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
             </div>
           )}
         </div>
+      )}
+      {editEnergiaProspect && (
+        <EditEnergiaModal
+          prospect={editEnergiaProspect}
+          onClose={() => setEditEnergiaProspect(null)}
+          onSaved={() => { setEditEnergiaProspect(null); reloadEnergia(); }}
+        />
       )}
 
       {/* ══ VUE PUCE OM ══════════════════════════════════════════════════════ */}
@@ -870,7 +1068,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                 <th>Référence</th><th>Prospect</th><th>Téléphone</th>
                 <th>Quartier</th><th>OM avant</th><th>Statut</th>
                 <th>Soumis le</th>
-                {canDelete && <th>Actions</th>}
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -912,20 +1110,33 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                       })()}
                     </td>
                     <td>{new Date(p.submitted_at).toLocaleDateString('fr-FR')}</td>
-                    {canDelete && (
-                      <td onClick={e => e.stopPropagation()}>
+                    <td onClick={e => e.stopPropagation()}>
+                      {['NOUVELLE','EN_VISITE'].includes(p.status) && (
+                        <button onClick={() => setEditProspect(p)}
+                          style={{ background: 'rgba(255,165,2,0.15)', color: '#ffa502', border: '1px solid rgba(255,165,2,0.3)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, marginRight: 4 }}>
+                          ✏️
+                        </button>
+                      )}
+                      {canDelete && (
                         <button onClick={e => handleDelete(e, p)}
                           style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>
                           🗑️
                         </button>
-                      </td>
-                    )}
+                      )}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+      )}
+      {editProspect && (
+        <EditProspectModal
+          prospect={editProspect}
+          onClose={() => setEditProspect(null)}
+          onSaved={() => { setEditProspect(null); reload(); }}
+        />
       )}
     </>} {/* fin typeVue OM */}
     </>
