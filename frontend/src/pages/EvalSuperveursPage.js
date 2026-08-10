@@ -8,7 +8,7 @@ import api from '../services/api';
 
 const MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
-function fmtN(v) { return v ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '0'; }
+function fmtN(v) { return v != null && v !== 0 ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—'; }
 function fmtPct(v) { return v != null ? `${Math.round(v * 10) / 10}%` : '—'; }
 
 const now = new Date();
@@ -122,8 +122,18 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
         </div>
       </div>
 
-      <div style={{ background: 'rgba(55,66,250,0.06)', border: '1px solid rgba(55,66,250,0.2)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#8a8a9a' }}>
-        💡 <strong style={{ color: '#fff' }}>Instructions :</strong> Appeler les 5 PDVs ci-dessous et poser 3 questions. Si injoignable, le système proposera un PDV de remplacement.
+      <div style={{ background: 'rgba(55,66,250,0.06)', border: '1px solid rgba(55,66,250,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 12 }}>
+        <div style={{ color: '#22c55e', fontWeight: 700, marginBottom: 6 }}>✅ Liste envoyée aux Téléconseillères</div>
+        <div style={{ color: '#8a8a9a' }}>
+          Les 5 PDVs à appeler ont été générés. Chaque TC a reçu la liste des PDVs de ses superviseurs à contacter.
+          <br/>Règles : <strong style={{ color: '#fff' }}>5 PDVs joignables obligatoires</strong> · 3 questions /10 chacune · PDV de remplacement si injoignable.
+        </div>
+        {joignables.length > 0 && (
+          <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(34,197,94,0.1)', borderRadius: 8, color: '#22c55e', fontWeight: 600 }}>
+            📞 Score actuel Mystery TC : <strong>{evaluation?.score_mystery != null ? Math.round(evaluation.score_mystery) + '/100' : 'En attente'}</strong>
+            {joignables.length > 0 && ` · ${joignables.length} appel(s) enregistré(s) sur 5`}
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -280,7 +290,7 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
             <div key={i} style={{ padding: '10px 12px', background: 'rgba(255,105,0,0.05)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 12, color: '#FF6900' }}>PDV {i+1}</div>
               <div style={{ fontSize: 12, color: '#fff', marginTop: 4 }}>{p.nom || p.numero_pdv}</div>
-              <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 2 }}>📞 {p.flotte || p.telephone || '—'}</div>
+              <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 2 }}>📞 Flotte: <strong style={{ color: '#ffa502' }}>{p.telephone || p.flotte || '—'}</strong></div>
               <div style={{ fontSize: 10, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>Réponse attendue: {p.adresse || p.quartier || '—'}</div>
             </div>
           ))}
@@ -479,9 +489,18 @@ export default function EvalSuperveursPage() {
           {activeTab === 'kpis' && selectedSup && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div>
                 <h2 style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>
                   📊 Évaluation : <span style={{ color: '#FF6900' }}>{selectedSup}</span>
                 </h2>
+                {evaluation?.kpis_data && (
+                  <div style={{ display: 'flex', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+                    {evaluation.kpis_data.zone && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(55,66,250,0.15)', color: '#5f6cf5' }}>📍 {evaluation.kpis_data.zone}</span>}
+                    {(evaluation.kpis_data.sous_zones||[]).map((sz,i) => <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,165,2,0.12)', color: '#ffa502' }}>🗺️ {sz}</span>)}
+                    {(evaluation.kpis_data.types_pdv||[]).map((t,i) => <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(0,214,143,0.12)', color: '#00d68f' }}>{t}</span>)}
+                  </div>
+                )}
+              </div>
                 {!evaluation ? (
                   <button onClick={() => initMutation.mutate()} disabled={initMutation.isLoading}
                     style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>

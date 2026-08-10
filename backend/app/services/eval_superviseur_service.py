@@ -90,14 +90,13 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
     try:
         from app.models.commission import CommissionEntry
+        period_key = f"{annee}-{str(mois).zfill(2)}"
         comm_rows = db.query(CommissionEntry).filter(
-            CommissionEntry.annee == annee,
-            CommissionEntry.mois == mois,
-            CommissionEntry.pdv_id.in_(
-                db.query(PDV.id).filter(PDV.superviseur.ilike(f"%{superviseur}%"))
-            )
+            CommissionEntry.superviseur.ilike(f"%{superviseur}%"),
+            CommissionEntry.period_key == period_key,
+            CommissionEntry.period_type == 'MONTHLY',
         ).all()
-        commission_omy = sum(c.commission_pdg or 0 for c in comm_rows)
+        commission_omy = sum(c.montant_reseau or 0 for c in comm_rows)
         moy_commission = round(commission_omy / len(comm_rows), 0) if comm_rows else 0
     except Exception as e:
         commission_omy = 0
@@ -158,10 +157,20 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     # Score KPI global = moyenne des scores
     score_kpi_global = round(sum(scores_kpi.values()) / len(scores_kpi), 2)
 
+    # Infos superviseur depuis les PDVs
+    pdv_sample = db.query(PDV).filter(PDV.superviseur.ilike(f"%{superviseur}%")).first()
+    sous_zones = list(set(p[0] for p in db.query(PDV.sous_zone).filter(PDV.superviseur.ilike(f"%{superviseur}%"), PDV.sous_zone.isnot(None)).all()))
+    zone_sup = pdv_sample.zone if pdv_sample else None
+    types_pdv = list(set(str(p[0].value if hasattr(p[0],'value') else p[0]) for p in db.query(PDV.type_pdv).filter(PDV.superviseur.ilike(f"%{superviseur}%"), PDV.type_pdv.isnot(None)).all() if p[0]))
+
     return {
         'superviseur': superviseur,
         'annee': annee,
         'mois': mois,
+        # Infos superviseur
+        'zone': zone_sup,
+        'sous_zones': sous_zones,
+        'types_pdv': types_pdv,
         # Valeurs brutes
         'nb_pdv': nb_pdv,
         'ca_omy': int(ca_omy),
