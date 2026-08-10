@@ -2160,6 +2160,61 @@ function AgentBar({ data, valueKey }) {
   );
 }
 
+function AgentSection({ title, data, valueKey, color }) {
+  const max = data.length ? Math.max(...data.map(d => d[valueKey]||0)) : 1;
+  const totalVal = data.reduce((s, d) => s + (d[valueKey]||0), 0);
+  const hasActivees = data.some(d => d.activees !== undefined);
+  const hasRefusees = data.some(d => d.refusees > 0);
+  const hasValidees = data.some(d => d.validees !== undefined);
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '20px 24px' }}>
+      <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 4, color: '#fff' }}>{title}</h3>
+      {data.length > 0 && (hasActivees || hasRefusees || hasValidees) && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14, padding: '6px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+          <span style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 600 }}>Légende :</span>
+          <span style={{ fontSize: 11, color: '#8a8a9a' }}><span style={{ fontWeight: 800, color: '#fff' }}>N°</span> = Total</span>
+          {hasActivees && <span style={{ fontSize: 11, color: '#8a8a9a' }}>✅ = Activées</span>}
+          {hasRefusees && <span style={{ fontSize: 11, color: '#8a8a9a' }}>❌ = Refusées</span>}
+          {hasValidees && <span style={{ fontSize: 11, color: '#8a8a9a' }}>✔ = Validées</span>}
+        </div>
+      )}
+      {!data.length ? <div style={{ color: '#8a8a9a', fontSize: 13, textAlign: 'center', padding: '20px' }}>📭 Aucune donnée</div> :
+        data.map((d, i) => {
+          const val = d[valueKey]||0;
+          const pct = Math.round(val/max*100);
+          const clrs = ['#FF6900','#3742fa','#22c55e','#ffa502','#a29bfe','#00d68f'];
+          const clr = clrs[i%clrs.length];
+          return (
+            <div key={i} style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: clr+'20', border: '2px solid '+clr+'50', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: clr }}>{i+1}</div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{d.agent}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {d.activees !== undefined && <span style={{ fontSize: 11, color: '#22c55e' }}>✅ {d.activees}</span>}
+                  {d.refusees > 0 && <span style={{ fontSize: 11, color: '#ff4757' }}>❌ {d.refusees}</span>}
+                  {d.validees !== undefined && <span style={{ fontSize: 11, color: '#00d68f' }}>✔ {d.validees}</span>}
+                  <span style={{ fontWeight: 800, color: clr, fontSize: 15 }}>{val}</span>
+                </div>
+              </div>
+              <div style={{ height: 12, background: 'rgba(255,255,255,0.06)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: pct+'%', background: clr, borderRadius: 8, transition: 'width 0.8s ease' }} />
+              </div>
+            </div>
+          );
+        })
+      }
+      {data.length > 0 && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#8a8a9a', fontWeight: 600 }}>TOTAL — {data.length} agent{data.length > 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>{totalVal}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabRepartition() {
   const [periode, setPeriode] = React.useState('tout');
   const [dateDebut, setDateDebut] = React.useState('');
