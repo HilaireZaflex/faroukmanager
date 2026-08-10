@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import api from '../services/api';
+import useAuthStore from '../store/authStore';
 
 const MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
@@ -89,6 +90,9 @@ function KPIsSection({ kpis }) {
 
 // ─── Mystery Calls Section ────────────────────────────────────────────────────
 function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
+  const userAuth = useAuthStore(s => s.user);
+  const roleUser = (userAuth?.role || '').toLowerCase().replace('userrole.', '');
+  const isTelec = roleUser === 'teleconseillere';
   const qc = useQueryClient();
   const [appelEnCours, setAppelEnCours] = useState(null);
   const [notes, setNotes] = useState({ note_connaissance: '', note_visite: '', note_superviseur: '', commentaire: '' });
@@ -336,6 +340,141 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
 }
 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
+// ─── Vue Téléconseillère ────────────────────────────────────────────────────
+function VueTeleconseillere({ annee, mois }) {
+  const qc = useQueryClient();
+  const [appelEnCours, setAppelEnCours] = useState(null);
+  const [notes, setNotes] = useState({ note_connaissance:'', note_visite:'', note_superviseur:'', commentaire:'' });
+
+  const { data: maListe, refetch } = useQuery(
+    ['ma-liste-mystery', annee, mois],
+    () => api.get(`/eval-superviseurs/ma-liste-mystery?annee=${annee}&mois=${mois}`).then(r => r.data),
+    { staleTime: 30000 }
+  );
+
+  const mutation = useMutation(
+    (data) => api.post(`/eval-superviseurs/${encodeURIComponent(data.superviseur)}/mystery-call?annee=${annee}&mois=${mois}`, data.payload).then(r => r.data),
+    { onSuccess: () => { refetch(); setAppelEnCours(null); setNotes({note_connaissance:'',note_visite:'',note_superviseur:'',commentaire:''}); } }
+  );
+
+  const liste = maListe?.liste || [];
+  const aFaire = liste.filter(i => !i.statut_appel);
+  const faits = liste.filter(i => i.statut_appel);
+
+  if (!liste.length) return (
+    <div style={{ textAlign:'center', padding:'60px 20px', color:'#8a8a9a' }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>📭</div>
+      <p style={{ fontWeight:600, fontSize:15 }}>Aucun appel d'évaluation en attente</p>
+      <p style={{ fontSize:13, marginTop:8 }}>Votre responsable n'a pas encore lancé le processus d'évaluation ce mois.</p>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* En-tête */}
+      <div style={{ background:'linear-gradient(135deg,rgba(55,66,250,0.12),rgba(55,66,250,0.04))', border:'1px solid rgba(55,66,250,0.3)', borderRadius:14, padding:'16px 20px', marginBottom:20 }}>
+        <div style={{ fontSize:15, fontWeight:800, color:'#fff', marginBottom:6 }}>📞 Mes appels d'évaluation — {MOIS_NOMS[mois]} {annee}</div>
+        <div style={{ display:'flex', gap:20, fontSize:12, color:'#8a8a9a' }}>
+          <span>Total: <strong style={{ color:'#fff' }}>{liste.length} appels</strong></span>
+          <span style={{ color:'#22c55e' }}>✅ Effectués: {faits.length}</span>
+          <span style={{ color:'#ffa502' }}>⏳ Restants: {aFaire.length}</span>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px', marginBottom:16, fontSize:12, color:'#8a8a9a' }}>
+        💡 <strong style={{ color:'#fff' }}>Instructions :</strong> Appelez chaque PDV et posez 3 questions :
+        <strong style={{ color:'#FF6900' }}> (1) Connaissance superviseur /10 </strong>·
+        <strong style={{ color:'#22c55e' }}> (2) Visite effectuée /10 </strong>·
+        <strong style={{ color:'#a29bfe' }}> (3) Note au superviseur /10</strong>
+      </div>
+
+      {/* Liste des PDVs à appeler */}
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {liste.map((item, i) => {
+          const pdv = item.pdv;
+          const statut = item.statut_appel;
+          const isActive = appelEnCours === i;
+          return (
+            <div key={i} style={{ background: statut ? (statut==='JOIGNABLE'?'rgba(34,197,94,0.06)':'rgba(255,71,87,0.06)') : 'rgba(255,255,255,0.02)',
+              border:`1px solid ${statut?(statut==='JOIGNABLE'?'rgba(34,197,94,0.3)':'rgba(255,71,87,0.3)'):'rgba(255,255,255,0.07)'}`,
+              borderRadius:12, padding:'14px 16px' }}>
+              {/* Info PDV + superviseur */}
+              <div style={{ display:'flex', alignItems:'flex-start', gap:14, marginBottom: isActive?14:0 }}>
+                <div style={{ width:36, height:36, borderRadius:'50%', background:statut?(statut==='JOIGNABLE'?'#22c55e':'#ff4757'):'#3742fa', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:900, fontSize:14, flexShrink:0 }}>{i+1}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
+                    <span style={{ fontWeight:800, fontSize:14, color:'#fff' }}>{pdv.nom || pdv.numero_pdv}</span>
+                    <span style={{ fontSize:11, padding:'2px 8px', borderRadius:6, background:'rgba(255,105,0,0.15)', color:'#FF6900', fontWeight:700 }}>Superviseur: {item.superviseur}</span>
+                  </div>
+                  <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:11, color:'#8a8a9a' }}>
+                    <span>🟠 Flotte: <strong style={{ color:'#FF6900' }}>{pdv.numero_flotte || pdv.telephone || '—'}</strong></span>
+                    {pdv.numero_personnel && <span>📱 Personnel: <strong style={{ color:'#ffa502' }}>{pdv.numero_personnel}</strong></span>}
+                    <span>📍 {pdv.quartier || pdv.localite || '—'}</span>
+                  </div>
+                </div>
+                <div>
+                  {!statut && (
+                    <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={() => setAppelEnCours(i)}
+                        style={{ padding:'6px 12px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer' }}>
+                        ✅ Joignable
+                      </button>
+                      <button onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'INJOIGNABLE' } })}
+                        style={{ padding:'6px 12px', borderRadius:8, border:'1px solid rgba(255,71,87,0.3)', background:'rgba(255,71,87,0.1)', color:'#ff4757', fontWeight:700, fontSize:11, cursor:'pointer' }}>
+                        📵 Injoignable
+                      </button>
+                    </div>
+                  )}
+                  {statut && (
+                    <span style={{ fontSize:12, fontWeight:700, color:statut==='JOIGNABLE'?'#22c55e':'#ff4757' }}>
+                      {statut==='JOIGNABLE'?'✅ Joignable':'📵 Injoignable'}
+                      {statut==='JOIGNABLE' && item.notes && <span style={{ fontSize:10, color:'#8a8a9a', marginLeft:8 }}>Conn:{item.notes.note_connaissance} · Vis:{item.notes.note_visite} · Note:{item.notes.note_superviseur}</span>}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Formulaire notes si joignable sélectionné */}
+              {isActive && !statut && (
+                <div style={{ background:'rgba(34,197,94,0.05)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:10, padding:'14px' }}>
+                  <p style={{ fontSize:12, color:'#8a8a9a', marginBottom:12 }}>Posez les 3 questions au PDV <strong style={{ color:'#fff' }}>{pdv.nom}</strong> :</p>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:10 }}>
+                    {[
+                      { key:'note_connaissance', label:'1. Connaissance superviseur', sub:'Demandez le nom du superviseur', color:'#FF6900' },
+                      { key:'note_visite', label:'2. Visite effectuée', sub:'A-t-il visité ? Date dernière visite', color:'#22c55e' },
+                      { key:'note_superviseur', label:'3. Note au superviseur', sub:'Note /10 donnée par le PDV', color:'#a29bfe' },
+                    ].map(q => (
+                      <div key={q.key}>
+                        <label style={{ fontSize:11, color:q.color, display:'block', marginBottom:6, fontWeight:700 }}>{q.label}</label>
+                        <input type="number" min="0" max="10" step="0.5" value={notes[q.key]} onChange={e => setNotes(n => ({ ...n, [q.key]:e.target.value }))}
+                          placeholder="0-10"
+                          style={{ width:'100%', padding:'10px', background:'rgba(255,255,255,0.05)', border:`1px solid ${q.color}40`, borderRadius:8, color:'#fff', fontSize:18, fontWeight:900, textAlign:'center', boxSizing:'border-box' }}/>
+                        <p style={{ fontSize:10, color:'#64748b', marginTop:4 }}>{q.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <input value={notes.commentaire} onChange={e => setNotes(n => ({ ...n, commentaire:e.target.value }))}
+                    placeholder="Commentaire (optionnel)..."
+                    style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:7, color:'#fff', fontSize:12, boxSizing:'border-box', marginBottom:10 }}/>
+                  <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+                    <button onClick={() => setAppelEnCours(null)} style={{ padding:'7px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'transparent', color:'#8a8a9a', cursor:'pointer', fontSize:12 }}>Annuler</button>
+                    <button disabled={!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur||mutation.isLoading}
+                      onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'JOIGNABLE', note_connaissance:parseFloat(notes.note_connaissance), note_visite:parseFloat(notes.note_visite), note_superviseur:parseFloat(notes.note_superviseur), commentaire:notes.commentaire||null } })}
+                      style={{ padding:'7px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', opacity:(!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur)?0.5:1 }}>
+                      {mutation.isLoading?'⏳...':'💾 Enregistrer'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function EvalSuperveursPage() {
   const qc = useQueryClient();
   const [selectedSup, setSelectedSup] = useState('');
@@ -384,6 +523,22 @@ export default function EvalSuperveursPage() {
       { id: 'resultats', label: '🎯 Résultats' },
     ] : []),
   ];
+
+  if (isTelec) {
+    return (
+      <div className="page">
+        <div className="page-header" style={{ marginBottom: 24 }}>
+          <div>
+            <h1 className="page-title">📋 Mes Appels Évaluation</h1>
+            <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
+              Période : <strong style={{ color: '#FF6900' }}>{MOIS_NOMS[evalMois]} {evalAnnee}</strong> · Appelez les PDVs assignés et renseignez les notes
+            </p>
+          </div>
+        </div>
+        <VueTeleconseillere annee={evalAnnee} mois={evalMois} />
+      </div>
+    );
+  }
 
   return (
     <div className="page">

@@ -174,6 +174,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}
             {can('evaluations') && nl('/evaluations',  Star,        'Évaluations')}
             {can('evaluations') && nl('/evaluations/superviseurs', Star, '↳ Eval. Superviseurs')}
+            {role === 'teleconseillere' && nl('/evaluations/superviseurs', Star, '📋 Mes Appels Éval.')}
             {can('alerts')      && nl('/alerts',       Bell,        'Alertes')}
             {can('reseau')      && nl('/reseau',       Network,     'Gestion du Réseau')}
 
