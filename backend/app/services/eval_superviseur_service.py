@@ -57,7 +57,6 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     """
     from app.models.pdv import PDV
     from app.models.performance import MonthlyPerformance
-    from app.models.commission import Commission
     from app.models.nafama import NafamaTransaction
     from app.models.kaabu import KaabuTransaction
 
@@ -90,16 +89,17 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
     try:
-        comm_rows = db.query(Commission).filter(
-            Commission.annee == annee,
-            Commission.mois == mois,
-            Commission.pdv_id.in_(
+        from app.models.commission import CommissionEntry
+        comm_rows = db.query(CommissionEntry).filter(
+            CommissionEntry.annee == annee,
+            CommissionEntry.mois == mois,
+            CommissionEntry.pdv_id.in_(
                 db.query(PDV.id).filter(PDV.superviseur.ilike(f"%{superviseur}%"))
             )
         ).all()
         commission_omy = sum(c.commission_pdg or 0 for c in comm_rows)
         moy_commission = round(commission_omy / len(comm_rows), 0) if comm_rows else 0
-    except:
+    except Exception as e:
         commission_omy = 0
         moy_commission = 0
 
@@ -120,15 +120,19 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
 
     # ── 5. KAABU MOBILE ───────────────────────────────────────────────────────
     semaines_mois = _get_semaines_mois(db, annee, mois)
-    if numeros_pdv and semaines_mois:
-        kaabu_rows = db.query(KaabuTransaction).filter(
-            KaabuTransaction.annee == annee,
-            KaabuTransaction.semaine.in_(semaines_mois),
-            KaabuTransaction.numero_pdv.in_(numeros_pdv)
-        ).all()
-        pdvs_actifs_km = len(set(r.numero_pdv for r in kaabu_rows if r.est_actif))
-        taux_actif_km = round(pdvs_actifs_km / nb_pdv * 100, 1) if nb_pdv else 0
-    else:
+    try:
+        if numeros_pdv and semaines_mois:
+            from sqlalchemy import text
+            kaabu_rows = db.query(KaabuTransaction.numero_pdv, KaabuTransaction.est_actif).filter(
+                KaabuTransaction.annee == annee,
+                KaabuTransaction.semaine.in_(semaines_mois),
+                KaabuTransaction.numero_pdv.in_(numeros_pdv)
+            ).all()
+            pdvs_actifs_km = len(set(r.numero_pdv for r in kaabu_rows if r.est_actif))
+            taux_actif_km = round(pdvs_actifs_km / nb_pdv * 100, 1) if nb_pdv else 0
+        else:
+            taux_actif_km = 0
+    except Exception:
         taux_actif_km = 0
 
     # ── Calcul des scores KPI (sur 100 chacun) ────────────────────────────────
