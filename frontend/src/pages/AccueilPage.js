@@ -189,7 +189,7 @@ export default function AccueilPage() {
   const topSuper = Array.isArray(superviseurs) ? superviseurs.slice(0,5) : [];
 
   return (
-    <div className="accueil-page">
+    <div className={`accueil-page${isSuperviseur ? ' superviseur-view' : ''}`}>
       {/* ── Bienvenue ── */}
       <div className="welcome-banner">
         <div className="welcome-left">

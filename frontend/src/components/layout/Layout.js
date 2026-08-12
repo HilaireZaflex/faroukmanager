@@ -24,6 +24,8 @@ export default function Layout({ children }) {
     setMobileOpen(false);
   }, [location.pathname]);
 
+  const isSup = (user?.role || '').toLowerCase().replace('userrole.', '') === 'superviseur';
+
   return (
     <div className={`layout${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
       {/* Overlay mobile */}
@@ -35,6 +37,21 @@ export default function Layout({ children }) {
         onMobileClose={() => setMobileOpen(false)}
         onCollapse={setSidebarCollapsed}
       />
+      {/* Bouton hamburger fixe en haut pour les superviseurs */}
+      {isSup && (
+        <button
+          onClick={() => setMobileOpen(true)}
+          style={{
+            position: 'fixed', top: 14, left: 16, zIndex: 1200,
+            background: 'rgba(255,105,0,0.15)', border: '1px solid rgba(255,105,0,0.4)',
+            borderRadius: 10, padding: '8px 12px', cursor: 'pointer',
+            color: '#FF6900', fontSize: 20, lineHeight: 1,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
+            display: mobileOpen ? 'none' : 'flex', alignItems: 'center', gap: 6,
+          }}>
+          ☰
+        </button>
+      )}
       <main className="main-content">
         {children}
       </main>
