@@ -360,6 +360,15 @@ function VueTeleconseillere({ annee, mois }) {
   const liste = maListe?.liste || [];
   const aFaire = liste.filter(i => !i.statut_appel);
   const faits = liste.filter(i => i.statut_appel);
+  const [openSups, setOpenSups] = React.useState({});
+
+  // Grouper par superviseur
+  const parSuperviseur = {};
+  liste.forEach(item => {
+    if (!parSuperviseur[item.superviseur]) parSuperviseur[item.superviseur] = [];
+    parSuperviseur[item.superviseur].push(item);
+  });
+  const supKeys = Object.keys(parSuperviseur).sort();
 
   if (!liste.length) return (
     <div style={{ textAlign:'center', padding:'60px 20px', color:'#8a8a9a' }}>
@@ -383,88 +392,113 @@ function VueTeleconseillere({ annee, mois }) {
 
       {/* Instructions */}
       <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:12, padding:'12px 16px', marginBottom:16, fontSize:12, color:'#8a8a9a' }}>
-        💡 <strong style={{ color:'#fff' }}>Instructions :</strong> Appelez chaque PDV et posez 3 questions :
-        <strong style={{ color:'#FF6900' }}> (1) Connaissance superviseur /10 </strong>·
-        <strong style={{ color:'#22c55e' }}> (2) Visite effectuée /10 </strong>·
-        <strong style={{ color:'#a29bfe' }}> (3) Note au superviseur /10</strong>
+        💡 <strong style={{ color:'#fff' }}>Instructions :</strong> Cliquez sur un superviseur pour voir ses PDVs à appeler.
+        3 questions : <strong style={{ color:'#FF6900' }}>Connaissance /10</strong> · <strong style={{ color:'#22c55e' }}>Visite /10</strong> · <strong style={{ color:'#a29bfe' }}>Note /10</strong>
       </div>
 
-      {/* Liste des PDVs à appeler */}
-      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-        {liste.map((item, i) => {
-          const pdv = item.pdv;
-          const statut = item.statut_appel;
-          const isActive = appelEnCours === i;
+      {/* Accordéons par superviseur */}
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {supKeys.map((sup) => {
+          const supItems = parSuperviseur[sup];
+          const isOpen = openSups[sup] !== false;
+          const nbFaits = supItems.filter(i => i.statut_appel).length;
+          const allDone = nbFaits === supItems.length;
           return (
-            <div key={i} style={{ background: statut ? (statut==='JOIGNABLE'?'rgba(34,197,94,0.06)':'rgba(255,71,87,0.06)') : 'rgba(255,255,255,0.02)',
-              border:`1px solid ${statut?(statut==='JOIGNABLE'?'rgba(34,197,94,0.3)':'rgba(255,71,87,0.3)'):'rgba(255,255,255,0.07)'}`,
-              borderRadius:12, padding:'14px 16px' }}>
-              {/* Info PDV + superviseur */}
-              <div style={{ display:'flex', alignItems:'flex-start', gap:14, marginBottom: isActive?14:0 }}>
-                <div style={{ width:36, height:36, borderRadius:'50%', background:statut?(statut==='JOIGNABLE'?'#22c55e':'#ff4757'):'#3742fa', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:900, fontSize:14, flexShrink:0 }}>{i+1}</div>
-                <div style={{ flex:1 }}>
-                  <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
-                    <span style={{ fontWeight:800, fontSize:14, color:'#fff' }}>{pdv.nom || pdv.numero_pdv}</span>
-                    <span style={{ fontSize:11, padding:'2px 8px', borderRadius:6, background:'rgba(255,105,0,0.15)', color:'#FF6900', fontWeight:700 }}>Superviseur: {item.superviseur}</span>
-                  </div>
-                  <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:11, color:'#8a8a9a' }}>
-                    <span>🟠 Flotte: <strong style={{ color:'#FF6900' }}>{pdv.numero_flotte || pdv.telephone || '—'}</strong></span>
-                    {pdv.numero_personnel && <span>📱 Personnel: <strong style={{ color:'#ffa502' }}>{pdv.numero_personnel}</strong></span>}
-                    <span>📍 {pdv.quartier || pdv.localite || '—'}</span>
-                  </div>
-                </div>
-                <div>
-                  {!statut && (
-                    <div style={{ display:'flex', gap:6 }}>
-                      <button onClick={() => setAppelEnCours(i)}
-                        style={{ padding:'6px 12px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer' }}>
-                        ✅ Joignable
-                      </button>
-                      <button onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'INJOIGNABLE' } })}
-                        style={{ padding:'6px 12px', borderRadius:8, border:'1px solid rgba(255,71,87,0.3)', background:'rgba(255,71,87,0.1)', color:'#ff4757', fontWeight:700, fontSize:11, cursor:'pointer' }}>
-                        📵 Injoignable
-                      </button>
+            <div key={sup} style={{ background:'rgba(255,255,255,0.02)', border:`2px solid ${allDone?'rgba(34,197,94,0.3)':'rgba(255,105,0,0.2)'}`, borderRadius:12, overflow:'hidden' }}>
+              {/* Header accordéon */}
+              <button onClick={() => setOpenSups(s => ({ ...s, [sup]: !isOpen }))}
+                style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 18px',
+                  background: isOpen ? 'rgba(255,105,0,0.08)' : 'transparent',
+                  border:'none', cursor:'pointer', color:'#fff', textAlign:'left' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  <span style={{ fontSize:22 }}>{allDone ? '✅' : '👔'}</span>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:800, color: allDone?'#22c55e':'#FF6900' }}>{sup}</div>
+                    <div style={{ fontSize:11, color:'#8a8a9a', marginTop:2 }}>
+                      <span style={{ color:'#22c55e' }}>{nbFaits}</span>/{supItems.length} appels effectués
+                      {!allDone && <span style={{ color:'#ffa502', marginLeft:8 }}>· {supItems.length-nbFaits} restants</span>}
                     </div>
-                  )}
-                  {statut && (
-                    <span style={{ fontSize:12, fontWeight:700, color:statut==='JOIGNABLE'?'#22c55e':'#ff4757' }}>
-                      {statut==='JOIGNABLE'?'✅ Joignable':'📵 Injoignable'}
-                      {statut==='JOIGNABLE' && item.notes && <span style={{ fontSize:10, color:'#8a8a9a', marginLeft:8 }}>Conn:{item.notes.note_connaissance} · Vis:{item.notes.note_visite} · Note:{item.notes.note_superviseur}</span>}
-                    </span>
-                  )}
+                  </div>
                 </div>
-              </div>
+                <span style={{ fontSize:16, color:'#FF6900', transition:'transform 0.2s', display:'block', transform: isOpen?'rotate(0deg)':'rotate(-90deg)' }}>▼</span>
+              </button>
 
-              {/* Formulaire notes si joignable sélectionné */}
-              {isActive && !statut && (
-                <div style={{ background:'rgba(34,197,94,0.05)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:10, padding:'14px' }}>
-                  <p style={{ fontSize:12, color:'#8a8a9a', marginBottom:12 }}>Posez les 3 questions au PDV <strong style={{ color:'#fff' }}>{pdv.nom}</strong> :</p>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:10 }}>
-                    {[
-                      { key:'note_connaissance', label:'1. Connaissance superviseur', sub:'Demandez le nom du superviseur', color:'#FF6900' },
-                      { key:'note_visite', label:'2. Visite effectuée', sub:'A-t-il visité ? Date dernière visite', color:'#22c55e' },
-                      { key:'note_superviseur', label:'3. Note au superviseur', sub:'Note /10 donnée par le PDV', color:'#a29bfe' },
-                    ].map(q => (
-                      <div key={q.key}>
-                        <label style={{ fontSize:11, color:q.color, display:'block', marginBottom:6, fontWeight:700 }}>{q.label}</label>
-                        <input type="number" min="0" max="10" step="0.5" value={notes[q.key]} onChange={e => setNotes(n => ({ ...n, [q.key]:e.target.value }))}
-                          placeholder="0-10"
-                          style={{ width:'100%', padding:'10px', background:'rgba(255,255,255,0.05)', border:`1px solid ${q.color}40`, borderRadius:8, color:'#fff', fontSize:18, fontWeight:900, textAlign:'center', boxSizing:'border-box' }}/>
-                        <p style={{ fontSize:10, color:'#64748b', marginTop:4 }}>{q.sub}</p>
+              {/* PDVs */}
+              {isOpen && (
+                <div style={{ padding:'8px 14px 14px', display:'flex', flexDirection:'column', gap:8 }}>
+                  {supItems.map((item, i) => {
+                    const pdv = item.pdv;
+                    const statut = item.statut_appel;
+                    const callKey = `${sup}-${i}`;
+                    const isActive = appelEnCours === callKey;
+                    return (
+                      <div key={i} style={{ background: statut?(statut==='JOIGNABLE'?'rgba(34,197,94,0.06)':'rgba(255,71,87,0.06)'):'rgba(255,255,255,0.02)',
+                        border:`1px solid ${statut?(statut==='JOIGNABLE'?'rgba(34,197,94,0.3)':'rgba(255,71,87,0.3)'):'rgba(255,255,255,0.07)'}`,
+                        borderRadius:10, padding:'12px 14px' }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:12, marginBottom: isActive?12:0 }}>
+                          <div style={{ width:30, height:30, borderRadius:'50%', background:statut?(statut==='JOIGNABLE'?'#22c55e':'#ff4757'):'#3742fa', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:900, fontSize:12, flexShrink:0 }}>{i+1}</div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:700, fontSize:13, color:'#fff', marginBottom:4 }}>{pdv.nom || pdv.numero_pdv}</div>
+                            <div style={{ display:'flex', gap:10, flexWrap:'wrap', fontSize:11, color:'#8a8a9a' }}>
+                              <span>🟠 Flotte: <strong style={{ color:'#FF6900' }}>{pdv.numero_flotte || pdv.telephone || '—'}</strong></span>
+                              {pdv.numero_personnel && <span>📱 Personnel: <strong style={{ color:'#ffa502' }}>{pdv.numero_personnel}</strong></span>}
+                              <span>📍 {pdv.quartier || pdv.localite || '—'}</span>
+                            </div>
+                          </div>
+                          <div style={{ flexShrink:0 }}>
+                            {!statut && (
+                              <div style={{ display:'flex', gap:6 }}>
+                                <button onClick={() => setAppelEnCours(callKey)}
+                                  style={{ padding:'5px 10px', borderRadius:7, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer' }}>
+                                  ✅ Joignable
+                                </button>
+                                <button onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'INJOIGNABLE' } })}
+                                  style={{ padding:'5px 10px', borderRadius:7, border:'1px solid rgba(255,71,87,0.3)', background:'rgba(255,71,87,0.1)', color:'#ff4757', fontWeight:700, fontSize:11, cursor:'pointer' }}>
+                                  📵
+                                </button>
+                              </div>
+                            )}
+                            {statut && (
+                              <span style={{ fontSize:11, fontWeight:700, color:statut==='JOIGNABLE'?'#22c55e':'#ff4757' }}>
+                                {statut==='JOIGNABLE'?'✅':'📵'} {statut}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {isActive && !statut && (
+                          <div style={{ background:'rgba(34,197,94,0.05)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:9, padding:'12px' }}>
+                            <p style={{ fontSize:12, color:'#8a8a9a', marginBottom:10 }}>Posez les 3 questions au PDV <strong style={{ color:'#fff' }}>{pdv.nom}</strong> :</p>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8 }}>
+                              {[
+                                { key:'note_connaissance', label:'1. Connaissance superviseur', color:'#FF6900' },
+                                { key:'note_visite', label:'2. Visite effectuée', color:'#22c55e' },
+                                { key:'note_superviseur', label:'3. Note au superviseur', color:'#a29bfe' },
+                              ].map(q => (
+                                <div key={q.key}>
+                                  <label style={{ fontSize:10, color:q.color, display:'block', marginBottom:5, fontWeight:700 }}>{q.label}</label>
+                                  <input type="number" min="0" max="10" step="0.5" value={notes[q.key]} onChange={e => setNotes(n => ({ ...n, [q.key]:e.target.value }))}
+                                    placeholder="0-10"
+                                    style={{ width:'100%', padding:'8px', background:'rgba(255,255,255,0.05)', border:`1px solid ${q.color}40`, borderRadius:7, color:'#fff', fontSize:16, fontWeight:900, textAlign:'center', boxSizing:'border-box' }}/>
+                                </div>
+                              ))}
+                            </div>
+                            <input value={notes.commentaire} onChange={e => setNotes(n => ({ ...n, commentaire:e.target.value }))}
+                              placeholder="Commentaire (optionnel)..."
+                              style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:7, color:'#fff', fontSize:12, boxSizing:'border-box', marginBottom:8 }}/>
+                            <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
+                              <button onClick={() => setAppelEnCours(null)} style={{ padding:'6px 12px', borderRadius:7, border:'1px solid rgba(255,255,255,0.1)', background:'transparent', color:'#8a8a9a', cursor:'pointer', fontSize:11 }}>Annuler</button>
+                              <button disabled={!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur||mutation.isLoading}
+                                onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'JOIGNABLE', note_connaissance:parseFloat(notes.note_connaissance), note_visite:parseFloat(notes.note_visite), note_superviseur:parseFloat(notes.note_superviseur), commentaire:notes.commentaire||null } })}
+                                style={{ padding:'6px 16px', borderRadius:7, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', opacity:(!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur)?0.5:1 }}>
+                                {mutation.isLoading?'⏳...':'💾 Enregistrer'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                  <input value={notes.commentaire} onChange={e => setNotes(n => ({ ...n, commentaire:e.target.value }))}
-                    placeholder="Commentaire (optionnel)..."
-                    style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:7, color:'#fff', fontSize:12, boxSizing:'border-box', marginBottom:10 }}/>
-                  <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-                    <button onClick={() => setAppelEnCours(null)} style={{ padding:'7px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'transparent', color:'#8a8a9a', cursor:'pointer', fontSize:12 }}>Annuler</button>
-                    <button disabled={!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur||mutation.isLoading}
-                      onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'JOIGNABLE', note_connaissance:parseFloat(notes.note_connaissance), note_visite:parseFloat(notes.note_visite), note_superviseur:parseFloat(notes.note_superviseur), commentaire:notes.commentaire||null } })}
-                      style={{ padding:'7px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', opacity:(!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur)?0.5:1 }}>
-                      {mutation.isLoading?'⏳...':'💾 Enregistrer'}
-                    </button>
-                  </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
