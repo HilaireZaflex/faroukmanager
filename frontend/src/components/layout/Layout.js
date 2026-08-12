@@ -53,6 +53,7 @@ function MobileBottomBar({ onMenuOpen, pathname }) {
   const isCommercial = role === 'commercial';
   const isDeveloppeur = role === 'developpeur';
   const isTelec = role === 'teleconseillere';
+  const isSuperviseur = role === 'superviseur';
 
   // Commerciaux et Développeurs : Prospection + bouton Déconnexion uniquement
   if (isCommercial || isDeveloppeur) {
@@ -69,6 +70,11 @@ function MobileBottomBar({ onMenuOpen, pathname }) {
         </button>
       </nav>
     );
+  }
+
+  // Superviseurs : pas de barre bas (ils ont le menu sidebar complet)
+  if (isSuperviseur) {
+    return null;
   }
 
   // Téléconseillères : PDV + Dashboards + Déco

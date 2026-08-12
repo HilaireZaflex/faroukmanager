@@ -70,6 +70,9 @@ function SectionTitle({ emoji, title, link, navigate }) {
 
 export default function AccueilPage() {
   const { user, setUser } = useAuthStore();
+  const roleUser = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const isSuperviseur = roleUser === 'superviseur';
+  const supNom = isSuperviseur ? `${user?.prenom || ''} ${user?.nom || ''}`.trim() : null;
 
   // Recharger le profil utilisateur depuis l'API pour avoir les données à jour
   useQuery('current-user-profile', () => api.get('/auth/me').then(r => r.data), {
@@ -96,7 +99,9 @@ export default function AccueilPage() {
   const lastSemaine = selectedSemaine || lastAvailable?.last_week?.semaine;
   const lastSemaineAnnee = lastAvailable?.last_week?.annee;
 
-  const { data: stats } = useQuery('pdv-stats', () => api.get('/pdvs/stats').then(r => r.data), { staleTime: 300000 });
+  const { data: stats } = useQuery(['pdv-stats', supNom], () =>
+    api.get('/pdvs/stats', { params: supNom ? { superviseur: supNom } : {} }).then(r => r.data),
+    { staleTime: 300000 });
   // NAFAMA — données disponibles depuis nos endpoints dédiés
   const kaabuStats = null;
   const { data: nafamaPeriods } = useQuery('nafama-periods-accueil', () => api.get('/nafama/periods').then(r => r.data), { staleTime: 300000 });
@@ -114,11 +119,11 @@ export default function AccueilPage() {
     ca_total: nafamaSummary.ca_total,
     label: nafamaLastMois ? `${['','Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][nafamaLastMois.mois]} ${nafamaLastMois.annee}` : '',
   } : null;
-  const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois], () =>
-    api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data),
+  const { data: dashboard } = useQuery(['dashboard-monthly', annee, mois, supNom], () =>
+    api.get('/dashboard/monthly', { params: { annee, mois, ...(supNom ? { superviseur: supNom } : {}) } }).then(r => r.data),
     { staleTime: 300000, enabled: periodeType === 'mensuel' && !!lastAvailable });
-  const { data: dashboardHebdo } = useQuery(['dashboard-weekly', lastSemaineAnnee, lastSemaine], () =>
-    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine } }).then(r => r.data),
+  const { data: dashboardHebdo } = useQuery(['dashboard-weekly', lastSemaineAnnee, lastSemaine, supNom], () =>
+    api.get('/dashboard/weekly', { params: { annee: lastSemaineAnnee, semaine: lastSemaine, ...(supNom ? { superviseur: supNom } : {}) } }).then(r => r.data),
     { staleTime: 300000, enabled: periodeType === 'hebdo' && !!lastAvailable && !!lastSemaine });
 
   const activeData = periodeType === 'mensuel' ? dashboard : dashboardHebdo;

@@ -114,7 +114,7 @@ function NafamaKPI({ label, value, icon, color, sub }) {
 }
 
 // ─── Vue d'ensemble mensuelle ──────────────────────────────────────────────
-function TabOverview({ annee, mois }) {
+function TabOverview({ annee, mois, isSuperviseur }) {
   const { data, isLoading } = useQuery(
     ['nafama-overview', annee, mois],
     () => api.get(`/nafama/monthly/overview?annee=${annee}&mois=${mois}`).then(r => r.data),

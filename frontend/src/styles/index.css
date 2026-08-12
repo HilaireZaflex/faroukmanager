@@ -238,6 +238,11 @@ tbody tr:last-child td { border-bottom: none; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 .grid-3-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.grid-1-kpi { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.superviseur-view .grid-3-kpi { grid-template-columns: 1fr; gap: 12px; }
+.superviseur-view .grid-2-kpi { grid-template-columns: 1fr; gap: 12px; }
+.superviseur-view .kpi-card { padding: 16px 20px; }
+.superviseur-view .kpi-value { font-size: 22px; }
 .grid-2-kpi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
 
