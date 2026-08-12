@@ -146,6 +146,44 @@ def initialiser_evaluation(
 
 # ─── Récupérer une évaluation ─────────────────────────────────────────────────
 
+@router.get("/eval-superviseurs/ma-liste-mystery")
+def ma_liste_mystery_early(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne la liste des PDVs à appeler pour la TC connectée. (Route prioritaire)"""
+    tc_nom = (current_user.nom or '').strip()
+    tc_prenom = (current_user.prenom or '').strip()
+    tc_full = f"{tc_prenom} {tc_nom}".strip().lower()
+    tc_nom_lower = tc_nom.lower()
+
+    evals = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+        EvalSuperviseur.statut == 'EN_COURS',
+    ).all()
+
+    ma_liste = []
+    for e in evals:
+        for pdv in (e.pdvs_mystery_generes or []):
+            tc_pdv = (pdv.get('teleconseillere') or '').lower()
+            if (tc_nom_lower and tc_nom_lower in tc_pdv) or \
+               (tc_full and tc_full in tc_pdv) or \
+               (tc_pdv and tc_pdv in tc_full):
+                call = next((c for c in (e.mystery_calls or []) if c['numero_pdv'] == pdv['numero_pdv']), None)
+                ma_liste.append({
+                    "superviseur": e.superviseur,
+                    "pdv": pdv,
+                    "statut_appel": call['statut'] if call else None,
+                    "notes": call if call else None,
+                    "eval_id": e.id,
+                })
+
+    return {"tc_nom": tc_nom, "total": len(ma_liste), "liste": ma_liste}
+
+
 @router.get("/eval-superviseurs/{superviseur}")
 def get_evaluation(
     superviseur: str,
