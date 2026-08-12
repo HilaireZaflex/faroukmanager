@@ -22,7 +22,7 @@
 }
 
 .header-menu-btn {
-  display: none;
+  display: flex;
   background: none;
   border: none;
   cursor: pointer;
