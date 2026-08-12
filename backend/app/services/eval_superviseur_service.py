@@ -88,25 +88,22 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     moy_ca_omy = round(ca_omy / nb_actif_omy, 0) if nb_actif_omy else 0
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
-    # Commission Réelle PDG = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%) par PDV unique
-    # Formule identique à CommissionsPage.js (ligne 368) avec déduplication par PDV
+    # Commission Réelle PDG — identique à CommissionsPage.js TabRapportSuperviseur ligne 350+368
+    # svc.list_entries(limit=200) puis commReelle = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
     try:
-        from app.models.commission import CommissionEntry
+        from app.services import commission_service as comm_svc
         period_key = f"{annee}-{str(mois).zfill(2)}"
-        # Filtrer par superviseur exact dans la base (toutes les entrées du superviseur)
-        comm_rows = db.query(CommissionEntry).filter(
-            CommissionEntry.period_key == period_key,
-            CommissionEntry.superviseur == superviseur,
-        ).all()
-        # Déduplication par PDV numero (évite les doublons)
-        pdvs_vus = set()
+        # Appel identique à CommissionsPage: entries limit=200, pas de filtre superviseur
+        entries = comm_svc.list_entries(db, period_key, limit=200)
+        # Agréger par superviseur exact (comme ligne 364-368 CommissionsPage.js)
         commission_omy = 0.0
         nb_comm = 0
-        for c in comm_rows:
-            pdv_key = getattr(c, 'pdv_numero', None) or getattr(c, 'numero_pdv', None) or str(c.id)
-            if pdv_key not in pdvs_vus:
-                pdvs_vus.add(pdv_key)
-                commission_omy += (c.montant_reseau or 0) * 0.3 + (c.montant_pdv or 0) * 0.3
+        for e in entries:
+            sup_e = (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
+            if sup_e == superviseur:
+                reseau = (e.get('montant_reseau') or 0) if isinstance(e, dict) else (getattr(e, 'montant_reseau', 0) or 0)
+                pdv_m = (e.get('montant_pdv') or 0) if isinstance(e, dict) else (getattr(e, 'montant_pdv', 0) or 0)
+                commission_omy += reseau * 0.3 + pdv_m * 0.3
                 nb_comm += 1
         commission_omy = round(commission_omy, 2)
         moy_commission = round(commission_omy / nb_comm, 0) if nb_comm else 0
