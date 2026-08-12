@@ -360,7 +360,11 @@ function VueTeleconseillere({ annee, mois }) {
   const liste = maListe?.liste || [];
   const aFaire = liste.filter(i => !i.statut_appel);
   const faits = liste.filter(i => i.statut_appel);
-  const [openSups, setOpenSups] = React.useState({});
+  const [openSups, setOpenSups] = React.useState(
+    // Seul le premier superviseur est ouvert par défaut
+    {}
+  );
+  const isSupOpen = (sup, idx) => openSups[sup] !== undefined ? openSups[sup] : idx === 0;
 
   // Grouper par superviseur
   const parSuperviseur = {};
@@ -400,7 +404,7 @@ function VueTeleconseillere({ annee, mois }) {
       <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
         {supKeys.map((sup) => {
           const supItems = parSuperviseur[sup];
-          const isOpen = openSups[sup] !== false;
+          const isOpen = isSupOpen(sup, supKeys.indexOf(sup));
           const nbFaits = supItems.filter(i => i.statut_appel).length;
           const allDone = nbFaits === supItems.length;
           return (
@@ -446,52 +450,49 @@ function VueTeleconseillere({ annee, mois }) {
                             </div>
                           </div>
                           <div style={{ flexShrink:0 }}>
-                            {!statut && (
-                              <div style={{ display:'flex', gap:6 }}>
-                                <button onClick={() => setAppelEnCours(callKey)}
-                                  style={{ padding:'5px 10px', borderRadius:7, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer' }}>
-                                  ✅ Joignable
-                                </button>
-                                <button onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'INJOIGNABLE' } })}
-                                  style={{ padding:'5px 10px', borderRadius:7, border:'1px solid rgba(255,71,87,0.3)', background:'rgba(255,71,87,0.1)', color:'#ff4757', fontWeight:700, fontSize:11, cursor:'pointer' }}>
-                                  📵
-                                </button>
-                              </div>
-                            )}
-                            {statut && (
-                              <span style={{ fontSize:11, fontWeight:700, color:statut==='JOIGNABLE'?'#22c55e':'#ff4757' }}>
-                                {statut==='JOIGNABLE'?'✅':'📵'} {statut}
-                              </span>
-                            )}
+                            {statut === 'JOIGNABLE' && <span style={{ fontSize:11, fontWeight:700, color:'#22c55e' }}>✅ Noté</span>}
+                            {statut === 'INJOIGNABLE' && <span style={{ fontSize:11, fontWeight:700, color:'#ff4757' }}>📵 Injoignable</span>}
                           </div>
                         </div>
 
-                        {isActive && !statut && (
-                          <div style={{ background:'rgba(34,197,94,0.05)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:9, padding:'12px' }}>
-                            <p style={{ fontSize:12, color:'#8a8a9a', marginBottom:10 }}>Posez les 3 questions au PDV <strong style={{ color:'#fff' }}>{pdv.nom}</strong> :</p>
-                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:8 }}>
+                        {/* 3 questions toujours visibles si pas encore noté */}
+                        {statut !== 'JOIGNABLE' && (
+                          <div style={{ marginTop:10, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'12px 14px' }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:10 }}>
                               {[
-                                { key:'note_connaissance', label:'1. Connaissance superviseur', color:'#FF6900' },
-                                { key:'note_visite', label:'2. Visite effectuée', color:'#22c55e' },
-                                { key:'note_superviseur', label:'3. Note au superviseur', color:'#a29bfe' },
+                                { key:'note_connaissance', label:'1. Connaissance superviseur', sub:'Demandez le nom du superviseur', color:'#FF6900' },
+                                { key:'note_visite', label:'2. Visite effectuée', sub:'A-t-il visité ? Dernière date', color:'#22c55e' },
+                                { key:'note_superviseur', label:'3. Note au superviseur', sub:'Note /10 donnée par le PDV', color:'#a29bfe' },
                               ].map(q => (
                                 <div key={q.key}>
-                                  <label style={{ fontSize:10, color:q.color, display:'block', marginBottom:5, fontWeight:700 }}>{q.label}</label>
-                                  <input type="number" min="0" max="10" step="0.5" value={notes[q.key]} onChange={e => setNotes(n => ({ ...n, [q.key]:e.target.value }))}
-                                    placeholder="0-10"
-                                    style={{ width:'100%', padding:'8px', background:'rgba(255,255,255,0.05)', border:`1px solid ${q.color}40`, borderRadius:7, color:'#fff', fontSize:16, fontWeight:900, textAlign:'center', boxSizing:'border-box' }}/>
+                                  <label style={{ fontSize:10, color:q.color, display:'block', marginBottom:4, fontWeight:700, textTransform:'uppercase', letterSpacing:0.5 }}>{q.label}</label>
+                                  <p style={{ fontSize:9, color:'#64748b', marginBottom:5 }}>{q.sub}</p>
+                                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                                    <input type="number" min="0" max="10" step="0.5"
+                                      value={appelEnCours === callKey ? notes[q.key] : (statut==='JOIGNABLE'?(item.notes?.[q.key]||''):'') }
+                                      onChange={e => { if(appelEnCours!==callKey) setAppelEnCours(callKey); setNotes(n => ({ ...n, [q.key]:e.target.value })); }}
+                                      placeholder="—"
+                                      style={{ flex:1, padding:'8px 6px', background:'rgba(255,255,255,0.05)', border:`2px solid ${appelEnCours===callKey&&notes[q.key]?q.color:'rgba(255,255,255,0.1)'}`, borderRadius:8, color:'#fff', fontSize:18, fontWeight:900, textAlign:'center', boxSizing:'border-box' }}/>
+                                    <span style={{ fontSize:12, color:'#64748b' }}>/10</span>
+                                  </div>
                                 </div>
                               ))}
                             </div>
-                            <input value={notes.commentaire} onChange={e => setNotes(n => ({ ...n, commentaire:e.target.value }))}
+                            <input value={appelEnCours===callKey ? notes.commentaire : ''} onChange={e => { if(appelEnCours!==callKey) setAppelEnCours(callKey); setNotes(n => ({ ...n, commentaire:e.target.value })); }}
                               placeholder="Commentaire (optionnel)..."
-                              style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:7, color:'#fff', fontSize:12, boxSizing:'border-box', marginBottom:8 }}/>
-                            <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
-                              <button onClick={() => setAppelEnCours(null)} style={{ padding:'6px 12px', borderRadius:7, border:'1px solid rgba(255,255,255,0.1)', background:'transparent', color:'#8a8a9a', cursor:'pointer', fontSize:11 }}>Annuler</button>
-                              <button disabled={!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur||mutation.isLoading}
+                              style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:7, color:'#fff', fontSize:11, boxSizing:'border-box', marginBottom:10 }}/>
+                            <div style={{ display:'flex', gap:8 }}>
+                              <button
+                                disabled={mutation.isLoading}
+                                onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'INJOIGNABLE' } })}
+                                style={{ padding:'7px 14px', borderRadius:8, border:'1px solid rgba(255,71,87,0.3)', background:'rgba(255,71,87,0.1)', color:'#ff4757', fontWeight:700, fontSize:12, cursor:'pointer' }}>
+                                📵 Injoignable
+                              </button>
+                              <button
+                                disabled={!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur||mutation.isLoading||appelEnCours!==callKey}
                                 onClick={() => mutation.mutate({ superviseur: item.superviseur, payload: { numero_pdv: pdv.numero_pdv, statut:'JOIGNABLE', note_connaissance:parseFloat(notes.note_connaissance), note_visite:parseFloat(notes.note_visite), note_superviseur:parseFloat(notes.note_superviseur), commentaire:notes.commentaire||null } })}
-                                style={{ padding:'6px 16px', borderRadius:7, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', opacity:(!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur)?0.5:1 }}>
-                                {mutation.isLoading?'⏳...':'💾 Enregistrer'}
+                                style={{ flex:1, padding:'7px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#22c55e,#16a34a)', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', opacity:(!notes.note_connaissance||!notes.note_visite||!notes.note_superviseur||appelEnCours!==callKey)?0.4:1 }}>
+                                {mutation.isLoading?'⏳...':'✅ Enregistrer les notes'}
                               </button>
                             </div>
                           </div>
