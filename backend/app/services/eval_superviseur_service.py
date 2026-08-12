@@ -88,7 +88,8 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     moy_ca_omy = round(ca_omy / nb_actif_omy, 0) if nb_actif_omy else 0
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
-    # Commissions depuis CommissionEntry.montant_brut (= commission réelle agent reçue d'Orange)
+    # Commission Réelle PDG = (montant_reseau + montant_pdv) × 30%
+    # C'est exactement ce qui est affiché dans le menu Commissions → onglet Superviseurs
     try:
         from app.models.commission import CommissionEntry
         period_key = f"{annee}-{str(mois).zfill(2)}"
@@ -96,8 +97,10 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
             CommissionEntry.superviseur.ilike(f"%{superviseur}%"),
             CommissionEntry.period_key == period_key,
         ).all()
-        # montant_brut = commission totale reçue d'Orange par le superviseur (commission réelle agent)
-        commission_omy = int(sum(c.montant_brut or 0 for c in comm_rows))
+        total_reseau = sum(c.montant_reseau or 0 for c in comm_rows)
+        total_pdv = sum(c.montant_pdv or 0 for c in comm_rows)
+        # Formule identique au menu Commissions → "Comm. Réelle PDG"
+        commission_omy = round((total_reseau + total_pdv) * 30 / 100, 2)
         nb_comm = len(comm_rows)
         moy_commission = round(commission_omy / nb_comm, 0) if nb_comm else 0
     except Exception as e:
