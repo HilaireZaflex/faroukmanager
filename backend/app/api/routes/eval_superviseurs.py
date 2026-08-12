@@ -428,7 +428,12 @@ def ma_liste_mystery(
     current_user: User = Depends(get_current_user),
 ):
     """Retourne la liste des PDVs à appeler pour la TC connectée."""
-    tc_nom = f"{current_user.nom or ''}".strip()
+    # Construire le nom de la TC pour la recherche (nom seul suffit car unique)
+    tc_nom = (current_user.nom or '').strip()
+    tc_prenom = (current_user.prenom or '').strip()
+    tc_full = f"{tc_prenom} {tc_nom}".strip().lower()
+    tc_nom_lower = tc_nom.lower()
+
     # Chercher dans toutes les évaluations du mois
     evals = db.query(EvalSuperviseur).filter(
         EvalSuperviseur.annee == annee,
@@ -439,8 +444,11 @@ def ma_liste_mystery(
     ma_liste = []
     for e in evals:
         for pdv in (e.pdvs_mystery_generes or []):
-            tc = (pdv.get('teleconseillere') or '').lower()
-            if tc_nom.lower() in tc or tc in tc_nom.lower():
+            tc_pdv = (pdv.get('teleconseillere') or '').lower()
+            # Correspondance flexible: nom seul OU nom complet
+            if (tc_nom_lower and tc_nom_lower in tc_pdv) or \
+               (tc_full and tc_full in tc_pdv) or \
+               (tc_pdv and tc_pdv in tc_full):
                 # Vérifier si déjà appelé
                 call = next((c for c in (e.mystery_calls or []) if c['numero_pdv'] == pdv['numero_pdv']), None)
                 ma_liste.append({
