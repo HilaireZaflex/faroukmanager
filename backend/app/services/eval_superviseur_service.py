@@ -88,23 +88,27 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     moy_ca_omy = round(ca_omy / nb_actif_omy, 0) if nb_actif_omy else 0
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
-    # Commission Réelle PDG = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
-    # Identique à CommissionsPage.js: charge limit=200 entrées puis agrège par superviseur
+    # Commission Réelle PDG = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%) par PDV unique
+    # Formule identique à CommissionsPage.js (ligne 368) avec déduplication par PDV
     try:
         from app.models.commission import CommissionEntry
         period_key = f"{annee}-{str(mois).zfill(2)}"
-        # Charger les 200 premières entrées de la période (comme CommissionsPage frontend)
-        # puis filtrer par superviseur exact côté Python
-        all_entries = db.query(CommissionEntry).filter(
+        # Filtrer par superviseur exact dans la base (toutes les entrées du superviseur)
+        comm_rows = db.query(CommissionEntry).filter(
             CommissionEntry.period_key == period_key,
-        ).limit(200).all()
-        # Filtrer par superviseur exact (comme le frontend)
-        comm_rows = [c for c in all_entries if (c.superviseur or '') == superviseur]
-        # commReelle = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
-        commission_omy = round(
-            sum((c.montant_reseau or 0) * 0.3 + (c.montant_pdv or 0) * 0.3 for c in comm_rows), 2
-        )
-        nb_comm = len(comm_rows)
+            CommissionEntry.superviseur == superviseur,
+        ).all()
+        # Déduplication par PDV numero (évite les doublons)
+        pdvs_vus = set()
+        commission_omy = 0.0
+        nb_comm = 0
+        for c in comm_rows:
+            pdv_key = getattr(c, 'pdv_numero', None) or getattr(c, 'numero_pdv', None) or str(c.id)
+            if pdv_key not in pdvs_vus:
+                pdvs_vus.add(pdv_key)
+                commission_omy += (c.montant_reseau or 0) * 0.3 + (c.montant_pdv or 0) * 0.3
+                nb_comm += 1
+        commission_omy = round(commission_omy, 2)
         moy_commission = round(commission_omy / nb_comm, 0) if nb_comm else 0
     except Exception as e:
         commission_omy = 0
