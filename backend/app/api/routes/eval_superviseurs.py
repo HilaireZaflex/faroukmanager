@@ -225,16 +225,26 @@ def ajouter_mystery_call(
 
     calls = list(e.mystery_calls or [])
 
-    # Si injoignable → proposer un PDV de remplacement
+    # Si injoignable → REMPLACER ce PDV dans la liste (pas en ajouter un)
     if call.statut == 'INJOIGNABLE':
         exclus = [c['numero_pdv'] for c in calls]
         exclus.append(call.numero_pdv)
         pdvs_generes = list(e.pdvs_mystery_generes or [])
 
-        # Vérifier si le PDV est déjà dans la liste générée, sinon en ajouter un
+        # Trouver et remplacer le PDV injoignable dans la liste générée
         nouveaux = svc.generer_pdvs_mystery(db, superviseur, 1, exclus)
         if nouveaux:
-            pdvs_generes.append(nouveaux[0])
+            # Remplacer le PDV injoignable par le nouveau (garde toujours 5 PDVs)
+            for idx, p in enumerate(pdvs_generes):
+                if p['numero_pdv'] == call.numero_pdv:
+                    pdvs_generes[idx] = nouveaux[0]
+                    break
+            else:
+                # Si pas trouvé, remplacer le dernier qui dépasse 5
+                if len(pdvs_generes) >= 5:
+                    pdvs_generes = pdvs_generes[:4] + [nouveaux[0]]
+                else:
+                    pdvs_generes.append(nouveaux[0])
             e.pdvs_mystery_generes = pdvs_generes
 
     # Ajouter l'appel

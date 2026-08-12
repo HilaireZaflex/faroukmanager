@@ -354,7 +354,16 @@ function VueTeleconseillere({ annee, mois }) {
 
   const mutation = useMutation(
     (data) => api.post(`/eval-superviseurs/${encodeURIComponent(data.superviseur)}/mystery-call?annee=${annee}&mois=${mois}`, data.payload).then(r => r.data),
-    { onSuccess: () => { refetch(); setAppelEnCours(null); setNotes({note_connaissance:'',note_visite:'',note_superviseur:'',commentaire:''}); } }
+    { onSuccess: (data) => {
+        refetch();
+        setAppelEnCours(null);
+        setNotes({note_connaissance:'',note_visite:'',note_superviseur:'',commentaire:''});
+        // Si injoignable et un PDV de remplacement existe, notification
+        if (data?.pdv_remplacement) {
+          console.log('PDV de remplacement automatique ajouté:', data.pdv_remplacement.nom);
+        }
+      }
+    }
   );
 
   const liste = maListe?.liste || [];
