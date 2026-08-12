@@ -88,15 +88,27 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     moy_ca_omy = round(ca_omy / nb_actif_omy, 0) if nb_actif_omy else 0
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
-    # Commission Réelle PDG — via la même fonction que le menu Commissions → onglet Superviseurs
+    # Commission Réelle PDG = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
+    # Formule identique à CommissionsPage.js ligne 369 onglet Superviseurs
     try:
-        from app.services.commission_service import dashboard as comm_dashboard
+        from app.models.commission import CommissionEntry
         period_key = f"{annee}-{str(mois).zfill(2)}"
-        # Appel identique au menu Commissions avec filtre superviseur exact
-        comm_data = comm_dashboard(db, period_key, superviseur=superviseur)
-        # "Comm. Réelle PDG" = commission_reelle_pdg (= (total_reseau + total_pdv) × 30%)
-        commission_omy = float(comm_data.get('commission_reelle_pdg', 0) or 0)
-        nb_comm = int(comm_data.get('n_pdv_total', 0) or 0)
+        # Filtrer EXACTEMENT par superviseur (correspondance exacte, pas ilike)
+        comm_rows = db.query(CommissionEntry).filter(
+            CommissionEntry.period_key == period_key,
+            CommissionEntry.superviseur == superviseur,   # Égalité stricte
+        ).all()
+        if not comm_rows:
+            # Fallback: ilike si pas trouvé avec égalité stricte
+            comm_rows = db.query(CommissionEntry).filter(
+                CommissionEntry.period_key == period_key,
+                CommissionEntry.superviseur.ilike(superviseur),
+            ).all()
+        # commReelle = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
+        commission_omy = round(
+            sum((c.montant_reseau or 0) * 0.3 + (c.montant_pdv or 0) * 0.3 for c in comm_rows), 2
+        )
+        nb_comm = len(comm_rows)
         moy_commission = round(commission_omy / nb_comm, 0) if nb_comm else 0
     except Exception as e:
         commission_omy = 0
