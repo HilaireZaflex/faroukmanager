@@ -89,21 +89,17 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
     # Commission Réelle PDG = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
-    # Formule identique à CommissionsPage.js ligne 369 onglet Superviseurs
+    # Identique à CommissionsPage.js: charge limit=200 entrées puis agrège par superviseur
     try:
         from app.models.commission import CommissionEntry
         period_key = f"{annee}-{str(mois).zfill(2)}"
-        # Filtrer EXACTEMENT par superviseur (correspondance exacte, pas ilike)
-        comm_rows = db.query(CommissionEntry).filter(
+        # Charger les 200 premières entrées de la période (comme CommissionsPage frontend)
+        # puis filtrer par superviseur exact côté Python
+        all_entries = db.query(CommissionEntry).filter(
             CommissionEntry.period_key == period_key,
-            CommissionEntry.superviseur == superviseur,   # Égalité stricte
-        ).all()
-        if not comm_rows:
-            # Fallback: ilike si pas trouvé avec égalité stricte
-            comm_rows = db.query(CommissionEntry).filter(
-                CommissionEntry.period_key == period_key,
-                CommissionEntry.superviseur.ilike(superviseur),
-            ).all()
+        ).limit(200).all()
+        # Filtrer par superviseur exact (comme le frontend)
+        comm_rows = [c for c in all_entries if (c.superviseur or '') == superviseur]
         # commReelle = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
         commission_omy = round(
             sum((c.montant_reseau or 0) * 0.3 + (c.montant_pdv or 0) * 0.3 for c in comm_rows), 2
