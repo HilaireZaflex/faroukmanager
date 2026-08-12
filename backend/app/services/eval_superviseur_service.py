@@ -88,21 +88,17 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     moy_ca_omy = round(ca_omy / nb_actif_omy, 0) if nb_actif_omy else 0
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
-    # Commissions depuis MonthlyPerformance (commission_pdg = commission agent réelle)
+    # Commissions depuis CommissionEntry.montant_brut (= commission réelle agent reçue d'Orange)
     try:
-        comm_perf = db.query(
-            func.sum(MonthlyPerformance.commission_pdg).label("total_comm"),
-            func.count(MonthlyPerformance.id).label("nb")
-        ).filter(
-            MonthlyPerformance.annee == annee,
-            MonthlyPerformance.mois == mois,
-            MonthlyPerformance.indicateur == 'OMY',
-            MonthlyPerformance.pdv_id.in_(
-                db.query(PDV.id).filter(PDV.superviseur.ilike(f"%{superviseur}%"))
-            )
-        ).first()
-        commission_omy = int(comm_perf.total_comm or 0)
-        nb_comm = int(comm_perf.nb or 0)
+        from app.models.commission import CommissionEntry
+        period_key = f"{annee}-{str(mois).zfill(2)}"
+        comm_rows = db.query(CommissionEntry).filter(
+            CommissionEntry.superviseur.ilike(f"%{superviseur}%"),
+            CommissionEntry.period_key == period_key,
+        ).all()
+        # montant_brut = commission totale reçue d'Orange par le superviseur (commission réelle agent)
+        commission_omy = int(sum(c.montant_brut or 0 for c in comm_rows))
+        nb_comm = len(comm_rows)
         moy_commission = round(commission_omy / nb_comm, 0) if nb_comm else 0
     except Exception as e:
         commission_omy = 0
