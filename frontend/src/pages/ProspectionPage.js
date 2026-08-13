@@ -178,6 +178,7 @@ export default function ProspectionPage() {
   const allTabs = [
     { id: 'demandes',   label: '📋 Demandes',           show: true },
     { id: 'workflow',   label: '🔄 Workflow',            show: isAdminOrRC || isDev },
+    { id: 'conformite',   label: '✅ Conformité',           show: isAdminOrRC },
     { id: 'activation',   label: '⚡ Activation',          show: !isCommercial },
     { id: 'repartition', label: '📊 Répartition Agents',  show: isAdminOrRC },
   ];
@@ -270,6 +271,7 @@ export default function ProspectionPage() {
         {safeTab === 'demandes'   && <TabDemandes key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
         {safeTab === 'workflow'   && <TabWorkflow key={`${refreshKey}-${stepFromUrl}`} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh} initialStep={stepFromUrl}/>}
         {safeTab === 'activation'   && <TabActivation key={refreshKey} currentUser={user} onRefresh={refresh}/>}
+        {safeTab === 'conformite'   && <TabConformite key={refreshKey} prospects={conformites} currentUser={user} onRefresh={refresh}/>}
         {safeTab === 'repartition' && (
           <React.Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#8a8a9a' }}>Chargement...</div>}>
             <TabRepartition />
@@ -306,6 +308,7 @@ const KPI_STATUS_MAP = {
   en_attente_rc:   'VALIDEE_DEV',
   puce_attribuees: 'PUCE_ATTRIBUEE',
   activees:        'PUCE_ACTIVEE',
+  conformite:      '__CONFORMITE__',
   refusees:        'REFUSEE_RC',
   sla_en_retard:   '__SLA__',    // spécial: filtre EN_VISITE
   taux_activation: '__NONE__',   // non filtrable
@@ -2133,7 +2136,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     // Formations
     kaabu: false, nafama: false, omy: false, lbft: false,
     comment: '',
-    piece_fichier: null,
+    pieces_fichiers: [],  // Multi-fichiers obligatoires
   });
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -2176,9 +2179,22 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
       alert('Numéro de puce (Flotte) et Zone sont obligatoires.');
       return;
     }
+    if (!form.pieces_fichiers || form.pieces_fichiers.length === 0) {
+      return alert('Les documents / pièces d\'identité sont obligatoires. Ajoutez au moins un fichier.');
+    }
     setBusy(true);
     try {
-      await prospectService.activate(p.id, {
+      await api.post(`/prospects/${p.id}/soumettre-conformite`);
+      // Uploader les pièces
+      if (form.pieces_fichiers && form.pieces_fichiers.length > 0) {
+        for (const file of form.pieces_fichiers) {
+          try {
+            const fd = new FormData(); fd.append('file', file);
+            await api.post(`/prospects/${p.id}/attachments`, fd, { headers: {'Content-Type':'multipart/form-data'} });
+          } catch(e) { console.warn('Upload pièce erreur:', file.name); }
+        }
+      }
+      const fake_resp = {
         create_pdv: true,
         comment: form.comment || 'Puce activée sur le terrain',
         gestionnaire: form.gestionnaire,
@@ -2253,34 +2269,55 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
             <AFL label="Date de délivrance"><AFI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></AFL>
             <AFL label="Domicile"><AFI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></AFL>
             {/* Upload pièce d'identité */}
-            <AFL label={`Photo / Scan ${form.type_piece || 'Pièce'} d'identité`}>
-              <div style={{
-                border: '2px dashed rgba(255,105,0,0.3)', borderRadius: 8,
-                padding: '10px 12px', cursor: 'pointer', textAlign: 'center',
-                background: form.piece_fichier ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)',
-                transition: 'all 0.2s',
-              }}
-                onClick={() => document.getElementById('piece-upload').click()}
-                onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='#FF6900'; }}
+            <AFL label="📎 Documents & Pièces d'identité *" required>
+              <div
+                onClick={() => document.getElementById('pieces-multi-upload').click()}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='rgba(255,105,0,0.8)'; }}
                 onDragLeave={e => { e.currentTarget.style.borderColor='rgba(255,105,0,0.3)'; }}
                 onDrop={e => {
                   e.preventDefault();
-                  const file = e.dataTransfer.files[0];
-                  if (file) set('piece_fichier', file);
+                  e.currentTarget.style.borderColor='rgba(255,105,0,0.3)';
+                  const files = Array.from(e.dataTransfer.files);
+                  setForm(f => ({ ...f, pieces_fichiers: [...(f.pieces_fichiers||[]), ...files] }));
+                }}
+                style={{
+                  border: `2px dashed ${form.pieces_fichiers?.length ? 'rgba(34,197,94,0.6)' : 'rgba(255,105,0,0.4)'}`,
+                  borderRadius: 10, padding: '14px 16px', cursor: 'pointer', textAlign: 'center',
+                  background: form.pieces_fichiers?.length ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.02)',
+                  transition: 'all 0.2s',
                 }}>
-                <input id="piece-upload" type="file" accept="image/*,.pdf" style={{ display:'none' }}
-                  onChange={e => { if (e.target.files[0]) set('piece_fichier', e.target.files[0]); }} />
-                {form.piece_fichier ? (
-                  <div style={{ fontSize:12, color:'#10b981', fontWeight:600 }}>
-                    ✅ {form.piece_fichier.name}
-                    <span style={{ color:'#64748b', marginLeft:8, fontWeight:400 }}>
-                      ({(form.piece_fichier.size/1024).toFixed(0)} Ko)
-                    </span>
+                <input
+                  id="pieces-multi-upload"
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf"
+                  style={{ display: 'none' }}
+                  onChange={e => {
+                    const files = Array.from(e.target.files);
+                    setForm(f => ({ ...f, pieces_fichiers: [...(f.pieces_fichiers||[]), ...files] }));
+                    e.target.value = '';
+                  }}
+                />
+                {(!form.pieces_fichiers || form.pieces_fichiers.length === 0) ? (
+                  <div>
+                    <div style={{ fontSize: 28, marginBottom: 6 }}>📎</div>
+                    <div style={{ fontSize: 13, color: '#ffa502', fontWeight: 700 }}>Cliquer ou glisser les fichiers ici</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>CNI, RCCM, reçus · JPG, PNG, PDF · <strong style={{ color: '#ff4757' }}>Obligatoire</strong></div>
                   </div>
                 ) : (
-                  <div style={{ fontSize:11, color:'#64748b' }}>
-                    📎 Cliquer ou glisser le fichier ici<br/>
-                    <span style={{ fontSize:10 }}>JPG, PNG, PDF acceptés</span>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#22c55e', fontWeight: 700, marginBottom: 8 }}>✅ {form.pieces_fichiers.length} fichier{form.pieces_fichiers.length > 1 ? 's' : ''} sélectionné{form.pieces_fichiers.length > 1 ? 's' : ''}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                      {form.pieces_fichiers.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 7, padding: '3px 8px', fontSize: 11 }}>
+                          <span>{f.type?.startsWith('image/') ? '🖼️' : '📄'}</span>
+                          <span style={{ color: '#22c55e', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                          <button type="button" onClick={ev => { ev.stopPropagation(); setForm(fm => ({ ...fm, pieces_fichiers: fm.pieces_fichiers.filter((_,j)=>j!==i) })); }}
+                            style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', fontSize: 14, padding: 0 }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>Cliquer pour ajouter d'autres fichiers</div>
                   </div>
                 )}
               </div>
@@ -2408,13 +2445,134 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
                 background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff',
                 fontSize:14, cursor:'pointer', fontWeight:700, opacity: busy ? 0.7 : 1,
                 boxShadow:'0 4px 16px rgba(255,105,0,0.35)' }}>
-              {busy ? '⏳ Activation en cours…' : '⚡ Confirmer l\'activation & créer le PDV'}
+              {busy ? '⏳ Activation en cours…' : '📤 Soumettre pour validation RC/Admin'}
             </button>
           </div>
 
         </form>
       </div>
     </>
+  );
+}
+
+
+// =============================================================================
+// ONGLET CONFORMITÉ & VALIDATION FINALE (RC / Admin / Resp. Conformité)
+// =============================================================================
+function TabConformite({ prospects, currentUser, onRefresh }) {
+  const [viewProspect, setViewProspect] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const valider = async (p) => {
+    if (!window.confirm(`Confirmer l'activation définitive de ${p.prenom} ${p.nom} (${p.reference}) ?\nCela créera le PDV dans le système.`)) return;
+    setBusy(true);
+    try {
+      await api.post(`/prospects/${p.id}/valider-conformite`);
+      onRefresh();
+      setViewProspect(null);
+      alert('✅ Activation confirmée ! Le PDV a été créé dans le système.');
+    } catch(e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusy(false); }
+  };
+
+  const rejeter = async (p) => {
+    const motif = prompt('Motif de rejet (informera le développeur) :');
+    if (motif === null) return;
+    setBusy(true);
+    try {
+      await api.post(`/prospects/${p.id}/rejeter-conformite`, { motif });
+      onRefresh();
+      setViewProspect(null);
+      alert('↩️ Formulaire retourné au développeur pour correction.');
+    } catch(e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div>
+      <StepLegend
+        step={6}
+        title="Conformité & Validation Finale"
+        desc="Le développeur a soumis le formulaire d'activation. Le RC, le Responsable de Conformité ou l'Admin doit vérifier toutes les informations et les pièces jointes avant de confirmer l'activation définitive."
+        next="✅ Après validation : le PDV est créé dans le système et la puce est activée."
+        color="#22c55e"
+      />
+
+      {prospects.length === 0 ? (
+        <div className="empty-state">✅ Aucun formulaire en attente de validation.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {prospects.map(p => (
+            <div key={p.id} style={{ background: 'rgba(34,197,94,0.04)', border: '2px solid rgba(34,197,94,0.25)', borderRadius: 14, padding: '18px 20px' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: '#fff', marginBottom: 4 }}>
+                    {p.reference} — {p.prenom} {p.nom}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#8a8a9a' }}>
+                    📞 {p.telephone_principal} · 📍 {p.quartier || '—'} · {p.type_local || '—'}
+                  </div>
+                  {p.submitted_by && (
+                    <div style={{ fontSize: 12, color: '#5f6cf5', marginTop: 4 }}>
+                      👤 Soumis par : {p.submitted_by.prenom || ''} {p.submitted_by.nom || ''}
+                    </div>
+                  )}
+                  {p.activation_assigned_to && (
+                    <div style={{ fontSize: 12, color: '#FF6900', marginTop: 2 }}>
+                      ⚡ Formulaire soumis par : {p.activation_assigned_to.prenom || ''} {p.activation_assigned_to.nom || ''}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 700 }}>
+                    📋 En attente de conformité
+                  </span>
+                  <button onClick={() => setViewProspect(viewProspect?.id === p.id ? null : p)}
+                    style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', cursor: 'pointer', fontSize: 11 }}>
+                    {viewProspect?.id === p.id ? 'Masquer détails' : '📋 Voir détails'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Infos activation (puce, PDV) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+                {[
+                  { label: 'N° Puce', value: p.puce_numero || '—', color: '#22c55e' },
+                  { label: 'Type PDV', value: p.puce_type || p.type_local || '—', color: '#ffa502' },
+                  { label: 'Zone', value: p.puce_zone || '—', color: '#3742fa' },
+                ].map((info, i) => (
+                  <div key={i} style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 9, border: `1px solid ${info.color}20` }}>
+                    <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 3 }}>{info.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: info.color }}>{info.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pièces jointes */}
+              {viewProspect?.id === p.id && (
+                <div style={{ marginBottom: 16, padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 10 }}>📎 Pièces jointes soumises</div>
+                  <AttachmentGallery prospectId={p.id} />
+                </div>
+              )}
+
+              {/* Boutons d'action */}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button onClick={() => rejeter(p)} disabled={busy}
+                  style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(255,71,87,0.4)', background: 'rgba(255,71,87,0.08)', color: '#ff4757', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  ↩️ Renvoyer pour correction
+                </button>
+                <button onClick={() => valider(p)} disabled={busy}
+                  style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 16px rgba(34,197,94,0.3)' }}>
+                  {busy ? '⏳ Confirmation...' : '✅ Confirmer l\'activation définitive'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

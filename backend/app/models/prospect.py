@@ -35,7 +35,8 @@ class ProspectStatus(str, enum.Enum):
     APPROUVEE_RC = "APPROUVEE_RC"            # RC a approuvé
     REFUSEE_RC = "REFUSEE_RC"                # RC a refusé (définitif)
     PUCE_ATTRIBUEE = "PUCE_ATTRIBUEE"        # puce attribuée à un activateur
-    PUCE_ACTIVEE = "PUCE_ACTIVEE"            # activation terminée
+    EN_ATTENTE_CONFORMITE = "EN_ATTENTE_CONFORMITE"  # formulaire dev soumis, attend validation RC/Admin
+    PUCE_ACTIVEE = "PUCE_ACTIVEE"            # activation terminée (validée RC/Admin)
     ANNULEE = "ANNULEE"                      # annulée à tout moment
 
 

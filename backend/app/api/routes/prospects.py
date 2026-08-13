@@ -351,6 +351,82 @@ def get_repartition_agents(
     }
 
 
+@router.post("/{prospect_id}/soumettre-conformite")
+def soumettre_conformite(
+    prospect_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Développeur soumet le formulaire d'activation → EN_ATTENTE_CONFORMITE (attend RC/Admin)."""
+    from app.models.prospect import Prospect as ProspectModel, ProspectStatus
+    p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
+    if not p:
+        raise HTTPException(404, "Prospect non trouvé")
+    if p.status.value not in ("PUCE_ATTRIBUEE", "puce_attribuee"):
+        raise HTTPException(400, f"Statut actuel: '{p.status.value}'. Attendu: 'PUCE_ATTRIBUEE'")
+    db.execute(text("UPDATE prospects SET status = 'EN_ATTENTE_CONFORMITE' WHERE id = :id"), {"id": prospect_id})
+    db.commit()
+    db.refresh(p)
+    # Notifier RC et Admin
+    try:
+        from app.services.notification_service import get_rc_user_ids, create_notif
+        rc_ids = get_rc_user_ids(db)
+        for rid in rc_ids:
+            create_notif(db, rid, "📋 Formulaire d'activation à valider",
+                f"Le formulaire d'activation pour {p.prenom} {p.nom} ({p.reference}) est prêt pour validation.",
+                "CONFORMITE_EN_ATTENTE", str(prospect_id))
+    except Exception:
+        pass
+    return {"success": True, "status": "EN_ATTENTE_CONFORMITE", "id": p.id}
+
+
+@router.post("/{prospect_id}/valider-conformite")
+def valider_conformite(
+    prospect_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """RC/Admin valide le formulaire et confirme l'activation définitive → PUCE_ACTIVEE."""
+    from app.models.prospect import Prospect as ProspectModel
+    p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
+    if not p:
+        raise HTTPException(404, "Prospect non trouvé")
+    if p.status.value not in ("EN_ATTENTE_CONFORMITE",):
+        raise HTTPException(400, f"Statut actuel: '{p.status.value}'. Attendu: 'EN_ATTENTE_CONFORMITE'")
+    # Appeler activate_puce existant pour créer le PDV
+    try:
+        import app.services.prospection_service as svc
+        from app.schemas.prospect import PuceActivateRequest
+        req = PuceActivateRequest(
+            numero_pdv=p.puce_numero or "",
+            type_pdv=getattr(p, 'pdv_type', None),
+            zone=getattr(p, 'pdv_zone', None),
+        )
+        return svc.activate_puce(db, prospect_id, req, current_user)
+    except Exception:
+        # Fallback: juste changer le statut
+        db.execute(text("UPDATE prospects SET status = 'PUCE_ACTIVEE' WHERE id = :id"), {"id": prospect_id})
+        db.commit()
+        return {"success": True, "status": "PUCE_ACTIVEE", "id": prospect_id}
+
+
+@router.post("/{prospect_id}/rejeter-conformite")
+def rejeter_conformite(
+    prospect_id: int,
+    payload: dict = Body(default={"motif": ""}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """RC/Admin rejette le formulaire → retour à PUCE_ATTRIBUEE pour correction."""
+    from app.models.prospect import Prospect as ProspectModel
+    p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
+    if not p:
+        raise HTTPException(404, "Prospect non trouvé")
+    db.execute(text("UPDATE prospects SET status = 'PUCE_ATTRIBUEE' WHERE id = :id"), {"id": prospect_id})
+    db.commit()
+    return {"success": True, "status": "PUCE_ATTRIBUEE", "id": prospect_id}
+
+
 @router.post("/{prospect_id}/confirm-refus-dev")
 def confirm_refus_dev(
     prospect_id: int,

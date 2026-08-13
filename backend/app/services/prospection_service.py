@@ -84,7 +84,13 @@ ALLOWED_TRANSITIONS: Dict[ProspectStatus, List[ProspectStatus]] = {
         ProspectStatus.ANNULEE,
     ],
     ProspectStatus.PUCE_ATTRIBUEE: [
-        ProspectStatus.PUCE_ACTIVEE,
+        ProspectStatus.EN_ATTENTE_CONFORMITE,  # dev soumet le formulaire d'activation
+        ProspectStatus.PUCE_ACTIVEE,            # activation directe (ancienne méthode)
+        ProspectStatus.ANNULEE,
+    ],
+    ProspectStatus.EN_ATTENTE_CONFORMITE: [
+        ProspectStatus.PUCE_ACTIVEE,     # RC/Admin confirme l'activation
+        ProspectStatus.PUCE_ATTRIBUEE,   # RC rejette → retour pour correction
         ProspectStatus.ANNULEE,
     ],
     ProspectStatus.PUCE_ACTIVEE: [],     # état terminal
