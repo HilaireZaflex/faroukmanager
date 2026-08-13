@@ -151,7 +151,11 @@ class Prospect(Base):
     puce_assigned_at = Column(DateTime, nullable=True)
     puce_numero = Column(String, nullable=True, index=True)
 
-    # Activation
+    # Activation — infos équipe renseignées par le développeur
+    activation_superviseur = Column(String, nullable=True)
+    activation_gestionnaire = Column(String, nullable=True)
+    activation_teleconseillere = Column(String, nullable=True)
+    activation_developpeur = Column(String, nullable=True)
     activated_at = Column(DateTime, nullable=True)
     activated_pdv_id = Column(Integer, ForeignKey("pdvs.id"), nullable=True)
 

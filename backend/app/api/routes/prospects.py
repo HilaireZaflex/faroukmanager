@@ -354,6 +354,7 @@ def get_repartition_agents(
 @router.post("/{prospect_id}/soumettre-conformite")
 def soumettre_conformite(
     prospect_id: int,
+    payload: dict = Body(default={}),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -364,7 +365,15 @@ def soumettre_conformite(
         raise HTTPException(404, "Prospect non trouvé")
     if p.status.value not in ("PUCE_ATTRIBUEE", "puce_attribuee"):
         raise HTTPException(400, f"Statut actuel: '{p.status.value}'. Attendu: 'PUCE_ATTRIBUEE'")
-    db.execute(text("UPDATE prospects SET status = 'EN_ATTENTE_CONFORMITE' WHERE id = :id"), {"id": prospect_id})
+    # Stocker les infos équipe renseignées par le développeur
+    updates = "status = 'EN_ATTENTE_CONFORMITE'"
+    params = {"id": prospect_id}
+    for col in ("activation_superviseur", "activation_gestionnaire", "activation_teleconseillere", "activation_developpeur"):
+        val = payload.get(col)
+        if val:
+            updates += f", {col} = :{col}"
+            params[col] = str(val)
+    db.execute(text(f"UPDATE prospects SET {updates} WHERE id = :id"), params)
     db.commit()
     db.refresh(p)
     # Notifier RC et Admin

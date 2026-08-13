@@ -253,6 +253,10 @@ class ProspectOut(BaseModel):
     puce_assigned_to: Optional[UserMini] = None
     puce_assigned_at: Optional[datetime] = None
     puce_numero: Optional[str] = None
+    activation_superviseur: Optional[str] = None
+    activation_gestionnaire: Optional[str] = None
+    activation_teleconseillere: Optional[str] = None
+    activation_developpeur: Optional[str] = None
     activated_at: Optional[datetime] = None
     activated_pdv_id: Optional[int] = None
 

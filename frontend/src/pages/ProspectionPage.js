@@ -835,6 +835,10 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       'Date Décision Dev': p.dev_decision_at ? new Date(p.dev_decision_at).toLocaleDateString('fr-FR') : '',
       'RC Décision Par': p.rc_decision_by ? `${p.rc_decision_by.prenom || ''} ${p.rc_decision_by.nom || ''}`.trim() : '',
       'Commentaire RC': p.rc_decision_comment || '',
+      'Superviseur': p.activation_superviseur || '',
+      'Gestionnaire': p.activation_gestionnaire || '',
+      'Téléconseillère': p.activation_teleconseillere || '',
+      'Développeur': p.activation_developpeur || '',
       'Date Activation': p.activated_at ? new Date(p.activated_at).toLocaleDateString('fr-FR') : '',
       'Notes': p.notes || '',
     }));
@@ -2197,8 +2201,13 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
       if (uploadFailures === form.pieces_fichiers.length) {
         throw new Error("Échec de l'envoi des pièces jointes. Vérifiez le format (JPG, PNG, PDF · max 5 Mo) et réessayez.");
       }
-      // 2) Puis soumettre pour validation RC/Admin
-      await api.post(`/prospects/${p.id}/soumettre-conformite`);
+      // 2) Puis soumettre pour validation RC/Admin (avec les infos équipe)
+      await api.post(`/prospects/${p.id}/soumettre-conformite`, {
+        activation_superviseur: form.superviseur || '',
+        activation_gestionnaire: form.gestionnaire || '',
+        activation_teleconseillere: form.teleconseillere || '',
+        activation_developpeur: form.developpeur || '',
+      });
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }

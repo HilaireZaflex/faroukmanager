@@ -733,6 +733,29 @@ async def migrate_prospect_enums():
                 results.append({"sql": sql[:60], "status": str(e)[:80]})
     return {"results": results}
 
+@app.get("/migrate-activation-columns")
+async def migrate_activation_columns():
+    """Migration: ajoute les colonnes activation_superviseur/gestionnaire/teleconseillere/developpeur."""
+    from app.core.database import engine
+    from sqlalchemy import text
+    cols = [
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_superviseur VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_gestionnaire VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_teleconseillere VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_developpeur VARCHAR(200)",
+    ]
+    results = []
+    with engine.connect() as conn:
+        for sql in cols:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+                results.append({"sql": sql.split("IF NOT EXISTS ")[1], "status": "OK"})
+            except Exception as e:
+                results.append({"sql": sql.split("IF NOT EXISTS ")[1], "status": str(e)[:100]})
+    return {"results": results}
+
+
 @app.get("/migrate-conformite-status")
 async def migrate_conformite_status():
     """Migration: ajoute EN_ATTENTE_CONFORMITE à la colonne status (enum ou varchar)."""
