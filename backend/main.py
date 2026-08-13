@@ -777,7 +777,8 @@ async def backfill_activation_team():
                 FROM pdvs pdv
                 WHERE p.activated_pdv_id = pdv.id
                   AND p.status = 'PUCE_ACTIVEE'
-                  AND (p.activation_superviseur IS NULL OR p.activation_superviseur = '')
+                  AND (p.activation_superviseur IS NULL OR p.activation_superviseur = ''
+                       OR p.activation_type_pdv IS NULL OR p.activation_type_pdv = '')
             """))
             conn.commit()
             return {"status": "OK", "updated": result.rowcount}
