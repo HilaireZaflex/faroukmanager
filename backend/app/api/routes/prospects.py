@@ -368,7 +368,7 @@ def soumettre_conformite(
     # Stocker les infos équipe renseignées par le développeur
     updates = "status = 'EN_ATTENTE_CONFORMITE'"
     params = {"id": prospect_id}
-    for col in ("activation_superviseur", "activation_gestionnaire", "activation_teleconseillere", "activation_developpeur"):
+    for col in ("activation_superviseur", "activation_gestionnaire", "activation_teleconseillere", "activation_developpeur", "activation_type_pdv"):
         val = payload.get(col)
         if val:
             updates += f", {col} = :{col}"

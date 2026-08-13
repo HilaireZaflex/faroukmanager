@@ -140,6 +140,7 @@ async def auto_migrate():
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_gestionnaire VARCHAR(200)",
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_teleconseillere VARCHAR(200)",
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_developpeur VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_type_pdv VARCHAR(200)",
         # S'assurer que status est VARCHAR (supporte EN_ATTENTE_CONFORMITE)
         "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
     ]
@@ -771,7 +772,8 @@ async def backfill_activation_team():
                 SET activation_superviseur   = COALESCE(p.activation_superviseur, pdv.superviseur),
                     activation_gestionnaire  = COALESCE(p.activation_gestionnaire, pdv.gestionnaire),
                     activation_teleconseillere = COALESCE(p.activation_teleconseillere, pdv.teleconseillere),
-                    activation_developpeur   = COALESCE(p.activation_developpeur, pdv.developpeur)
+                    activation_developpeur   = COALESCE(p.activation_developpeur, pdv.developpeur),
+                    activation_type_pdv      = COALESCE(p.activation_type_pdv, CAST(pdv.type_pdv AS VARCHAR))
                 FROM pdvs pdv
                 WHERE p.activated_pdv_id = pdv.id
                   AND p.status = 'PUCE_ACTIVEE'

@@ -835,6 +835,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       'Date Décision Dev': p.dev_decision_at ? new Date(p.dev_decision_at).toLocaleDateString('fr-FR') : '',
       'RC Décision Par': p.rc_decision_by ? `${p.rc_decision_by.prenom || ''} ${p.rc_decision_by.nom || ''}`.trim() : '',
       'Commentaire RC': p.rc_decision_comment || '',
+      'Type de Réseau': p.activation_type_pdv || '',
       'Superviseur': p.activation_superviseur || '',
       'Gestionnaire': p.activation_gestionnaire || '',
       'Téléconseillère': p.activation_teleconseillere || '',
@@ -2207,6 +2208,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         activation_gestionnaire: form.gestionnaire || '',
         activation_teleconseillere: form.teleconseillere || '',
         activation_developpeur: form.developpeur || '',
+        activation_type_pdv: form.type_pdv || '',
       });
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }

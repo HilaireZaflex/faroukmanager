@@ -257,6 +257,7 @@ class ProspectOut(BaseModel):
     activation_gestionnaire: Optional[str] = None
     activation_teleconseillere: Optional[str] = None
     activation_developpeur: Optional[str] = None
+    activation_type_pdv: Optional[str] = None
     activated_at: Optional[datetime] = None
     activated_pdv_id: Optional[int] = None
 
