@@ -130,6 +130,32 @@ async def reset_admin():
         db.close()
 
 @app.on_event("startup")
+async def auto_migrate():
+    """Auto-migration: ajoute les colonnes/types manquants au démarrage."""
+    from app.core.database import engine
+    from sqlalchemy import text
+    migrate_sqls = [
+        # Colonnes activation équipe
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_superviseur VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_gestionnaire VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_teleconseillere VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_developpeur VARCHAR(200)",
+        # S'assurer que status est VARCHAR (supporte EN_ATTENTE_CONFORMITE)
+        "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
+    ]
+    try:
+        with engine.connect() as conn:
+            for sql in migrate_sqls:
+                try:
+                    conn.execute(text(sql))
+                    conn.commit()
+                except Exception:
+                    pass  # colonne existe déjà ou type déjà VARCHAR
+        print("✅ Auto-migration prospects OK")
+    except Exception as e:
+        print(f"⚠️ Auto-migration prospects: {e}")
+
+@app.on_event("startup")
 async def startup_event():
     # Précalculer les données lentes en arrière-plan
     asyncio.create_task(warmup_cache())
@@ -732,6 +758,30 @@ async def migrate_prospect_enums():
             except Exception as e:
                 results.append({"sql": sql[:60], "status": str(e)[:80]})
     return {"results": results}
+
+@app.get("/backfill-activation-team")
+async def backfill_activation_team():
+    """Backfill: copie superviseur/gestionnaire/TC/dev depuis le PDV lié vers le prospect (anciens activés)."""
+    from app.core.database import engine
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                UPDATE prospects p
+                SET activation_superviseur   = COALESCE(p.activation_superviseur, pdv.superviseur),
+                    activation_gestionnaire  = COALESCE(p.activation_gestionnaire, pdv.gestionnaire),
+                    activation_teleconseillere = COALESCE(p.activation_teleconseillere, pdv.teleconseillere),
+                    activation_developpeur   = COALESCE(p.activation_developpeur, pdv.developpeur)
+                FROM pdvs pdv
+                WHERE p.activated_pdv_id = pdv.id
+                  AND p.status = 'PUCE_ACTIVEE'
+                  AND (p.activation_superviseur IS NULL OR p.activation_superviseur = '')
+            """))
+            conn.commit()
+            return {"status": "OK", "updated": result.rowcount}
+    except Exception as e:
+        return {"status": "ERROR", "detail": str(e)[:200]}
+
 
 @app.get("/migrate-activation-columns")
 async def migrate_activation_columns():
