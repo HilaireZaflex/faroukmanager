@@ -271,7 +271,7 @@ export default function ProspectionPage() {
         {safeTab === 'demandes'   && <TabDemandes key={refreshKey} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh}/>}
         {safeTab === 'workflow'   && <TabWorkflow key={`${refreshKey}-${stepFromUrl}`} onOpen={p => setModalDetail(p)} currentUser={user} onRefresh={refresh} initialStep={stepFromUrl}/>}
         {safeTab === 'activation'   && <TabActivation key={refreshKey} currentUser={user} onRefresh={refresh}/>}
-        {safeTab === 'conformite'   && <TabConformite key={refreshKey} prospects={conformites} currentUser={user} onRefresh={refresh}/>}
+        {safeTab === 'conformite'   && <TabConformite key={refreshKey} currentUser={user} onRefresh={refresh}/>}
         {safeTab === 'repartition' && (
           <React.Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: '#8a8a9a' }}>Chargement...</div>}>
             <TabRepartition />
@@ -2184,37 +2184,21 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     }
     setBusy(true);
     try {
-      await api.post(`/prospects/${p.id}/soumettre-conformite`);
-      // Uploader les pièces
-      if (form.pieces_fichiers && form.pieces_fichiers.length > 0) {
-        for (const file of form.pieces_fichiers) {
-          try {
-            const fd = new FormData(); fd.append('file', file);
-            await api.post(`/prospects/${p.id}/attachments`, fd, { headers: {'Content-Type':'multipart/form-data'} });
-          } catch(e) { console.warn('Upload pièce erreur:', file.name); }
-        }
+      // 1) Uploader d'abord les pièces obligatoires (le backend exige un champ "kind")
+      let uploadFailures = 0;
+      for (const file of form.pieces_fichiers) {
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('kind', file.type?.startsWith('image/') ? 'PHOTO_LOCAL_FACADE' : 'PIECE_IDENTITE');
+          await api.post(`/prospects/${p.id}/attachments`, fd, { headers: {'Content-Type':'multipart/form-data'} });
+        } catch(err) { uploadFailures++; console.warn('Upload pièce erreur:', file.name, err); }
       }
-      const fake_resp = {
-        create_pdv: true,
-        comment: form.comment || 'Puce activée sur le terrain',
-        gestionnaire: form.gestionnaire,
-        superviseur: form.superviseur,
-        teleconseillere: form.teleconseillere || null,
-        zone: form.zone,
-        sous_zone: form.sous_zone || null,
-        quartier_pdv: form.quartier || null,
-        puce_numero: form.numero_pdv || null,
-        // Données complètes gérant pour le PDV
-        nom_gerant: `${form.prenom} ${form.nom}`.trim(),
-        telephone: form.telephone,
-        numero_personnel: form.numero_personnel,
-        type_pdv: form.type_pdv,
-        adresse: form.adresse_pdv,
-        date_activation: form.date_activation || null,
-        developpeur: form.developpeur,
-        nom_garant: form.nom_garant,
-        tel_garant: form.tel_garant,
-      });
+      if (uploadFailures === form.pieces_fichiers.length) {
+        throw new Error("Échec de l'envoi des pièces jointes. Vérifiez le format (JPG, PNG, PDF · max 5 Mo) et réessayez.");
+      }
+      // 2) Puis soumettre pour validation RC/Admin
+      await api.post(`/prospects/${p.id}/soumettre-conformite`);
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
     finally { setBusy(false); }
@@ -2224,9 +2208,9 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     <>
       {success && (
         <SuccessModal
-          title="⚡ Puce activée ! PDV créé !"
-          message={`La puce du prospect ${p.reference} — ${p.prenom} ${p.nom} a été activée avec succès. Le Point de Vente a été créé automatiquement.`}
-          next="✅ Fin du processus. Le nouveau PDV est maintenant visible dans le menu Points de Vente."
+          title="📤 Formulaire soumis pour validation"
+          message={`Le formulaire d'activation du prospect ${p.reference} — ${p.prenom} ${p.nom} a été transmis. Il est maintenant en attente de validation par le RC, le Responsable de Conformité ou l'Admin.`}
+          next="⏳ Rendez-vous dans l'onglet « ✅ Conformité » : après vérification des informations et des pièces, l'activation sera confirmée et le PDV créé."
           onClose={() => { setSuccess(false); onDone(); }}
         />
       )}
@@ -2269,7 +2253,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
             <AFL label="Date de délivrance"><AFI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></AFL>
             <AFL label="Domicile"><AFI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></AFL>
             {/* Upload pièce d'identité */}
-            <AFL label="📎 Documents & Pièces d'identité *" required>
+            <AFL label="📎 Documents & Pièces d'identité (plusieurs fichiers) *" required>
               <div
                 onClick={() => document.getElementById('pieces-multi-upload').click()}
                 onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='rgba(255,105,0,0.8)'; }}
@@ -2445,7 +2429,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
                 background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff',
                 fontSize:14, cursor:'pointer', fontWeight:700, opacity: busy ? 0.7 : 1,
                 boxShadow:'0 4px 16px rgba(255,105,0,0.35)' }}>
-              {busy ? '⏳ Activation en cours…' : '📤 Soumettre pour validation RC/Admin'}
+              {busy ? '⏳ Envoi en cours…' : '📤 Soumettre pour validation RC/Admin'}
             </button>
           </div>
 
@@ -2459,17 +2443,71 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 // =============================================================================
 // ONGLET CONFORMITÉ & VALIDATION FINALE (RC / Admin / Resp. Conformité)
 // =============================================================================
-function TabConformite({ prospects, currentUser, onRefresh }) {
+
+// Galerie des pièces jointes soumises par le développeur
+function AttachmentGallery({ prospectId }) {
+  const [items, setItems] = useState(null);
+
+  // Base fichiers = base API sans le suffixe /api
+  const FILE_BASE = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
+
+  useEffect(() => {
+    let alive = true;
+    api.get(`/prospects/${prospectId}/attachments`)
+      .then(r => { if (alive) setItems(r.data || []); })
+      .catch(() => { if (alive) setItems([]); });
+    return () => { alive = false; };
+  }, [prospectId]);
+
+  if (items === null) return <div style={{ fontSize: 12, color: '#8a8a9a' }}>Chargement des pièces…</div>;
+  if (items.length === 0) return <div style={{ fontSize: 12, color: '#ff4757' }}>⚠️ Aucune pièce jointe soumise.</div>;
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+      {items.map(a => {
+        const href = a.url ? `${FILE_BASE}${a.url}` : null;
+        const isImg = (a.mime_type || '').startsWith('image/');
+        return (
+          <a key={a.id} href={href || '#'} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'block', textDecoration: 'none', width: 120 }}>
+            <div style={{ width: 120, height: 90, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {isImg && href
+                ? <img src={href} alt={a.filename} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <span style={{ fontSize: 34 }}>📄</span>}
+            </div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename}</div>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+function TabConformite({ currentUser, onRefresh }) {
+  const [prospects, setProspects] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [viewProspect, setViewProspect] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await prospectService.list({ status: 'EN_ATTENTE_CONFORMITE', limit: 200 });
+      setProspects(list);
+    } catch (e) { alert('Erreur : ' + (errMsg(e))); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
 
   const valider = async (p) => {
     if (!window.confirm(`Confirmer l'activation définitive de ${p.prenom} ${p.nom} (${p.reference}) ?\nCela créera le PDV dans le système.`)) return;
     setBusy(true);
     try {
       await api.post(`/prospects/${p.id}/valider-conformite`);
-      onRefresh();
       setViewProspect(null);
+      await reload();
+      onRefresh && onRefresh();
       alert('✅ Activation confirmée ! Le PDV a été créé dans le système.');
     } catch(e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
@@ -2481,8 +2519,9 @@ function TabConformite({ prospects, currentUser, onRefresh }) {
     setBusy(true);
     try {
       await api.post(`/prospects/${p.id}/rejeter-conformite`, { motif });
-      onRefresh();
       setViewProspect(null);
+      await reload();
+      onRefresh && onRefresh();
       alert('↩️ Formulaire retourné au développeur pour correction.');
     } catch(e) { alert('Erreur : ' + errMsg(e)); }
     finally { setBusy(false); }
@@ -2498,7 +2537,9 @@ function TabConformite({ prospects, currentUser, onRefresh }) {
         color="#22c55e"
       />
 
-      {prospects.length === 0 ? (
+      {loading ? (
+        <div className="loading-state">Chargement…</div>
+      ) : prospects.length === 0 ? (
         <div className="empty-state">✅ Aucun formulaire en attente de validation.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

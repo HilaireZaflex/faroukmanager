@@ -109,6 +109,7 @@ export const STATUS_LABELS = {
   APPROUVEE_RC:    { label: '🟢 Approuvée RC',    color: '#22c55e' },
   REFUSEE_RC:      { label: '🚫 Refusée RC',      color: '#ef4444' },
   PUCE_ATTRIBUEE:  { label: '📦 Puce attribuée', color: '#6366f1' },
+  EN_ATTENTE_CONFORMITE: { label: '📋 En attente conformité', color: '#f59e0b' },
   PUCE_ACTIVEE:    { label: '⚡ Puce activée',    color: '#16a34a' },
   ANNULEE:         { label: '❎ Annulée',         color: '#6b7280' },
 };
