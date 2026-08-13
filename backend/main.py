@@ -700,7 +700,7 @@ async def migrate_prospect_enums():
         ("idtype", ["CNI", "NINA", "PASSEPORT", "PERMIS", "AUTRE"]),
         ("localtype", ["BOUTIQUE_FIXE", "KIOSQUE", "TABLE", "MOBILE", "AUTRE"]),
         ("frequentationlevel", ["TRES_FREQUENTE", "MOYENNE", "FAIBLE"]),
-        ("prospectstatus", ["NOUVELLE", "EN_VISITE", "VALIDEE_DEV", "REFUSEE_DEV", "EN_ATTENTE_RC", "APPROUVEE_RC", "REFUSEE_RC", "PUCE_ATTRIBUEE", "PUCE_ACTIVEE", "ANNULEE"]),
+        ("prospectstatus", ["NOUVELLE", "EN_VISITE", "VALIDEE_DEV", "REFUSEE_DEV", "EN_ATTENTE_RC", "APPROUVEE_RC", "REFUSEE_RC", "PUCE_ATTRIBUEE", "EN_ATTENTE_CONFORMITE", "PUCE_ACTIVEE", "ANNULEE"]),
         ("decisiontype", ["SUBMIT", "ASSIGN_VISIT", "DEV_APPROVE", "DEV_REJECT", "RC_APPROVE", "RC_REJECT", "ASSIGN_PUCE", "ACTIVATE", "CANCEL", "NOTE"]),
     ]
     results = []
@@ -732,6 +732,40 @@ async def migrate_prospect_enums():
             except Exception as e:
                 results.append({"sql": sql[:60], "status": str(e)[:80]})
     return {"results": results}
+
+@app.get("/migrate-conformite-status")
+async def migrate_conformite_status():
+    """Migration: ajoute EN_ATTENTE_CONFORMITE à la colonne status (enum ou varchar)."""
+    from app.core.database import engine
+    from sqlalchemy import text
+    results = []
+    with engine.connect() as conn:
+        # 1) Si c'est un Enum PostgreSQL, ajouter la valeur
+        try:
+            conn.execute(text("ALTER TYPE prospectstatus ADD VALUE IF NOT EXISTS 'EN_ATTENTE_CONFORMITE'"))
+            conn.commit()
+            results.append({"action": "ADD ENUM VALUE", "status": "OK"})
+        except Exception as e:
+            results.append({"action": "ADD ENUM VALUE", "status": str(e)[:120]})
+        # 2) S'assurer que la colonne est VARCHAR (plus flexible)
+        try:
+            conn.execute(text("ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)"))
+            conn.commit()
+            results.append({"action": "ALTER TO VARCHAR", "status": "OK"})
+        except Exception as e:
+            err = str(e)
+            if "already" in err.lower():
+                results.append({"action": "ALTER TO VARCHAR", "status": "ALREADY_VARCHAR"})
+            else:
+                results.append({"action": "ALTER TO VARCHAR", "status": err[:120]})
+        # 3) Vérifier que le filtre marche
+        try:
+            row = conn.execute(text("SELECT COUNT(*) FROM prospects WHERE status = 'EN_ATTENTE_CONFORMITE'")).scalar()
+            results.append({"action": "TEST FILTER", "count": row, "status": "OK"})
+        except Exception as e:
+            results.append({"action": "TEST FILTER", "status": str(e)[:120]})
+    return {"results": results}
+
 
 @app.get("/migrate-prospect-columns")
 async def migrate_prospect_columns():
