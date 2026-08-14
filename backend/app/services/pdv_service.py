@@ -85,7 +85,10 @@ def _clean_nan(val, default=None):
     return s if isinstance(val, str) else val
 
 def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
-    """Import PDVs from Excel file."""
+    """Import PDVs from Excel file.
+    - PDV existant (même numero_pdv) → UPDATE des infos (sans toucher aux historiques/pièces/performances)
+    - Nouveau PDV → CREATE
+    """
     try:
         excel_file = BytesIO(file_bytes)
         df = pd.read_excel(excel_file)
@@ -93,37 +96,48 @@ def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
         # Normalize column names to lowercase
         df.columns = df.columns.str.lower().str.strip()
         
-        imported_count = 0
+        created_count = 0
+        updated_count = 0
         failed_count = 0
         errors = []
+
+        # Helper pour valeurs booléennes
+        def clean_bool(v, default=False):
+            import math
+            if v is None: return default
+            if isinstance(v, float) and math.isnan(v): return default
+            if isinstance(v, bool): return v
+            return str(v).strip().lower() in ('1', 'true', 'oui', 'yes')
+
+        # Nettoyer les valeurs numériques
+        def clean_float(v, default=0.0):
+            import math
+            try:
+                f = float(v)
+                return default if math.isnan(f) else f
+            except (TypeError, ValueError):
+                return default
+
+        # Colonnes à mettre à jour (on ne touche PAS à : id, numero_pdv, created_at,
+        # date_activation, health_score, score_risque, segment — données calculées/historiques)
+        UPDATABLE_FIELDS = [
+            "nom", "numero_personnel", "type_pdv", "statut", "medaille",
+            "zone", "sous_zone", "quartier", "commune", "latitude", "longitude",
+            "superviseur", "gestionnaire", "teleconseillere", "developpeur", "adresse",
+            "telephone", "email_contact", "nom_gerant",
+            "numero_flotte", "sim_au_bureau", "sim_coupee", "nouvelle_creation",
+            "single_wallet", "notes", "date_mise_a_jour",
+        ]
         
         for index, row in df.iterrows():
             try:
-                # Check if numero_pdv already exists
-                existing_pdv = db.query(PDV).filter(PDV.numero_pdv == str(row.get("numero_pdv", "")).strip()).first()
-                if existing_pdv:
+                numero = str(row.get("numero_pdv", "")).strip()
+                if not numero:
                     failed_count += 1
-                    errors.append(f"Row {index + 2}: PDV {row.get('numero_pdv')} already exists")
+                    errors.append(f"Row {index + 2}: numero_pdv vide")
                     continue
-                
-                # Helper pour valeurs booléennes
-                def clean_bool(v, default=False):
-                    import math
-                    if v is None: return default
-                    if isinstance(v, float) and math.isnan(v): return default
-                    if isinstance(v, bool): return v
-                    return str(v).strip().lower() in ('1', 'true', 'oui', 'yes')
 
-                # Nettoyer les valeurs numériques
-                def clean_float(v, default=0.0):
-                    import math
-                    try:
-                        f = float(v)
-                        return default if math.isnan(f) else f
-                    except (TypeError, ValueError):
-                        return default
-
-                # Create PDV from row data — toutes les valeurs texte nettoyées
+                # Préparer les données depuis la ligne Excel
                 pdv_data = {
                     "numero_pdv": _clean_nan(row.get("numero_pdv")),
                     "nom": _clean_nan(row.get("nom")),
@@ -140,6 +154,8 @@ def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
                     "superviseur": _clean_nan(row.get("superviseur")),
                     "gestionnaire": _clean_nan(row.get("gestionnaire")),
                     "teleconseillere": _clean_nan(row.get("teleconseillere")),
+                    "developpeur": _clean_nan(row.get("developpeur")),
+                    "adresse": _clean_nan(row.get("adresse")),
                     "telephone": _clean_nan(row.get("telephone")),
                     "email_contact": _clean_nan(row.get("email_contact")),
                     "nom_gerant": _clean_nan(row.get("nom_gerant")),
@@ -147,31 +163,60 @@ def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
                     "sim_au_bureau": clean_bool(row.get("sim_au_bureau")),
                     "sim_coupee": clean_bool(row.get("sim_coupee")),
                     "nouvelle_creation": clean_bool(row.get("nouvelle_creation")),
+                    "single_wallet": clean_bool(row.get("single_wallet")),
                     "health_score": clean_float(row.get("health_score"), 50.0),
                     "segment": _clean_nan(row.get("segment")),
                     "score_risque": clean_float(row.get("score_risque"), 0.0),
                     "notes": _clean_nan(row.get("notes")),
+                    "date_mise_a_jour": _clean_nan(row.get("date_mise_a_jour")),
                 }
-                
-                # Remove None values and create PDV
-                pdv_data = {k: v for k, v in pdv_data.items() if v is not None}
-                pdv_create = PDVCreate(**pdv_data)
-                create_pdv(db, pdv_create)
-                imported_count += 1
+
+                # Check if PDV already exists
+                existing_pdv = db.query(PDV).filter(PDV.numero_pdv == numero).first()
+
+                if existing_pdv:
+                    # ── UPDATE : mettre à jour uniquement les champs autorisés ──
+                    changed = False
+                    for field in UPDATABLE_FIELDS:
+                        new_val = pdv_data.get(field)
+                        if new_val is not None:
+                            old_val = getattr(existing_pdv, field, None)
+                            # Pour les enums, comparer par valeur string
+                            old_str = old_val.value if hasattr(old_val, 'value') else old_val
+                            if str(new_val) != str(old_str) if old_str is not None else True:
+                                setattr(existing_pdv, field, new_val)
+                                changed = True
+                    if changed:
+                        from datetime import datetime
+                        existing_pdv.updated_at = datetime.utcnow()
+                        db.add(existing_pdv)
+                        updated_count += 1
+                else:
+                    # ── CREATE : nouveau PDV ──
+                    clean_data = {k: v for k, v in pdv_data.items() if v is not None}
+                    pdv_create = PDVCreate(**clean_data)
+                    create_pdv(db, pdv_create)
+                    created_count += 1
                 
             except Exception as e:
                 failed_count += 1
                 errors.append(f"Row {index + 2}: {str(e)}")
         
+        db.commit()
+
         return {
-            "imported": imported_count,
+            "created": created_count,
+            "updated": updated_count,
+            "imported": created_count,  # rétro-compatible
             "failed": failed_count,
-            "errors": errors,
-            "total": imported_count + failed_count
+            "errors": errors[:50],  # limiter les erreurs retournées
+            "total": created_count + updated_count + failed_count
         }
         
     except Exception as e:
         return {
+            "created": 0,
+            "updated": 0,
             "imported": 0,
             "failed": 0,
             "errors": [str(e)],
