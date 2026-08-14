@@ -178,8 +178,8 @@ export default function ProspectionPage() {
   const allTabs = [
     { id: 'demandes',   label: '📋 Demandes',           show: true },
     { id: 'workflow',   label: '🔄 Workflow',            show: isAdminOrRC || isDev },
-    { id: 'conformite',   label: '✅ Conformité',           show: isAdminOrRC },
     { id: 'activation',   label: '⚡ Activation',          show: !isCommercial },
+    { id: 'conformite',   label: '✅ Conformité',           show: isAdminOrRC },
     { id: 'repartition', label: '📊 Répartition Agents',  show: isAdminOrRC },
   ];
   const tabs = allTabs.filter(t => t.show);
