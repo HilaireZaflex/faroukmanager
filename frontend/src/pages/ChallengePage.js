@@ -492,10 +492,13 @@ const TABS = [
   { id: 'dashboard', label: '🏆 Score Global', icon: Trophy },
   { id: 'indicateurs', label: '📈 Indicateurs', icon: Target },
   { id: 'kpis', label: '📊 Suivi KPIs', icon: Target },
-  { id: 'recrutement', label: '👥 Recrutement OMY', icon: Users },
-  { id: 'plv', label: '📦 Déploiement PLV', icon: Package },
-  { id: 'points', label: '📍 Points Contrôlés', icon: MapPin },
-  { id: 'classement', label: '⭐ Classement Équipe', icon: Star },
+  // Challenge PDG TELCO
+  { id: 'points', label: '📍 Points Contrôlés', icon: MapPin, badge: 'TELCO', badgeColor: '#0ea5e9' },
+  // Challenge Orange Money
+  { id: 'recrutement', label: '👥 Recrutement OMY', icon: Users, badge: 'OM', badgeColor: '#FF6900' },
+  { id: 'plv', label: '📦 Visibilité PLV', icon: Package, badge: 'OM', badgeColor: '#FF6900' },
+  // Commun
+  { id: 'classement', label: '⭐ Classement', icon: Star },
   { id: 'alertes', label: '🚨 Alertes', icon: AlertTriangle },
 ];
 
@@ -576,6 +579,9 @@ export default function ChallengePage() {
           <button key={t.id} onClick={() => setActiveTab(t.id)}
             className={`challenge-tab${activeTab === t.id ? ' active' : ''}`}>
             {t.label}
+            {t.badge && (
+              <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 900, padding: '2px 5px', borderRadius: 4, background: `${t.badgeColor}22`, color: t.badgeColor, verticalAlign: 'middle' }}>{t.badge}</span>
+            )}
             {t.id === 'alertes' && nbCritiques > 0 && (
               <span className="ch-badge-critiques">{nbCritiques}</span>
             )}
@@ -913,6 +919,15 @@ function TabRecrutement() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Banner Challenge OM */}
+      <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 20 }}>{"🟠"}</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>Challenge Orange Money | Poids : 15%</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>Objectif : recruter 1000 nouveaux clients actifs sur la p{"é"}riode (250/mois par DZ)</div>
+        </div>
+      </div>
+
       {/* Stats par mois */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
         {MOIS_CHALLENGE.map(m => {
@@ -931,7 +946,7 @@ function TabRecrutement() {
 
       {/* Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <h3 className="ch-section-title" style={{ margin: 0 }}>👥 Recrutements — {MOIS_LABELS[mois]}</h3>
+        <h3 className="ch-section-title" style={{ margin: 0 }}>{"👥"} Recrutements — {MOIS_LABELS[mois]}</h3>
         <button className="ch-btn ch-btn-primary" onClick={() => setShowForm(!showForm)}>
           <Plus size={14}/> Nouveau recrutement
         </button>
@@ -1029,6 +1044,15 @@ function TabPLV() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Banner Challenge OM */}
+      <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 20 }}>{"🟠"}</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>Challenge Orange Money | Poids : 15%</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>{"Objectif : d\u00e9ployer 100 PLV par partenaire et par DZ (25 PLV/mois)"}</div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
         {MOIS_CHALLENGE.map(m => {
           const s = stats[m] || { realise: 0, objectif: 25, taux: 0 };
@@ -1152,6 +1176,15 @@ function TabPointsControles() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Banner Challenge TELCO */}
+      <div style={{ background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.25)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 20 }}>{"🔵"}</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#0ea5e9' }}>{"Challenge PDG TELCO | Poids : 15%"}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>{"Objectif : cr\u00e9er 25 nouveaux points contr\u00f4l\u00e9s par DZ et activer au moins 80%"}</div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
         {MOIS_CHALLENGE.map(m => {
           const s = stats[m] || { realise: 0, objectif: 5, taux: 0 };
