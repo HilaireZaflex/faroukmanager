@@ -856,14 +856,28 @@ function TabKPIs({ dashboard, moisSelectionne, setMoisSelectionne, filter }) {
         ))}
       </div>
 
-      {/* KPIs du mois */}
-      <div className="ch-card">
-        <h3 className="ch-section-title">📊 KPIs — {MOIS_LABELS[moisSelectionne]} 2026</h3>
+      {/* KPIs du mois — filtrés par challenge */}
+      <div className="ch-card" style={{ borderLeft: `4px solid ${filter === 'TELCO' ? '#0ea5e9' : '#FF6900'}` }}>
+        <h3 className="ch-section-title">{filter === 'TELCO' ? '🔵' : '🟠'} KPIs {filter === 'TELCO' ? 'PDG TELCO' : 'Orange Money'} — {MOIS_LABELS[moisSelectionne]} 2026</h3>
         {kpisMois ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
-            {kpisMois.kpis?.map(kpi => (
-              <KPIBar key={kpi.kpi} label={kpi.kpi} realise={kpi.realise} objectif={kpi.objectif} taux={kpi.taux} unite={kpi.unite} poids={kpi.poids_om || kpi.poids_telco}/>
-            ))}
+            {(kpisMois.kpis || [])
+              .filter(kpi => filter === 'TELCO'
+                ? ['CA Sell out', 'NAFAMA', 'Vente terminaux', 'TERMINAUX', 'Points', 'controles', 'Energie', 'ENERGIE', 'Note DZ'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
+                : ['Cash-out', 'OMY', 'PDV actif', 'Recrutement', 'Kaabu', 'KAABU', 'fintech', 'PLV', 'visibilit'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
+              )
+              .map(kpi => (
+                <KPIBar key={kpi.kpi} label={kpi.kpi} realise={kpi.realise} objectif={kpi.objectif} taux={kpi.taux} unite={kpi.unite} poids={filter === 'TELCO' ? kpi.poids_telco : kpi.poids_om}/>
+              ))
+            }
+            {(kpisMois.kpis || []).filter(kpi => filter === 'TELCO'
+              ? ['CA Sell out', 'NAFAMA', 'Vente terminaux', 'TERMINAUX', 'Points', 'controles', 'Energie', 'ENERGIE', 'Note DZ'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
+              : ['Cash-out', 'OMY', 'PDV actif', 'Recrutement', 'Kaabu', 'KAABU', 'fintech', 'PLV', 'visibilit'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
+            ).length === 0 && (
+              <div style={{ textAlign: 'center', color: '#475569', padding: 20, fontSize: 13 }}>
+                {"Aucune donn\u00e9e KPI disponible pour ce mois. Les donn\u00e9es appara\u00eetront apr\u00e8s import des indicateurs."}
+              </div>
+            )}
           </div>
         ) : <div className="ch-loading">Chargement…</div>}
       </div>
@@ -1306,6 +1320,44 @@ function TabPointsControles() {
 }
 
 // ── Tab Classement ────────────────────────────────────────────────────────────
+function ClassementSection({ title, icon, color, data, unite, objLabel }) {
+  if (!data || data.length === 0) return (
+    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
+      <h3 className="ch-section-title">{icon} {title}</h3>
+      <div style={{ textAlign: 'center', color: '#475569', padding: 20 }}>{"Aucune donn\u00e9e disponible"}</div>
+    </div>
+  );
+  return (
+    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
+      <h3 className="ch-section-title">{icon} {title}</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+        {data.map((r, i) => {
+          const c = r.taux != null ? getColor(r.taux) : color;
+          const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : `${i + 1}.`;
+          return (
+            <div key={r.superviseur || r.zone || i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: `1px solid ${c}22` }}>
+              <div style={{ fontSize: 20, width: 32, textAlign: 'center' }}>{medal}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{r.superviseur || r.zone}</div>
+                {r.taux != null && (
+                  <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginTop: 6, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(r.taux, 100)}%`, background: c, borderRadius: 3 }}/>
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 16, fontWeight: 900, color: c }}>{r.total}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>{objLabel ? `/ ${r.objectif_cumule || '-'} ${unite}` : unite}</div>
+                {r.taux != null && <div style={{ fontSize: 11, fontWeight: 700, color: c }}>{fmtPct(r.taux)}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TabClassement() {
   const { data } = useQuery('challenge-classement',
     () => api.get('/challenge/classement').then(r => r.data),
@@ -1314,59 +1366,22 @@ function TabClassement() {
 
   const recrutement = data?.recrutement || [];
   const plv = data?.plv || [];
+  const pointsControles = data?.points_controles || [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div className="ch-card">
-        <h3 className="ch-section-title">🏆 Classement Recrutement OMY</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-          {recrutement.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#475569', padding: 20 }}>Aucune donnée disponible</div>
-          ) : recrutement.map((r, i) => {
-            const color = getColor(r.taux);
-            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-            return (
-              <div key={r.superviseur} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: `1px solid ${color}22` }}>
-                <div style={{ fontSize: 20, width: 32, textAlign: 'center' }}>{medal}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{r.superviseur}</div>
-                  <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginTop: 6, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(r.taux, 100)}%`, background: color, borderRadius: 3 }}/>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 16, fontWeight: 900, color }}>{r.total}</div>
-                  <div style={{ fontSize: 10, color: '#64748b' }}>/ {r.objectif_cumule} clients</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color }}>{fmtPct(r.taux)}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* Section Challenge Orange Money */}
+      <div style={{ background: 'rgba(255,105,0,0.05)', border: '1px solid rgba(255,105,0,0.15)', borderRadius: 12, padding: '10px 14px', marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#FF6900' }}>{"\uD83D\uDFE0"} Challenge Orange Money</div>
       </div>
+      <ClassementSection title="Recrutement OMY" icon={"\uD83D\uDC65"} color="#FF6900" data={recrutement} unite="clients" objLabel />
+      <ClassementSection title={"D\u00e9ploiement PLV / Support Visibilit\u00e9"} icon={"\uD83D\uDCE6"} color="#FF6900" data={plv} unite={"PLV d\u00e9ploy\u00e9es"} />
 
-      <div className="ch-card">
-        <h3 className="ch-section-title">📦 Classement Déploiement PLV</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-          {plv.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#475569', padding: 20 }}>Aucune donnée disponible</div>
-          ) : plv.map((p, i) => {
-            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-            return (
-              <div key={p.superviseur} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ fontSize: 20, width: 32, textAlign: 'center' }}>{medal}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{p.superviseur}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#0ea5e9' }}>{p.total}</div>
-                  <div style={{ fontSize: 10, color: '#64748b' }}>PLV déployées</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* Section Challenge PDG TELCO */}
+      <div style={{ background: 'rgba(14,165,233,0.05)', border: '1px solid rgba(14,165,233,0.15)', borderRadius: 12, padding: '10px 14px', marginBottom: 4, marginTop: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#0ea5e9' }}>{"\uD83D\uDD35"} Challenge PDG TELCO</div>
       </div>
+      <ClassementSection title={"Points Contr\u00f4l\u00e9s Cr\u00e9\u00e9s"} icon={"\uD83D\uDCCD"} color="#0ea5e9" data={pointsControles} unite="points" objLabel />
     </div>
   );
 }
