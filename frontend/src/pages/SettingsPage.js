@@ -305,6 +305,9 @@ function SectionUtilisateurs({ currentUser, customRoles = [] }) {
                   <option value="rc">🟢 Resp. Commercial</option>
                   <option value="conformite">🛡️ Resp. de Conformité</option>
                   <option value="COMMERCIAL">⭐ Commercial</option>
+                  {(customRoles || []).filter(r => !r.locked).map(r => (
+                    <option key={r.id} value={r.id}>⭐ {r.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
