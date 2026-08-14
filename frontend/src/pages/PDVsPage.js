@@ -459,26 +459,51 @@ export default function PDVsPage() {
 
   const handleExportExcel = async () => {
     try {
-      // Fetch all PDVs for export (no pagination limit)
-      const allPDVs = await api.get('/pdvs', { params: { limit: 1000, ...( zone ? { zone } : {}), ...(statut ? { statut } : {}), ...(typePdv ? { type_pdv: typePdv } : {}), ...(search ? { search } : {}) } }).then(r => r.data);
+      // Construire les params identiques à la liste (respecte tous les filtres actifs)
+      const exportParams = { limit: 5000 };
+      if (zone) exportParams.zone = zone;
+      if (statut) exportParams.statut = statut;
+      if (typePdv) exportParams.type_pdv = typePdv;
+      if (search) exportParams.search = search;
+      if (nouvelleActivation) {
+        exportParams.nouvelle_activation = true;
+        Object.assign(exportParams, getActDates());
+      }
+
+      const allPDVs = await api.get('/pdvs', { params: exportParams }).then(r => r.data);
+
       const rows = allPDVs.map(p => ({
         'Numéro PDV': p.numero_pdv,
         'Nom': p.nom,
+        'N° Personnel': p.numero_personnel || '',
         'Type': p.type_pdv,
-        'Zone': p.zone,
-        'Sous-zone': p.sous_zone || '',
-        'Superviseur': p.superviseur || '',
-        'Téléconseillère': p.teleconseillere || '',
         'Statut': p.statut,
+        'Zone': p.zone || '',
+        'Sous-zone': p.sous_zone || '',
+        'Quartier': p.quartier || '',
+        'Commune': p.commune || '',
+        'Adresse': p.adresse || '',
+        'Superviseur': p.superviseur || '',
+        'Gestionnaire': p.gestionnaire || '',
+        'Téléconseillère': p.teleconseillere || '',
+        'Développeur': p.developpeur || '',
+        'Gérant': p.nom_gerant || '',
+        'Téléphone': p.telephone || '',
+        'Email': p.email_contact || '',
+        'Date Activation': p.date_activation || '',
         'Health Score': p.health_score?.toFixed(0) || 0,
         'Médaille': p.medaille || 'AUCUNE',
-        'Téléphone': p.telephone || '',
-        'Gérant': p.nom_gerant || '',
+        'Notes': p.notes || '',
       }));
+
+      const sheetName = nouvelleActivation ? 'Nouvelles Activations' : `PDVs ${service}`;
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'PDVs');
-      XLSX.writeFile(wb, `pdvs_export_${new Date().toISOString().slice(0,10)}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+      const fileName = nouvelleActivation
+        ? `nouvelles_activations_${periodeAct}_${new Date().toISOString().slice(0,10)}.xlsx`
+        : `pdvs_export_${new Date().toISOString().slice(0,10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
       toast.success(`${rows.length} PDVs exportés avec succès !`);
     } catch (err) {
       toast.error('Erreur lors de l\'export');
