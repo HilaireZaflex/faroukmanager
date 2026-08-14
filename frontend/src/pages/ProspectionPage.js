@@ -171,7 +171,7 @@ export default function ProspectionPage() {
   // Passer stepFromUrl au workflow via context si nécessaire
   const currentStepFromUrl = stepFromUrl;
 
-  const isAdminOrRC = ['admin', 'rc', 'manager', 'ADMIN', 'RC', 'MANAGER'].includes(user?.role);
+  const isAdminOrRC = ['admin', 'rc', 'manager', 'ADMIN', 'RC', 'MANAGER', 'conformite', 'CONFORMITE', 'responsable_produit_et_qualit_oprationnelle_'].includes(user?.role);
   const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(user?.role) || isAdminOrRC;
   const isCommercial = ['commercial', 'COMMERCIAL'].includes(user?.role);
 
@@ -745,6 +745,8 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const canDelete = ['admin', 'manager', 'rc', 'ADMIN', 'MANAGER', 'RC', 'UserRole.admin', 'UserRole.manager', 'UserRole.rc'].includes(currentUser?.role) ||
     (currentUser?.role || '').toLowerCase().replace('userrole.', '') === 'rc' ||
     (currentUser?.role || '').toLowerCase().replace('userrole.', '') === 'admin' ||
+    (currentUser?.role || '').toLowerCase().replace('userrole.', '') === 'conformite' ||
+    (currentUser?.role || '').toLowerCase().startsWith('responsable_produit') ||
     (currentUser?.role || '').toLowerCase().replace('userrole.', '') === 'manager';
 
   const handleDelete = (e, p) => { e.stopPropagation(); setConfirmDelete(p); };
@@ -1245,7 +1247,7 @@ function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState([]);
 
-  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'conformite', 'CONFORMITE', 'responsable_produit_et_qualit_oprationnelle_'].includes(currentUser?.role);
   const isRC = ['rc', 'RC'].includes(currentUser?.role) || isAdmin;
   const isDev = ['developpeur', 'DEVELOPPEUR', 'superviseur', 'SUPERVISEUR'].includes(currentUser?.role) || isAdmin;
 
@@ -1613,7 +1615,7 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
   const [busy, setBusy] = useState(false);
   const [cancelMotif, setCancelMotif] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
-  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC', 'conformite', 'CONFORMITE', 'responsable_produit_et_qualit_oprationnelle_'].includes(currentUser?.role);
   const isAssignedById = p.visit_assigned_to?.id === currentUser?.id;
   // Vérifier aussi par nom dans les notes (cas dev réseau sans visit_assigned_to_id)
   const currentNomFull = `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim().toUpperCase();
@@ -1943,7 +1945,7 @@ function Attribution5Card({ prospect: p, developers, onDone }) {
 function TabActivation({ currentUser, onRefresh }) {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(false);
-  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC'].includes(currentUser?.role);
+  const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC', 'conformite', 'CONFORMITE', 'responsable_produit_et_qualit_oprationnelle_'].includes(currentUser?.role);
 
   const reload = useCallback(async () => {
     setLoading(true);
