@@ -414,8 +414,8 @@ export default function PDVsPage() {
     nouvelles_creations: telecStats?.nouvelles_creations ?? 0,
     nouvelles_activations: telecStats?.nouvelles_activations ?? 0,
   } : nouvelleActivation ? {
-    // Quand filtre Nouvelle Activation actif: Total PDV reste global, les autres sont filtrés
-    total_pdvs: activeDash?.total_pdvs ?? statsBase?.total_pdvs ?? 0,
+    // Quand filtre Nouvelle Activation actif: tout concerne uniquement les PDV activés
+    total_pdvs: dynamicStatsRaw?.total_pdvs ?? 0,
     actifs: dynamicStatsRaw?.actifs ?? 0,
     inactifs: dynamicStatsRaw?.inactifs ?? 0,
     en_recuperation: dynamicStatsRaw?.en_recuperation ?? 0,
@@ -507,11 +507,17 @@ export default function PDVsPage() {
       <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
         <span style={{ fontSize:12, color:'var(--text-secondary)', fontWeight:600 }}>Service :</span>
         {[
-          { key: 'OMY',    label: 'PDV OMY',    color: '#FF6900' },
-          { key: 'KAABU',  label: 'PDV KAABU',  color: '#00d68f' },
-          { key: 'NAFAMA', label: 'PDV NAFAMA',  color: '#a29bfe' },
+          { key: 'OMY',         label: 'PDV OMY',              color: '#FF6900' },
+          { key: 'KAABU',       label: 'PDV KAABU',            color: '#00d68f' },
+          { key: 'NAFAMA',      label: 'PDV NAFAMA',           color: '#a29bfe' },
+          { key: 'ACTIVATIONS', label: '🆕 Nvelles Activations', color: '#3b82f6' },
         ].map(s => (
-          <button key={s.key} onClick={() => { setService(s.key); setPage(0); }}
+          <button key={s.key} onClick={() => {
+            setService(s.key);
+            setNouvelleActivation(s.key === 'ACTIVATIONS');
+            setStatut('');
+            setPage(0);
+          }}
             style={{
               padding: '6px 18px', borderRadius: 8, border: `1px solid ${service === s.key ? s.color : 'var(--border)'}`,
               fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
@@ -529,6 +535,11 @@ export default function PDVsPage() {
         {service === 'KAABU' && (
           <span style={{ fontSize:11, color:'var(--text-secondary)', fontStyle:'italic', marginLeft:8 }}>
             ⚠️ Données KAABU non encore importées — affichage en attente
+          </span>
+        )}
+        {service === 'ACTIVATIONS' && (
+          <span style={{ fontSize:11, color:'#3b82f6', fontStyle:'italic', marginLeft:8 }}>
+            🆕 PDV créés via le workflow de prospection (activation terrain)
           </span>
         )}
       </div>
@@ -550,7 +561,7 @@ export default function PDVsPage() {
           <span className="mini-stat-val">{dynamicStats.en_recuperation || 0}</span>
           <span className="mini-stat-label">⚠️ Récupération</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: nouvelleActivation ? '2px solid #3b82f6' : 'none' }} onClick={() => { setNouvelleActivation(!nouvelleActivation); setStatut(''); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: nouvelleActivation ? '2px solid #3b82f6' : 'none' }} onClick={() => { const next = !nouvelleActivation; setNouvelleActivation(next); setService(next ? 'ACTIVATIONS' : 'OMY'); setStatut(''); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.nouvelles_activations || 0}</span>
           <span className="mini-stat-label">🆕 Nvelles Activations</span>
         </div>
