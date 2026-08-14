@@ -460,7 +460,7 @@ export default function PDVsPage() {
   const handleExportExcel = async () => {
     try {
       // Construire les params identiques à la liste (respecte tous les filtres actifs)
-      const exportParams = { limit: 5000 };
+      const exportParams = { limit: 10000 };
       if (zone) exportParams.zone = zone;
       if (statut) exportParams.statut = statut;
       if (typePdv) exportParams.type_pdv = typePdv;

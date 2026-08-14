@@ -511,7 +511,7 @@ def list_pdvs(
     date_debut: Optional[str] = Query(None),
     date_fin: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=10000),
     current_user: User = Depends(get_current_user)
 ):
     """Liste des PDVs avec filtres complets — M1 du CDC"""
