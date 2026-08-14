@@ -318,6 +318,7 @@ export default function PDVsPage() {
   const [zone, setZone] = useState('');
   const [statut, setStatut] = useState('');
   const [typePdv, setTypePdv] = useState('');
+  const [nouvelleActivation, setNouvelleActivation] = useState(false);
   const [service, setService] = useState('OMY');
   const [page, setPage] = useState(0);
   const [showModal, setShowModal] = useState(false);
@@ -328,6 +329,7 @@ export default function PDVsPage() {
   if (zone) params.zone = zone;
   if (statut) params.statut = statut;
   if (typePdv) params.type_pdv = typePdv;
+  if (nouvelleActivation) params.nouvelle_activation = true;
   // Téléconseillère : filtrer uniquement ses PDVs
   if (isTelec && teleName) params.teleconseillere = teleName;
 
@@ -409,12 +411,14 @@ export default function PDVsPage() {
     inactifs: telecStats?.inactifs ?? 0,
     en_recuperation: telecStats?.en_recuperation ?? 0,
     nouvelles_creations: telecStats?.nouvelles_creations ?? 0,
+    nouvelles_activations: telecStats?.nouvelles_activations ?? 0,
   } : {
     total_pdvs: activeDash?.total_pdvs ?? dynamicStatsRaw?.total_pdvs ?? 0,
     actifs: activeDash?.active_pdvs ?? dynamicStatsRaw?.actifs ?? 0,
     inactifs: (activeDash?.inactive_pdvs ?? 0) + (activeDash?.pdvs_sans_donnees ?? 0),
     en_recuperation: dynamicStatsRaw?.en_recuperation ?? 0,
     nouvelles_creations: dynamicStatsRaw?.nouvelles_creations ?? 0,
+    nouvelles_activations: dynamicStatsRaw?.nouvelles_activations ?? 0,
   };
 
   const zones = statsBase?.pdvs_par_zone ? Object.keys(statsBase.pdvs_par_zone) : [];
@@ -525,21 +529,21 @@ export default function PDVsPage() {
           <span className="mini-stat-val">{dynamicStats.total_pdvs || 0}</span>
           <span className="mini-stat-label">Total PDVs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut('ACTIF'); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut('ACTIF'); setNouvelleActivation(false); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.actifs || 0}</span>
           <span className="mini-stat-label">✅ Actifs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: statut === 'INACTIF' ? '2px solid #ef4444' : 'none' }} onClick={() => { setStatut('INACTIF'); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: statut === 'INACTIF' ? '2px solid #ef4444' : 'none' }} onClick={() => { setStatut('INACTIF'); setNouvelleActivation(false); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.inactifs || 0}</span>
           <span className="mini-stat-label">🔴 Inactifs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#f59e0b', cursor: 'pointer', outline: statut === 'RECUPERATION' ? '2px solid #f59e0b' : 'none' }} onClick={() => { setStatut('RECUPERATION'); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#f59e0b', cursor: 'pointer', outline: statut === 'RECUPERATION' ? '2px solid #f59e0b' : 'none' }} onClick={() => { setStatut('RECUPERATION'); setNouvelleActivation(false); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.en_recuperation || 0}</span>
           <span className="mini-stat-label">⚠️ Récupération</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: statut === 'NOUVELLE' ? '2px solid #3b82f6' : 'none' }} onClick={() => { setStatut(''); setPage(0); /* filtre nouvelles créations */ }}>
-          <span className="mini-stat-val">{dynamicStats.nouvelles_creations || 0}</span>
-          <span className="mini-stat-label">🆕 Nvelles Créations</span>
+        <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: nouvelleActivation ? '2px solid #3b82f6' : 'none' }} onClick={() => { setNouvelleActivation(!nouvelleActivation); setStatut(''); setPage(0); }}>
+          <span className="mini-stat-val">{dynamicStats.nouvelles_activations || 0}</span>
+          <span className="mini-stat-label">🆕 Nvelles Activations</span>
         </div>
       </div>
 

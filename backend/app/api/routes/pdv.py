@@ -44,6 +44,14 @@ def get_stats(
     en_recuperation = len([p for p in pdvs if p.statut == PDVStatut.RECUPERATION])
     nouvelles_creations = len([p for p in pdvs if p.nouvelle_creation])
     
+    # Nouvelles activations = PDV créés via le workflow de prospection
+    from app.models.prospect import Prospect as ProspectModel
+    pdv_ids_all = [p.id for p in pdvs]
+    nouvelles_activations = db.query(func.count(ProspectModel.id)).filter(
+        ProspectModel.activated_pdv_id.in_(pdv_ids_all),
+        ProspectModel.status == 'PUCE_ACTIVEE'
+    ).scalar() or 0
+    
     # Inactifs = PDVs sans opérations lors du dernier mois disponible
     from app.models.performance import MonthlyPerformance
     from sqlalchemy import func
@@ -94,6 +102,7 @@ def get_stats(
         "inactifs": inactifs,
         "en_recuperation": en_recuperation,
         "nouvelles_creations": nouvelles_creations,
+        "nouvelles_activations": nouvelles_activations,
         "ca_total": ca_total,
         "ca_moyen": ca_moyen,
         "pdvs_par_type": pdvs_par_type,
@@ -472,6 +481,7 @@ def list_pdvs(
     type_pdv: Optional[str] = Query(None),
     statut: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    nouvelle_activation: Optional[bool] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     current_user: User = Depends(get_current_user)
@@ -513,6 +523,13 @@ def list_pdvs(
                 PDV.quartier.ilike(f"%{search}%"),
             )
         )
+    if nouvelle_activation:
+        from app.models.prospect import Prospect as ProspectModel
+        activated_pdv_ids = db.query(ProspectModel.activated_pdv_id).filter(
+            ProspectModel.activated_pdv_id.isnot(None),
+            ProspectModel.status == 'PUCE_ACTIVEE'
+        ).subquery()
+        query = query.filter(PDV.id.in_(activated_pdv_ids))
 
     from sqlalchemy import case
     pdvs = query.order_by(
