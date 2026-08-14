@@ -62,23 +62,27 @@ def get_stats(
     except Exception:
         nouvelles_activations = 0
     
-    # Inactifs = PDVs sans opérations lors du dernier mois disponible
-    from app.models.performance import MonthlyPerformance
-    from sqlalchemy import func
-    last_period = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).order_by(
-        MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
-    ).first()
-    if last_period:
-        # Récupérer les IDs des PDVs filtrés
-        pdv_ids = [p.id for p in pdvs]
-        inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
-            MonthlyPerformance.annee == last_period[0],
-            MonthlyPerformance.mois == last_period[1],
-            MonthlyPerformance.est_actif == False,
-            MonthlyPerformance.pdv_id.in_(pdv_ids)
-        ).scalar() or 0
+    # Inactifs
+    if nouvelle_activation:
+        # Pour ACTIVATIONS: inactifs par statut PDV
+        inactifs = len([p for p in pdvs if p.statut == PDVStatut.INACTIF])
     else:
-        inactifs = 0
+        # Pour OMY/KAABU/NAFAMA: inactifs = sans opérations lors du dernier mois
+        from app.models.performance import MonthlyPerformance
+        from sqlalchemy import func
+        last_period = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).order_by(
+            MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
+        ).first()
+        if last_period:
+            pdv_ids = [p.id for p in pdvs]
+            inactifs = db.query(func.count(MonthlyPerformance.id)).filter(
+                MonthlyPerformance.annee == last_period[0],
+                MonthlyPerformance.mois == last_period[1],
+                MonthlyPerformance.est_actif == False,
+                MonthlyPerformance.pdv_id.in_(pdv_ids)
+            ).scalar() or 0
+        else:
+            inactifs = 0
 
     # Dernière période disponible
     latest = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).distinct().order_by(

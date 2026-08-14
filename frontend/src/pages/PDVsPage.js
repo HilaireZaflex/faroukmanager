@@ -549,15 +549,15 @@ export default function PDVsPage() {
           <span className="mini-stat-val">{dynamicStats.total_pdvs || 0}</span>
           <span className="mini-stat-label">Total PDVs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut('ACTIF'); setNouvelleActivation(false); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut(statut === 'ACTIF' ? '' : 'ACTIF'); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.actifs || 0}</span>
           <span className="mini-stat-label">✅ Actifs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: statut === 'INACTIF' ? '2px solid #ef4444' : 'none' }} onClick={() => { setStatut('INACTIF'); setNouvelleActivation(false); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: statut === 'INACTIF' ? '2px solid #ef4444' : 'none' }} onClick={() => { setStatut(statut === 'INACTIF' ? '' : 'INACTIF'); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.inactifs || 0}</span>
           <span className="mini-stat-label">🔴 Inactifs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#f59e0b', cursor: 'pointer', outline: statut === 'RECUPERATION' ? '2px solid #f59e0b' : 'none' }} onClick={() => { setStatut('RECUPERATION'); setNouvelleActivation(false); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#f59e0b', cursor: 'pointer', outline: statut === 'RECUPERATION' ? '2px solid #f59e0b' : 'none' }} onClick={() => { setStatut(statut === 'RECUPERATION' ? '' : 'RECUPERATION'); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.en_recuperation || 0}</span>
           <span className="mini-stat-label">⚠️ Récupération</span>
         </div>
