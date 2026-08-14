@@ -143,6 +143,8 @@ async def auto_migrate():
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_type_pdv VARCHAR(200)",
         # S'assurer que status est VARCHAR (supporte EN_ATTENTE_CONFORMITE)
         "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
+        # Colonne role utilisateur en VARCHAR (supporte rôles personnalisés)
+        "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(100)",
     ]
     try:
         with engine.connect() as conn:

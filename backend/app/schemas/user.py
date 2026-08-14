@@ -7,7 +7,7 @@ class UserBase(BaseModel):
     email: str
     nom: str
     prenom: Optional[str] = None
-    role: UserRole = UserRole.SUPERVISEUR
+    role: str = "superviseur"
     zone: Optional[str] = None
 
 class UserCreate(UserBase):
@@ -16,7 +16,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     nom: Optional[str] = None
     prenom: Optional[str] = None
-    role: Optional[UserRole] = None
+    role: Optional[str] = None
     zone: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None

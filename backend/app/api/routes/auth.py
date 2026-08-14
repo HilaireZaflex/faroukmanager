@@ -51,7 +51,7 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Require admin role"""
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role not in ('admin', 'ADMIN', UserRole.ADMIN):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -178,7 +178,7 @@ def list_developers(
     """Liste des développeurs du réseau — accessible par admin, manager et RC pour affecter les visites.
     Combine les users avec rôle developpeur ET les membres réseau avec rôle developpeur."""
     from app.models.user import UserRole
-    allowed = [UserRole.ADMIN, UserRole.MANAGER, UserRole.RC, UserRole.SUPERVISEUR]
+    allowed = [UserRole.ADMIN, UserRole.MANAGER, UserRole.RC, UserRole.SUPERVISEUR, 'admin', 'manager', 'rc', 'superviseur']
     if current_user.role not in allowed:
         raise HTTPException(status_code=403, detail="Accès refusé")
 
