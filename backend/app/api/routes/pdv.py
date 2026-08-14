@@ -200,18 +200,24 @@ def import_pdvs(
 
     col_map = {
         'numero_pdv': ['numero_pdv', 'num_pdv', 'numero', 'id_pdv', 'pdv'],
-        'nom': ['nom', 'name', 'nom_pdv'],
+        'nom': ['nom', 'name', 'nom_pdv', 'prenom_et_nom'],
         'zone': ['zone'],
-        'sous_zone': ['sous_zone', 'sous-zone'],
-        'quartier': ['quartier'],
+        'sous_zone': ['sous_zone', 'sous-zone', 'sous_zone'],
+        'quartier': ['quartier', 'localite'],
         'commune': ['commune'],
         'superviseur': ['superviseur', 'sup'],
-        'gestionnaire': ['gestionnaire', 'gest'],
-        'teleconseillere': ['teleconseillere', 'tc', 'tele'],
+        'gestionnaire': ['gestionnaire', 'gestionnaires', 'gest'],
+        'teleconseillere': ['teleconseillere', 'teleconseilliere', 'tc', 'tele'],
+        'developpeur': ['developpeur', 'dev'],
         'type_pdv': ['type_pdv', 'type'],
         'telephone': ['telephone', 'tel', 'phone'],
-        'nom_gerant': ['nom_gerant', 'gerant'],
-        'numero_personnel': ['numero_personnel', 'num_pers'],
+        'nom_gerant': ['nom_gerant', 'gerant', 'prenom_et_nom'],
+        'numero_personnel': ['numero_personnel', 'num_pers', 'n°_personnel'],
+        'adresse': ['adresse', 'adresse_pdv'],
+        'notes': ['notes', 'commentaire', 'commentaires'],
+        'date_mise_a_jour': ['date_mise_a_jour', 'date_de_la_mise_a_jour'],
+        'date_activation': ['date_activation', "date_d'activation"],
+        'single_wallet': ['single_wallet', 'single_walet'],
         'latitude': ['latitude', 'lat'],
         'longitude': ['longitude', 'lon', 'lng'],
     }
@@ -241,25 +247,42 @@ def import_pdvs(
             type_raw = str(row.get(get_col(df, col_map['type_pdv']) or '', 'RS')).strip().upper()
             type_pdv = valid_types.get(type_raw, PDVType.RS)
 
+            # Helper pour lire une valeur depuis le row via le col_map
+            def get_val(field):
+                c = get_col(df, col_map.get(field, []))
+                if not c:
+                    return None
+                v = str(row.get(c, '') or '').strip()
+                return v if v and v != 'nan' else None
+
             existing = db.query(PDV).filter(PDV.numero_pdv == numero_pdv).first()
             if existing:
+                # UPDATE: mettre à jour tous les champs autorisés
                 existing.nom = nom
-                if get_col(df, col_map['zone']): existing.zone = str(row.get(get_col(df, col_map['zone']), '') or '').strip() or existing.zone
-                if get_col(df, col_map['superviseur']): existing.superviseur = str(row.get(get_col(df, col_map['superviseur']), '') or '').strip() or existing.superviseur
+                existing.type_pdv = type_pdv
+                for field in ['zone', 'sous_zone', 'quartier', 'commune', 'superviseur',
+                              'gestionnaire', 'teleconseillere', 'developpeur', 'telephone',
+                              'nom_gerant', 'numero_personnel', 'adresse', 'notes', 'date_mise_a_jour']:
+                    val = get_val(field)
+                    if val:
+                        setattr(existing, field, val)
                 updated += 1
             else:
                 pdv = PDV(
                     numero_pdv=numero_pdv, nom=nom, type_pdv=type_pdv,
-                    zone=str(row.get(get_col(df, col_map['zone']) or '', '') or '').strip() or None,
-                    sous_zone=str(row.get(get_col(df, col_map['sous_zone']) or '', '') or '').strip() or None,
-                    quartier=str(row.get(get_col(df, col_map['quartier']) or '', '') or '').strip() or None,
-                    commune=str(row.get(get_col(df, col_map['commune']) or '', '') or '').strip() or None,
-                    superviseur=str(row.get(get_col(df, col_map['superviseur']) or '', '') or '').strip() or None,
-                    gestionnaire=str(row.get(get_col(df, col_map['gestionnaire']) or '', '') or '').strip() or None,
-                    teleconseillere=str(row.get(get_col(df, col_map['teleconseillere']) or '', '') or '').strip() or None,
-                    telephone=str(row.get(get_col(df, col_map['telephone']) or '', '') or '').strip() or None,
-                    nom_gerant=str(row.get(get_col(df, col_map['nom_gerant']) or '', '') or '').strip() or None,
-                    numero_personnel=str(row.get(get_col(df, col_map['numero_personnel']) or '', '') or '').strip() or None,
+                    zone=get_val('zone'),
+                    sous_zone=get_val('sous_zone'),
+                    quartier=get_val('quartier'),
+                    commune=get_val('commune'),
+                    superviseur=get_val('superviseur'),
+                    gestionnaire=get_val('gestionnaire'),
+                    teleconseillere=get_val('teleconseillere'),
+                    developpeur=get_val('developpeur'),
+                    telephone=get_val('telephone'),
+                    nom_gerant=get_val('nom_gerant'),
+                    numero_personnel=get_val('numero_personnel'),
+                    adresse=get_val('adresse'),
+                    notes=get_val('notes'),
                     statut=PDVStatut.ACTIF,
                     health_score=50.0,
                 )
