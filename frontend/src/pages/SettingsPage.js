@@ -243,6 +243,13 @@ function SectionUtilisateurs({ currentUser, customRoles = [] }) {
                 { key:'rc',            role:'rc',              label:'🟢 Resp. Commercial',    color:'#22c55e' },
                 { key:'conformite',    role:'conformite',      label:'🛡️ Resp. Conformité',    color:'#0ea5e9' },
                 { key:'commercials',   role:'COMMERCIAL',      label:'⭐ Commercial',           color:'#f59e0b' },
+                // Ajouter les rôles personnalisés dynamiquement
+                ...(customRoles || []).filter(r => !r.locked).map(r => ({
+                  key: r.id + 's',
+                  role: r.id,
+                  label: `⭐ ${r.label}`,
+                  color: r.color || '#94a3b8',
+                })),
               ].map(({ key, role, label, color }) => (
                 <div key={key}>
                   <label style={{ fontSize:10, fontWeight:700, color, display:'block', marginBottom:4 }}>{label}</label>
