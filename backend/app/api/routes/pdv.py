@@ -47,10 +47,13 @@ def get_stats(
     # Nouvelles activations = PDV créés via le workflow de prospection
     from app.models.prospect import Prospect as ProspectModel
     pdv_ids_all = [p.id for p in pdvs]
-    nouvelles_activations = db.query(func.count(ProspectModel.id)).filter(
-        ProspectModel.activated_pdv_id.in_(pdv_ids_all),
-        ProspectModel.status == 'PUCE_ACTIVEE'
-    ).scalar() or 0
+    try:
+        nouvelles_activations = db.query(func.count(ProspectModel.id)).filter(
+            ProspectModel.activated_pdv_id.in_(pdv_ids_all),
+            ProspectModel.activated_pdv_id.isnot(None)
+        ).scalar() or 0
+    except Exception:
+        nouvelles_activations = 0
     
     # Inactifs = PDVs sans opérations lors du dernier mois disponible
     from app.models.performance import MonthlyPerformance
@@ -526,8 +529,7 @@ def list_pdvs(
     if nouvelle_activation:
         from app.models.prospect import Prospect as ProspectModel
         activated_pdv_ids = db.query(ProspectModel.activated_pdv_id).filter(
-            ProspectModel.activated_pdv_id.isnot(None),
-            ProspectModel.status == 'PUCE_ACTIVEE'
+            ProspectModel.activated_pdv_id.isnot(None)
         ).subquery()
         query = query.filter(PDV.id.in_(activated_pdv_ids))
 
