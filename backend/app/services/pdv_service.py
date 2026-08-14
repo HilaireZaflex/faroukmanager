@@ -95,6 +95,28 @@ def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
         
         # Normalize column names to lowercase
         df.columns = df.columns.str.lower().str.strip()
+
+        # Mapping colonnes Excel → colonnes internes
+        COLUMN_MAP = {
+            "pdv": "numero_pdv",
+            "prenom et nom": "nom_gerant",
+            "n° personnel": "numero_personnel",
+            "n° pdv": "numero_pdv",
+            "type": "type_pdv",
+            "localite": "quartier",
+            "adresse pdv": "adresse",
+            "gestionnaires": "gestionnaire",
+            "teleconseilliere": "teleconseillere",
+            "téléconseillère": "teleconseillere",
+            "single walet": "single_wallet",
+            "single wallet": "single_wallet",
+            "date d'activation": "date_activation",
+            "commentaire": "notes",
+            "commentaires": "notes",
+            "date de la mise a jour": "date_mise_a_jour",
+            "date de la mise à jour": "date_mise_a_jour",
+        }
+        df.rename(columns=COLUMN_MAP, inplace=True)
         
         created_count = 0
         updated_count = 0
