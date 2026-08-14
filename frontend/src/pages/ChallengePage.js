@@ -608,7 +608,7 @@ export default function ChallengePage() {
 function TabDashboard({ dashboard }) {
   const { kpis, scores, periode } = dashboard || {};
 
-  // Charger les données des indicateurs Award
+  // Charger les donn\u00e9es des indicateurs Award
   const { data: awardData } = useQuery('award-dashboard',
     () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
   );
@@ -619,179 +619,132 @@ function TabDashboard({ dashboard }) {
     return (data.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
   };
 
+  const getIndTaux = (ind) => {
+    const total = getLastTotal(ind);
+    return total?.taux_orange != null ? Math.min(1, total.taux_orange) : null;
+  };
+
   const indData = INDICATEURS_LIST.map(ind => ({
     nom: ind,
     cfg: INDICATEUR_CONFIG[ind],
     total: getLastTotal(ind),
   }));
 
-  // Score indicateurs : moyenne des taux orange disponibles (plafonnés à 100%)
-  const tauxDispo = indData.filter(i => i.total?.taux_orange !== null && i.total?.taux_orange !== undefined);
-  const scoreIndicateurs = tauxDispo.length > 0
-    ? Math.min(100, Math.round(tauxDispo.reduce((s, i) => s + Math.min(1, i.total.taux_orange), 0) / tauxDispo.length * 100))
-    : 0;
+  // === CHALLENGE 1 : PDG TELCO (100%) ===
+  const telcoSousCriteres = [
+    { key: 'ca_sell_out',   label: '\uD83D\uDFE2 CA Sell out (NAFAMA)',     poids: 40, taux: getIndTaux('NAFAMA'),         objectif: 'Taux >= 95%' },
+    { key: 'vente_term',    label: '\uD83D\uDDA5\uFE0F Vente terminaux',    poids: 15, taux: getIndTaux('TERMINAUX'),      objectif: 'Min 100 terminaux / DZ' },
+    { key: 'creation_pts',  label: '\uD83D\uDCCD Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, taux: kpis?.points_controles?.taux || null, objectif: 'Min 25 / DZ, activer >= 80%' },
+    { key: 'kit_energie',   label: '\u2600\uFE0F Kit Orange \u00c9nergie',   poids: 15, taux: getIndTaux('ORANGE ENERGIE'), objectif: '>= 80% objectif + >= 80% utilisation' },
+    { key: 'note_dz',       label: '\u2B50 Note DZ',                         poids: 15, taux: null,                        objectif: '\u00c9valuation visibilit\u00e9 & animation' },
+  ];
 
-  // Score global enrichi = moyenne score existant + score indicateurs
-  const scoreExistant = scores?.global || 0;
-  const scoreGlobal = tauxDispo.length > 0
-    ? Math.round((scoreExistant + scoreIndicateurs) / 2)
-    : scoreExistant;
+  // === CHALLENGE 2 : ORANGE MONEY (100%) ===
+  const omSousCriteres = [
+    { key: 'ca_cashout',     label: '\uD83D\uDCF1 CA Cash-out (OMY)',              poids: 30, taux: getIndTaux('OMY'),               objectif: 'Taux >= 95%' },
+    { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: kpis?.pdv_actifs?.taux || null,  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
+    { key: 'recrutement',    label: '\uD83D\uDC65 Recrutement Orange Money',        poids: 15, taux: kpis?.recrutement_omy?.taux || null, objectif: '1000 clients actifs / DZ (250/mois)' },
+    { key: 'adoption_kaabu', label: '\uD83D\uDCB3 Adoption Kaabu',                  poids: 15, taux: getIndTaux('KAABU MOBILE'),     objectif: 'Min 10 tx/PDV/mois, taux actif atteint' },
+    { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: null,                           objectif: 'P\u00e9n\u00e9tration fintech < 2%' },
+    { key: 'deploiement_plv', label: '\uD83D\uDCE6 D\u00e9ploiement support visibilit\u00e9', poids: 15, taux: kpis?.deploiement_plv?.taux || null, objectif: 'Min 100 PLV / DZ (25/mois)' },
+  ];
+
+  // Calcul des scores pond\u00e9r\u00e9s
+  const calcScorePondere = (criteres) => {
+    let totalPoids = 0, totalScore = 0;
+    criteres.forEach(c => {
+      if (c.taux !== null && c.taux !== undefined) {
+        totalPoids += c.poids;
+        totalScore += Math.min(1, c.taux) * c.poids;
+      }
+    });
+    return totalPoids > 0 ? Math.round(totalScore / totalPoids * 100) : 0;
+  };
+
+  const scoreTelco = calcScorePondere(telcoSousCriteres);
+  const scoreOM = calcScorePondere(omSousCriteres);
+  const scoreGlobal = Math.round((scoreTelco + scoreOM) / 2);
+
+  // Composant sous-crit\u00e8re
+  const SousCritereRow = ({ c }) => {
+    const pct = c.taux !== null && c.taux !== undefined ? Math.round(Math.min(1, c.taux) * 100) : null;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>{c.label}</div>
+          <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{c.objectif}</div>
+        </div>
+        <div style={{ textAlign: 'center', minWidth: 50 }}>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Poids</div>
+          <div style={{ fontSize: 14, fontWeight: 900, color: '#fff' }}>{c.poids}%</div>
+        </div>
+        <div style={{ textAlign: 'center', minWidth: 60 }}>
+          <div style={{ fontSize: 11, color: '#64748b' }}>Taux</div>
+          {pct !== null ? (
+            <div style={{ fontSize: 14, fontWeight: 900, color: pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757' }}>
+              {pct}%
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: '#475569' }}>{'\u2014'}</div>
+          )}
+        </div>
+        <div style={{ width: 100 }}>
+          <BarreProg taux={c.taux} color={pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757'} />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Scores globaux — enrichis avec explications */}
+      {/* JAUGES GLOBALES */}
       <div className="ch-card">
-        <h3 className="ch-section-title">🏆 Score Global Challenge</h3>
-
-        {/* Jauges */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: '20px 0' }}>
-          <ScoreJauge label="Challenge OM" score={scores?.om || 0} color="#FF6900"/>
-          <ScoreJauge label="Challenge TELCO" score={scores?.telco || 0} color="#0ea5e9"/>
-          <ScoreJauge label="Indicateurs" score={scoreIndicateurs} color="#22c55e"/>
+        <h3 className="ch-section-title">{'\uD83C\uDFC6'} Score Global Challenge {'\u2014'} Orange AWARDS 2026</h3>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 40, flexWrap: 'wrap', padding: '20px 0' }}>
+          <ScoreJauge label="PDG TELCO" score={scoreTelco} color="#0ea5e9"/>
+          <ScoreJauge label="Orange Money" score={scoreOM} color="#FF6900"/>
           <ScoreJauge label="Score Global" score={scoreGlobal} color="#10b981"/>
         </div>
-
-        {/* Message global */}
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div style={{ textAlign: 'center', marginBottom: 10 }}>
           {scoreGlobal >= 95 ? (
-            <div style={{ color: '#10b981', fontWeight: 700 }}>🎉 Excellente performance ! Vous êtes sur la bonne voie pour remporter le prix !</div>
+            <div style={{ color: '#10b981', fontWeight: 700 }}>{'\uD83C\uDF89'} Excellente performance ! Vous {'\u00ea'}tes sur la bonne voie pour remporter le prix !</div>
           ) : scoreGlobal >= 70 ? (
-            <div style={{ color: '#f59e0b', fontWeight: 700 }}>⚠️ Performance correcte mais des efforts supplémentaires sont nécessaires</div>
+            <div style={{ color: '#f59e0b', fontWeight: 700 }}>{'\u26A0\uFE0F'} Performance correcte mais des efforts suppl{'\u00e9'}mentaires sont n{'\u00e9'}cessaires</div>
           ) : (
-            <div style={{ color: '#ef4444', fontWeight: 700 }}>🔴 Situation critique — Des actions immédiates sont nécessaires !</div>
+            <div style={{ color: '#ef4444', fontWeight: 700 }}>{'\uD83D\uDD34'} Situation critique {'\u2014'} Des actions imm{'\u00e9'}diates sont n{'\u00e9'}cessaires !</div>
           )}
         </div>
 
-        {/* Explication des scores */}
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}>
-          <div style={{ fontSize: 12, color: '#64748b', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-            💡 Comment sont calculés ces scores ?
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-            {/* Challenge OM */}
-            <div style={{ background: 'rgba(255,105,0,0.06)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900', marginBottom: 8 }}>🟠 Challenge OM (max 40 pts)</div>
-              {[
-                { label: '🏪 PDV Actifs Orange Money', poids: 10 },
-                { label: '👥 Recrutement nouveaux clients OMY', poids: 15 },
-                { label: '📦 Déploiement PLV (affiches, kakémonos)', poids: 15 },
-              ].map((c, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
-                  <span style={{ color: '#94a3b8' }}>{c.label}</span>
-                  <span style={{ color: '#FF6900', fontWeight: 700 }}>{c.poids} pts</span>
-                </div>
-              ))}
-            </div>
+      </div>
 
-            {/* Challenge TELCO */}
-            <div style={{ background: 'rgba(14,165,233,0.06)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#0ea5e9', marginBottom: 8 }}>🔵 Challenge TELCO (max 30 pts)</div>
-              {[
-                { label: '📍 Points de contrôle créés', poids: 15 },
-                { label: '📦 PLV / Note DZ', poids: 15 },
-              ].map((c, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
-                  <span style={{ color: '#94a3b8' }}>{c.label}</span>
-                  <span style={{ color: '#0ea5e9', fontWeight: 700 }}>{c.poids} pts</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Indicateurs */}
-            <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#22c55e', marginBottom: 8 }}>🟢 Indicateurs Award (sur 100)</div>
-              {[
-                { label: '📱 Taux réalisation OMY', val: indData.find(i=>i.nom==='OMY')?.total?.taux_orange },
-                { label: '💳 Taux réalisation KAABU', val: indData.find(i=>i.nom==='KAABU MOBILE')?.total?.taux_orange },
-                { label: '🟢 Taux réalisation NAFAMA', val: indData.find(i=>i.nom==='NAFAMA')?.total?.taux_orange },
-                { label: '🖥️ Taux réalisation TERMINAUX', val: indData.find(i=>i.nom==='TERMINAUX')?.total?.taux_orange },
-                { label: '☀️ Taux réalisation ENERGIE', val: indData.find(i=>i.nom==='ORANGE ENERGIE')?.total?.taux_orange },
-              ].map((c, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11 }}>
-                  <span style={{ color: '#94a3b8' }}>{c.label}</span>
-                  <span style={{ color: c.val >= 0.95 ? '#22c55e' : c.val >= 0.8 ? '#ffa502' : c.val != null ? '#ff4757' : '#64748b', fontWeight: 700 }}>
-                    {c.val != null ? `${Math.round(c.val*100)}%` : '—'}
-                  </span>
-                </div>
-              ))}
-              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 11, color: '#64748b' }}>
-                → Score = moyenne des taux (plafonnée à 100)
-              </div>
-            </div>
-
-            {/* Score Global */}
-            <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#10b981', marginBottom: 8 }}>🏆 Score Global</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.7 }}>
-                Calcul = moyenne de :<br/>
-                • Score Challenge OM : <strong style={{ color: '#FF6900' }}>{scores?.om || 0}/100</strong><br/>
-                • Score Challenge TELCO : <strong style={{ color: '#0ea5e9' }}>{scores?.telco || 0}/100</strong><br/>
-                • Score Indicateurs : <strong style={{ color: '#22c55e' }}>{scoreIndicateurs}/100</strong>
-              </div>
-              <div style={{ marginTop: 10, fontSize: 13, fontWeight: 900, color: '#10b981' }}>
-                = {scoreGlobal} / 100
-              </div>
-              <div style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>
-                {scoreGlobal >= 95 ? '🎯 Objectif atteint !' : scoreGlobal >= 80 ? '📈 Bon niveau, continuez !' : '⚡ Des efforts nécessaires'}
-              </div>
-            </div>
-          </div>
+      {/* CHALLENGE 1 : PDG TELCO */}
+      <div className="ch-card" style={{ borderLeft: '4px solid #0ea5e9' }}>
+        <h3 className="ch-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{"🔵"} 1. Challenge PDG TELCO</span>
+          <span style={{ fontSize: 18, fontWeight: 900, color: '#0ea5e9' }}>{scoreTelco}%</span>
+        </h3>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+          {"Performance commerciale | Qualit\u00e9 d'ex\u00e9cution r\u00e9seau | Relais de croissance | \u00c9valuation"}
+        </div>
+        {telcoSousCriteres.map(c => <SousCritereRow key={c.key} c={c} />)}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, paddingTop: 8, borderTop: '1px solid rgba(14,165,233,0.2)' }}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>{"Score pond\u00e9r\u00e9 : "}<strong style={{ color: '#0ea5e9', fontSize: 16 }}>{scoreTelco} / 100</strong></div>
         </div>
       </div>
 
-      {/* ═══ INDICATEURS ORANGE AWARD ═══ */}
-      <div className="ch-card">
-        <h3 className="ch-section-title">📈 Indicateurs Orange Awards 2026 — Juillet</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14, marginTop: 8 }}>
-          {indData.map(({ nom, cfg, total }) => {
-            const tauxO = total?.taux_orange;
-            const tauxF = total?.taux_farouk;
-            const pctO = tauxO !== null && tauxO !== undefined ? Math.round(tauxO * 100) : null;
-            return (
-              <div key={nom} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.07)`, borderLeft: `4px solid ${cfg.color}`, borderRadius: 12, padding: '14px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <span style={{ fontSize: 20 }}>{cfg.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{nom}</div>
-                    {total && <div style={{ fontSize: 10, color: '#64748b' }}>{total.mois}</div>}
-                  </div>
-                  {pctO !== null && <TauxBadge taux={tauxO} />}
-                </div>
-                {total ? (
-                  <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Objectif Orange</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{fmtV(total.objectif_orange, cfg.unite)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Réalisation</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>{fmtV(total.realisation, cfg.unite)}</div>
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: 4 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 11, color: '#64748b' }}>Taux Orange</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: pctO >= 95 ? '#22c55e' : pctO >= 80 ? '#ffa502' : '#ff4757' }}>
-                          {pctO !== null ? `${pctO}%` : '—'}
-                        </span>
-                      </div>
-                      <BarreProg taux={tauxO} color={cfg.color} />
-                    </div>
-                    {cfg.hasFarouk && tauxF !== null && tauxF !== undefined && (
-                      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, color: '#64748b' }}>Taux Farouk</span>
-                        <TauxBadge taux={tauxF} />
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', padding: '8px 0' }}>Données en attente</div>
-                )}
-              </div>
-            );
-          })}
+      {/* CHALLENGE 2 : ORANGE MONEY */}
+      <div className="ch-card" style={{ borderLeft: '4px solid #FF6900' }}>
+        <h3 className="ch-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{"🟠"} 2. Challenge Orange Money</span>
+          <span style={{ fontSize: 18, fontWeight: 900, color: '#FF6900' }}>{scoreOM}%</span>
+        </h3>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+          {"Performance commerciale | Qualit\u00e9 d'ex\u00e9cution r\u00e9seau | Digitalisation et transformation | Visibilit\u00e9"}
+        </div>
+        {omSousCriteres.map(c => <SousCritereRow key={c.key} c={c} />)}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, paddingTop: 8, borderTop: '1px solid rgba(255,105,0,0.2)' }}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>{"Score pond\u00e9r\u00e9 : "}<strong style={{ color: '#FF6900', fontSize: 16 }}>{scoreOM} / 100</strong></div>
         </div>
       </div>
 
@@ -821,16 +774,6 @@ function TabDashboard({ dashboard }) {
         </div>
       </div>
 
-      {/* KPIs challenge (existants) */}
-      <div className="ch-card">
-        <h3 className="ch-section-title">📊 Autres KPIs Challenge</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-          <KPIBar label="👥 Recrutement OMY" realise={kpis?.recrutement_omy?.realise} objectif={kpis?.recrutement_omy?.objectif_cumule} taux={kpis?.recrutement_omy?.taux} unite="clients" poids={15}/>
-          <KPIBar label="📦 Déploiement PLV" realise={kpis?.deploiement_plv?.realise} objectif={kpis?.deploiement_plv?.objectif_cumule} taux={kpis?.deploiement_plv?.taux} unite="PLV" poids={15}/>
-          <KPIBar label="📍 Points Contrôlés" realise={kpis?.points_controles?.realise} objectif={kpis?.points_controles?.objectif_cumule} taux={kpis?.points_controles?.taux} unite="points" poids={15}/>
-          <KPIBar label="🏪 PDV Actifs OM" realise={kpis?.pdv_actifs?.realise} objectif={kpis?.pdv_actifs?.total_pdvs} taux={kpis?.pdv_actifs?.taux} unite="PDVs" poids={10}/>
-        </div>
-      </div>
     </div>
   );
 }
@@ -870,34 +813,72 @@ function TabKPIs({ dashboard, moisSelectionne, setMoisSelectionne }) {
         ) : <div className="ch-loading">Chargement…</div>}
       </div>
 
-      {/* Tableau récap tous mois */}
-      <div className="ch-card">
-        <h3 className="ch-section-title">📈 Récapitulatif Période Complète</h3>
+      {/* Tableau récap — Challenge PDG TELCO */}
+      <div className="ch-card" style={{ borderLeft: '4px solid #0ea5e9' }}>
+        <h3 className="ch-section-title">{"🔵"} Challenge PDG TELCO — Objectifs par mois</h3>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>KPI</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{"Sous-crit\u00e8re"}</th>
+                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>Poids</th>
                 {MOIS_CHALLENGE.map(m => (
                   <th key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{MOIS_LABELS[m]}</th>
                 ))}
-                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>Total Période</th>
+                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#0ea5e9', fontWeight: 700 }}>{"Total P\u00e9riode"}</th>
               </tr>
             </thead>
             <tbody>
               {[
-                { label: '👥 Recrutement OMY', key: 'recrutement_omy', obj_par_mois: 250, total: 1000, unite: 'clients' },
-                { label: '📦 Déploiement PLV', key: 'deploiement_plv', obj_par_mois: 25, total: 100, unite: 'PLV' },
-                { label: '📍 Points Contrôlés', key: 'creation_points_controles', obj_par_mois: '5-10', total: 25, unite: 'points' },
-                { label: '💻 Ventes Terminaux', key: 'ventes_terminaux', obj_par_mois: 25, total: 100, unite: 'terminaux' },
-                { label: '⚡ Orange NRJ', key: 'orange_nrj', obj_par_mois: 7, total: 28, unite: 'kits' },
-              ].map(row => (
-                <tr key={row.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                { label: '🟢 CA Sell out (NAFAMA)', poids: '40%', obj_par_mois: '95%', total: '95%', unite: '' },
+                { label: '🖥️ Vente terminaux', poids: '15%', obj_par_mois: 25, total: 100, unite: 'terminaux' },
+                { label: '📍 Points contrôlés', poids: '15%', obj_par_mois: '5-10', total: 25, unite: 'points' },
+                { label: '☀️ Kit Orange Énergie', poids: '15%', obj_par_mois: '80%', total: '80%', unite: '' },
+                { label: '⭐ Note DZ', poids: '15%', obj_par_mois: '-', total: '-', unite: '' },
+              ].map((row, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 600, color: '#e2e8f0' }}>{row.label}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#0ea5e9' }}>{row.poids}</td>
                   {MOIS_CHALLENGE.map(m => (
-                    <td key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8' }}>
-                      <div style={{ fontSize: 11, color: '#475569' }}>Obj: {dashboard?.objectifs_mensuels?.[m]?.[row.key] ?? row.obj_par_mois}</div>
-                    </td>
+                    <td key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8', fontSize: 11 }}>{row.obj_par_mois}</td>
+                  ))}
+                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#0ea5e9' }}>{row.total} {row.unite}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Tableau récap — Challenge Orange Money */}
+      <div className="ch-card" style={{ borderLeft: '4px solid #FF6900' }}>
+        <h3 className="ch-section-title">{"🟠"} Challenge Orange Money — Objectifs par mois</h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{"Sous-crit\u00e8re"}</th>
+                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>Poids</th>
+                {MOIS_CHALLENGE.map(m => (
+                  <th key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{MOIS_LABELS[m]}</th>
+                ))}
+                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>{"Total P\u00e9riode"}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { label: '📱 CA Cash-out (OMY)', poids: '30%', obj_par_mois: '95%', total: '95%', unite: '' },
+                { label: '🏪 PDV actif', poids: '10%', obj_par_mois: '90%', total: '90%', unite: '' },
+                { label: '👥 Recrutement OMY', poids: '15%', obj_par_mois: 250, total: 1000, unite: 'clients' },
+                { label: '💳 Adoption Kaabu', poids: '15%', obj_par_mois: '10 tx/PDV', total: '40 tx/PDV', unite: '' },
+                { label: '🔒 Risque fintech', poids: '15%', obj_par_mois: '< 2%', total: '< 2%', unite: '' },
+                { label: '📦 Support visibilité', poids: '15%', obj_par_mois: 25, total: 100, unite: 'PLV' },
+              ].map((row, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#e2e8f0' }}>{row.label}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#FF6900' }}>{row.poids}</td>
+                  {MOIS_CHALLENGE.map(m => (
+                    <td key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8', fontSize: 11 }}>{row.obj_par_mois}</td>
                   ))}
                   <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#FF6900' }}>{row.total} {row.unite}</td>
                 </tr>
