@@ -25,7 +25,8 @@ def get_stats(
     db: Session = Depends(get_db)
 ):
     """Statistiques globales du réseau PDV — M1"""
-    from sqlalchemy import and_
+    from sqlalchemy import and_, func
+    from app.models.performance import MonthlyPerformance
     query = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
     if zone:
         query = query.filter(PDV.zone == zone)
@@ -68,8 +69,6 @@ def get_stats(
         inactifs = len([p for p in pdvs if p.statut == PDVStatut.INACTIF])
     else:
         # Pour OMY/KAABU/NAFAMA: inactifs = sans opérations lors du dernier mois
-        from app.models.performance import MonthlyPerformance
-        from sqlalchemy import func
         last_period = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).order_by(
             MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
         ).first()
