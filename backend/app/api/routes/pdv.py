@@ -51,14 +51,14 @@ def get_stats(
     en_recuperation = len([p for p in pdvs if p.statut == PDVStatut.RECUPERATION])
     nouvelles_creations = len([p for p in pdvs if p.nouvelle_creation])
     
-    # Nouvelles activations = PDV créés via le workflow de prospection
+    # Nouvelles activations = nombre de PDV uniques liés à un prospect activé
     from app.models.prospect import Prospect as ProspectModel
-    pdv_ids_all = [p.id for p in pdvs]
     try:
-        nouvelles_activations = db.query(func.count(ProspectModel.id)).filter(
-            ProspectModel.activated_pdv_id.in_(pdv_ids_all),
+        pdv_ids_set = {p.id for p in pdvs}
+        activated_pdv_ids = db.query(ProspectModel.activated_pdv_id).filter(
             ProspectModel.activated_pdv_id.isnot(None)
-        ).scalar() or 0
+        ).distinct().all()
+        nouvelles_activations = len([r[0] for r in activated_pdv_ids if r[0] in pdv_ids_set])
     except Exception:
         nouvelles_activations = 0
     

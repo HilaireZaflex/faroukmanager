@@ -414,8 +414,8 @@ export default function PDVsPage() {
     nouvelles_creations: telecStats?.nouvelles_creations ?? 0,
     nouvelles_activations: telecStats?.nouvelles_activations ?? 0,
   } : nouvelleActivation ? {
-    // Quand filtre Nouvelle Activation actif, utiliser uniquement dynamicStatsRaw
-    total_pdvs: dynamicStatsRaw?.total_pdvs ?? 0,
+    // Quand filtre Nouvelle Activation actif: Total PDV reste global, les autres sont filtrés
+    total_pdvs: activeDash?.total_pdvs ?? statsBase?.total_pdvs ?? 0,
     actifs: dynamicStatsRaw?.actifs ?? 0,
     inactifs: dynamicStatsRaw?.inactifs ?? 0,
     en_recuperation: dynamicStatsRaw?.en_recuperation ?? 0,
