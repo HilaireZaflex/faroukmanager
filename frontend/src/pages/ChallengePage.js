@@ -151,7 +151,14 @@ function BarreProg({ taux, color }) {
 }
 
 // ── Tab Indicateurs ───────────────────────────────────────────────────────────
-function TabIndicateurs() {
+function TabIndicateurs({ filter }) {
+  // filter = 'TELCO' → NAFAMA, TERMINAUX, ORANGE ENERGIE
+  // filter = 'OM' → OMY, KAABU MOBILE
+  const FILTER_MAP = {
+    TELCO: ['NAFAMA', 'TERMINAUX', 'ORANGE ENERGIE'],
+    OM: ['OMY', 'KAABU MOBILE'],
+  };
+  const filteredList = filter ? FILTER_MAP[filter] || INDICATEURS_LIST : INDICATEURS_LIST;
   const [activeInd, setActiveInd] = useState(null); // null = vue globale
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -181,7 +188,7 @@ function TabIndicateurs() {
 
         {/* Cartes par indicateur */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-          {INDICATEURS_LIST.map(ind => {
+          {filteredList.map(ind => {
             const cfg = INDICATEUR_CONFIG[ind];
             const data = dashboard?.[ind] || {};
             const totaux = data.totaux || [];
@@ -488,24 +495,43 @@ function ImportExcelModal({ onClose, onSaved }) {
   );
 }
 
-const TABS = [
-  { id: 'dashboard', label: '🏆 Score Global', icon: Trophy },
-  { id: 'indicateurs', label: '📈 Indicateurs', icon: Target },
-  { id: 'kpis', label: '📊 Suivi KPIs', icon: Target },
-  // Challenge PDG TELCO
-  { id: 'points', label: '📍 Points Contrôlés', icon: MapPin, badge: 'TELCO', badgeColor: '#0ea5e9' },
-  // Challenge Orange Money
-  { id: 'recrutement', label: '👥 Recrutement OMY', icon: Users, badge: 'OM', badgeColor: '#FF6900' },
-  { id: 'plv', label: '📦 Visibilité PLV', icon: Package, badge: 'OM', badgeColor: '#FF6900' },
-  // Commun
-  { id: 'classement', label: '⭐ Classement', icon: Star },
-  { id: 'alertes', label: '🚨 Alertes', icon: AlertTriangle },
+const MAIN_TABS = [
+  { id: 'dashboard', label: '\uD83C\uDFC6 Score Global' },
+  { id: 'telco',     label: '\uD83D\uDD35 Challenge PDG TELCO', color: '#0ea5e9' },
+  { id: 'om',        label: '\uD83D\uDFE0 Challenge Orange Money', color: '#FF6900' },
+  { id: 'classement', label: '\u2B50 Classement' },
+  { id: 'alertes',   label: '\uD83D\uDEA8 Alertes' },
 ];
+
+const SUB_TABS = {
+  telco: [
+    { id: 'telco_indicateurs', label: '\uD83D\uDCC8 Indicateurs TELCO' },
+    { id: 'telco_points',      label: '\uD83D\uDCCD Points Contr\u00f4l\u00e9s' },
+    { id: 'telco_kpis',        label: '\uD83D\uDCCA Suivi KPIs' },
+  ],
+  om: [
+    { id: 'om_indicateurs', label: '\uD83D\uDCC8 Indicateurs OM' },
+    { id: 'om_recrutement', label: '\uD83D\uDC65 Recrutement OMY' },
+    { id: 'om_plv',         label: '\uD83D\uDCE6 Visibilit\u00e9 PLV' },
+    { id: 'om_kpis',        label: '\uD83D\uDCCA Suivi KPIs' },
+  ],
+};
 
 // ── Page Principale ───────────────────────────────────────────────────────────
 export default function ChallengePage() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState('');
   const [moisSelectionne, setMoisSelectionne] = useState('2026-07');
+
+  // Quand on change de tab principal, activer le premier sous-tab
+  const handleMainTab = (id) => {
+    setActiveTab(id);
+    if (SUB_TABS[id]) {
+      setActiveSubTab(SUB_TABS[id][0].id);
+    } else {
+      setActiveSubTab('');
+    }
+  };
   const user = useAuthStore(s => s.user);
   const queryClient = useQueryClient();
 
@@ -573,15 +599,13 @@ export default function ChallengePage() {
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs principaux */}
       <div className="challenge-tabs">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`challenge-tab${activeTab === t.id ? ' active' : ''}`}>
+        {MAIN_TABS.map(t => (
+          <button key={t.id} onClick={() => handleMainTab(t.id)}
+            className={`challenge-tab${activeTab === t.id ? ' active' : ''}`}
+            style={activeTab === t.id && t.color ? { borderColor: t.color, color: t.color } : {}}>
             {t.label}
-            {t.badge && (
-              <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 900, padding: '2px 5px', borderRadius: 4, background: `${t.badgeColor}22`, color: t.badgeColor, verticalAlign: 'middle' }}>{t.badge}</span>
-            )}
             {t.id === 'alertes' && nbCritiques > 0 && (
               <span className="ch-badge-critiques">{nbCritiques}</span>
             )}
@@ -589,18 +613,43 @@ export default function ChallengePage() {
         ))}
       </div>
 
+      {/* Sous-tabs (si applicable) */}
+      {SUB_TABS[activeTab] && (
+        <div style={{ display: 'flex', gap: 6, padding: '0 0 12px 0', overflowX: 'auto', flexWrap: 'wrap' }}>
+          {SUB_TABS[activeTab].map(st => {
+            const mainColor = MAIN_TABS.find(t => t.id === activeTab)?.color || '#64748b';
+            return (
+              <button key={st.id} onClick={() => setActiveSubTab(st.id)}
+                style={{
+                  padding: '6px 14px', borderRadius: 8, border: `1px solid ${activeSubTab === st.id ? mainColor : 'rgba(255,255,255,0.08)'}`,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+                  background: activeSubTab === st.id ? `${mainColor}18` : 'rgba(255,255,255,0.03)',
+                  color: activeSubTab === st.id ? mainColor : '#8a8a9a',
+                }}>
+                {st.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Contenu */}
       <div className="challenge-content">
         {loadDash ? (
-          <div className="ch-loading">⏳ Chargement des données du challenge…</div>
+          <div className="ch-loading">{"\u23F3"} Chargement des donn{"\u00e9"}es du challenge{"\u2026"}</div>
         ) : (
           <>
             {activeTab === 'dashboard' && <TabDashboard dashboard={dashboard} />}
-            {activeTab === 'indicateurs' && <TabIndicateurs />}
-            {activeTab === 'kpis' && <TabKPIs dashboard={dashboard} moisSelectionne={moisSelectionne} setMoisSelectionne={setMoisSelectionne} />}
-            {activeTab === 'recrutement' && <TabRecrutement />}
-            {activeTab === 'plv' && <TabPLV />}
-            {activeTab === 'points' && <TabPointsControles />}
+            {/* Challenge PDG TELCO */}
+            {activeSubTab === 'telco_indicateurs' && <TabIndicateurs filter="TELCO" />}
+            {activeSubTab === 'telco_points' && <TabPointsControles />}
+            {activeSubTab === 'telco_kpis' && <TabKPIs dashboard={dashboard} moisSelectionne={moisSelectionne} setMoisSelectionne={setMoisSelectionne} filter="TELCO" />}
+            {/* Challenge Orange Money */}
+            {activeSubTab === 'om_indicateurs' && <TabIndicateurs filter="OM" />}
+            {activeSubTab === 'om_recrutement' && <TabRecrutement />}
+            {activeSubTab === 'om_plv' && <TabPLV />}
+            {activeSubTab === 'om_kpis' && <TabKPIs dashboard={dashboard} moisSelectionne={moisSelectionne} setMoisSelectionne={setMoisSelectionne} filter="OM" />}
+            {/* Commun */}
             {activeTab === 'classement' && <TabClassement />}
             {activeTab === 'alertes' && <TabAlertes alertes={alertes} dashboard={dashboard} />}
           </>
@@ -785,7 +834,7 @@ function TabDashboard({ dashboard }) {
 }
 
 // ── Tab KPIs ──────────────────────────────────────────────────────────────────
-function TabKPIs({ dashboard, moisSelectionne, setMoisSelectionne }) {
+function TabKPIs({ dashboard, moisSelectionne, setMoisSelectionne, filter }) {
   const { data: kpisMois } = useQuery(['challenge-kpis', moisSelectionne],
     () => api.get(`/challenge/objectifs/${moisSelectionne}`).then(r => r.data),
     { staleTime: 60000 }
@@ -819,79 +868,57 @@ function TabKPIs({ dashboard, moisSelectionne, setMoisSelectionne }) {
         ) : <div className="ch-loading">Chargement…</div>}
       </div>
 
-      {/* Tableau récap — Challenge PDG TELCO */}
-      <div className="ch-card" style={{ borderLeft: '4px solid #0ea5e9' }}>
-        <h3 className="ch-section-title">{"🔵"} Challenge PDG TELCO — Objectifs par mois</h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{"Sous-crit\u00e8re"}</th>
-                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>Poids</th>
-                {MOIS_CHALLENGE.map(m => (
-                  <th key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{MOIS_LABELS[m]}</th>
-                ))}
-                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#0ea5e9', fontWeight: 700 }}>{"Total P\u00e9riode"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: '🟢 CA Sell out (NAFAMA)', poids: '40%', obj_par_mois: '95%', total: '95%', unite: '' },
-                { label: '🖥️ Vente terminaux', poids: '15%', obj_par_mois: 25, total: 100, unite: 'terminaux' },
-                { label: '📍 Points contrôlés', poids: '15%', obj_par_mois: '5-10', total: 25, unite: 'points' },
-                { label: '☀️ Kit Orange Énergie', poids: '15%', obj_par_mois: '80%', total: '80%', unite: '' },
-                { label: '⭐ Note DZ', poids: '15%', obj_par_mois: '-', total: '-', unite: '' },
-              ].map((row, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#e2e8f0' }}>{row.label}</td>
-                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#0ea5e9' }}>{row.poids}</td>
-                  {MOIS_CHALLENGE.map(m => (
-                    <td key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8', fontSize: 11 }}>{row.obj_par_mois}</td>
-                  ))}
-                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#0ea5e9' }}>{row.total} {row.unite}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Tableau TELCO */}
+      {filter === 'TELCO' && <KPITable color="#0ea5e9" title={"Challenge PDG TELCO"} icon={"🔵"} rows={[
+        { label: '🟢 CA Sell out (NAFAMA)', poids: '40%', obj_par_mois: '95%', total: '95%', unite: '' },
+        { label: '🖥️ Vente terminaux', poids: '15%', obj_par_mois: 25, total: 100, unite: 'terminaux' },
+        { label: '📍 Points contrôlés', poids: '15%', obj_par_mois: '5-10', total: 25, unite: 'points' },
+        { label: '☀️ Kit Orange Énergie', poids: '15%', obj_par_mois: '80%', total: '80%', unite: '' },
+        { label: '⭐ Note DZ', poids: '15%', obj_par_mois: '-', total: '-', unite: '' },
+      ]} />}
 
-      {/* Tableau récap — Challenge Orange Money */}
-      <div className="ch-card" style={{ borderLeft: '4px solid #FF6900' }}>
-        <h3 className="ch-section-title">{"🟠"} Challenge Orange Money — Objectifs par mois</h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{"Sous-crit\u00e8re"}</th>
-                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>Poids</th>
-                {MOIS_CHALLENGE.map(m => (
-                  <th key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{MOIS_LABELS[m]}</th>
-                ))}
-                <th style={{ textAlign: 'center', padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>{"Total P\u00e9riode"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: '📱 CA Cash-out (OMY)', poids: '30%', obj_par_mois: '95%', total: '95%', unite: '' },
-                { label: '🏪 PDV actif', poids: '10%', obj_par_mois: '90%', total: '90%', unite: '' },
-                { label: '👥 Recrutement OMY', poids: '15%', obj_par_mois: 250, total: 1000, unite: 'clients' },
-                { label: '💳 Adoption Kaabu', poids: '15%', obj_par_mois: '10 tx/PDV', total: '40 tx/PDV', unite: '' },
-                { label: '🔒 Risque fintech', poids: '15%', obj_par_mois: '< 2%', total: '< 2%', unite: '' },
-                { label: '📦 Support visibilité', poids: '15%', obj_par_mois: 25, total: 100, unite: 'PLV' },
-              ].map((row, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#e2e8f0' }}>{row.label}</td>
-                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#FF6900' }}>{row.poids}</td>
-                  {MOIS_CHALLENGE.map(m => (
-                    <td key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8', fontSize: 11 }}>{row.obj_par_mois}</td>
-                  ))}
-                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#FF6900' }}>{row.total} {row.unite}</td>
-                </tr>
+      {/* Tableau OM */}
+      {filter === 'OM' && <KPITable color="#FF6900" title={"Challenge Orange Money"} icon={"🟠"} rows={[
+        { label: '📱 CA Cash-out (OMY)', poids: '30%', obj_par_mois: '95%', total: '95%', unite: '' },
+        { label: '🏪 PDV actif', poids: '10%', obj_par_mois: '90%', total: '90%', unite: '' },
+        { label: '👥 Recrutement OMY', poids: '15%', obj_par_mois: 250, total: 1000, unite: 'clients' },
+        { label: '💳 Adoption Kaabu', poids: '15%', obj_par_mois: '10 tx/PDV', total: '40 tx/PDV', unite: '' },
+        { label: '🔒 Risque fintech', poids: '15%', obj_par_mois: '< 2%', total: '< 2%', unite: '' },
+        { label: '📦 Support visibilité', poids: '15%', obj_par_mois: 25, total: 100, unite: 'PLV' },
+      ]} />}
+    </div>
+  );
+}
+
+function KPITable({ color, title, icon, rows }) {
+  return (
+    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
+      <h3 className="ch-section-title">{icon} {title} — Objectifs par mois</h3>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{"Sous-crit\u00e8re"}</th>
+              <th style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>Poids</th>
+              {MOIS_CHALLENGE.map(m => (
+                <th key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{MOIS_LABELS[m]}</th>
               ))}
-            </tbody>
-          </table>
-        </div>
+              <th style={{ textAlign: 'center', padding: '10px 12px', color, fontWeight: 700 }}>{"Total P\u00e9riode"}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '10px 12px', fontWeight: 600, color: '#e2e8f0' }}>{row.label}</td>
+                <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color }}>{row.poids}</td>
+                {MOIS_CHALLENGE.map(m => (
+                  <td key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8', fontSize: 11 }}>{row.obj_par_mois}</td>
+                ))}
+                <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color }}>{row.total} {row.unite}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
