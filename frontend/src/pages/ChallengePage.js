@@ -505,15 +505,16 @@ const MAIN_TABS = [
 
 const SUB_TABS = {
   telco: [
-    { id: 'telco_indicateurs', label: '\uD83D\uDCC8 Indicateurs TELCO' },
-    { id: 'telco_points',      label: '\uD83D\uDCCD Points Contr\u00f4l\u00e9s' },
-    { id: 'telco_kpis',        label: '\uD83D\uDCCA Suivi KPIs' },
+    { id: 'telco_perf_comm',    label: '\uD83D\uDCB0 Performance commerciale' },
+    { id: 'telco_qualite',      label: '\uD83D\uDCCD Qualit\u00e9 d\u0027ex\u00e9cution r\u00e9seau' },
+    { id: 'telco_croissance',   label: '\uD83D\uDE80 Relais de croissance' },
+    { id: 'telco_evaluation',   label: '\u2B50 \u00c9valuation' },
   ],
   om: [
-    { id: 'om_indicateurs', label: '\uD83D\uDCC8 Indicateurs OM' },
-    { id: 'om_recrutement', label: '\uD83D\uDC65 Recrutement OMY' },
-    { id: 'om_plv',         label: '\uD83D\uDCE6 Visibilit\u00e9 PLV' },
-    { id: 'om_kpis',        label: '\uD83D\uDCCA Suivi KPIs' },
+    { id: 'om_perf_comm',       label: '\uD83D\uDCB0 Performance commerciale' },
+    { id: 'om_qualite',         label: '\uD83C\uDFEA Qualit\u00e9 d\u0027ex\u00e9cution r\u00e9seau' },
+    { id: 'om_digital',         label: '\uD83D\uDCB3 Digitalisation & transformation' },
+    { id: 'om_visibilite',      label: '\uD83D\uDCE6 Visibilit\u00e9' },
   ],
 };
 
@@ -640,15 +641,119 @@ export default function ChallengePage() {
         ) : (
           <>
             {activeTab === 'dashboard' && <TabDashboard dashboard={dashboard} />}
-            {/* Challenge PDG TELCO */}
-            {activeSubTab === 'telco_indicateurs' && <TabIndicateurs filter="TELCO" />}
-            {activeSubTab === 'telco_points' && <TabPointsControles />}
-            {activeSubTab === 'telco_kpis' && <TabKPIs dashboard={dashboard} moisSelectionne={moisSelectionne} setMoisSelectionne={setMoisSelectionne} filter="TELCO" />}
-            {/* Challenge Orange Money */}
-            {activeSubTab === 'om_indicateurs' && <TabIndicateurs filter="OM" />}
-            {activeSubTab === 'om_recrutement' && <TabRecrutement />}
-            {activeSubTab === 'om_plv' && <TabPLV />}
-            {activeSubTab === 'om_kpis' && <TabKPIs dashboard={dashboard} moisSelectionne={moisSelectionne} setMoisSelectionne={setMoisSelectionne} filter="OM" />}
+
+            {/* === Challenge PDG TELCO === */}
+            {/* Performance commerciale : CA Sell out 40% + Vente terminaux 15% */}
+            {activeSubTab === 'telco_perf_comm' && (
+              <TabCritereDetail
+                challenge="TELCO"
+                categorie="Performance commerciale"
+                color="#0ea5e9"
+                criteres={[
+                  { label: 'CA Sell out (NAFAMA)', poids: 40, objectif: "Taux d'atteinte de l'objectif challenge >= 95%", indicateur: 'NAFAMA' },
+                  { label: 'Vente terminaux', poids: 15, objectif: 'Vendre au minimum 100 terminaux sur la p\u00e9riode du challenge par partenaire et par DZ', indicateur: 'TERMINAUX' },
+                ]}
+                dashboard={dashboard}
+              />
+            )}
+            {/* Qualit\u00e9 d'ex\u00e9cution r\u00e9seau : Cr\u00e9ation Points contr\u00f4l\u00e9s 15% */}
+            {activeSubTab === 'telco_qualite' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <TabCritereDetail
+                  challenge="TELCO"
+                  categorie={"Qualit\u00e9 d'ex\u00e9cution r\u00e9seau"}
+                  color="#0ea5e9"
+                  criteres={[
+                    { label: 'Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, objectif: 'Cr\u00e9er au minimum 25 nouveaux points contr\u00f4l\u00e9s par DZ et activer au moins 80% sur la p\u00e9riode', indicateur: null },
+                  ]}
+                  dashboard={dashboard}
+                />
+                <TabPointsControles />
+              </div>
+            )}
+            {/* Relais de croissance : Kit orange \u00e9nergie 15% */}
+            {activeSubTab === 'telco_croissance' && (
+              <TabCritereDetail
+                challenge="TELCO"
+                categorie="Relais de croissance"
+                color="#0ea5e9"
+                criteres={[
+                  { label: 'Kit Orange \u00c9nergie', poids: 15, objectif: "Atteindre au minimum 80% de l'objectif vente sur la p\u00e9riode et un taux d'utilisation >= 80%", indicateur: 'ORANGE ENERGIE' },
+                ]}
+                dashboard={dashboard}
+              />
+            )}
+            {/* \u00c9valuation : Note DZ 15% */}
+            {activeSubTab === 'telco_evaluation' && (
+              <TabCritereDetail
+                challenge="TELCO"
+                categorie={"\u00c9valuation"}
+                color="#0ea5e9"
+                criteres={[
+                  { label: 'Note DZ', poids: 15, objectif: "Les DZ vont \u00e9valuer les partenaires sur la base du d\u00e9ploiement des supports de visibilit\u00e9 et animation du Partenaire dans son r\u00e9seau", indicateur: null },
+                ]}
+                dashboard={dashboard}
+              />
+            )}
+
+            {/* === Challenge Orange Money === */}
+            {/* Performance commerciale : CA Cash-out 30% */}
+            {activeSubTab === 'om_perf_comm' && (
+              <TabCritereDetail
+                challenge="OM"
+                categorie="Performance commerciale"
+                color="#FF6900"
+                criteres={[
+                  { label: 'CA Cash-out (OMY)', poids: 30, objectif: "Taux d'atteinte de l'objectif challenge >= 95%", indicateur: 'OMY' },
+                ]}
+                dashboard={dashboard}
+              />
+            )}
+            {/* Qualit\u00e9 d'ex\u00e9cution r\u00e9seau : PDV actif 10% + Recrutement 15% */}
+            {activeSubTab === 'om_qualite' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <TabCritereDetail
+                  challenge="OM"
+                  categorie={"Qualit\u00e9 d'ex\u00e9cution r\u00e9seau"}
+                  color="#FF6900"
+                  criteres={[
+                    { label: 'PDV actif (nouveaut\u00e9)', poids: 10, objectif: 'Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs et productifs avec un CA Cash out minimum de 1000F par mois', indicateur: null },
+                    { label: 'Recrutement Orange Money', poids: 15, objectif: 'Recruter 1000 nouveaux clients actifs sur la p\u00e9riode du challenge par partenaire et par DZ soit 250 nouvelles inscriptions actives par mois', indicateur: null },
+                  ]}
+                  dashboard={dashboard}
+                />
+                <TabRecrutement />
+              </div>
+            )}
+            {/* Digitalisation & transformation : Adoption Kaabu 15% + Risque fintech 15% */}
+            {activeSubTab === 'om_digital' && (
+              <TabCritereDetail
+                challenge="OM"
+                categorie="Digitalisation et transformation"
+                color="#FF6900"
+                criteres={[
+                  { label: 'Adoption Kaabu', poids: 15, objectif: 'Faire au minimum 10 transactions par PDV et par mois soit 40 transactions sur la p\u00e9riode et atteindre le taux actif kaabu de la DZ', indicateur: 'KAABU MOBILE' },
+                  { label: 'Ma\u00eetrise du risque fintech', poids: 15, objectif: 'Taux de p\u00e9n\u00e9tration fintech < 2%', indicateur: null },
+                ]}
+                dashboard={dashboard}
+              />
+            )}
+            {/* Visibilit\u00e9 : D\u00e9ploiement support 15% */}
+            {activeSubTab === 'om_visibilite' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <TabCritereDetail
+                  challenge="OM"
+                  categorie={"Visibilit\u00e9"}
+                  color="#FF6900"
+                  criteres={[
+                    { label: 'D\u00e9ploiement support de visibilit\u00e9', poids: 15, objectif: 'D\u00e9ployer au minimum 100 PLV sur la p\u00e9riode du challenge par partenaire et par DZ soit 25 PLV par mois', indicateur: null },
+                  ]}
+                  dashboard={dashboard}
+                />
+                <TabPLV />
+              </div>
+            )}
+
             {/* Commun */}
             {activeTab === 'classement' && <TabClassement />}
             {activeTab === 'alertes' && <TabAlertes alertes={alertes} dashboard={dashboard} />}
@@ -933,6 +1038,93 @@ function KPITable({ color, title, icon, rows }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Tab Critere Detail (composant g\u00e9n\u00e9rique pour chaque cat\u00e9gorie de crit\u00e8re) ──
+function TabCritereDetail({ challenge, categorie, color, criteres, dashboard }) {
+  const { data: awardData } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+
+  const getIndTaux = (ind) => {
+    if (!ind) return null;
+    const d = awardData?.[ind] || {};
+    const total = (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
+    return total?.taux_orange != null ? Math.min(1, total.taux_orange) : null;
+  };
+
+  const getIndTotal = (ind) => {
+    if (!ind) return null;
+    const d = awardData?.[ind] || {};
+    return (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
+  };
+
+  const totalPoids = criteres.reduce((s, c) => s + c.poids, 0);
+
+  return (
+    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
+      <h3 className="ch-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>{challenge === 'TELCO' ? '\uD83D\uDD35' : '\uD83D\uDFE0'} {categorie}</span>
+        <span style={{ fontSize: 13, color: '#64748b' }}>Poids total : <strong style={{ color, fontSize: 15 }}>{totalPoids}%</strong></span>
+      </h3>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+        {criteres.map((c, i) => {
+          const taux = c.indicateur ? getIndTaux(c.indicateur) : null;
+          const total = c.indicateur ? getIndTotal(c.indicateur) : null;
+          const pct = taux != null ? Math.round(taux * 100) : null;
+
+          return (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '16px 18px' }}>
+              {/* En-t\u00eate crit\u00e8re */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>{c.label}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, lineHeight: 1.5 }}>{c.objectif}</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '8px 14px', background: `${color}15`, borderRadius: 10, marginLeft: 12 }}>
+                  <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Poids</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color }}>{c.poids}%</div>
+                </div>
+              </div>
+
+              {/* Donn\u00e9es indicateur (si li\u00e9) */}
+              {c.indicateur && total ? (
+                <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Objectif Orange</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{total.objectif_orange != null ? fmtNum(total.objectif_orange) : '\u2014'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{"R\u00e9alisation"}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color }}>{total.realisation != null ? fmtNum(total.realisation) : '\u2014'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Taux</div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757' }}>
+                        {pct != null ? `${pct}%` : '\u2014'}
+                      </div>
+                    </div>
+                  </div>
+                  <BarreProg taux={taux} color={pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757'} />
+                  {total.mois && <div style={{ fontSize: 10, color: '#475569', marginTop: 6 }}>Dernier mois : {total.mois}</div>}
+                </div>
+              ) : c.indicateur ? (
+                <div style={{ textAlign: 'center', color: '#475569', padding: 12, fontSize: 12 }}>
+                  {"\u23F3"} {"Donn\u00e9es en attente d'import pour "}  {c.indicateur}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#475569', padding: 12, fontSize: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                  {"Crit\u00e8re \u00e9valu\u00e9 manuellement par Orange"}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
