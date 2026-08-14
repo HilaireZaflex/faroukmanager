@@ -319,6 +319,7 @@ export default function PDVsPage() {
   const [statut, setStatut] = useState('');
   const [typePdv, setTypePdv] = useState('');
   const [nouvelleActivation, setNouvelleActivation] = useState(false);
+  const [inactifPerf, setInactifPerf] = useState(false);
   const [periodeAct, setPeriodeAct] = useState('tout');
   const [dateDebutAct, setDateDebutAct] = useState('');
   const [dateFinAct, setDateFinAct] = useState('');
@@ -333,6 +334,7 @@ export default function PDVsPage() {
   if (statut) params.statut = statut;
   if (typePdv) params.type_pdv = typePdv;
   if (nouvelleActivation) params.nouvelle_activation = true;
+  if (inactifPerf) params.inactif_performance = true;
 
   // Calcul des dates de filtre pour ACTIVATIONS
   const getActDates = () => {
@@ -565,6 +567,7 @@ export default function PDVsPage() {
           <button key={s.key} onClick={() => {
             setService(s.key);
             setNouvelleActivation(s.key === 'ACTIVATIONS');
+            setInactifPerf(false);
             setStatut('');
             setPage(0);
           }}
@@ -648,11 +651,11 @@ export default function PDVsPage() {
           <span className="mini-stat-val">{dynamicStats.total_pdvs || 0}</span>
           <span className="mini-stat-label">Total PDVs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut(statut === 'ACTIF' ? '' : 'ACTIF'); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#10b981', cursor: 'pointer', outline: statut === 'ACTIF' ? '2px solid #10b981' : 'none' }} onClick={() => { setStatut(statut === 'ACTIF' ? '' : 'ACTIF'); setInactifPerf(false); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.actifs || 0}</span>
           <span className="mini-stat-label">✅ Actifs</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: statut === 'INACTIF' ? '2px solid #ef4444' : 'none' }} onClick={() => { setStatut(statut === 'INACTIF' ? '' : 'INACTIF'); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#ef4444', cursor: 'pointer', outline: inactifPerf ? '2px solid #ef4444' : 'none' }} onClick={() => { setInactifPerf(!inactifPerf); setStatut(''); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.inactifs || 0}</span>
           <span className="mini-stat-label">🔴 Inactifs</span>
         </div>
@@ -660,7 +663,7 @@ export default function PDVsPage() {
           <span className="mini-stat-val">{dynamicStats.en_recuperation || 0}</span>
           <span className="mini-stat-label">⚠️ Récupération</span>
         </div>
-        <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: nouvelleActivation ? '2px solid #3b82f6' : 'none' }} onClick={() => { const next = !nouvelleActivation; setNouvelleActivation(next); setService(next ? 'ACTIVATIONS' : 'OMY'); setStatut(''); setPage(0); }}>
+        <div className="mini-stat-card" style={{ '--color': '#3b82f6', cursor: 'pointer', outline: nouvelleActivation ? '2px solid #3b82f6' : 'none' }} onClick={() => { const next = !nouvelleActivation; setNouvelleActivation(next); setInactifPerf(false); setService(next ? 'ACTIVATIONS' : 'OMY'); setStatut(''); setPage(0); }}>
           <span className="mini-stat-val">{dynamicStats.nouvelles_activations || 0}</span>
           <span className="mini-stat-label">🆕 Nvelles Activations</span>
         </div>

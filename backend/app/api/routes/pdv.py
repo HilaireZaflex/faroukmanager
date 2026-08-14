@@ -508,6 +508,7 @@ def list_pdvs(
     statut: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     nouvelle_activation: Optional[bool] = Query(None),
+    inactif_performance: Optional[bool] = Query(None),
     date_debut: Optional[str] = Query(None),
     date_fin: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
@@ -554,6 +555,17 @@ def list_pdvs(
                 PDV.quartier.ilike(f"%{search}%"),
             )
         )
+    if inactif_performance:
+        from app.models.performance import MonthlyPerformance as MP
+        last_p = db.query(MP.annee, MP.mois).order_by(MP.annee.desc(), MP.mois.desc()).first()
+        if last_p:
+            inactif_pdv_ids = db.query(MP.pdv_id).filter(
+                MP.annee == last_p[0], MP.mois == last_p[1], MP.est_actif == False
+            ).subquery()
+            query = query.filter(PDV.id.in_(inactif_pdv_ids))
+        else:
+            query = query.filter(PDV.id == -1)  # aucun résultat
+
     if nouvelle_activation:
         from app.models.prospect import Prospect as ProspectModel
         from datetime import datetime, timedelta
