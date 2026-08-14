@@ -540,7 +540,10 @@ def list_pdvs(
     if type_pdv:
         query = query.filter(PDV.type_pdv == type_pdv)
     if statut:
-        query = query.filter(PDV.statut == statut)
+        try:
+            query = query.filter(PDV.statut == PDVStatut(statut))
+        except (ValueError, KeyError):
+            query = query.filter(PDV.statut == statut)
     if search:
         query = query.filter(
             or_(
