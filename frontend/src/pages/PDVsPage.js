@@ -386,13 +386,14 @@ export default function PDVsPage() {
         : { total_pdvs: nafamaSummaryW?.nb_pdv_actifs || 0, active_pdvs: nafamaSummaryW?.nb_pdv_actifs || 0, inactive_pdvs: nafamaSummaryW?.nb_pdv_inactifs || 0, pdvs_sans_donnees: 0 })
     : (periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly);
 
-  // Stats dynamiques selon TOUS les filtres actifs (zone, type, statut)
+  // Stats dynamiques selon TOUS les filtres actifs (zone, type, statut, nouvelle_activation)
   const { data: dynamicStatsRaw } = useQuery(
-    ['pdvs-stats-filtres', zone, typePdv, statut],
+    ['pdvs-stats-filtres', zone, typePdv, statut, nouvelleActivation],
     () => api.get('/pdvs/stats', { params: { 
       ...(zone ? { zone } : {}), 
       ...(typePdv ? { type_pdv: typePdv } : {}),
       ...(statut ? { statut } : {}),
+      ...(nouvelleActivation ? { nouvelle_activation: true } : {}),
     }}).then(r => r.data),
     { staleTime: 0, cacheTime: 0 }
   );
@@ -412,6 +413,14 @@ export default function PDVsPage() {
     en_recuperation: telecStats?.en_recuperation ?? 0,
     nouvelles_creations: telecStats?.nouvelles_creations ?? 0,
     nouvelles_activations: telecStats?.nouvelles_activations ?? 0,
+  } : nouvelleActivation ? {
+    // Quand filtre Nouvelle Activation actif, utiliser uniquement dynamicStatsRaw
+    total_pdvs: dynamicStatsRaw?.total_pdvs ?? 0,
+    actifs: dynamicStatsRaw?.actifs ?? 0,
+    inactifs: dynamicStatsRaw?.inactifs ?? 0,
+    en_recuperation: dynamicStatsRaw?.en_recuperation ?? 0,
+    nouvelles_creations: dynamicStatsRaw?.nouvelles_creations ?? 0,
+    nouvelles_activations: dynamicStatsRaw?.nouvelles_activations ?? 0,
   } : {
     total_pdvs: activeDash?.total_pdvs ?? dynamicStatsRaw?.total_pdvs ?? 0,
     actifs: activeDash?.active_pdvs ?? dynamicStatsRaw?.actifs ?? 0,

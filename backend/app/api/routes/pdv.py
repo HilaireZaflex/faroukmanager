@@ -21,6 +21,7 @@ def get_stats(
     type_pdv: str = Query(None, description="Filtrer par type PDV"),
     superviseur: str = Query(None, description="Filtrer par superviseur"),
     teleconseillere: str = Query(None, description="Filtrer par téléconseillère"),
+    nouvelle_activation: Optional[bool] = Query(None, description="Filtrer uniquement les PDV activés via prospection"),
     db: Session = Depends(get_db)
 ):
     """Statistiques globales du réseau PDV — M1"""
@@ -37,6 +38,12 @@ def get_stats(
         query = query.filter(PDV.superviseur == superviseur)
     if teleconseillere:
         query = query.filter(PDV.teleconseillere.ilike(f"%{teleconseillere}%"))
+    if nouvelle_activation:
+        from app.models.prospect import Prospect as ProspectModelFilter
+        activated_ids = db.query(ProspectModelFilter.activated_pdv_id).filter(
+            ProspectModelFilter.activated_pdv_id.isnot(None)
+        ).subquery()
+        query = query.filter(PDV.id.in_(activated_ids))
     pdvs = query.all()
 
     total = len([p for p in pdvs if p.statut != PDVStatut.DESACTIVE])
