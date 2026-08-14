@@ -156,7 +156,10 @@ function TabIndicateurs({ filter }) {
   // filter = 'OM' → OMY, KAABU MOBILE
   const FILTER_MAP = {
     TELCO: ['NAFAMA', 'TERMINAUX', 'ORANGE ENERGIE'],
+    TELCO_ENERGIE: ['ORANGE ENERGIE'],
     OM: ['OMY', 'KAABU MOBILE'],
+    OM_CA: ['OMY'],
+    OM_DIGITAL: ['KAABU MOBILE'],
   };
   const filteredList = filter ? FILTER_MAP[filter] || INDICATEURS_LIST : INDICATEURS_LIST;
   const [activeInd, setActiveInd] = useState(null); // null = vue globale
@@ -643,116 +646,20 @@ export default function ChallengePage() {
             {activeTab === 'dashboard' && <TabDashboard dashboard={dashboard} />}
 
             {/* === Challenge PDG TELCO === */}
-            {/* Performance commerciale : CA Sell out 40% + Vente terminaux 15% */}
-            {activeSubTab === 'telco_perf_comm' && (
-              <TabCritereDetail
-                challenge="TELCO"
-                categorie="Performance commerciale"
-                color="#0ea5e9"
-                criteres={[
-                  { label: 'CA Sell out (NAFAMA)', poids: 40, objectif: "Taux d'atteinte de l'objectif challenge >= 95%", indicateur: 'NAFAMA' },
-                  { label: 'Vente terminaux', poids: 15, objectif: 'Vendre au minimum 100 terminaux sur la p\u00e9riode du challenge par partenaire et par DZ', indicateur: 'TERMINAUX' },
-                ]}
-                dashboard={dashboard}
-              />
-            )}
-            {/* Qualit\u00e9 d'ex\u00e9cution r\u00e9seau : Cr\u00e9ation Points contr\u00f4l\u00e9s 15% */}
-            {activeSubTab === 'telco_qualite' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <TabCritereDetail
-                  challenge="TELCO"
-                  categorie={"Qualit\u00e9 d'ex\u00e9cution r\u00e9seau"}
-                  color="#0ea5e9"
-                  criteres={[
-                    { label: 'Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, objectif: 'Cr\u00e9er au minimum 25 nouveaux points contr\u00f4l\u00e9s par DZ et activer au moins 80% sur la p\u00e9riode', indicateur: null },
-                  ]}
-                  dashboard={dashboard}
-                />
-                <TabPointsControles />
-              </div>
-            )}
-            {/* Relais de croissance : Kit orange \u00e9nergie 15% */}
-            {activeSubTab === 'telco_croissance' && (
-              <TabCritereDetail
-                challenge="TELCO"
-                categorie="Relais de croissance"
-                color="#0ea5e9"
-                criteres={[
-                  { label: 'Kit Orange \u00c9nergie', poids: 15, objectif: "Atteindre au minimum 80% de l'objectif vente sur la p\u00e9riode et un taux d'utilisation >= 80%", indicateur: 'ORANGE ENERGIE' },
-                ]}
-                dashboard={dashboard}
-              />
-            )}
-            {/* \u00c9valuation : Note DZ 15% */}
+            {activeSubTab === 'telco_perf_comm' && <TabIndicateurs filter="TELCO" />}
+            {activeSubTab === 'telco_qualite' && <TabPointsControles />}
+            {activeSubTab === 'telco_croissance' && <TabIndicateurs filter="TELCO_ENERGIE" />}
             {activeSubTab === 'telco_evaluation' && (
-              <TabCritereDetail
-                challenge="TELCO"
-                categorie={"\u00c9valuation"}
-                color="#0ea5e9"
-                criteres={[
-                  { label: 'Note DZ', poids: 15, objectif: "Les DZ vont \u00e9valuer les partenaires sur la base du d\u00e9ploiement des supports de visibilit\u00e9 et animation du Partenaire dans son r\u00e9seau", indicateur: null },
-                ]}
-                dashboard={dashboard}
-              />
+              <TabCritereDetail challenge="TELCO" categorie={"\u00c9valuation"} color="#0ea5e9"
+                criteres={[{ label: 'Note DZ', poids: 15, objectif: "Les DZ vont \u00e9valuer les partenaires sur la base du d\u00e9ploiement des supports de visibilit\u00e9 et animation du Partenaire dans son r\u00e9seau", indicateur: null }]}
+                dashboard={dashboard} />
             )}
 
             {/* === Challenge Orange Money === */}
-            {/* Performance commerciale : CA Cash-out 30% */}
-            {activeSubTab === 'om_perf_comm' && (
-              <TabCritereDetail
-                challenge="OM"
-                categorie="Performance commerciale"
-                color="#FF6900"
-                criteres={[
-                  { label: 'CA Cash-out (OMY)', poids: 30, objectif: "Taux d'atteinte de l'objectif challenge >= 95%", indicateur: 'OMY' },
-                ]}
-                dashboard={dashboard}
-              />
-            )}
-            {/* Qualit\u00e9 d'ex\u00e9cution r\u00e9seau : PDV actif 10% + Recrutement 15% */}
-            {activeSubTab === 'om_qualite' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <TabCritereDetail
-                  challenge="OM"
-                  categorie={"Qualit\u00e9 d'ex\u00e9cution r\u00e9seau"}
-                  color="#FF6900"
-                  criteres={[
-                    { label: 'PDV actif (nouveaut\u00e9)', poids: 10, objectif: 'Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs et productifs avec un CA Cash out minimum de 1000F par mois', indicateur: null },
-                    { label: 'Recrutement Orange Money', poids: 15, objectif: 'Recruter 1000 nouveaux clients actifs sur la p\u00e9riode du challenge par partenaire et par DZ soit 250 nouvelles inscriptions actives par mois', indicateur: null },
-                  ]}
-                  dashboard={dashboard}
-                />
-                <TabRecrutement />
-              </div>
-            )}
-            {/* Digitalisation & transformation : Adoption Kaabu 15% + Risque fintech 15% */}
-            {activeSubTab === 'om_digital' && (
-              <TabCritereDetail
-                challenge="OM"
-                categorie="Digitalisation et transformation"
-                color="#FF6900"
-                criteres={[
-                  { label: 'Adoption Kaabu', poids: 15, objectif: 'Faire au minimum 10 transactions par PDV et par mois soit 40 transactions sur la p\u00e9riode et atteindre le taux actif kaabu de la DZ', indicateur: 'KAABU MOBILE' },
-                  { label: 'Ma\u00eetrise du risque fintech', poids: 15, objectif: 'Taux de p\u00e9n\u00e9tration fintech < 2%', indicateur: null },
-                ]}
-                dashboard={dashboard}
-              />
-            )}
-            {/* Visibilit\u00e9 : D\u00e9ploiement support 15% */}
-            {activeSubTab === 'om_visibilite' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <TabCritereDetail
-                  challenge="OM"
-                  categorie={"Visibilit\u00e9"}
-                  color="#FF6900"
-                  criteres={[
-                    { label: 'D\u00e9ploiement support de visibilit\u00e9', poids: 15, objectif: 'D\u00e9ployer au minimum 100 PLV sur la p\u00e9riode du challenge par partenaire et par DZ soit 25 PLV par mois', indicateur: null },
-                  ]}
-                  dashboard={dashboard}
-                />
-                <TabPLV />
-              </div>
-            )}
+            {activeSubTab === 'om_perf_comm' && <TabIndicateurs filter="OM_CA" />}
+            {activeSubTab === 'om_qualite' && <TabRecrutement />}
+            {activeSubTab === 'om_digital' && <TabIndicateurs filter="OM_DIGITAL" />}
+            {activeSubTab === 'om_visibilite' && <TabPLV />}
 
             {/* Commun */}
             {activeTab === 'classement' && <TabClassement />}
