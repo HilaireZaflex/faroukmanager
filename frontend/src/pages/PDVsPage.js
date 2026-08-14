@@ -319,6 +319,9 @@ export default function PDVsPage() {
   const [statut, setStatut] = useState('');
   const [typePdv, setTypePdv] = useState('');
   const [nouvelleActivation, setNouvelleActivation] = useState(false);
+  const [periodeAct, setPeriodeAct] = useState('tout');
+  const [dateDebutAct, setDateDebutAct] = useState('');
+  const [dateFinAct, setDateFinAct] = useState('');
   const [service, setService] = useState('OMY');
   const [page, setPage] = useState(0);
   const [showModal, setShowModal] = useState(false);
@@ -330,6 +333,27 @@ export default function PDVsPage() {
   if (statut) params.statut = statut;
   if (typePdv) params.type_pdv = typePdv;
   if (nouvelleActivation) params.nouvelle_activation = true;
+
+  // Calcul des dates de filtre pour ACTIVATIONS
+  const getActDates = () => {
+    const now = new Date();
+    const fmt = d => d.toISOString().slice(0, 10);
+    if (periodeAct === 'aujourd_hui') {
+      return { date_debut: fmt(now), date_fin: fmt(now) };
+    } else if (periodeAct === 'cette_semaine') {
+      const d = new Date(now); d.setDate(d.getDate() - d.getDay() + 1);
+      return { date_debut: fmt(d), date_fin: fmt(now) };
+    } else if (periodeAct === 'ce_mois') {
+      return { date_debut: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`, date_fin: fmt(now) };
+    } else if (periodeAct === 'custom') {
+      const r = {};
+      if (dateDebutAct) r.date_debut = dateDebutAct;
+      if (dateFinAct) r.date_fin = dateFinAct;
+      return r;
+    }
+    return {};
+  };
+  if (nouvelleActivation) Object.assign(params, getActDates());
   // Téléconseillère : filtrer uniquement ses PDVs
   if (isTelec && teleName) params.teleconseillere = teleName;
 
@@ -386,14 +410,15 @@ export default function PDVsPage() {
         : { total_pdvs: nafamaSummaryW?.nb_pdv_actifs || 0, active_pdvs: nafamaSummaryW?.nb_pdv_actifs || 0, inactive_pdvs: nafamaSummaryW?.nb_pdv_inactifs || 0, pdvs_sans_donnees: 0 })
     : (periodeType === 'mensuel' ? dashboardMonthly : dashboardWeekly);
 
-  // Stats dynamiques selon TOUS les filtres actifs (zone, type, statut, nouvelle_activation)
+  // Stats dynamiques selon TOUS les filtres actifs (zone, type, statut, nouvelle_activation, dates)
+  const actDates = nouvelleActivation ? getActDates() : {};
   const { data: dynamicStatsRaw } = useQuery(
-    ['pdvs-stats-filtres', zone, typePdv, statut, nouvelleActivation],
+    ['pdvs-stats-filtres', zone, typePdv, statut, nouvelleActivation, periodeAct, dateDebutAct, dateFinAct],
     () => api.get('/pdvs/stats', { params: { 
       ...(zone ? { zone } : {}), 
       ...(typePdv ? { type_pdv: typePdv } : {}),
       ...(statut ? { statut } : {}),
-      ...(nouvelleActivation ? { nouvelle_activation: true } : {}),
+      ...(nouvelleActivation ? { nouvelle_activation: true, ...actDates } : {}),
     }}).then(r => r.data),
     { staleTime: 0, cacheTime: 0 }
   );
@@ -543,6 +568,55 @@ export default function PDVsPage() {
           </span>
         )}
       </div>
+
+      {/* ── Filtre Période (uniquement pour ACTIVATIONS) ── */}
+      {service === 'ACTIVATIONS' && (
+        <div style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 12, padding: '12px 16px', marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: '#8a8a9a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+            🗓️ Période d'analyse —{' '}
+            <span style={{ color: '#3b82f6' }}>
+              {periodeAct === 'aujourd_hui' ? "Aujourd'hui" : periodeAct === 'cette_semaine' ? 'Cette semaine' : periodeAct === 'ce_mois' ? 'Ce mois' : periodeAct === 'custom' ? `${dateDebutAct||'...'} → ${dateFinAct||'...'}` : 'Toute la période'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[
+              { key: 'tout',          label: 'Tout' },
+              { key: 'aujourd_hui',   label: "☀️ Aujourd'hui" },
+              { key: 'cette_semaine', label: '📆 Cette semaine' },
+              { key: 'ce_mois',       label: '🗓️ Ce mois' },
+              { key: 'custom',        label: '🔧 Personnalisé' },
+            ].map(p => (
+              <button key={p.key} onClick={() => { setPeriodeAct(p.key); setPage(0); }}
+                style={{ padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all 0.2s',
+                  background: periodeAct === p.key ? '#3b82f6' : 'rgba(255,255,255,0.05)',
+                  color: periodeAct === p.key ? '#fff' : '#8a8a9a',
+                  boxShadow: periodeAct === p.key ? '0 4px 12px rgba(59,130,246,0.3)' : 'none' }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {periodeAct === 'custom' && (
+            <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Du :</label>
+                <input type="date" value={dateDebutAct} onChange={e => { setDateDebutAct(e.target.value); setPage(0); }}
+                  style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, colorScheme: 'dark' }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 12, color: '#8a8a9a', whiteSpace: 'nowrap' }}>Au :</label>
+                <input type="date" value={dateFinAct} onChange={e => { setDateFinAct(e.target.value); setPage(0); }}
+                  style={{ padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, color: '#fff', fontSize: 12, colorScheme: 'dark' }} />
+              </div>
+              {(dateDebutAct || dateFinAct) && (
+                <button onClick={() => { setDateDebutAct(''); setDateFinAct(''); setPage(0); }}
+                  style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.1)', color: '#ff4757', cursor: 'pointer', fontSize: 12 }}>
+                  ✕ Effacer
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="pdv-mini-stats mb-24">
         <div className="mini-stat-card" style={{ '--color': '#00d68f', cursor: 'pointer', outline: statut === '' ? '2px solid #00d68f' : 'none' }} onClick={() => { setStatut(''); setPage(0); }}>

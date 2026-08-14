@@ -22,11 +22,14 @@ def get_stats(
     superviseur: str = Query(None, description="Filtrer par superviseur"),
     teleconseillere: str = Query(None, description="Filtrer par téléconseillère"),
     nouvelle_activation: Optional[bool] = Query(None, description="Filtrer uniquement les PDV activés via prospection"),
+    date_debut: Optional[str] = Query(None, description="Date début (YYYY-MM-DD)"),
+    date_fin: Optional[str] = Query(None, description="Date fin (YYYY-MM-DD)"),
     db: Session = Depends(get_db)
 ):
     """Statistiques globales du réseau PDV — M1"""
     from sqlalchemy import and_, func
     from app.models.performance import MonthlyPerformance
+    from datetime import datetime, timedelta
     query = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
     if zone:
         query = query.filter(PDV.zone == zone)
@@ -41,9 +44,19 @@ def get_stats(
         query = query.filter(PDV.teleconseillere.ilike(f"%{teleconseillere}%"))
     if nouvelle_activation:
         from app.models.prospect import Prospect as ProspectModelFilter
-        activated_ids = db.query(ProspectModelFilter.activated_pdv_id).filter(
+        act_q = db.query(ProspectModelFilter.activated_pdv_id).filter(
             ProspectModelFilter.activated_pdv_id.isnot(None)
-        ).subquery()
+        )
+        # Filtrer par dates si fournies (sur activated_at du prospect)
+        if date_debut:
+            try:
+                act_q = act_q.filter(ProspectModelFilter.activated_at >= datetime.strptime(date_debut, '%Y-%m-%d'))
+            except: pass
+        if date_fin:
+            try:
+                act_q = act_q.filter(ProspectModelFilter.activated_at < datetime.strptime(date_fin, '%Y-%m-%d') + timedelta(days=1))
+            except: pass
+        activated_ids = act_q.subquery()
         query = query.filter(PDV.id.in_(activated_ids))
     pdvs = query.all()
 
@@ -495,6 +508,8 @@ def list_pdvs(
     statut: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     nouvelle_activation: Optional[bool] = Query(None),
+    date_debut: Optional[str] = Query(None),
+    date_fin: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     current_user: User = Depends(get_current_user)
@@ -538,9 +553,17 @@ def list_pdvs(
         )
     if nouvelle_activation:
         from app.models.prospect import Prospect as ProspectModel
-        activated_pdv_ids = db.query(ProspectModel.activated_pdv_id).filter(
+        from datetime import datetime, timedelta
+        act_q = db.query(ProspectModel.activated_pdv_id).filter(
             ProspectModel.activated_pdv_id.isnot(None)
-        ).subquery()
+        )
+        if date_debut:
+            try: act_q = act_q.filter(ProspectModel.activated_at >= datetime.strptime(date_debut, '%Y-%m-%d'))
+            except: pass
+        if date_fin:
+            try: act_q = act_q.filter(ProspectModel.activated_at < datetime.strptime(date_fin, '%Y-%m-%d') + timedelta(days=1))
+            except: pass
+        activated_pdv_ids = act_q.subquery()
         query = query.filter(PDV.id.in_(activated_pdv_ids))
 
     from sqlalchemy import case
