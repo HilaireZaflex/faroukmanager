@@ -105,6 +105,7 @@ def import_pdvs_from_excel(db: Session, file_bytes: bytes) -> Dict[str, Any]:
             "type": "type_pdv",
             "localite": "quartier",
             "adresse pdv": "adresse",
+            "sous zone": "sous_zone",
             "gestionnaires": "gestionnaire",
             "teleconseilliere": "teleconseillere",
             "téléconseillère": "teleconseillere",
