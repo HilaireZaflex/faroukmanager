@@ -241,7 +241,9 @@ def import_pdvs(
 
             numero_pdv = str(row.get(num_pdv_col, '')).strip()
             nom = str(row.get(nom_col, '')).strip()
-            if not numero_pdv or not nom or numero_pdv == 'nan' or nom == 'nan':
+            # Ignorer lignes vides, NaN, ou erreurs Excel (#VALUE!, #REF!, #N/A, TOTAL, etc.)
+            SKIP_VALUES = {'nan', '', '#value!', '#ref!', '#n/a', '#num!', '#div/0!', 'total', 'totaux'}
+            if not numero_pdv or numero_pdv.lower() in SKIP_VALUES or nom.lower() in SKIP_VALUES:
                 continue
 
             type_raw = str(row.get(get_col(df, col_map['type_pdv']) or '', 'RS')).strip().upper()
