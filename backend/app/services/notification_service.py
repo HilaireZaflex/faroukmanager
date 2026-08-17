@@ -172,6 +172,6 @@ def mark_read_by_type(db: Session, user_id: int, prospect_id: int, notif_types: 
 def get_rc_user_ids(db: Session) -> List[int]:
     from app.models.user import UserRole
     users = db.query(User.id).filter(
-        User.role.in_([UserRole.RC, UserRole.ADMIN, UserRole.MANAGER])
+        User.role.in_(['rc', 'RC', 'admin', 'ADMIN', 'manager', 'MANAGER', 'conformite', 'CONFORMITE'])
     ).all()
     return [u.id for u in users]
