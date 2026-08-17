@@ -16,7 +16,7 @@ def generate_pdf(db: Session, campaign_id: int, user_id: int) -> bytes:
     if not score: raise HTTPException(404, "Score introuvable — calculez d'abord le score")
     user = score.user
     agent_name = f"{user.prenom or ''} {user.nom}".strip() if user else "—"
-    role = user.role.value.upper() if user else "—"
+    role = str(user.role).replace("userrole.", "").upper() if user else "—"
 
     try:
         return _generate_with_reportlab(c, score, agent_name, role)

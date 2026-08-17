@@ -274,7 +274,7 @@ def create_prospect(db: Session, payload: ProspectCreate, current_user: User) ->
         decision_type=DecisionType.SUBMIT,
         from_status=None,
         to_status=ProspectStatus.NOUVELLE,
-        comment=f"Fiche créée par {current_user.role.value}",
+        comment=f"Fiche créée par {str(current_user.role).lower().replace('userrole.', '')}",
     )
     db.commit()
     db.refresh(prospect)
@@ -284,7 +284,7 @@ def create_prospect(db: Session, payload: ProspectCreate, current_user: User) ->
         from app.services.notification_service import get_rc_user_ids, create_notif
         rc_ids = get_rc_user_ids(db)
         soumis_par = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
-        role_label = current_user.role.value.capitalize()
+        role_label = str(current_user.role).lower().replace('userrole.', '').capitalize()
         prospect_nom = f"{prospect.prenom} {prospect.nom}".strip()
         for rc_id in rc_ids:
             create_notif(db,

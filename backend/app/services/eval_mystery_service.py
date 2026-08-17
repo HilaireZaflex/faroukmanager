@@ -117,7 +117,7 @@ def my_mystery_queue(db: Session, tc_user_id: int) -> List[Dict[str, Any]]:
             "pdv_nom": getattr(t.pdv, "nom", None) if t.pdv else None,
             "pdv_telephone": t.pdv.telephone if t.pdv else None,
             "target_user_name": f"{t.target_user.prenom or ''} {t.target_user.nom}".strip() if t.target_user else "—",
-            "target_role": t.target_user.role.value if t.target_user else None,
+            "target_role": str(t.target_user.role).replace("userrole.", "") if t.target_user else None,
             "tc_user_name": f"{t.tc_user.prenom or ''} {t.tc_user.nom}".strip() if t.tc_user else "—",
             "created_at": t.created_at.isoformat() if t.created_at else None,
         })

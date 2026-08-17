@@ -460,7 +460,7 @@ def dashboard(db: Session) -> Dict[str, Any]:
             top.append({
                 "user_id": s.user_id,
                 "name": f"{s.user.prenom or ''} {s.user.nom}".strip(),
-                "role": s.user.role.value, "score": s.score_final, "label": s.score_label,
+                "role": str(s.user.role).replace("userrole.", "") if s.user else "—", "score": s.score_final, "label": s.score_label,
             })
     avg = db.query(func.avg(EvalScore.score_final)).filter(EvalScore.is_final == True).scalar()
     return {

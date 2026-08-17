@@ -77,7 +77,7 @@ def evaluate_user(db: Session, user_id: int,
     return {
         "user_id": user_id,
         "user_name": f"{user.prenom or ''} {user.nom}".strip(),
-        "role": user.role.value,
+        "role": str(user.role).replace("userrole.", ""),
         "period_days": period_days,
         "n_assigned": n_assigned,
         "n_completed": n_completed,

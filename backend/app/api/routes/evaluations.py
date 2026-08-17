@@ -112,7 +112,7 @@ def get_score(campaign_id: int, user_id: int, db: Session = Depends(get_db), _: 
     return {
         "user_id": user_id,
         "user_name": f"{u.prenom or ''} {u.nom}".strip() if u else "—",
-        "role": u.role.value if u else "—",
+        "role": str(u.role).replace("userrole.", "") if u else "—",
         "score_final": s.score_final, "score_label": s.score_label,
         "score_kpi": s.score_kpi, "score_mystery": s.score_mystery,
         "score_manual": s.score_manual, "rank": s.rank,
