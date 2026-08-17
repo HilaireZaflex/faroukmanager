@@ -647,19 +647,27 @@ export default function ChallengePage() {
 
             {/* === Challenge PDG TELCO === */}
             {activeSubTab === 'telco_perf_comm' && <TabIndicateurs filter="TELCO" />}
-            {activeSubTab === 'telco_qualite' && <TabPointsControles />}
+            {activeSubTab === 'telco_qualite' && <TabCarteAvecDetail
+              carte={{ id: 'points', icon: '\uD83D\uDCCD', label: 'Cr\u00e9ation Points Contr\u00f4l\u00e9s', poids: 15, color: '#0ea5e9', objectif_desc: "Cr\u00e9er au minimum 25 nouveaux points contr\u00f4l\u00e9s par DZ et activer au moins 80% de l'ensemble des points contr\u00f4l\u00e9s sur la p\u00e9riode", taux: dashboard?.kpis?.points_controles?.taux, realise: dashboard?.kpis?.points_controles?.realise, objectif_val: dashboard?.kpis?.points_controles?.objectif_cumule, unite: 'points' }}
+              challengeLabel="PDG TELCO" challengeColor="#0ea5e9"
+              detail={<TabPointsControles />}
+            />}
             {activeSubTab === 'telco_croissance' && <TabIndicateurs filter="TELCO_ENERGIE" />}
-            {activeSubTab === 'telco_evaluation' && (
-              <TabCritereDetail challenge="TELCO" categorie={"\u00c9valuation"} color="#0ea5e9"
-                criteres={[{ label: 'Note DZ', poids: 15, objectif: "Les DZ vont \u00e9valuer les partenaires sur la base du d\u00e9ploiement des supports de visibilit\u00e9 et animation du Partenaire dans son r\u00e9seau", indicateur: null }]}
-                dashboard={dashboard} />
-            )}
+            {activeSubTab === 'telco_evaluation' && <TabCarteAvecDetail
+              carte={{ id: 'note_dz', icon: '\u2B50', label: 'Note DZ', poids: 15, color: '#0ea5e9', objectif_desc: "Les DZ vont \u00e9valuer les partenaires sur la base du d\u00e9ploiement des supports de visibilit\u00e9 et animation du Partenaire dans son r\u00e9seau", taux: null, realise: null, objectif_val: null, unite: '' }}
+              challengeLabel="PDG TELCO" challengeColor="#0ea5e9"
+              detail={<div className="ch-card" style={{ borderTop: '3px solid #0ea5e9' }}><div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>{"Crit\u00e8re \u00e9valu\u00e9 directement par Orange Mali / DZ. Les notes seront communiqu\u00e9es en fin de p\u00e9riode."}</div></div>}
+            />}
 
             {/* === Challenge Orange Money === */}
             {activeSubTab === 'om_perf_comm' && <TabIndicateurs filter="OM_CA" />}
             {activeSubTab === 'om_qualite' && <TabOMQualite kpis={dashboard?.kpis} />}
             {activeSubTab === 'om_digital' && <TabOMDigital kpis={dashboard?.kpis} />}
-            {activeSubTab === 'om_visibilite' && <TabPLV />}
+            {activeSubTab === 'om_visibilite' && <TabCarteAvecDetail
+              carte={{ id: 'plv', icon: '\uD83D\uDCE6', label: 'D\u00e9ploiement Support de Visibilit\u00e9', poids: 15, color: '#FF6900', objectif_desc: 'D\u00e9ployer au minimum 100 PLV sur la p\u00e9riode du challenge par partenaire et par DZ soit 25 PLV par mois', taux: dashboard?.kpis?.deploiement_plv?.taux, realise: dashboard?.kpis?.deploiement_plv?.realise, objectif_val: dashboard?.kpis?.deploiement_plv?.objectif_cumule, unite: 'PLV' }}
+              challengeLabel="Orange Money" challengeColor="#FF6900"
+              detail={<TabPLV />}
+            />}
 
             {/* Commun */}
             {activeTab === 'classement' && <TabClassement />}
@@ -1037,6 +1045,84 @@ function TabCritereDetail({ challenge, categorie, color, criteres, dashboard }) 
   );
 }
 
+// ── Wrapper : 1 carte cliquable → détail (style TabIndicateurs) ─────────────
+function TabCarteAvecDetail({ carte, challengeLabel, challengeColor, detail }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+          <CritereCard carte={carte} onClick={() => setOpen(true)} />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+        <button onClick={() => setOpen(false)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>{"← Retour"}</button>
+        <span style={{ fontSize: 24 }}>{carte.icon}</span>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{carte.label}</div>
+          <div style={{ fontSize: 12, color: challengeColor || '#64748b' }}>{"Challenge "}{challengeLabel}{" \u00b7 Poids : "}{carte.poids}%</div>
+        </div>
+      </div>
+      {detail}
+    </div>
+  );
+}
+
+// ── Composant générique : carte critère style TabIndicateurs ─────────────────
+function CritereCard({ carte, onClick }) {
+  const { icon, label, poids, color, objectif_desc, taux, realise, objectif_val, unite } = carte;
+  const pct = taux != null ? Math.round(Math.min(1, taux) * 100) : null;
+  const col = pct == null ? '#64748b' : pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
+
+  return (
+    <div onClick={onClick}
+      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderTop: `3px solid ${color}`, borderRadius: 14, padding: '18px 20px', cursor: 'pointer', transition: 'all 0.2s' }}
+      onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+      onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <span style={{ fontSize: 24 }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{label}</div>
+          <div style={{ fontSize: 11, color }}>Poids : {poids}%</div>
+        </div>
+        <span style={{ fontSize: 11, color: '#64748b' }}>{"Voir d\u00e9tail \u2192"}</span>
+      </div>
+
+      {/* Objectif description */}
+      {objectif_desc && <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12, lineHeight: 1.5 }}>{objectif_desc}</div>}
+
+      {/* Données */}
+      {realise != null || objectif_val != null ? (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
+              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{objectif_val ?? '—'} <span style={{ fontSize: 10 }}>{unite}</span></div>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
+              <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>{"R\u00e9alisation"}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color }}>{realise ?? '—'} <span style={{ fontSize: 10 }}>{unite}</span></div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Taux</span>
+            {pct != null ? <span style={{ fontSize: 13, fontWeight: 800, color: col }}>{pct}%</span> : <span style={{ fontSize: 12, color: '#475569' }}>—</span>}
+          </div>
+          <BarreProg taux={taux} color={col} />
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '16px 0', color: '#64748b', fontSize: 13 }}>{"Aucune donn\u00e9e saisie"}</div>
+      )}
+    </div>
+  );
+}
+
 // ── Tab OM Qualité d'exécution réseau : PDV Actif + Recrutement OMY ──────────
 function TabOMQualite({ kpis }) {
   const [selected, setSelected] = useState(null); // 'pdv_actif' | 'recrutement'
@@ -1048,11 +1134,11 @@ function TabOMQualite({ kpis }) {
       label: 'PDV actif (nouveaut\u00e9)',
       poids: 10,
       color: '#FF6900',
-      objectif: 'Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs et productifs avec un CA Cash out minimum de 1000F par mois',
+      objectif_desc: 'Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs et productifs avec un CA Cash out minimum de 1000F par mois',
       taux: kpis?.pdv_actifs?.taux,
       realise: kpis?.pdv_actifs?.realise,
       objectif_val: kpis?.pdv_actifs?.total_pdvs,
-      unite: 'PDVs actifs',
+      unite: 'PDVs',
     },
     {
       id: 'recrutement',
@@ -1060,7 +1146,7 @@ function TabOMQualite({ kpis }) {
       label: 'Recrutement Orange Money',
       poids: 15,
       color: '#FF6900',
-      objectif: 'Recruter 1000 nouveaux clients actifs sur la p\u00e9riode du challenge par partenaire et par DZ soit 250 nouvelles inscriptions actives par mois',
+      objectif_desc: 'Recruter 1000 nouveaux clients actifs sur la p\u00e9riode du challenge par partenaire et par DZ soit 250 nouvelles inscriptions actives par mois',
       taux: kpis?.recrutement_omy?.taux,
       realise: kpis?.recrutement_omy?.realise,
       objectif_val: kpis?.recrutement_omy?.objectif_cumule,
@@ -1079,53 +1165,26 @@ function TabOMQualite({ kpis }) {
         </div>
       </div>
 
-      {/* Cartes cliquables */}
+      {/* Cartes style TabIndicateurs */}
       {!selected ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {cartes.map(c => {
-            const pct = c.taux != null ? Math.round(Math.min(1, c.taux) * 100) : null;
-            const col = pct == null ? '#64748b' : pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
-            return (
-              <div key={c.id} onClick={() => setSelected(c.id)}
-                style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${c.color}33`, borderLeft: `4px solid ${c.color}`, borderRadius: 14, padding: '20px 18px', cursor: 'pointer', transition: 'all 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,105,0,0.08)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 22 }}>{c.icon}</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0', marginTop: 6 }}>{c.label}</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: '6px 12px', background: `${c.color}18`, borderRadius: 8 }}>
-                    <div style={{ fontSize: 10, color: '#64748b' }}>Poids</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: c.color }}>{c.poids}%</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14, lineHeight: 1.5 }}>{c.objectif}</div>
-                {pct != null ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                      <span style={{ color: '#64748b' }}>{c.realise ?? '—'} / {c.objectif_val ?? '—'} {c.unite}</span>
-                      <span style={{ fontWeight: 800, color: col }}>{pct}%</span>
-                    </div>
-                    <BarreProg taux={c.taux} color={col} />
-                  </>
-                ) : <div style={{ fontSize: 11, color: '#475569', textAlign: 'center', padding: 8 }}>{"Donn\u00e9es en attente"}</div>}
-                <div style={{ marginTop: 12, fontSize: 11, color: '#FF6900', fontWeight: 600, textAlign: 'right' }}>{"Voir d\u00e9tail \u2192"}</div>
-              </div>
-            );
-          })}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+          {cartes.map(c => <CritereCard key={c.id} carte={c} onClick={() => setSelected(c.id)} />)}
         </div>
       ) : (
         <div>
-          <button onClick={() => setSelected(null)} style={{ marginBottom: 16, padding: '6px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}>
-            {"← Retour aux cartes"}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <button onClick={() => setSelected(null)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>{"← Retour"}</button>
+            <span style={{ fontSize: 24 }}>{cartes.find(c => c.id === selected)?.icon}</span>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{cartes.find(c => c.id === selected)?.label}</div>
+              <div style={{ fontSize: 12, color: '#FF6900' }}>{"Challenge Orange Money \u00b7 Poids : "}{cartes.find(c => c.id === selected)?.poids}%</div>
+            </div>
+          </div>
           {selected === 'recrutement' && <TabRecrutement />}
           {selected === 'pdv_actif' && (
-            <div className="ch-card" style={{ borderLeft: '4px solid #FF6900' }}>
-              <h3 className="ch-section-title">{"🏪"} PDV actif (nouveaut\u00e9) — Poids : 10%</h3>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>{"Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs avec un CA Cash out \u2265 1000F par mois"}</div>
+            <div className="ch-card" style={{ borderTop: '3px solid #FF6900' }}>
               <KPIBar label={"🏪 PDV actifs Orange Money"} realise={kpis?.pdv_actifs?.realise} objectif={kpis?.pdv_actifs?.total_pdvs} taux={kpis?.pdv_actifs?.taux} unite="PDVs" poids={10} />
+              <div style={{ marginTop: 16, fontSize: 12, color: '#64748b' }}>{"Objectif : au minimum 90% des PDV actifs doivent demeurer actifs avec un CA Cash out \u2265 1000F/mois"}</div>
             </div>
           )}
         </div>
@@ -1155,7 +1214,7 @@ function TabOMDigital({ kpis }) {
       label: 'Adoption Kaabu',
       poids: 15,
       color: '#00d68f',
-      objectif: 'Faire au minimum 10 transactions par PDV et par mois soit 40 transactions sur la p\u00e9riode et atteindre le taux actif kaabu de la DZ',
+      objectif_desc: 'Faire au minimum 10 transactions par PDV et par mois soit 40 transactions sur la p\u00e9riode et atteindre le taux actif kaabu de la DZ',
       taux: kaabuTaux,
       realise: kaabuTotal?.realisation,
       objectif_val: kaabuTotal?.objectif_orange,
@@ -1167,10 +1226,10 @@ function TabOMDigital({ kpis }) {
       label: 'Ma\u00eetrise du risque Fintech',
       poids: 15,
       color: '#a29bfe',
-      objectif: 'Taux de p\u00e9n\u00e9tration fintech < 2%',
+      objectif_desc: 'Taux de p\u00e9n\u00e9tration fintech < 2%',
       taux: null,
       realise: null,
-      objectif_val: '< 2%',
+      objectif_val: null,
       unite: '',
     },
   ];
@@ -1186,52 +1245,24 @@ function TabOMDigital({ kpis }) {
         </div>
       </div>
 
-      {/* Cartes cliquables */}
+      {/* Cartes style TabIndicateurs */}
       {!selected ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {cartes.map(c => {
-            const pct = c.taux != null ? Math.round(Math.min(1, c.taux) * 100) : null;
-            const col = pct == null ? '#64748b' : pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
-            return (
-              <div key={c.id} onClick={() => setSelected(c.id)}
-                style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${c.color}44`, borderLeft: `4px solid ${c.color}`, borderRadius: 14, padding: '20px 18px', cursor: 'pointer', transition: 'all 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.background = `${c.color}10`}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 22 }}>{c.icon}</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0', marginTop: 6 }}>{c.label}</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: '6px 12px', background: `${c.color}18`, borderRadius: 8 }}>
-                    <div style={{ fontSize: 10, color: '#64748b' }}>Poids</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: c.color }}>{c.poids}%</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14, lineHeight: 1.5 }}>{c.objectif}</div>
-                {pct != null ? (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                      <span style={{ color: '#64748b' }}>{c.realise ?? '—'} / {c.objectif_val ?? '—'} {c.unite}</span>
-                      <span style={{ fontWeight: 800, color: col }}>{pct}%</span>
-                    </div>
-                    <BarreProg taux={c.taux} color={col} />
-                  </>
-                ) : <div style={{ fontSize: 11, color: '#475569', textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>{"Donn\u00e9es en attente"}</div>}
-                <div style={{ marginTop: 12, fontSize: 11, color: c.color, fontWeight: 600, textAlign: 'right' }}>{"Voir d\u00e9tail \u2192"}</div>
-              </div>
-            );
-          })}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+          {cartes.map(c => <CritereCard key={c.id} carte={c} onClick={() => setSelected(c.id)} />)}
         </div>
       ) : (
         <div>
-          <button onClick={() => setSelected(null)} style={{ marginBottom: 16, padding: '6px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}>
-            {"← Retour aux cartes"}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <button onClick={() => setSelected(null)} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13 }}>{"← Retour"}</button>
+            <span style={{ fontSize: 24 }}>{cartes.find(c => c.id === selected)?.icon}</span>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{cartes.find(c => c.id === selected)?.label}</div>
+              <div style={{ fontSize: 12, color: '#FF6900' }}>{"Challenge Orange Money \u00b7 Poids : "}{cartes.find(c => c.id === selected)?.poids}%</div>
+            </div>
+          </div>
           {selected === 'kaabu' && <TabIndicateurs filter="OM_DIGITAL" />}
           {selected === 'fintech' && (
-            <div className="ch-card" style={{ borderLeft: '4px solid #a29bfe' }}>
-              <h3 className="ch-section-title">{"🔒"} {"Ma\u00eetrise du risque Fintech"} — Poids : 15%</h3>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>{"Taux de p\u00e9n\u00e9tration fintech < 2% — Crit\u00e8re \u00e9valu\u00e9 par Orange Mali"}</div>
+            <div className="ch-card" style={{ borderTop: '3px solid #a29bfe' }}>
               <div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>
                 {"Ce crit\u00e8re est \u00e9valu\u00e9 et communiqu\u00e9 directement par Orange Mali. Les donn\u00e9es seront affich\u00e9es ici lorsqu'elles seront disponibles."}
               </div>
