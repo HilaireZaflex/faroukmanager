@@ -422,7 +422,7 @@ def assign_visit(db: Session, prospect_id: int, payload: AssignVisitRequest, cur
         target_nom = dev_nom
     elif dev_id:
         target = _get_user_or_404(db, dev_id)
-        if target.role != UserRole.DEVELOPPEUR:
+        if str(target.role).lower().replace("userrole.", "") != "developpeur":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="L'utilisateur affecté doit avoir le rôle DEVELOPPEUR.",
@@ -496,7 +496,7 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Décision impossible : statut courant {p.status.value}",
         )
-    if current_user.role != UserRole.ADMIN:
+    if str(current_user.role).lower().replace("userrole.", "") not in ["admin", "manager"]:
         # Vérifier assignation par ID ou par nom dans les notes
         nom = (current_user.nom or '').strip()
         prenom = (current_user.prenom or '').strip()
@@ -632,7 +632,7 @@ def assign_puce(db: Session, prospect_id: int, payload: PuceAssignRequest, curre
     _ensure_transition(p.status, ProspectStatus.PUCE_ATTRIBUEE)
 
     activator = _get_user_or_404(db, payload.activator_id)
-    if activator.role != UserRole.DEVELOPPEUR:
+    if str(activator.role).lower().replace("userrole.", "") != "developpeur":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="L'activateur doit être un DEVELOPPEUR.",
@@ -705,7 +705,7 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Activation impossible à l'état {p.status.value}",
         )
-    if current_user.role != UserRole.ADMIN and p.puce_assigned_to_id != current_user.id:
+    if str(current_user.role).lower().replace("userrole.", "") not in ["admin", "manager"] and p.puce_assigned_to_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seul le développeur attribué peut activer cette puce.",

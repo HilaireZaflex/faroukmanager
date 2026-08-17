@@ -206,7 +206,7 @@ def log_call(db: Session, task_id: int, user_id: int, payload: dict) -> CallLog:
     if t.assigned_to_id and t.assigned_to_id != user_id:
         # Admin override
         u = db.query(User).get(user_id)
-        if not u or u.role not in (UserRole.ADMIN, UserRole.MANAGER):
+        if not u or str(u.role).lower().replace("userrole.", "") not in ("admin", "manager"):
             raise HTTPException(403, "Cette tâche n'est pas assignée à cet utilisateur")
 
     outcome = CallOutcome(payload["outcome"])

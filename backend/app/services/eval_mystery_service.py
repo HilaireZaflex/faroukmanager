@@ -94,7 +94,7 @@ def generate_mystery_tasks(db: Session, campaign_id: int) -> Dict[str, Any]:
 
 def my_mystery_queue(db: Session, tc_user_id: int) -> List[Dict[str, Any]]:
     user = db.query(User).get(tc_user_id)
-    is_admin_rc = user and user.role in (UserRole.ADMIN, UserRole.RC)
+    is_admin_rc = user and str(user.role).lower().replace("userrole.", "") in ("admin", "manager", "rc", "conformite")
 
     if is_admin_rc:
         # Admin et RC voient toutes les tâches pending de toutes les campagnes
@@ -129,7 +129,7 @@ def log_mystery_call(db: Session, task_id: int, tc_user_id: int, payload: dict) 
     if not t: raise HTTPException(404, "Tâche introuvable")
     if t.tc_user_id != tc_user_id:
         u = db.query(User).get(tc_user_id)
-        if not u or u.role not in (UserRole.ADMIN, UserRole.MANAGER, UserRole.RC):
+        if not u or str(u.role).lower().replace("userrole.", "") not in ("admin", "manager", "rc"):
             raise HTTPException(403, "Cette tâche ne vous est pas assignée")
 
     note = payload.get("note")
