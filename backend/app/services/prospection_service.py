@@ -350,13 +350,13 @@ def list_prospects(
     # - DEVELOPPEUR : voit ses propres demandes soumises + celles qui lui sont assignées pour visite ou activation
     # - SUPERVISEUR, GESTIONNAIRE : voient uniquement leurs propres demandes soumises
     # - Admin, Manager, RC : voient toutes les demandes
-    if current_user.role == UserRole.DEVELOPPEUR:
+    _role = str(current_user.role).lower().replace('userrole.', '')
+    if _role == 'developpeur':
         # Le dev voit : ses propres soumissions + assigné par ID + assigné par nom dans les notes
-        # Les notes contiennent "[Développeur affecté: ALASSANE FANE]" (ordre variable)
         nom = (current_user.nom or '').strip()
         prenom = (current_user.prenom or '').strip()
-        dev_nom_np = f"{nom} {prenom}".strip()   # NOM PRENOM  ex: FANE ALASSANE
-        dev_nom_pn = f"{prenom} {nom}".strip()   # PRENOM NOM  ex: ALASSANE FANE
+        dev_nom_np = f"{nom} {prenom}".strip()
+        dev_nom_pn = f"{prenom} {nom}".strip()
         conditions = [
             Prospect.submitted_by_id == current_user.id,
             Prospect.visit_assigned_to_id == current_user.id,
@@ -364,12 +364,11 @@ def list_prospects(
             Prospect.notes.ilike(f"%{dev_nom_np}%"),
             Prospect.notes.ilike(f"%{dev_nom_pn}%"),
         ]
-        # Si nom et prénom sont distincts, chercher aussi chaque partie individuellement
         if nom and prenom:
             conditions.append(Prospect.notes.ilike(f"%affect%: %{nom}%"))
             conditions.append(Prospect.notes.ilike(f"%affect%: %{prenom}%"))
         q = q.filter(or_(*conditions))
-    elif current_user.role in [UserRole.SUPERVISEUR, UserRole.GESTIONNAIRE]:
+    elif _role in ['superviseur', 'gestionnaire']:
         q = q.filter(Prospect.submitted_by_id == current_user.id)
 
     if status_filter:
