@@ -155,10 +155,10 @@ function TabIndicateurs({ filter }) {
   // filter = 'TELCO' → NAFAMA, TERMINAUX, ORANGE ENERGIE
   // filter = 'OM' → OMY, KAABU MOBILE
   const FILTER_MAP = {
-    TELCO: ['NAFAMA', 'TERMINAUX', 'ORANGE ENERGIE'],
+    TELCO: ['NAFAMA', 'TERMINAUX'],  // Performance commerciale TELCO: CA Sell Out + Vente Terminaux uniquement
     TELCO_ENERGIE: ['ORANGE ENERGIE'],
     OM: ['OMY', 'KAABU MOBILE'],
-    OM_CA: ['OMY'],
+    OM_CA: ['OMY'],  // Performance commerciale OM: CA Cash-out uniquement
     OM_DIGITAL: ['KAABU MOBILE'],
   };
   const filteredList = filter ? FILTER_MAP[filter] || INDICATEURS_LIST : INDICATEURS_LIST;
@@ -657,8 +657,8 @@ export default function ChallengePage() {
 
             {/* === Challenge Orange Money === */}
             {activeSubTab === 'om_perf_comm' && <TabIndicateurs filter="OM_CA" />}
-            {activeSubTab === 'om_qualite' && <TabRecrutement />}
-            {activeSubTab === 'om_digital' && <TabIndicateurs filter="OM_DIGITAL" />}
+            {activeSubTab === 'om_qualite' && <TabOMQualite kpis={dashboard?.kpis} />}
+            {activeSubTab === 'om_digital' && <TabOMDigital kpis={dashboard?.kpis} />}
             {activeSubTab === 'om_visibilite' && <TabPLV />}
 
             {/* Commun */}
@@ -1033,6 +1033,212 @@ function TabCritereDetail({ challenge, categorie, color, criteres, dashboard }) 
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Tab OM Qualité d'exécution réseau : PDV Actif + Recrutement OMY ──────────
+function TabOMQualite({ kpis }) {
+  const [selected, setSelected] = useState(null); // 'pdv_actif' | 'recrutement'
+
+  const cartes = [
+    {
+      id: 'pdv_actif',
+      icon: '\uD83C\uDFEA',
+      label: 'PDV actif (nouveaut\u00e9)',
+      poids: 10,
+      color: '#FF6900',
+      objectif: 'Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs et productifs avec un CA Cash out minimum de 1000F par mois',
+      taux: kpis?.pdv_actifs?.taux,
+      realise: kpis?.pdv_actifs?.realise,
+      objectif_val: kpis?.pdv_actifs?.total_pdvs,
+      unite: 'PDVs actifs',
+    },
+    {
+      id: 'recrutement',
+      icon: '\uD83D\uDC65',
+      label: 'Recrutement Orange Money',
+      poids: 15,
+      color: '#FF6900',
+      objectif: 'Recruter 1000 nouveaux clients actifs sur la p\u00e9riode du challenge par partenaire et par DZ soit 250 nouvelles inscriptions actives par mois',
+      taux: kpis?.recrutement_omy?.taux,
+      realise: kpis?.recrutement_omy?.realise,
+      objectif_val: kpis?.recrutement_omy?.objectif_cumule,
+      unite: 'clients',
+    },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Banner */}
+      <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 20 }}>{"🟠"}</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>{"Challenge Orange Money | Qualit\u00e9 d'ex\u00e9cution r\u00e9seau | Total : 25%"}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>{"PDV actif (10%) + Recrutement Orange Money (15%)"}</div>
+        </div>
+      </div>
+
+      {/* Cartes cliquables */}
+      {!selected ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          {cartes.map(c => {
+            const pct = c.taux != null ? Math.round(Math.min(1, c.taux) * 100) : null;
+            const col = pct == null ? '#64748b' : pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
+            return (
+              <div key={c.id} onClick={() => setSelected(c.id)}
+                style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${c.color}33`, borderLeft: `4px solid ${c.color}`, borderRadius: 14, padding: '20px 18px', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,105,0,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 22 }}>{c.icon}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0', marginTop: 6 }}>{c.label}</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '6px 12px', background: `${c.color}18`, borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Poids</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: c.color }}>{c.poids}%</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14, lineHeight: 1.5 }}>{c.objectif}</div>
+                {pct != null ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+                      <span style={{ color: '#64748b' }}>{c.realise ?? '—'} / {c.objectif_val ?? '—'} {c.unite}</span>
+                      <span style={{ fontWeight: 800, color: col }}>{pct}%</span>
+                    </div>
+                    <BarreProg taux={c.taux} color={col} />
+                  </>
+                ) : <div style={{ fontSize: 11, color: '#475569', textAlign: 'center', padding: 8 }}>{"Donn\u00e9es en attente"}</div>}
+                <div style={{ marginTop: 12, fontSize: 11, color: '#FF6900', fontWeight: 600, textAlign: 'right' }}>{"Voir d\u00e9tail \u2192"}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div>
+          <button onClick={() => setSelected(null)} style={{ marginBottom: 16, padding: '6px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}>
+            {"← Retour aux cartes"}
+          </button>
+          {selected === 'recrutement' && <TabRecrutement />}
+          {selected === 'pdv_actif' && (
+            <div className="ch-card" style={{ borderLeft: '4px solid #FF6900' }}>
+              <h3 className="ch-section-title">{"🏪"} PDV actif (nouveaut\u00e9) — Poids : 10%</h3>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>{"Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs avec un CA Cash out \u2265 1000F par mois"}</div>
+              <KPIBar label={"🏪 PDV actifs Orange Money"} realise={kpis?.pdv_actifs?.realise} objectif={kpis?.pdv_actifs?.total_pdvs} taux={kpis?.pdv_actifs?.taux} unite="PDVs" poids={10} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tab OM Digitalisation & Transformation : Adoption KAABU + Risque FINTECH ─
+function TabOMDigital({ kpis }) {
+  const [selected, setSelected] = useState(null); // 'kaabu' | 'fintech'
+
+  const { data: awardData } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+  const getLastTotal = (ind) => {
+    const d = awardData?.[ind] || {};
+    return (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
+  };
+  const kaabuTotal = getLastTotal('KAABU MOBILE');
+  const kaabuTaux = kaabuTotal?.taux_orange != null ? Math.min(1, kaabuTotal.taux_orange) : null;
+
+  const cartes = [
+    {
+      id: 'kaabu',
+      icon: '\uD83D\uDCB3',
+      label: 'Adoption Kaabu',
+      poids: 15,
+      color: '#00d68f',
+      objectif: 'Faire au minimum 10 transactions par PDV et par mois soit 40 transactions sur la p\u00e9riode et atteindre le taux actif kaabu de la DZ',
+      taux: kaabuTaux,
+      realise: kaabuTotal?.realisation,
+      objectif_val: kaabuTotal?.objectif_orange,
+      unite: '',
+    },
+    {
+      id: 'fintech',
+      icon: '\uD83D\uDD12',
+      label: 'Ma\u00eetrise du risque Fintech',
+      poids: 15,
+      color: '#a29bfe',
+      objectif: 'Taux de p\u00e9n\u00e9tration fintech < 2%',
+      taux: null,
+      realise: null,
+      objectif_val: '< 2%',
+      unite: '',
+    },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Banner */}
+      <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 20 }}>{"🟠"}</span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>{"Challenge Orange Money | Digitalisation & Transformation | Total : 30%"}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>{"Adoption Kaabu (15%) + Ma\u00eetrise du risque Fintech (15%)"}</div>
+        </div>
+      </div>
+
+      {/* Cartes cliquables */}
+      {!selected ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          {cartes.map(c => {
+            const pct = c.taux != null ? Math.round(Math.min(1, c.taux) * 100) : null;
+            const col = pct == null ? '#64748b' : pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
+            return (
+              <div key={c.id} onClick={() => setSelected(c.id)}
+                style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${c.color}44`, borderLeft: `4px solid ${c.color}`, borderRadius: 14, padding: '20px 18px', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = `${c.color}10`}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 22 }}>{c.icon}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0', marginTop: 6 }}>{c.label}</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '6px 12px', background: `${c.color}18`, borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>Poids</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: c.color }}>{c.poids}%</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14, lineHeight: 1.5 }}>{c.objectif}</div>
+                {pct != null ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+                      <span style={{ color: '#64748b' }}>{c.realise ?? '—'} / {c.objectif_val ?? '—'} {c.unite}</span>
+                      <span style={{ fontWeight: 800, color: col }}>{pct}%</span>
+                    </div>
+                    <BarreProg taux={c.taux} color={col} />
+                  </>
+                ) : <div style={{ fontSize: 11, color: '#475569', textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>{"Donn\u00e9es en attente"}</div>}
+                <div style={{ marginTop: 12, fontSize: 11, color: c.color, fontWeight: 600, textAlign: 'right' }}>{"Voir d\u00e9tail \u2192"}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div>
+          <button onClick={() => setSelected(null)} style={{ marginBottom: 16, padding: '6px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}>
+            {"← Retour aux cartes"}
+          </button>
+          {selected === 'kaabu' && <TabIndicateurs filter="OM_DIGITAL" />}
+          {selected === 'fintech' && (
+            <div className="ch-card" style={{ borderLeft: '4px solid #a29bfe' }}>
+              <h3 className="ch-section-title">{"🔒"} {"Ma\u00eetrise du risque Fintech"} — Poids : 15%</h3>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>{"Taux de p\u00e9n\u00e9tration fintech < 2% — Crit\u00e8re \u00e9valu\u00e9 par Orange Mali"}</div>
+              <div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>
+                {"Ce crit\u00e8re est \u00e9valu\u00e9 et communiqu\u00e9 directement par Orange Mali. Les donn\u00e9es seront affich\u00e9es ici lorsqu'elles seront disponibles."}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
