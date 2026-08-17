@@ -172,11 +172,20 @@ def _log_history(
 
 
 def _ensure_role(user: User, allowed_roles: List[UserRole], action: str):
-    if user.role not in allowed_roles:
+    # Normaliser le rôle utilisateur en string lowercase pour comparaison
+    user_role_str = str(user.role).lower().replace('userrole.', '')
+    allowed_strs = [r.value.lower() if hasattr(r, 'value') else str(r).lower() for r in allowed_roles]
+    # Accepter aussi les rôles personnalisés (tout rôle non vide passe si la liste inclut 'admin')
+    if user_role_str not in allowed_strs:
+        # Les rôles personnalisés (non-standard) ont accès si admin/manager/rc sont dans la liste
+        is_custom_role = user_role_str not in [r.value.lower() for r in UserRole]
+        admin_like = ['admin', 'manager', 'rc', 'conformite']
+        if is_custom_role and any(a in allowed_strs for a in admin_like):
+            return  # rôle custom → accès accordé si admin-like est dans les rôles requis
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Rôle insuffisant pour {action} (requis : "
-                   f"{', '.join(r.value for r in allowed_roles)})",
+                   f"{', '.join(r.value if hasattr(r, 'value') else str(r) for r in allowed_roles)})",
         )
 
 

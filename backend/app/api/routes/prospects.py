@@ -121,7 +121,8 @@ def list_prospects(
     """Liste paginée des prospects avec filtres."""
     # Les commerciaux ne voient que leurs propres soumissions
     from app.models.user import UserRole
-    if current_user.role == UserRole.COMMERCIAL:
+    _role = str(current_user.role).lower().replace('userrole.', '')
+    if _role == 'commercial':
         submitted_by_me = True
     return svc.list_prospects(
         db, current_user,
