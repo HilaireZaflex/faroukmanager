@@ -185,7 +185,7 @@ def list_developers(
     results = []
 
     # 1. Users avec rôle developpeur dans la table users
-    devs_users = db.query(User).filter(User.role == UserRole.DEVELOPPEUR, User.is_active == True).all()
+    devs_users = db.query(User).filter(User.role.in_(['developpeur', 'DEVELOPPEUR']), User.is_active == True).all()
     for u in devs_users:
         results.append({"id": f"user_{u.id}", "nom": u.nom, "prenom": u.prenom or "", "source": "user"})
 

@@ -143,7 +143,7 @@ def stats(
     """Statistiques globales du module Prospection."""
     from app.models.user import UserRole
     # Les commerciaux voient uniquement leurs propres stats
-    user_id_filter = current_user.id if current_user.role == UserRole.COMMERCIAL else None
+    _role = str(current_user.role).lower().replace('userrole.', ''); user_id_filter = current_user.id if _role == 'commercial' else None
     return svc.get_stats(db, user_id_filter=user_id_filter)
 
 
@@ -509,7 +509,8 @@ def delete_prospect(
     """Suppression forcée d'un prospect (admin, manager et RC) — même si en cours de workflow."""
     from app.models.user import UserRole
     from app.models.prospect import Prospect, ProspectHistory, ProspectAttachment
-    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER, UserRole.RC]:
+    _role = str(current_user.role).lower().replace('userrole.', '')
+    if _role not in ['admin', 'manager', 'rc']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les admins, managers et RC peuvent supprimer un prospect."

@@ -214,7 +214,7 @@ def import_pdvs(
     file: UploadFile = File(None),
 ):
     """Import PDVs depuis un fichier Excel ou CSV — M12 du CDC"""
-    if current_user.role not in [UserRole.ADMIN]:
+    if str(current_user.role).lower().replace('userrole.', '') not in ['admin', 'manager']:
         raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
     if not file:
         raise HTTPException(status_code=422, detail="Fichier requis")
@@ -351,7 +351,7 @@ def import_exclusions(
     - Colonne 0 : PDVs Activation < 1 mois → date_activation = aujourd'hui - 15 jours
     - Colonne 4 : Nouvelles Attributions   → nouvelle_creation = True + date_activation = date attribution
     """
-    if current_user.role not in [UserRole.ADMIN]:
+    if str(current_user.role).lower().replace('userrole.', '') not in ['admin', 'manager']:
         raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
     if not file:
         raise HTTPException(status_code=422, detail="Fichier requis")
@@ -683,7 +683,7 @@ def deactivate_pdv(
     current_user: User = Depends(get_current_user)
 ):
     """Désactiver un PDV sans supprimer l'historique — M1"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+    if str(current_user.role).lower().replace('userrole.', '') not in ['admin', 'manager']:
         raise HTTPException(status_code=403, detail="Accès insuffisant")
     pdv = db.query(PDV).filter(PDV.id == pdv_id).first()
     if not pdv:

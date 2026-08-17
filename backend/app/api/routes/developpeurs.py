@@ -16,10 +16,10 @@ router = APIRouter()
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def get_devs(db: Session):
-    return db.query(User).filter(User.role == UserRole.DEVELOPPEUR, User.is_active == True).all()
+    return db.query(User).filter(User.role.in_(['developpeur', 'DEVELOPPEUR']), User.is_active == True).all()
 
 def get_superviseurs(db: Session):
-    return db.query(User).filter(User.role == UserRole.SUPERVISEUR, User.is_active == True).all()
+    return db.query(User).filter(User.role.in_(['superviseur', 'SUPERVISEUR']), User.is_active == True).all()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
