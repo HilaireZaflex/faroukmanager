@@ -97,6 +97,24 @@ def ai_duplicates(
 # ─────────────────────────────────────────────────────────────────────────────
 # CRUD
 # ─────────────────────────────────────────────────────────────────────────────
+@router.get("/quartiers")
+def list_quartiers_uniques(
+    q: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne la liste des quartiers uniques déjà saisis (autocomplete)."""
+    from app.models.prospect import Prospect as ProspectModel
+    query = db.query(ProspectModel.quartier).filter(
+        ProspectModel.quartier.isnot(None),
+        ProspectModel.quartier != ''
+    )
+    if q:
+        query = query.filter(ProspectModel.quartier.ilike(f"%{q}%"))
+    results = query.distinct().order_by(ProspectModel.quartier).limit(20).all()
+    return [r[0] for r in results if r[0]]
+
+
 @router.post("", response_model=ProspectOut, status_code=status.HTTP_201_CREATED)
 def create_prospect(
     payload: ProspectCreate,

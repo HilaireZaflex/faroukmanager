@@ -542,8 +542,8 @@ function EditProspectModal({ prospect, onClose, onSaved }) {
               <input style={IS} value={data.telephone_secondaire} onChange={e => set('telephone_secondaire', e.target.value)} />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Quartier</label>
-              <input style={IS} value={data.quartier} onChange={e => set('quartier', e.target.value)} placeholder="Quartier..." />
+              <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Quartier <span style={{color:'#ff4757'}}>*</span></label>
+              <QuartierInput value={data.quartier} onChange={v => set('quartier', v)} required />
             </div>
             <div>
               <label style={{ fontSize: 11, color: '#8a8a9a', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>Capital Démarrage</label>
@@ -3010,6 +3010,69 @@ function SuccessDemandeModal({ prospect, onClose, onNewDemande }) {
   );
 }
 
+// Composant autocomplete pour le champ Quartier
+function QuartierInput({ value, onChange, required, style }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSugg, setShowSugg] = useState(false);
+  const ref = useRef(null);
+
+  const IS_Q = {
+    width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)',
+    border: `1px solid ${required && !value ? 'rgba(255,71,87,0.5)' : 'rgba(255,255,255,0.12)'}`,
+    borderRadius: 8, color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+    ...style,
+  };
+
+  const fetchSuggestions = useCallback(async (q) => {
+    if (!q || q.length < 2) { setSuggestions([]); return; }
+    try {
+      const res = await api.get('/prospects/quartiers', { params: { q } });
+      setSuggestions(res.data || []);
+    } catch { setSuggestions([]); }
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => fetchSuggestions(value), 200);
+    return () => clearTimeout(t);
+  }, [value, fetchSuggestions]);
+
+  // Fermer suggestions au clic extérieur
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setShowSugg(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <input
+        style={IS_Q}
+        value={value}
+        onChange={e => { onChange(e.target.value); setShowSugg(true); }}
+        onFocus={() => { setShowSugg(true); fetchSuggestions(value); }}
+        placeholder={required ? 'Quartier *' : 'Quartier / Commune'}
+        required={required}
+      />
+      {showSugg && suggestions.length > 0 && (
+        <div style={{ position: 'absolute', zIndex: 999, top: '100%', left: 0, right: 0, marginTop: 2,
+          background: '#1e2236', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
+          {suggestions.map((s, i) => (
+            <div key={i} onMouseDown={() => { onChange(s); setSuggestions([]); setShowSugg(false); }}
+              style={{ padding: '9px 14px', fontSize: 13, color: '#e2e8f0', cursor: 'pointer',
+                borderBottom: i < suggestions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                background: 'transparent' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,105,0,0.15)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              📍 {s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CreateProspectModal({ onClose, onSaved }) {
   // ── Sélection du type de prospection ──
   const [typeProspection, setTypeProspection] = useState(null); // 'OM' | 'ENERGIA'
@@ -3069,6 +3132,7 @@ function CreateProspectModal({ onClose, onSaved }) {
     if (!energiaData.nom_kit) return alert('Veuillez sélectionner un kit (DIABARANI ou YELEN)');
     if (energiaData.pret_payer_immediatement === null) return alert('Veuillez indiquer si le client est prêt à payer immédiatement');
     if (!energiaData.nom || !energiaData.prenom || !energiaData.telephone) return alert('Nom, Prénom et Téléphone sont obligatoires');
+    if (!energiaData.quartier) return alert('⚠️ Le quartier est obligatoire');
     setBusy(true);
     try {
       const payload = {
@@ -3282,7 +3346,7 @@ function CreateProspectModal({ onClose, onSaved }) {
               <AFL label="Nom *" required><AFI required placeholder="Nom de famille" value={energiaData.nom} onChange={e => setE('nom', e.target.value)}/></AFL>
               <AFL label="Prénom *" required><AFI required placeholder="Prénom" value={energiaData.prenom} onChange={e => setE('prenom', e.target.value)}/></AFL>
               <AFL label="Numéro de téléphone *" required><AFI required placeholder="7X XX XX XX" value={energiaData.telephone} onChange={e => setE('telephone', e.target.value)}/></AFL>
-              <AFL label="Quartier"><AFI placeholder="Quartier" value={energiaData.quartier} onChange={e => setE('quartier', e.target.value)}/></AFL>
+              <AFL label="Quartier *" required><QuartierInput value={energiaData.quartier} onChange={v => setE('quartier', v)} required /></AFL>
             </ASection>
 
             {/* LOCALISATION */}
@@ -3429,7 +3493,7 @@ function CreateProspectModal({ onClose, onSaved }) {
             <AFL label="Prénom *" required><AFI required placeholder="Prénom" value={data.prenom} onChange={e=>set('prenom',e.target.value)}/></AFL>
             <AFL label="Téléphone principal *" required><AFI required placeholder="7X XX XX XX" value={data.telephone_principal} onChange={e=>set('telephone_principal',e.target.value)}/></AFL>
             <AFL label="Téléphone secondaire"><AFI placeholder="7X XX XX XX" value={data.telephone_secondaire} onChange={e=>set('telephone_secondaire',e.target.value)}/></AFL>
-            <AFL label="Quartier"><AFI placeholder="Quartier de résidence" value={data.quartier} onChange={e=>set('quartier',e.target.value)}/></AFL>
+            <AFL label="Quartier *" required><QuartierInput value={data.quartier} onChange={v=>set('quartier',v)} required /></AFL>
             <AFL label="Adresse"><AFI placeholder="Adresse complète" value={data.adresse} onChange={e=>set('adresse',e.target.value)}/></AFL>
           </ASection>
 
