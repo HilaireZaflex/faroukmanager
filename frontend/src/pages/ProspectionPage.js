@@ -1108,44 +1108,51 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         </div>
       )}
 
-      {/* Filtres sur une seule ligne */}
-      <div className="pdv-filters card mb-16">
-        <div className="filter-selects" style={{ flexWrap: 'nowrap', overflowX: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: '1 1 200px', minWidth: 180 }}>
-            <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 10, pointerEvents: 'none' }}/>
-            <input
-              placeholder="Rechercher..."
-              value={filters.search}
-              onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-              style={{ width: '100%', paddingLeft: 30 }}/>
-          </div>
-          <select value={filters.zone} onChange={e => setFilters(f => ({ ...f, zone: e.target.value }))}>
-            <option value="">Toutes zones</option>
-            {['ZONE A','ZONE B','ZONE C','ZONE D','ZONE E','AU BUREAU'].map(z => (
-              <option key={z} value={z}>{z}</option>
-            ))}
-          </select>
-          <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-            <option value="">Tous statuts</option>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
-          <select value={filters.superviseur} onChange={e => setFilters(f => ({ ...f, superviseur: e.target.value }))}>
-            <option value="">Superviseur</option>
-            {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={filters.developpeur} onChange={e => setFilters(f => ({ ...f, developpeur: e.target.value }))}>
-            <option value="">D{"é"}veloppeur</option>
-            {developpeurs.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-          {(filters.status || filters.search || filters.superviseur || filters.developpeur || filters.zone) && (
-            <button onClick={() => setFilters({ status:'', search:'', superviseur:'', developpeur:'', zone:'' })}
-              style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'6px 12px', color:'#94a3b8', cursor:'pointer', fontSize:12, whiteSpace:'nowrap' }}>
-              ✕
-            </button>
-          )}
+      {/* ── Barre de filtres ── */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14, width: '100%' }}>
+        {/* Recherche */}
+        <div style={{ position: 'relative', flex: '2 1 220px', minWidth: 180 }}>
+          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }}/>
+          <input
+            placeholder="Réf, nom, téléphone, quartier…"
+            value={filters.search}
+            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+            style={{ width: '100%', padding: '9px 12px 9px 34px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+            onFocus={e => e.target.style.borderColor = '#FF6900'}
+            onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+          />
         </div>
+        {/* Zone */}
+        <select value={filters.zone} onChange={e => setFilters(f => ({ ...f, zone: e.target.value }))}
+          style={{ flex: '1 1 130px', padding: '9px 10px', background: filters.zone ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${filters.zone ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 10, color: filters.zone ? '#FF6900' : '#94a3b8', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+          <option value="">📍 Zone</option>
+          {['ZONE A','ZONE B','ZONE C','ZONE D','ZONE E','AU BUREAU'].map(z => <option key={z} value={z}>{z}</option>)}
+        </select>
+        {/* Statut */}
+        <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+          style={{ flex: '1 1 150px', padding: '9px 10px', background: filters.status ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${filters.status ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 10, color: filters.status ? '#FF6900' : '#94a3b8', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+          <option value="">🔖 Statut</option>
+          {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        {/* Superviseur */}
+        <select value={filters.superviseur} onChange={e => setFilters(f => ({ ...f, superviseur: e.target.value }))}
+          style={{ flex: '1 1 140px', padding: '9px 10px', background: filters.superviseur ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${filters.superviseur ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 10, color: filters.superviseur ? '#FF6900' : '#94a3b8', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+          <option value="">👤 Superviseur</option>
+          {superviseurs.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {/* Développeur */}
+        <select value={filters.developpeur} onChange={e => setFilters(f => ({ ...f, developpeur: e.target.value }))}
+          style={{ flex: '1 1 140px', padding: '9px 10px', background: filters.developpeur ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${filters.developpeur ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 10, color: filters.developpeur ? '#FF6900' : '#94a3b8', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+          <option value="">🚀 {"D\u00e9veloppeur"}</option>
+          {developpeurs.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
+        {/* Reset */}
+        {(filters.status || filters.search || filters.superviseur || filters.developpeur || filters.zone) && (
+          <button onClick={() => setFilters({ status:'', search:'', superviseur:'', developpeur:'', zone:'' })}
+            style={{ padding: '9px 14px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 10, color: '#ff4757', cursor: 'pointer', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            ✕ Effacer
+          </button>
+        )}
       </div>
 
       {/* Compteur résultats */}
