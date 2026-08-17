@@ -51,7 +51,7 @@ def generate_mystery_tasks(db: Session, campaign_id: int) -> Dict[str, Any]:
     if c.mystery_call_user_ids:
         tcs = db.query(User).filter(User.id.in_(c.mystery_call_user_ids)).all()
     else:
-        tcs = db.query(User).filter(User.role == UserRole.TELECONSEILLERE, User.is_active == True).all()
+        tcs = db.query(User).filter(User.role.in_(['teleconseillere', 'TELECONSEILLERE']), User.is_active == True).all()
 
     if not tcs:
         raise HTTPException(400, "Aucune téléconseillère disponible pour les appels mystères")

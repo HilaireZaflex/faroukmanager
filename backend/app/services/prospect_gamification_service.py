@@ -25,7 +25,7 @@ def _current_period() -> str:
 def leaderboard(db: Session, period: Optional[str] = None) -> List[Dict[str, Any]]:
     """Classement des développeurs sur la période (mois courant par défaut)."""
     period = period or _current_period()
-    devs = db.query(User).filter(User.role == UserRole.DEVELOPPEUR, User.is_active == True).all()
+    devs = db.query(User).filter(User.role.in_(['developpeur', 'DEVELOPPEUR']), User.is_active == True).all()
     out = []
     for d in devs:
         from datetime import datetime as _dt

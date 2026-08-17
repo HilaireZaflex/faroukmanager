@@ -46,7 +46,7 @@ def funnel(db: Session) -> Dict[str, Any]:
 
 
 def per_developer(db: Session) -> List[Dict[str, Any]]:
-    devs = db.query(User).filter(User.role == UserRole.DEVELOPPEUR).all()
+    devs = db.query(User).filter(User.role.in_(['developpeur', 'DEVELOPPEUR'])).all()
     out = []
     for d in devs:
         # Visites traitées

@@ -543,7 +543,7 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
     db.refresh(p)
     # 🔔 Notif au(x) RC quand validé / au superviseur quand refusé
     if payload.approved:
-        for rc in db.query(User).filter(User.role == UserRole.RC, User.is_active == True).all():
+        for rc in db.query(User).filter(User.role.in_(['rc', 'RC', 'conformite', 'CONFORMITE', 'responsable_produit_et_qualit_oprationnelle_']), User.is_active == True).all():
             _notify(db, template="dev_validated", prospect=p, to_user=rc)
     else:
         if p.submitted_by_id:
