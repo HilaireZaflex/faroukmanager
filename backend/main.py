@@ -93,31 +93,6 @@ app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 
-@app.post("/debug-create-prospect")
-async def debug_create_prospect(request: Request):
-    """Debug: test create_prospect and return exact error."""
-    import traceback
-    from app.core.database import SessionLocal
-    from app.core.security import get_current_user
-    from app.services.prospection_service import create_prospect
-    from app.schemas.prospect import ProspectCreate
-    from app.models.user import User
-    try:
-        body = await request.json()
-        token = request.headers.get("authorization", "").replace("Bearer ", "")
-        db = SessionLocal()
-        from jose import jwt
-        from app.core.config import settings
-        payload_jwt = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email = payload_jwt.get("sub")
-        user = db.query(User).filter(User.email == email).first()
-        pc = ProspectCreate(**body)
-        result = create_prospect(db, pc, user)
-        db.close()
-        return {"success": True, "id": result.id}
-    except Exception as e:
-        return {"error": str(e), "traceback": traceback.format_exc()[-2000:]}
-
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
