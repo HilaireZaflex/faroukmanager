@@ -145,6 +145,10 @@ async def auto_migrate():
         "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
         # Colonne role utilisateur en VARCHAR (supporte rôles personnalisés)
         "ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(100)",
+        # Colonne status prospect en VARCHAR (supporte EN_ATTENTE_CONFORMITE)
+        "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
+        "ALTER TABLE prospect_history ALTER COLUMN from_status TYPE VARCHAR(50)",
+        "ALTER TABLE prospect_history ALTER COLUMN to_status TYPE VARCHAR(50)",
     ]
     try:
         with engine.connect() as conn:

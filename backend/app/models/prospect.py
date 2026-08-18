@@ -92,8 +92,8 @@ class Prospect(Base):
 
     # ── Statut workflow ────────────────────────────────────────────────────
     status = Column(
-        Enum(ProspectStatus),
-        default=ProspectStatus.NOUVELLE,
+        String(50),
+        default="NOUVELLE",
         nullable=False,
         index=True
     )
@@ -204,8 +204,8 @@ class ProspectHistory(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     decision_type = Column(Enum(DecisionType), nullable=False)
-    from_status = Column(Enum(ProspectStatus), nullable=True)
-    to_status = Column(Enum(ProspectStatus), nullable=True)
+    from_status = Column(String(50), nullable=True)
+    to_status = Column(String(50), nullable=True)
 
     comment = Column(Text, nullable=True)
     extra = Column(JSON, nullable=True)  # données additionnelles (ex: id puce)
