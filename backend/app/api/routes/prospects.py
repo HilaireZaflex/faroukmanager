@@ -12,7 +12,7 @@ Endpoints couvrant le cycle de vie complet d'une demande de puce :
 """
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, status, Body
+from fastapi import APIRouter, Depends, Query, status, Body, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -379,6 +379,7 @@ def soumettre_conformite(
 ):
     """Développeur soumet le formulaire d'activation → EN_ATTENTE_CONFORMITE (attend RC/Admin)."""
     from app.models.prospect import Prospect as ProspectModel, ProspectStatus
+    from sqlalchemy import text
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
@@ -420,6 +421,7 @@ def valider_conformite(
 ):
     """RC/Admin valide le formulaire et confirme l'activation définitive → PUCE_ACTIVEE."""
     from app.models.prospect import Prospect as ProspectModel
+    from sqlalchemy import text
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
@@ -452,6 +454,7 @@ def rejeter_conformite(
 ):
     """RC/Admin rejette le formulaire → retour à PUCE_ATTRIBUEE pour correction."""
     from app.models.prospect import Prospect as ProspectModel
+    from sqlalchemy import text
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
