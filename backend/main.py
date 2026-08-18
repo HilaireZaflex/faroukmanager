@@ -93,6 +93,34 @@ app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 
+@app.post("/debug-soumettre/{pid}")
+async def debug_soumettre(pid: int, request: Request):
+    import traceback
+    from app.core.database import SessionLocal
+    from app.models.prospect import Prospect as PM
+    from app.models.user import User
+    from jose import jwt
+    from app.core.config import settings
+    from sqlalchemy import text
+    try:
+        token = request.headers.get("authorization","").replace("Bearer ","")
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        db = SessionLocal()
+        user = db.query(User).filter(User.email == payload.get("sub")).first()
+        p = db.query(PM).filter(PM.id == pid).first()
+        if not p: return {"error": "prospect not found"}
+        status_raw = p.status
+        status_str = str(p.status)
+        status_lower = status_str.lower().replace('prospectstatus.','')
+        updates = "status = 'EN_ATTENTE_CONFORMITE'"
+        params = {"id": pid}
+        db.execute(text(f"UPDATE prospects SET {updates} WHERE id = :id"), params)
+        db.commit()
+        db.refresh(p)
+        return {"success": True, "status_raw": repr(status_raw), "status_str": status_str, "status_lower": status_lower, "new_status": str(p.status)}
+    except Exception as e:
+        return {"error": str(e), "traceback": traceback.format_exc()[-2000:]}
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
