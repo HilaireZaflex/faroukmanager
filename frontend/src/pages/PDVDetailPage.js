@@ -531,7 +531,7 @@ function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
               </button>
               <button onClick={async () => {
                   try {
-                    await api.delete(`/attachments/${confirmDelete.id}`);
+                    await api.delete(`/prospects/attachments/${confirmDelete.id}`);
                     setConfirmDelete(null);
                     refetch();
                   } catch(e) { setConfirmDelete(null); setUploadMsg('❌ Erreur lors de la suppression'); }
