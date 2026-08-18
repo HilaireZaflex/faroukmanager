@@ -544,10 +544,22 @@ function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
                 <div style={{ padding: '10px 12px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{KIND_LABELS[p.kind] || p.kind}</div>
                   <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fname}</div>
-                  <a href={fileUrl} target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'block', padding: '6px 10px', background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 7, color, fontSize: 11, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
-                    👁️ Voir / T\u00e9l\u00e9charger
-                  </a>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ flex: 1, padding: '6px 10px', background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 7, color, fontSize: 11, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
+                      👁️ Voir
+                    </a>
+                    <button onClick={async () => {
+                      if (!window.confirm('Supprimer cette pièce jointe ?')) return;
+                      try {
+                        await api.delete(`/prospects/${prospectId}/attachments/${p.id}`);
+                        refetch();
+                      } catch(e) { alert('Erreur lors de la suppression'); }
+                    }}
+                      style={{ padding: '6px 10px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 7, color: '#ff4757', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      🗑️
+                    </button>
+                  </div>
                 </div>
               </div>
             );
