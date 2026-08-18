@@ -2487,7 +2487,7 @@ function AttachmentGallery({ prospectId }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
       {items.map(a => {
-        const href = a.url ? `${FILE_BASE}${a.url}` : null;
+        const href = a.url ? `${FILE_BASE}${a.url.replace('/static/', '/')}` : null;
         const isImg = (a.mime_type || '').startsWith('image/');
         return (
           <a key={a.id} href={href || '#'} target="_blank" rel="noopener noreferrer"

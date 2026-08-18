@@ -453,7 +453,11 @@ function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
   };
 
   const getFileUrl = (p) => {
-    if (p.url) return `${BACKEND}${p.url}`;
+    if (p.url) {
+      // Le backend retourne /static/uploads/... mais le vrai chemin est /uploads/...
+      const path = p.url.replace('/static/', '/');
+      return `${BACKEND}${path}`;
+    }
     return `${BACKEND}/uploads/prospects/${p.file_path?.split('/')?.slice(-2)?.join('/') || p.filename || p.file_name}`;
   };
 
