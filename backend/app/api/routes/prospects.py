@@ -393,20 +393,23 @@ def soumettre_conformite(
         if val:
             updates += f", {col} = :{col}"
             params[col] = str(val)
+    # Sauvegarder les infos avant commit pour les notifs
+    prenom_nom = f"{p.prenom} {p.nom}"
+    reference = p.reference
+    pid = p.id
     db.execute(text(f"UPDATE prospects SET {updates} WHERE id = :id"), params)
     db.commit()
-    db.refresh(p)
-    # Notifier RC et Admin
+    # Notifier RC et Admin (sans db.refresh pour éviter erreur Enum)
     try:
         from app.services.notification_service import get_rc_user_ids, create_notif
         rc_ids = get_rc_user_ids(db)
         for rid in rc_ids:
             create_notif(db, rid, "📋 Formulaire d'activation à valider",
-                f"Le formulaire d'activation pour {p.prenom} {p.nom} ({p.reference}) est prêt pour validation.",
+                f"Le formulaire d'activation pour {prenom_nom} ({reference}) est prêt pour validation.",
                 "CONFORMITE_EN_ATTENTE", str(prospect_id))
     except Exception:
         pass
-    return {"success": True, "status": "EN_ATTENTE_CONFORMITE", "id": p.id}
+    return {"success": True, "status": "EN_ATTENTE_CONFORMITE", "id": pid}
 
 
 @router.post("/{prospect_id}/valider-conformite")
