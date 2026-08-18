@@ -398,6 +398,7 @@ function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
   const [uploadKind, setUploadKind] = useState('PHOTO_LOCAL_FACADE');
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null); // {id, filename}
   const qc = useQueryClient();
 
   const BACKEND = process.env.REACT_APP_API_BASE_URL?.replace('/api', '') || 'https://faroukmanager-backend-production-feb9.up.railway.app';
@@ -514,6 +515,35 @@ function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
         </div>
       )}
 
+      {/* Modal confirmation suppression */}
+      {confirmDelete && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#1a1f36', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 16, padding: '28px 32px', maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 16 }}>🗑️</div>
+            <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 800, textAlign: 'center', margin: '0 0 8px' }}>{"Supprimer la pi\u00e8ce jointe"}</h3>
+            <p style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', margin: '0 0 24px', lineHeight: 1.6 }}>
+              {"Voulez-vous supprimer "}<strong style={{ color: '#ff4757' }}>{confirmDelete.filename}</strong>{" ? Cette action est irr\u00e9versible."}
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setConfirmDelete(null)}
+                style={{ flex: 1, padding: '11px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={async () => {
+                  try {
+                    await api.delete(`/attachments/${confirmDelete.id}`);
+                    setConfirmDelete(null);
+                    refetch();
+                  } catch(e) { setConfirmDelete(null); setUploadMsg('❌ Erreur lors de la suppression'); }
+                }}
+                style={{ flex: 1, padding: '11px', background: 'linear-gradient(135deg, #ff4757, #ff6b81)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                🗑️ Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Galerie des pièces */}
       {!pieces?.length ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8a8a9a' }}>
@@ -549,13 +579,7 @@ function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
                       style={{ flex: 1, padding: '6px 10px', background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 7, color, fontSize: 11, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
                       👁️ Voir
                     </a>
-                    <button onClick={async () => {
-                      if (!window.confirm('Supprimer cette pièce jointe ?')) return;
-                      try {
-                        await api.delete(`/prospects/${prospectId}/attachments/${p.id}`);
-                        refetch();
-                      } catch(e) { alert('Erreur lors de la suppression'); }
-                    }}
+                    <button onClick={() => setConfirmDelete({ id: p.id, filename: fname })}
                       style={{ padding: '6px 10px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 7, color: '#ff4757', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       🗑️
                     </button>
