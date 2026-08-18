@@ -317,7 +317,7 @@ def update_prospect(db: Session, prospect_id: int, payload: ProspectUpdate, curr
     }:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Modification interdite à l'état {p.status.value}",
+            detail=f"Modification interdite à l'état {str(p.status)}",
         )
 
     data = payload.model_dump(exclude_unset=True)
@@ -494,7 +494,7 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
     if p.status != ProspectStatus.EN_VISITE:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Décision impossible : statut courant {p.status.value}",
+            detail=f"Décision impossible : statut courant {str(p.status)}",
         )
     if str(current_user.role).lower().replace("userrole.", "") not in ["admin", "manager"]:
         # Vérifier assignation par ID ou par nom dans les notes

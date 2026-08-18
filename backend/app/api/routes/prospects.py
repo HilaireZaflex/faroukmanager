@@ -382,8 +382,9 @@ def soumettre_conformite(
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
-    if p.status.value not in ("PUCE_ATTRIBUEE", "puce_attribuee"):
-        raise HTTPException(400, f"Statut actuel: '{p.status.value}'. Attendu: 'PUCE_ATTRIBUEE'")
+    _status = str(p.status).lower().replace('prospectstatus.', '').replace('userrole.', '')
+    if _status not in ("puce_attribuee",):
+        raise HTTPException(400, f"Statut actuel: '{p.status}'. Attendu: 'PUCE_ATTRIBUEE'")
     # Stocker les infos équipe renseignées par le développeur
     updates = "status = 'EN_ATTENTE_CONFORMITE'"
     params = {"id": prospect_id}
@@ -419,8 +420,9 @@ def valider_conformite(
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
-    if p.status.value not in ("EN_ATTENTE_CONFORMITE",):
-        raise HTTPException(400, f"Statut actuel: '{p.status.value}'. Attendu: 'EN_ATTENTE_CONFORMITE'")
+    _status_v = str(p.status).lower().replace('prospectstatus.', '')
+    if _status_v not in ("en_attente_conformite",):
+        raise HTTPException(400, f"Statut actuel: '{p.status}'. Attendu: 'EN_ATTENTE_CONFORMITE'")
     # Appeler activate_puce existant pour créer le PDV
     try:
         import app.services.prospection_service as svc
