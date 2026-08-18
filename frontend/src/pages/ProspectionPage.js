@@ -2153,10 +2153,28 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     kaabu: false, nafama: false, omy: false, lbft: false,
     comment: '',
     pieces_fichiers: [],  // Multi-fichiers obligatoires
+    // Géolocalisation (pré-remplie depuis le prospect si disponible)
+    gps_lat: p.latitude || '',
+    gps_lng: p.longitude || '',
   });
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const hasGps = p.latitude && p.longitude; // Prospect a déjà une géoloc
+
+  const captureGPSActivation = () => {
+    if (!navigator.geolocation) { alert('Géolocalisation non disponible sur cet appareil'); return; }
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setForm(f => ({ ...f, gps_lat: pos.coords.latitude, gps_lng: pos.coords.longitude }));
+        setGpsLoading(false);
+      },
+      err => { alert('Impossible de récupérer la position. Vérifiez les permissions GPS.'); setGpsLoading(false); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
 
   // Charger équipe réseau (comme NouveauPDVModal)
   const { data: equipe } = useQuery('equipe-reseau-activation',
@@ -2198,8 +2216,19 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
     if (!form.pieces_fichiers || form.pieces_fichiers.length === 0) {
       return alert('Les documents / pièces d\'identité sont obligatoires. Ajoutez au moins un fichier.');
     }
+    // Vérification géolocalisation obligatoire
+    if (!form.gps_lat || !form.gps_lng) {
+      return alert('⚠️ La géolocalisation est obligatoire. Appuyez sur "📍 Capturer ma position" pour enregistrer les coordonnées GPS du local.');
+    }
     setBusy(true);
     try {
+      // 0) Mettre à jour la géolocalisation du prospect si elle manquait
+      if (!hasGps && form.gps_lat && form.gps_lng) {
+        await api.patch(`/prospects/${p.id}`, {
+          latitude: parseFloat(form.gps_lat),
+          longitude: parseFloat(form.gps_lng),
+        });
+      }
       // 1) Uploader d'abord les pièces obligatoires (le backend exige un champ "kind")
       let uploadFailures = 0;
       for (const file of form.pieces_fichiers) {
@@ -2390,6 +2419,38 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
             <AFL label="Date d'activation"><AFI type="date" value={form.date_activation} onChange={e=>set('date_activation',e.target.value)} /></AFL>
             <AFL label="Montant d'activation (FCFA)"><AFI type="number" placeholder="0" value={form.montant_activation} onChange={e=>set('montant_activation',e.target.value)} /></AFL>
           </ASection>
+
+          {/* ── GPS OBLIGATOIRE si pas de géoloc ── */}
+          {!hasGps && (
+            <div style={{ background: form.gps_lat && form.gps_lng ? 'rgba(34,197,94,0.08)' : 'rgba(255,71,87,0.08)', border: `2px solid ${form.gps_lat && form.gps_lng ? '#22c55e' : '#ff4757'}`, borderRadius: 14, padding: '18px 20px', marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 24 }}>📍</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: form.gps_lat && form.gps_lng ? '#22c55e' : '#ff4757' }}>
+                    {form.gps_lat && form.gps_lng ? '✅ Position GPS capturée' : '⚠️ Géolocalisation obligatoire — non enregistrée'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                    {form.gps_lat && form.gps_lng
+                      ? `${parseFloat(form.gps_lat).toFixed(5)}, ${parseFloat(form.gps_lng).toFixed(5)}`
+                      : "Ce PDV n'a pas de coordonn\u00e9es GPS. Vous devez capturer la position GPS du local avant de soumettre."}
+                  </div>
+                </div>
+              </div>
+              <button type="button" onClick={captureGPSActivation} disabled={gpsLoading}
+                style={{ width: '100%', padding: '13px', background: gpsLoading ? 'rgba(255,255,255,0.05)' : form.gps_lat && form.gps_lng ? 'rgba(34,197,94,0.15)' : 'linear-gradient(135deg, #FF6900, #ff9500)', border: `1px solid ${form.gps_lat && form.gps_lng ? 'rgba(34,197,94,0.4)' : 'transparent'}`, borderRadius: 10, color: gpsLoading ? '#64748b' : form.gps_lat && form.gps_lng ? '#22c55e' : '#fff', fontSize: 14, fontWeight: 800, cursor: gpsLoading ? 'not-allowed' : 'pointer' }}>
+                {gpsLoading ? '⏳ Localisation en cours...' : form.gps_lat && form.gps_lng ? '🔄 Re-capturer la position GPS' : '📍 Capturer ma position GPS (obligatoire)'}
+              </button>
+            </div>
+          )}
+          {/* ── GPS déjà enregistré ── */}
+          {hasGps && (
+            <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '10px 16px', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div style={{ fontSize: 12, color: '#22c55e' }}>
+                ✅ Position GPS : <strong>{parseFloat(p.latitude).toFixed(5)}, {parseFloat(p.longitude).toFixed(5)}</strong>
+              </div>
+              <a href={`https://maps.google.com/?q=${p.latitude},${p.longitude}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#0ea5e9' }}>Voir carte →</a>
+            </div>
+          )}
 
           {/* SECTION 3 — Le Garant */}
           <ASection title="Le Garant" icon="🤝" cols={2}>
