@@ -391,92 +391,165 @@ function TabCourbes({ pdv }) {
 
 // ============ ONGLET PIÈCES JOINTES ============
 function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
-  const { useQuery } = require('react-query');
+  const { useQuery, useQueryClient } = require('react-query');
   const api = require('../services/api').default;
-
-  // Charger les pièces du prospect OMY activé via ce PDV
-  const { data: pieces, isLoading } = useQuery(
-    ['pieces-pdv', pdvId, numeroPdv],
-    async () => {
-      // Chercher le prospect activé lié à ce PDV
-      const resp = await api.get(`/prospects?activated_pdv_numero=${numeroPdv}&status=PUCE_ACTIVEE&limit=10`);
-      const prospects = resp.data?.items || resp.data || [];
-      if (!prospects.length) return [];
-      // Charger les pièces du dernier prospect activé
-      const lastProspect = prospects[prospects.length - 1];
-      const piecesResp = await api.get(`/prospects/${lastProspect.id}/attachments`);
-      return piecesResp.data || [];
-    },
-    { staleTime: 60000, enabled: !!numeroPdv, retry: false }
-  );
+  const [prospectId, setProspectId] = useState(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadKind, setUploadKind] = useState('PHOTO_LOCAL_FACADE');
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
+  const qc = useQueryClient();
 
   const BACKEND = process.env.REACT_APP_API_BASE_URL?.replace('/api', '') || 'https://faroukmanager-backend-production-feb9.up.railway.app';
   const KIND_LABELS = {
     PHOTO_LOCAL_FACADE: '🏪 Facade du local',
-    PHOTO_LOCAL_INTERIEUR: '🏠 Intérieur du local',
-    PIECE_IDENTITE: '🪪 Pièce d\'identité',
+    PHOTO_LOCAL_INTERIEUR: '🏠 Int\u00e9rieur du local',
+    PIECE_IDENTITE: '\uD83E\uDEAA Pi\u00e8ce d\'identit\u00e9',
+    PHOTO_GERANT: '\uD83E\uDDD1 Photo du g\u00e9rant',
     AUTRE: '📎 Autre document',
   };
   const KIND_COLORS = {
     PHOTO_LOCAL_FACADE: '#FF6900',
     PHOTO_LOCAL_INTERIEUR: '#ffa502',
     PIECE_IDENTITE: '#3742fa',
+    PHOTO_GERANT: '#00d68f',
     AUTRE: '#8a8a9a',
   };
 
-  if (isLoading) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement des pièces...</div>;
-
-  if (!pieces?.length) return (
-    <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8a8a9a' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>📎</div>
-      <p style={{ fontWeight: 600, fontSize: 15 }}>Aucune pièce jointe trouvée</p>
-      <p style={{ fontSize: 13, marginTop: 8 }}>Les pièces sont uploadées lors de l'activation de la puce par le développeur.</p>
-    </div>
+  // Charger les pièces du prospect OMY activé via ce PDV
+  const { data: pieces, isLoading, refetch } = useQuery(
+    ['pieces-pdv', pdvId, numeroPdv],
+    async () => {
+      const resp = await api.get(`/prospects?activated_pdv_numero=${numeroPdv}&status=PUCE_ACTIVEE&limit=10`);
+      const prospects = resp.data?.items || resp.data || [];
+      if (!prospects.length) return [];
+      const lastProspect = prospects[prospects.length - 1];
+      setProspectId(lastProspect.id);
+      const piecesResp = await api.get(`/prospects/${lastProspect.id}/attachments`);
+      return piecesResp.data || [];
+    },
+    { staleTime: 60000, enabled: !!numeroPdv, retry: false }
   );
+
+  const handleUpload = async (files) => {
+    if (!files || files.length === 0) return;
+    if (!prospectId) { setUploadMsg('❌ Aucun prospect activé lié à ce PDV'); return; }
+    setUploading(true);
+    setUploadMsg('');
+    let success = 0, fail = 0;
+    for (const file of files) {
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('kind', uploadKind);
+        await api.post(`/prospects/${prospectId}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        success++;
+      } catch (e) { fail++; }
+    }
+    setUploading(false);
+    setUploadMsg(fail === 0 ? `✅ ${success} fichier${success > 1 ? 's' : ''} ajout\u00e9${success > 1 ? 's' : ''} avec succ\u00e8s` : `⚠️ ${success} ajout\u00e9(s), ${fail} \u00e9chec(s)`);
+    refetch();
+    setTimeout(() => setUploadMsg(''), 5000);
+  };
+
+  const getFileUrl = (p) => {
+    if (p.url) return `${BACKEND}${p.url}`;
+    return `${BACKEND}/uploads/prospects/${p.file_path?.split('/')?.slice(-2)?.join('/') || p.filename || p.file_name}`;
+  };
+
+  if (isLoading) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement des pi\u00e8ces...</div>;
 
   return (
     <div>
-      <div style={{ marginBottom: 16, padding: '10px 16px', background: 'rgba(255,105,0,0.06)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 10, fontSize: 13, color: '#FF6900' }}>
-        📎 <strong>{pieces.length} pièce{pieces.length > 1 ? 's' : ''} jointe{pieces.length > 1 ? 's' : ''}</strong> pour le PDV <strong>{nomPdv || numeroPdv}</strong>
+      {/* Header avec compteur + bouton upload */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ padding: '10px 16px', background: 'rgba(255,105,0,0.06)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 10, fontSize: 13, color: '#FF6900' }}>
+          📎 <strong>{pieces?.length || 0} pi\u00e8ce{(pieces?.length || 0) !== 1 ? 's' : ''} jointe{(pieces?.length || 0) !== 1 ? 's' : ''}</strong> — <span style={{ color: '#94a3b8' }}>{nomPdv || numeroPdv}</span>
+        </div>
+        <button onClick={() => setShowUpload(!showUpload)}
+          style={{ padding: '9px 18px', background: 'linear-gradient(135deg, #FF6900, #ff9500)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(255,105,0,0.3)' }}>
+          {showUpload ? '✕ Fermer' : '+ Ajouter des pi\u00e8ces'}
+        </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
-        {pieces.map((p, i) => {
-          const isImage = p.mime_type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(p.file_name);
-          const isPdf = p.mime_type === 'application/pdf' || /\.pdf$/i.test(p.file_name);
-          const fileUrl = `${BACKEND}/uploads/prospects/${p.file_path?.split('/').pop() || p.file_name}`;
-          const color = KIND_COLORS[p.kind] || '#8a8a9a';
 
-          return (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}30`, borderRadius: 12, overflow: 'hidden', borderTop: `3px solid ${color}` }}>
-              {/* Aperçu */}
-              <div style={{ height: 160, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
-                {isImage ? (
-                  <img src={`${BACKEND}/uploads/prospects/${p.file_path?.split('/')?.slice(-2)?.join('/') || p.file_name}`}
-                    alt={p.file_name}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
-                  />
-                ) : null}
-                <div style={{ display: isImage ? 'none' : 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: '#8a8a9a' }}>
-                  <span style={{ fontSize: 40 }}>{isPdf ? '📄' : '📎'}</span>
-                  <span style={{ fontSize: 11 }}>{p.file_name}</span>
+      {/* Zone upload */}
+      {showUpload && (
+        <div style={{ background: 'rgba(255,105,0,0.06)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 14, padding: '20px 20px', marginBottom: 20 }}>
+          <h4 style={{ color: '#FF6900', margin: '0 0 14px 0', fontSize: 14 }}>📤 Importer des pi\u00e8ces jointes</h4>
+
+          {/* Type de document */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 0.8, display: 'block', marginBottom: 6 }}>Type de document</label>
+            <select value={uploadKind} onChange={e => setUploadKind(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, color: '#e2e8f0', fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+              {Object.entries(KIND_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+
+          {/* Zone drag & drop */}
+          <div
+            style={{ border: '2px dashed rgba(255,105,0,0.4)', borderRadius: 12, padding: '30px 20px', textAlign: 'center', cursor: 'pointer', position: 'relative' }}
+            onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#FF6900'; e.currentTarget.style.background = 'rgba(255,105,0,0.08)'; }}
+            onDragLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,105,0,0.4)'; e.currentTarget.style.background = 'transparent'; }}
+            onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'rgba(255,105,0,0.4)'; e.currentTarget.style.background = 'transparent'; handleUpload(Array.from(e.dataTransfer.files)); }}
+            onClick={() => document.getElementById('pdv-file-input').click()}>
+            <input id="pdv-file-input" type="file" multiple accept="image/*,.pdf" style={{ display: 'none' }}
+              onChange={e => handleUpload(Array.from(e.target.files))} />
+            <div style={{ fontSize: 36, marginBottom: 8 }}>{uploading ? '⏳' : '📤'}</div>
+            <div style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>
+              {uploading ? 'Envoi en cours...' : 'Cliquez ou glissez vos fichiers ici'}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>JPG, PNG, PDF · max 10 Mo par fichier · plusieurs fichiers accept\u00e9s</div>
+          </div>
+
+          {uploadMsg && (
+            <div style={{ marginTop: 12, padding: '10px 14px', background: uploadMsg.startsWith('✅') ? 'rgba(34,197,94,0.1)' : 'rgba(255,165,0,0.1)', border: `1px solid ${uploadMsg.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(255,165,0,0.3)'}`, borderRadius: 8, fontSize: 13, color: uploadMsg.startsWith('✅') ? '#22c55e' : '#ffa502' }}>
+              {uploadMsg}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Galerie des pièces */}
+      {!pieces?.length ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8a8a9a' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📎</div>
+          <p style={{ fontWeight: 600, fontSize: 15 }}>Aucune pi\u00e8ce jointe pour ce PDV</p>
+          <p style={{ fontSize: 13, marginTop: 8, color: '#64748b' }}>Cliquez sur "+ Ajouter des pi\u00e8ces" pour importer les documents.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
+          {pieces.map((p, i) => {
+            const fname = p.filename || p.file_name || '';
+            const isImage = p.mime_type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp)$/i.test(fname);
+            const isPdf = p.mime_type === 'application/pdf' || /\.pdf$/i.test(fname);
+            const fileUrl = getFileUrl(p);
+            const color = KIND_COLORS[p.kind] || '#8a8a9a';
+            return (
+              <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}30`, borderRadius: 12, overflow: 'hidden', borderTop: `3px solid ${color}` }}>
+                <div style={{ height: 160, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {isImage ? (
+                    <img src={fileUrl} alt={fname} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+                  ) : null}
+                  <div style={{ display: isImage ? 'none' : 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: '#8a8a9a' }}>
+                    <span style={{ fontSize: 40 }}>{isPdf ? '📄' : '📎'}</span>
+                    <span style={{ fontSize: 11 }}>{fname}</span>
+                  </div>
+                </div>
+                <div style={{ padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{KIND_LABELS[p.kind] || p.kind}</div>
+                  <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fname}</div>
+                  <a href={fileUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'block', padding: '6px 10px', background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 7, color, fontSize: 11, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
+                    👁️ Voir / T\u00e9l\u00e9charger
+                  </a>
                 </div>
               </div>
-              {/* Info */}
-              <div style={{ padding: '10px 12px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{KIND_LABELS[p.kind] || p.kind}</div>
-                <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.file_name}</div>
-                {p.size_bytes && <div style={{ fontSize: 10, color: '#64748b' }}>{(p.size_bytes / 1024).toFixed(0)} Ko</div>}
-                <a href={`${BACKEND}/uploads/prospects/${p.file_path?.split('/')?.slice(-2)?.join('/') || p.file_name}`}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ display: 'block', marginTop: 8, padding: '6px 10px', background: `${color}15`, border: `1px solid ${color}40`, borderRadius: 7, color, fontSize: 11, fontWeight: 700, textAlign: 'center', textDecoration: 'none' }}>
-                  👁️ Voir / Télécharger
-                </a>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
