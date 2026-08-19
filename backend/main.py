@@ -93,6 +93,16 @@ app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 
+@app.delete("/reset-points-controles")
+async def reset_points_controles():
+    """Supprimer tous les points contrôlés (reset)."""
+    from app.core.database import engine
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        r = conn.execute(text("DELETE FROM creation_points_controles"))
+        conn.commit()
+        return {"deleted": r.rowcount}
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
