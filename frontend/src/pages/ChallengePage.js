@@ -1181,14 +1181,96 @@ function TabOMQualite({ kpis }) {
             </div>
           </div>
           {selected === 'recrutement' && <TabRecrutement />}
-          {selected === 'pdv_actif' && (
-            <div className="ch-card" style={{ borderTop: '3px solid #FF6900' }}>
-              <KPIBar label={"🏪 PDV actifs Orange Money"} realise={kpis?.pdv_actifs?.realise} objectif={kpis?.pdv_actifs?.total_pdvs} taux={kpis?.pdv_actifs?.taux} unite="PDVs" poids={10} />
-              <div style={{ marginTop: 16, fontSize: 12, color: '#64748b' }}>{"Objectif : au minimum 90% des PDV actifs doivent demeurer actifs avec un CA Cash out \u2265 1000F/mois"}</div>
-            </div>
-          )}
+          {selected === 'pdv_actif' && <TabPDVActif />}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Tab PDV Actif : 2 tableaux (PDVs actifs + PDVs CA>=1000F) ────────────────
+function TabPDVActif() {
+  const { data: awardData } = useQuery('award-dashboard-pdv',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+
+  const getSemaines = (ind) => {
+    const d = awardData?.[ind] || {};
+    return (d.semaines || []).filter(s => s.mois === 'AOÛT');
+  };
+  const getTotal = (ind) => {
+    const d = awardData?.[ind] || {};
+    return (d.totaux || []).find(t => t.est_total && t.mois === 'AOÛT') || null;
+  };
+
+  const pdvActifSems = getSemaines('PDV_ACTIF');
+  const ca1000Sems = getSemaines('PDV_CA1000');
+  const totalActif = getTotal('PDV_ACTIF');
+  const totalCA = getTotal('PDV_CA1000');
+
+  const SEMS = ['S31', 'S32', 'S33', 'S34'];
+  const getVal = (sems, sem) => sems.find(s => s.semaine === sem);
+
+  const TablePDV = ({ title, sems, total, color, objLabel }) => (
+    <div className="ch-card" style={{ borderTop: `3px solid ${color}` }}>
+      <h4 style={{ color, fontWeight: 800, fontSize: 14, marginBottom: 16 }}>{title}</h4>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>Semaine</th>
+              <th style={{ textAlign: 'center', padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>Total PDV</th>
+              <th style={{ textAlign: 'center', padding: '8px 12px', color, fontWeight: 700 }}>{objLabel}</th>
+              <th style={{ textAlign: 'center', padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>Autres</th>
+              <th style={{ textAlign: 'center', padding: '8px 12px', color, fontWeight: 700 }}>%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SEMS.map(s => {
+              const row = getVal(sems, s);
+              const real = row?.realisation;
+              const total_pdv = 1129;
+              const autres = real != null ? total_pdv - real : null;
+              const pct = row?.taux_orange != null ? Math.round(row.taux_orange * 100) : null;
+              const col = pct == null ? '#475569' : pct >= 90 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
+              return (
+                <tr key={s} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#e2e8f0' }}>{s}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8' }}>{total_pdv}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 700, color }}>{real ?? '—'}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', color: '#ff4757' }}>{autres ?? '—'}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: col }}>
+                    {pct != null ? `${pct}%` : <span style={{ color: '#475569' }}>En cours</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            {/* Total */}
+            {total && (
+              <tr style={{ borderTop: '2px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)' }}>
+                <td style={{ padding: '10px 12px', fontWeight: 800, color: '#fff' }}>TOTAL</td>
+                <td style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8' }}>1129</td>
+                <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color }}>{total.realisation != null ? Math.round(total.realisation) : '—'}</td>
+                <td style={{ textAlign: 'center', padding: '10px 12px', color: '#ff4757' }}>{total.realisation != null ? Math.round(1129 - total.realisation) : '—'}</td>
+                <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 900, color: total.taux_orange >= 0.9 ? '#22c55e' : '#ffa502', fontSize: 15 }}>
+                  {total.taux_orange != null ? `${Math.round(total.taux_orange * 100)}%` : '—'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, padding: '12px 16px' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>{"🟠 Challenge Orange Money | PDV actif (nouveauté) | Poids : 10%"}</div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{"Objectif : ≥ 90% des 1129 PDVs actifs + CA Cash out ≥ 1000F/mois | Août 2026 (S31–S34)"}</div>
+      </div>
+      <TablePDV title={"🏪 PDVs Actifs"} sems={pdvActifSems} total={totalActif} color="#22c55e" objLabel="Actifs" />
+      <TablePDV title={"💰 PDVs avec CA ≥ 1000F"} sems={ca1000Sems} total={totalCA} color="#0ea5e9" objLabel="CA≥1000F" />
     </div>
   );
 }
