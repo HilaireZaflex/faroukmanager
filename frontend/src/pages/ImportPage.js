@@ -307,6 +307,8 @@ function ImportNafama({ queryClient }) {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      // Le backend détecte automatiquement les périodes depuis les dates du fichier
+      // On envoie juste le mode (additive/replace)
       const res = await api.post(`/nafama/import?mode=${mode}`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -339,14 +341,14 @@ function ImportNafama({ queryClient }) {
         &nbsp;&nbsp;• ⚡ <b>Mode additif recommandé</b> : ajoute les nouvelles semaines sans supprimer l{"'"}existant.
       </div>
 
-      {/* Contrôles — même disposition que ImportExportOrange */}
+      {/* Contrôles — identiques à ImportExportOrange */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
         <label style={{ fontSize: 12 }}>
           <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mode *</div>
-          <select value={mode} onChange={e => setMode(e.target.value)}
+          <select value={periode} onChange={e => setPeriode(e.target.value)}
             style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
-            <option value="additive">➕ Additif</option>
-            <option value="replace">🔄 Remplacement</option>
+            <option value="mensuel">📅 Mensuel</option>
+            <option value="hebdo">📆 Hebdomadaire</option>
           </select>
         </label>
         <label style={{ fontSize: 12 }}>
@@ -354,13 +356,21 @@ function ImportNafama({ queryClient }) {
           <input type="number" value={annee} onChange={e => setAnnee(parseInt(e.target.value))} min={2020} max={2030}
             style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}/>
         </label>
-        <label style={{ fontSize: 12 }}>
-          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mois *</div>
-          <select value={mois} onChange={e => setMois(parseInt(e.target.value))}
-            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
-            {MOIS_NOMS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-          </select>
-        </label>
+        {periode === 'mensuel' ? (
+          <label style={{ fontSize: 12 }}>
+            <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mois *</div>
+            <select value={mois} onChange={e => setMois(parseInt(e.target.value))}
+              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+              {MOIS_NOMS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+            </select>
+          </label>
+        ) : (
+          <label style={{ fontSize: 12 }}>
+            <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Semaine *</div>
+            <input type="number" value={semaine} onChange={e => setSemaine(e.target.value)} min={1} max={53} placeholder="Ex: 32"
+              style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}/>
+          </label>
+        )}
         <label style={{ fontSize: 12 }}>
           <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Fichier NAFAMA *</div>
           <input type="file" accept=".xlsx,.xls,.csv" onChange={e => setFile(e.target.files[0])}
