@@ -1937,17 +1937,28 @@ function TabAlertes({ alertes, dashboard }) {
   // Générer toutes les actions à partir de toutes les sources
   const actions = [];
 
-  // ── Indicateurs Award ──────────────────────────────────────────────────────
+  // ── Indicateurs Award — calcul cumulatif sur TOUTE la période du challenge ──
   INDICATEURS_LIST.forEach(ind => {
     const cfg = INDICATEUR_CONFIG[ind];
     const data = awardData?.[ind] || {};
-    const total = (data.totaux || []).filter(t => t.realisation !== null).slice(-1)[0];
-    if (!total) return;
+    // Cumuler TOUS les mois du challenge (pas seulement le dernier)
+    const allTotaux = (data.totaux || []).filter(t => t.est_total && t.realisation !== null);
+    if (!allTotaux.length) return;
+    const totalReal = allTotaux.reduce((s, t) => s + (t.realisation || 0), 0);
+    const totalObj = allTotaux.reduce((s, t) => s + (t.objectif_orange || 0), 0);
+    const moisList = allTotaux.map(t => t.mois).join('+');
+    const total = {
+      ...allTotaux[allTotaux.length - 1],
+      realisation: totalReal,
+      objectif_orange: totalObj,
+      taux_orange: totalObj > 0 ? totalReal / totalObj : null,
+      mois: 'Cumul ' + moisList,
+    };
 
-    const pctO = total.taux_orange != null ? Math.round(total.taux_orange * 100) : null;
-    const pctF = total.taux_farouk != null ? Math.round(total.taux_farouk * 100) : null;
-    const ecart = total.objectif_orange && total.realisation
-      ? Math.round(total.objectif_orange - total.realisation)
+    const pctO = total.taux_orange != null ? Math.round(Math.min(1, total.taux_orange) * 100) : null;
+    const pctF = total.taux_farouk != null ? Math.round(Math.min(1, total.taux_farouk) * 100) : null;
+    const ecart = totalObj && totalReal < totalObj
+      ? Math.round(totalObj - totalReal)
       : null;
 
     // Action basée sur taux Orange
