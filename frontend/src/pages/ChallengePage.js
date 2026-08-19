@@ -1309,6 +1309,91 @@ function TabPDVActif() {
   );
 }
 
+// ── Tab Kaabu Detail : tableau par semaine ───────────────────────────────────
+function TabKaabuDetail() {
+  const [moisSel, setMoisSel] = useState('AOÛT');
+  const { data: awardData } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+
+  const SEMAINES_PAR_MOIS = {
+    'JUILLET': ['S27','S28','S29','S30'],
+    'AOÛT': ['S31','S32','S33','S34'],
+    'SEPTEMBRE': ['S35','S36','S37','S38','S39'],
+    'OCTOBRE': ['S40','S41','S42','S43','S44'],
+  };
+
+  const semaines = (awardData?.['KAABU MOBILE']?.semaines || []).filter(s => s.mois === moisSel);
+  const total = (awardData?.['KAABU MOBILE']?.totaux || []).find(t => t.est_total && t.mois === moisSel);
+  const getVal = (sem) => semaines.find(s => s.semaine === sem);
+  const semsAfficher = SEMAINES_PAR_MOIS[moisSel] || [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Sélecteur mois */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        {['JUILLET','AOÛT','SEPTEMBRE','OCTOBRE'].map(m => (
+          <button key={m} onClick={() => setMoisSel(m)}
+            style={{ padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              background: moisSel === m ? '#00d68f' : 'rgba(255,255,255,0.06)',
+              color: moisSel === m ? '#fff' : '#94a3b8',
+              boxShadow: moisSel === m ? '0 2px 8px rgba(0,214,143,0.4)' : 'none' }}>
+            {m.slice(0,4)}
+          </button>
+        ))}
+      </div>
+      <div className="ch-card" style={{ borderTop: '3px solid #00d68f' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>Semaine</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>Total PDV</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', color: '#00d68f', fontWeight: 700 }}>Actifs Kaabu</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>Inactifs</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', color: '#00d68f', fontWeight: 700 }}>Taux</th>
+              </tr>
+            </thead>
+            <tbody>
+              {semsAfficher.map(s => {
+                const row = getVal(s);
+                const real = row?.realisation;
+                const obj = row?.objectif_orange ?? 1172;
+                const autres = real != null ? Math.round(obj - real) : null;
+                const pct = row?.taux_orange != null ? Math.round(row.taux_orange * 100) : null;
+                const col = pct == null ? '#475569' : pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757';
+                return (
+                  <tr key={s} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 700, color: '#e2e8f0' }}>{s}</td>
+                    <td style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8' }}>{Math.round(obj)}</td>
+                    <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 700, color: '#00d68f' }}>{real ?? '—'}</td>
+                    <td style={{ textAlign: 'center', padding: '10px 12px', color: '#ff4757' }}>{autres ?? '—'}</td>
+                    <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: col }}>
+                      {pct != null ? `${pct}%` : <span style={{ color: '#475569' }}>En cours</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {/* Total */}
+              {total && (
+                <tr style={{ borderTop: '2px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 800, color: '#fff' }}>TOTAL</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8' }}>{Math.round(total.objectif_orange ?? 1172)}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color: '#00d68f' }}>{total.realisation != null ? Math.round(total.realisation) : '—'}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', color: '#ff4757' }}>{total.realisation != null ? Math.round((total.objectif_orange ?? 1172) - total.realisation) : '—'}</td>
+                  <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 900, color: '#00d68f', fontSize: 15 }}>
+                    {total.taux_orange != null ? `${Math.round(total.taux_orange * 100)}%` : '—'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Tab OM Digitalisation & Transformation : Adoption KAABU + Risque FINTECH ─
 function TabOMDigital({ kpis }) {
   const [selected, setSelected] = useState(null); // 'kaabu' | 'fintech'
@@ -1376,7 +1461,7 @@ function TabOMDigital({ kpis }) {
               <div style={{ fontSize: 12, color: '#FF6900' }}>{"Challenge Orange Money \u00b7 Poids : "}{cartes.find(c => c.id === selected)?.poids}%</div>
             </div>
           </div>
-          {selected === 'kaabu' && <TabIndicateurs filter="OM_DIGITAL" />}
+          {selected === 'kaabu' && <TabKaabuDetail />}
           {selected === 'fintech' && (
             <div className="ch-card" style={{ borderTop: '3px solid #a29bfe' }}>
               <div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>
