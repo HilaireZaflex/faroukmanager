@@ -74,11 +74,22 @@ def get_award_dashboard(db: Session = Depends(get_db), current_user: User = Depe
         semaines = db.query(IndicateurAward).filter(
             IndicateurAward.indicateur == ind,
             IndicateurAward.est_total == False
-        ).order_by(IndicateurAward.mois, IndicateurAward.semaine).all()
+        ).all()
+        # Trier selon l'ordre chronologique des mois du challenge
+        def sem_sort_key(s):
+            mois_idx = MOIS_ORDRE.index(s.mois) if s.mois in MOIS_ORDRE else 99
+            sem_num = int(s.semaine.replace('S','')) if s.semaine and s.semaine.startswith('S') else 99
+            return (mois_idx, sem_num)
+        semaines_sorted = sorted(semaines, key=sem_sort_key)
+
+        # Trier les totaux aussi dans l'ordre chronologique
+        def total_sort_key(t):
+            return MOIS_ORDRE.index(t.mois) if t.mois in MOIS_ORDRE else 99
+        totaux_sorted = sorted(totaux, key=total_sort_key)
 
         result[ind] = {
-            "totaux": [_fmt(t) for t in totaux],
-            "semaines": [_fmt(s) for s in semaines],
+            "totaux": [_fmt(t) for t in totaux_sorted],
+            "semaines": [_fmt(s) for s in semaines_sorted],
         }
 
     return result
