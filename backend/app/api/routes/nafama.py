@@ -231,13 +231,17 @@ def weekly_declining(
 @router.post("/nafama/import")
 async def import_nafama(
     file: UploadFile = File(...),
+    mode: str = Query("replace", description="'replace' = vider et réimporter, 'additive' = ajouter sans supprimer"),
     db: Session = Depends(get_db),
 ):
     """
-    Importe un fichier Excel NAFAMA (colonnes: PDV, MONTANT SOMME, Date).
-    Déduplique les lignes existantes avant insertion.
+    Importe un fichier Excel NAFAMA.
+    mode=replace : vide la table et réimporte (défaut)
+    mode=additive : ajoute les nouvelles données sans supprimer les existantes (déduplique par PDV+date)
+    Colonnes acceptées: PDV ou MSISDN REVENDEUR, MONTANT SOMME, Date
     """
     from app.models.nafama import NafamaTransaction
+    from sqlalchemy import and_
 
     if not file.filename.endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(400, "Format non supporté. Utilisez .xlsx, .xls ou .csv")
@@ -253,12 +257,23 @@ async def import_nafama(
 
     # Normaliser colonnes
     df.columns = [c.strip().upper() for c in df.columns]
-    required = {"PDV", "MONTANT SOMME", "DATE"}
+
+    # Mapping flexible des colonnes
+    col_map = {}
+    for c in df.columns:
+        if "MSISDN" in c or c == "PDV":
+            col_map[c] = "PDV"
+        elif "MONTANT" in c:
+            col_map[c] = "MONTANT"
+        elif "DATE" in c:
+            col_map[c] = "DATE"
+    df = df.rename(columns=col_map)
+
+    required = {"PDV", "MONTANT", "DATE"}
     missing = required - set(df.columns)
     if missing:
-        raise HTTPException(400, f"Colonnes manquantes: {missing}")
+        raise HTTPException(400, f"Colonnes manquantes: {missing}. Colonnes disponibles: {list(df.columns)}")
 
-    df = df.rename(columns={"MONTANT SOMME": "MONTANT"})
     df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
     df = df.dropna(subset=["DATE", "PDV", "MONTANT"])
     df["PDV"] = df["PDV"].astype(str).str.strip()
@@ -267,22 +282,48 @@ async def import_nafama(
     df["MOIS"] = df["DATE"].dt.month
     df["SEMAINE"] = df["DATE"].dt.isocalendar().week.astype(int)
 
-    # Supprimer et réimporter (upsert simple)
-    db.query(NafamaTransaction).delete()
-    db.commit()
+    if mode == "replace":
+        # Vider et réimporter
+        db.query(NafamaTransaction).delete()
+        db.commit()
+        skipped = 0
+    else:
+        # Mode additif: supprimer uniquement les lignes pour la même période (par date)
+        dates = df["DATE"].dt.date.unique().tolist()
+        deleted = db.query(NafamaTransaction).filter(
+            NafamaTransaction.date_transaction.in_(dates)
+        ).delete(synchronize_session=False)
+        db.commit()
+        skipped = deleted
 
     inserted = 0
+    batch = []
     for _, row in df.iterrows():
-        t = NafamaTransaction(
+        batch.append(NafamaTransaction(
             numero_pdv=str(row["PDV"]),
             montant=int(row["MONTANT"]),
             date_transaction=row["DATE"].date(),
             annee=int(row["ANNEE"]),
             mois=int(row["MOIS"]),
             semaine=int(row["SEMAINE"]),
-        )
-        db.add(t)
-        inserted += 1
+        ))
+        if len(batch) >= 2000:
+            db.bulk_save_objects(batch)
+            db.commit()
+            inserted += len(batch)
+            batch = []
 
-    db.commit()
-    return {"success": True, "inserted": inserted, "total_rows": len(df)}
+    if batch:
+        db.bulk_save_objects(batch)
+        db.commit()
+        inserted += len(batch)
+
+    return {
+        "success": True,
+        "mode": mode,
+        "inserted": inserted,
+        "replaced_existing": skipped,
+        "total_rows": len(df),
+        "periode": f"{df['DATE'].min().date()} → {df['DATE'].max().date()}",
+        "semaines": sorted(df['SEMAINE'].unique().tolist()),
+    }
