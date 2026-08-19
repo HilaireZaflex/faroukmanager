@@ -99,7 +99,7 @@ async def reset_points_controles():
     from app.core.database import engine
     from sqlalchemy import text
     with engine.connect() as conn:
-        r = conn.execute(text("DELETE FROM creation_points_controles"))
+        r = conn.execute(text("DELETE FROM challenge_points_controles"))
         conn.commit()
         return {"deleted": r.rowcount}
 
