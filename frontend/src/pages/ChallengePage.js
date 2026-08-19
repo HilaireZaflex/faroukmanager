@@ -1190,17 +1190,19 @@ function TabOMQualite({ kpis }) {
 
 // ── Tab PDV Actif : 2 tableaux (PDVs actifs + PDVs CA>=1000F) ────────────────
 function TabPDVActif() {
+  const [moisSel, setMoisSel] = useState('AOÛT');
+
   const { data: awardData } = useQuery('award-dashboard-pdv',
     () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
   );
 
   const getSemaines = (ind) => {
     const d = awardData?.[ind] || {};
-    return (d.semaines || []).filter(s => s.mois === 'AOÛT');
+    return (d.semaines || []).filter(s => s.mois === moisSel);
   };
   const getTotal = (ind) => {
     const d = awardData?.[ind] || {};
-    return (d.totaux || []).find(t => t.est_total && t.mois === 'AOÛT') || null;
+    return (d.totaux || []).find(t => t.est_total && t.mois === moisSel) || null;
   };
 
   const pdvActifSems = getSemaines('PDV_ACTIF');
@@ -1211,7 +1213,7 @@ function TabPDVActif() {
   const SEMS = ['S31', 'S32', 'S33', 'S34'];
   const getVal = (sems, sem) => sems.find(s => s.semaine === sem);
 
-  const TablePDV = ({ title, sems, total, color, objLabel }) => (
+  const TablePDV = ({ title, sems, total, color, objLabel, semsAfficher: semsA }) => (
     <div className="ch-card" style={{ borderTop: `3px solid ${color}` }}>
       <h4 style={{ color, fontWeight: 800, fontSize: 14, marginBottom: 16 }}>{title}</h4>
       <div style={{ overflowX: 'auto' }}>
@@ -1226,7 +1228,7 @@ function TabPDVActif() {
             </tr>
           </thead>
           <tbody>
-            {SEMS.map(s => {
+            {(semsA || SEMS).map(s => {
               const row = getVal(sems, s);
               const real = row?.realisation;
               const total_pdv = 1129;
@@ -1263,14 +1265,40 @@ function TabPDVActif() {
     </div>
   );
 
+  // Semaines selon le mois sélectionné
+  const SEMAINES_PAR_MOIS = {
+    'JUILLET': ['S27','S28','S29','S30'],
+    'AOÛT': ['S31','S32','S33','S34'],
+    'SEPTEMBRE': ['S35','S36','S37','S38','S39'],
+    'OCTOBRE': ['S40','S41','S42','S43','S44'],
+  };
+  const semsAfficher = SEMAINES_PAR_MOIS[moisSel] || ['S31','S32','S33','S34'];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, padding: '12px 16px' }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>{"🟠 Challenge Orange Money | PDV actif (nouveauté) | Poids : 10%"}</div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{"Objectif : ≥ 90% des 1129 PDVs actifs + CA Cash out ≥ 1000F/mois | Août 2026 (S31–S34)"}</div>
+      {/* Banner + sélecteur mois */}
+      <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, padding: '14px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>{"🟠 Challenge Orange Money | PDV actif (nouveauté) | Poids : 10%"}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{"Objectif : ≥ 90% des 1129 PDVs actifs + CA Cash out ≥ 1000F/mois"}</div>
+          </div>
+          {/* Sélecteur mois */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['JUILLET','AOÛT','SEPTEMBRE','OCTOBRE'].map(m => (
+              <button key={m} onClick={() => setMoisSel(m)}
+                style={{ padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  background: moisSel === m ? '#FF6900' : 'rgba(255,255,255,0.06)',
+                  color: moisSel === m ? '#fff' : '#94a3b8',
+                  boxShadow: moisSel === m ? '0 2px 8px rgba(255,105,0,0.4)' : 'none' }}>
+                {m.slice(0,4)}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      <TablePDV title={"🏪 PDVs Actifs"} sems={pdvActifSems} total={totalActif} color="#22c55e" objLabel="Actifs" />
-      <TablePDV title={"💰 PDVs avec CA ≥ 1000F"} sems={ca1000Sems} total={totalCA} color="#0ea5e9" objLabel="CA≥1000F" />
+      <TablePDV title={"🏪 PDVs Actifs"} sems={pdvActifSems} total={totalActif} color="#22c55e" objLabel="Actifs" semsAfficher={semsAfficher} />
+      <TablePDV title={"💰 PDVs avec CA ≥ 1000F"} sems={ca1000Sems} total={totalCA} color="#0ea5e9" objLabel="CA≥1000F" semsAfficher={semsAfficher} />
     </div>
   );
 }
