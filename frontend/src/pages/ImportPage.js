@@ -289,6 +289,109 @@ function ImportSection({ icon: Icon, title, description, endpoint, label, templa
 
 // ─── Main Page ─────────────────────────────────────────────────────────────
 // ─── Import EXPORT Orange Component ───────────────────────────────────────
+function ImportNafama({ queryClient }) {
+  const [file, setFile] = useState(null);
+  const [mode, setMode] = useState('additive');
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!file) return toast.error('Sélectionnez un fichier NAFAMA');
+    setLoading(true); setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post(`/nafama/import?mode=${mode}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setResult(res.data);
+      queryClient?.invalidateQueries();
+      toast.success(`Import NAFAMA terminé ! ${res.data.inserted} lignes insérées`);
+    } catch (err) {
+      toast.error('Erreur : ' + (err.response?.data?.detail || err.message));
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(0,214,143,0.25)', borderRadius: 'var(--radius)', padding: 20, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: 22 }}>🟢</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Import fichier NAFAMA (Sell-out)</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Structure attendue : MSISDN REVENDEUR · MONTANT SOMME · Date
+          </div>
+        </div>
+      </div>
+
+      {/* Info colonnes */}
+      <div style={{ background: 'rgba(0,214,143,0.06)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+        ✅ <b>Colonnes acceptées :</b><br/>
+        &nbsp;&nbsp;• <b>MSISDN REVENDEUR</b> = Numéro de téléphone du PDV<br/>
+        &nbsp;&nbsp;• <b>MONTANT SOMME</b> = CA Sell-out du jour<br/>
+        &nbsp;&nbsp;• <b>Date</b> = Date de la transaction<br/>
+        <br/>
+        ⚡ <b>Mode additif recommandé</b> : ajoute les nouvelles semaines sans supprimer les données existantes.
+      </div>
+
+      {/* Contrôles */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mode d{"'"}import *</div>
+          <select value={mode} onChange={e => setMode(e.target.value)}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="additive">➕ Additif (ajoute sans supprimer)</option>
+            <option value="replace">🔄 Remplacement complet</option>
+          </select>
+        </label>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Fichier NAFAMA *</div>
+          <input type="file" accept=".xlsx,.xls,.csv" onChange={e => setFile(e.target.files[0])}
+            style={{ width: '100%', padding: '6px 0', fontSize: 12, color: 'var(--text-primary)' }}/>
+        </label>
+      </div>
+
+      {file && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+          📎 {file.name} ({(file.size / 1024 / 1024).toFixed(1)} Mo)
+        </div>
+      )}
+
+      <button onClick={submit} disabled={loading || !file}
+        style={{ padding: '10px 20px', background: loading ? 'var(--text-muted)' : '#00d68f', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13 }}>
+        {loading ? '⏳ Import en cours…' : '🚀 Importer le fichier NAFAMA'}
+      </button>
+
+      {result && (
+        <div style={{ marginTop: 16, padding: 14, background: result.inserted > 0 ? 'rgba(0,214,143,0.08)' : 'rgba(255,71,87,0.08)', borderRadius: 8, borderLeft: `3px solid ${result.inserted > 0 ? 'var(--success)' : 'var(--danger)'}` }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>
+            {result.inserted > 0 ? '✅ Import NAFAMA terminé !' : '⚠️ Aucune donnée importée'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12 }}>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#00d68f' }}>{result.inserted?.toLocaleString()}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Lignes insérées</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#ffa502' }}>{result.replaced_existing || 0}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Lignes remplacées</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#3b82f6' }}>{result.periode || '—'}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Période importée</div>
+            </div>
+          </div>
+          {result.semaines && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#00d68f' }}>
+              📆 Semaines : S{result.semaines.join(', S')}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ImportExportOrange({ queryClient }) {
   const [file, setFile] = useState(null);
   const [mode, setMode] = useState('mensuel');
@@ -530,16 +633,7 @@ export default function ImportPage() {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Performances spécifiques à l'indicateur NAFAMA</p>
       </div>
 
-      <ImportSection
-        icon={Calendar}
-        title="📅 Import NAFAMA — Fichier Excel"
-        description="Importez le fichier Excel NAFAMA (colonnes: PDV, MONTANT SOMME, Date). Toutes les périodes sont automatiquement détectées (mois et semaines)."
-        endpoint="/nafama/import"
-        label="NAFAMA"
-        templateType="mensuel"
-        color="#00d68f"
-        queryClient={queryClient}
-      />
+      <ImportNafama queryClient={queryClient} />
 
       {/* ── KAABU ──────────────────────────────────────────────────────────── */}
       <div style={{ margin: '32px 0 16px', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
