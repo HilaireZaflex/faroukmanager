@@ -1962,10 +1962,10 @@ function TabAlertes({ alertes, dashboard }) {
         titre: `${cfg.icon} ${ind} — Taux Orange ${pctO}%`,
         situation: `Réalisation : ${fmtV(total.realisation, cfg.unite)} / Objectif : ${fmtV(total.objectif_orange, cfg.unite)}.${manquant}`,
         actions: pctO < 70 ? [
-          `🚨 Réunion d'urgence avec l'équipe terrain pour analyser les blocages sur ${ind}`,
-          `📞 Appels quotidiens aux superviseurs pour suivi hebdomadaire`,
-          `🎯 Identifier les top 20% PDVs qui peuvent booster rapidement le ${ind}`,
-          `📊 Comparer avec la semaine S30 pour identifier la tendance`,
+          `\uD83D\uDEA8 URGENCE Orange Awards : mobilisation imm\u00e9diate sur ${ind} — organiser une r\u00e9union terrain avant la fin de la semaine`,
+          `📞 Appels quotidiens aux superviseurs — identifier les blocages zone par zone et définir les actions correctives`,
+          `🎯 Concentrer les développeurs sur les 20% de PDVs à plus fort potentiel — impact rapide sur ${ind}`,
+          `📊 Comparer les résultats par zone — partager les bonnes pratiques des zones en avance`,
         ] : pctO < 85 ? [
           `⚡ Mobiliser les superviseurs sur les zones les plus actives ${ind}`,
           `📈 Analyser les PDVs en baisse pour les récupérer en urgence`,
