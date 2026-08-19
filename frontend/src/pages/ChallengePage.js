@@ -648,7 +648,7 @@ export default function ChallengePage() {
             {/* === Challenge PDG TELCO === */}
             {activeSubTab === 'telco_perf_comm' && <TabIndicateurs filter="TELCO" />}
             {activeSubTab === 'telco_qualite' && <TabCarteAvecDetail
-              carte={{ id: 'points', icon: '\uD83D\uDCCD', label: 'Cr\u00e9ation Points Contr\u00f4l\u00e9s', poids: 15, color: '#0ea5e9', objectif_desc: "Cr\u00e9er au minimum 25 nouveaux points contr\u00f4l\u00e9s par DZ et activer au moins 80% de l'ensemble des points contr\u00f4l\u00e9s sur la p\u00e9riode", taux: dashboard?.kpis?.points_controles?.taux, realise: dashboard?.kpis?.points_controles?.realise, objectif_val: dashboard?.kpis?.points_controles?.objectif_cumule, unite: 'points' }}
+              carte={{ id: 'points', icon: '\uD83D\uDCCD', label: 'Cr\u00e9ation Points Contr\u00f4l\u00e9s', poids: 15, color: '#0ea5e9', objectif_desc: "Cr\u00e9er au minimum 25 nouveaux points contr\u00f4l\u00e9s par DZ et activer au moins 80% de l'ensemble des points contr\u00f4l\u00e9s sur la p\u00e9riode", taux: dashboard?.kpis?.points_controles?.realise != null ? Math.min(1, (dashboard?.kpis?.points_controles?.realise || 0) / 25) : null, realise: dashboard?.kpis?.points_controles?.realise, objectif_val: 25, unite: 'points' }}
               challengeLabel="PDG TELCO" challengeColor="#0ea5e9"
               detail={<TabPointsControles />}
             />}
@@ -709,7 +709,7 @@ function TabDashboard({ dashboard }) {
   const telcoSousCriteres = [
     { key: 'ca_sell_out',   label: '\uD83D\uDFE2 CA Sell out (NAFAMA)',     poids: 40, taux: getIndTaux('NAFAMA'),         objectif: 'Taux >= 95%' },
     { key: 'vente_term',    label: '\uD83D\uDDA5\uFE0F Vente terminaux',    poids: 15, taux: getIndTaux('TERMINAUX'),      objectif: 'Min 100 terminaux / DZ' },
-    { key: 'creation_pts',  label: '\uD83D\uDCCD Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, taux: kpis?.points_controles?.taux || null, objectif: 'Min 25 / DZ, activer >= 80%' },
+    { key: 'creation_pts',  label: '\uD83D\uDCCD Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, taux: kpis?.points_controles?.realise != null ? Math.min(1, (kpis.points_controles.realise || 0) / 25) : null, objectif: 'Min 25 / DZ, activer >= 80%' },
     { key: 'kit_energie',   label: '\u2600\uFE0F Kit Orange \u00c9nergie',   poids: 15, taux: getIndTaux('ORANGE ENERGIE'), objectif: '>= 80% objectif + >= 80% utilisation' },
     { key: 'note_dz',       label: '\u2B50 Note DZ',                         poids: 15, taux: null,                        objectif: '\u00c9valuation visibilit\u00e9 & animation' },
   ];
