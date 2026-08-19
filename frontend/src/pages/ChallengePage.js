@@ -717,7 +717,7 @@ function TabDashboard({ dashboard }) {
   // === CHALLENGE 2 : ORANGE MONEY (100%) ===
   const omSousCriteres = [
     { key: 'ca_cashout',     label: '\uD83D\uDCF1 CA Cash-out (OMY)',              poids: 30, taux: getIndTaux('OMY'),               objectif: 'Taux >= 95%' },
-    { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: kpis?.pdv_actifs?.taux || null,  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
+    { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: getIndTaux('PDV_ACTIF') ?? kpis?.pdv_actifs?.taux ?? null,  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
     { key: 'recrutement',    label: '\uD83D\uDC65 Recrutement Orange Money',        poids: 15, taux: kpis?.recrutement_omy?.taux || null, objectif: '1000 clients actifs / DZ (250/mois)' },
     { key: 'adoption_kaabu', label: '\uD83D\uDCB3 Adoption Kaabu',                  poids: 15, taux: getIndTaux('KAABU MOBILE'),     objectif: 'Min 10 tx/PDV/mois, taux actif atteint' },
     { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: null,                           objectif: 'P\u00e9n\u00e9tration fintech < 2%' },
@@ -1127,6 +1127,12 @@ function CritereCard({ carte, onClick }) {
 function TabOMQualite({ kpis }) {
   const [selected, setSelected] = useState(null); // 'pdv_actif' | 'recrutement'
 
+  const { data: awardData } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+  // Récupérer les données PDV_ACTIF depuis le dashboard Award (dernier total)
+  const pdvActifTotal = (awardData?.PDV_ACTIF?.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
+
   const cartes = [
     {
       id: 'pdv_actif',
@@ -1135,9 +1141,9 @@ function TabOMQualite({ kpis }) {
       poids: 10,
       color: '#FF6900',
       objectif_desc: 'Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs et productifs avec un CA Cash out minimum de 1000F par mois',
-      taux: kpis?.pdv_actifs?.taux,
-      realise: kpis?.pdv_actifs?.realise,
-      objectif_val: kpis?.pdv_actifs?.total_pdvs,
+      taux: pdvActifTotal?.taux_orange ?? kpis?.pdv_actifs?.taux ?? null,
+      realise: pdvActifTotal?.realisation != null ? Math.round(pdvActifTotal.realisation) : (kpis?.pdv_actifs?.realise ?? null),
+      objectif_val: pdvActifTotal?.objectif_orange ?? kpis?.pdv_actifs?.total_pdvs ?? 1016,
       unite: 'PDVs',
     },
     {
