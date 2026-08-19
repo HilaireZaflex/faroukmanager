@@ -292,8 +292,14 @@ function ImportSection({ icon: Icon, title, description, endpoint, label, templa
 function ImportNafama({ queryClient }) {
   const [file, setFile] = useState(null);
   const [mode, setMode] = useState('additive');
+  const [periode, setPeriode] = useState('mensuel');
+  const [annee, setAnnee] = useState(new Date().getFullYear());
+  const [mois, setMois] = useState(new Date().getMonth() + 1);
+  const [semaine, setSemaine] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
   const submit = async () => {
     if (!file) return toast.error('Sélectionnez un fichier NAFAMA');
@@ -317,7 +323,7 @@ function ImportNafama({ queryClient }) {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 22 }}>🟢</span>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>Import fichier NAFAMA (Sell-out)</div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Import direct fichier NAFAMA (Sell-out)</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             Structure attendue : MSISDN REVENDEUR · MONTANT SOMME · Date
           </div>
@@ -330,18 +336,29 @@ function ImportNafama({ queryClient }) {
         &nbsp;&nbsp;• <b>MSISDN REVENDEUR</b> = Numéro de téléphone du PDV<br/>
         &nbsp;&nbsp;• <b>MONTANT SOMME</b> = CA Sell-out du jour<br/>
         &nbsp;&nbsp;• <b>Date</b> = Date de la transaction<br/>
-        <br/>
-        ⚡ <b>Mode additif recommandé</b> : ajoute les nouvelles semaines sans supprimer les données existantes.
+        &nbsp;&nbsp;• ⚡ <b>Mode additif recommandé</b> : ajoute les nouvelles semaines sans supprimer l{"'"}existant.
       </div>
 
-      {/* Contrôles */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+      {/* Contrôles — même disposition que ImportExportOrange */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
         <label style={{ fontSize: 12 }}>
-          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mode d{"'"}import *</div>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mode *</div>
           <select value={mode} onChange={e => setMode(e.target.value)}
             style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
-            <option value="additive">➕ Additif (ajoute sans supprimer)</option>
-            <option value="replace">🔄 Remplacement complet</option>
+            <option value="additive">➕ Additif</option>
+            <option value="replace">🔄 Remplacement</option>
+          </select>
+        </label>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Année *</div>
+          <input type="number" value={annee} onChange={e => setAnnee(parseInt(e.target.value))} min={2020} max={2030}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}/>
+        </label>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mois *</div>
+          <select value={mois} onChange={e => setMois(parseInt(e.target.value))}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            {MOIS_NOMS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>
         </label>
         <label style={{ fontSize: 12 }}>
