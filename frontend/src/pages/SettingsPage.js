@@ -1077,7 +1077,7 @@ export default function SettingsPage() {
     { id:'roles',          label:'Roles & Permissions',      icon: Shield,   color:'#a855f7', adminOnly: true },
     { id:'database',       label:'Base de Donnees',          icon: Database, color:'#00d68f' },
     { id:'notifications',  label:'Notifications',            icon: Bell,     color:'#ffaa00' },
-  ].filter(s => !s.adminOnly || user?.role === 'admin');
+  ].filter(s => !s.adminOnly || ['admin', 'ADMIN', 'manager', 'MANAGER'].includes(user?.role));
 
   return (
     <div className="page">
