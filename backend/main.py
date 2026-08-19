@@ -93,24 +93,6 @@ app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 
-@app.post("/bulk-recrutements")
-async def bulk_recrutements(request: Request):
-    """Insérer un nombre N de recrutements pour un mois donné."""
-    from app.core.database import engine
-    from sqlalchemy import text
-    body = await request.json()
-    mois = body.get("mois", "2026-07")
-    nombre = int(body.get("nombre", 0))
-    if nombre <= 0: return {"error": "nombre doit être > 0"}
-    with engine.connect() as conn:
-        for i in range(nombre):
-            conn.execute(text("""
-                INSERT INTO challenge_recrutements (numero_client, nom_client, pdv_numero, pdv_nom, superviseur, developpeur, zone, mois, date_recrutement)
-                VALUES (:nc, :nom, :pdv, :pdvn, :sup, :dev, :zone, :mois, CURRENT_DATE)
-            """), {"nc": f"CLI-{mois}-{i+1:04d}", "nom": f"Client {i+1}", "pdv": "BULK", "pdvn": "Import groupé", "sup": "", "dev": "", "zone": "", "mois": mois})
-        conn.commit()
-    return {"success": True, "inserted": nombre, "mois": mois}
-
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

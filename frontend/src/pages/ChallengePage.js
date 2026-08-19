@@ -718,7 +718,7 @@ function TabDashboard({ dashboard }) {
   const omSousCriteres = [
     { key: 'ca_cashout',     label: '\uD83D\uDCF1 CA Cash-out (OMY)',              poids: 30, taux: getIndTaux('OMY'),               objectif: 'Taux >= 95%' },
     { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: getIndTaux('PDV_ACTIF') ?? kpis?.pdv_actifs?.taux ?? null,  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
-    { key: 'recrutement',    label: '\uD83D\uDC65 Recrutement Orange Money',        poids: 15, taux: kpis?.recrutement_omy?.taux || null, objectif: '1000 clients actifs / DZ (250/mois)' },
+    { key: 'recrutement',    label: '\uD83D\uDC65 Recrutement Orange Money',        poids: 15, taux: kpis?.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux / 100 : null, objectif: '1000 clients actifs / DZ (250/mois)' },
     { key: 'adoption_kaabu', label: '\uD83D\uDCB3 Adoption Kaabu',                  poids: 15, taux: getIndTaux('KAABU MOBILE'),     objectif: 'Min 10 tx/PDV/mois, taux actif atteint' },
     { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: null,                           objectif: 'P\u00e9n\u00e9tration fintech < 2%' },
     { key: 'deploiement_plv', label: '\uD83D\uDCE6 D\u00e9ploiement support visibilit\u00e9', poids: 15, taux: kpis?.deploiement_plv?.taux || null, objectif: 'Min 100 PLV / DZ (25/mois)' },
@@ -1153,9 +1153,9 @@ function TabOMQualite({ kpis }) {
       poids: 15,
       color: '#FF6900',
       objectif_desc: 'Recruter 1000 nouveaux clients actifs sur la p\u00e9riode du challenge par partenaire et par DZ soit 250 nouvelles inscriptions actives par mois',
-      taux: kpis?.recrutement_omy?.taux,
+      taux: kpis?.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux / 100 : null,
       realise: kpis?.recrutement_omy?.realise,
-      objectif_val: kpis?.recrutement_omy?.objectif_cumule,
+      objectif_val: 1000,
       unite: 'clients',
     },
   ];
