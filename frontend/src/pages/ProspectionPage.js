@@ -1624,6 +1624,20 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
   const [busy, setBusy] = useState(false);
   const [cancelMotif, setCancelMotif] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
+  const [gpsLat, setGpsLat] = useState(p.latitude || null);
+  const [gpsLng, setGpsLng] = useState(p.longitude || null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const hasGps = p.latitude && p.longitude;
+
+  const captureGPS = () => {
+    if (!navigator.geolocation) { alert('Géolocalisation non disponible sur cet appareil'); return; }
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => { setGpsLat(pos.coords.latitude); setGpsLng(pos.coords.longitude); setGpsLoading(false); },
+      () => { alert('Impossible de récupérer la position. Vérifiez les permissions GPS.'); setGpsLoading(false); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
   const isAdmin = ['admin', 'manager', 'ADMIN', 'MANAGER', 'rc', 'RC', 'conformite', 'CONFORMITE', 'responsable_produit_et_qualit_oprationnelle_'].includes(currentUser?.role);
   const isAssignedById = p.visit_assigned_to?.id === currentUser?.id;
   // Vérifier aussi par nom dans les notes (cas dev réseau sans visit_assigned_to_id)
@@ -1654,13 +1668,16 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
 
   const decide = async (approved) => {
     if (comment.trim().length < 3) { alert('Veuillez saisir un commentaire (min 3 caractères).'); return; }
+    if (!gpsLat || !gpsLng) {
+      return alert('⚠️ La géolocalisation est obligatoire. Appuyez sur "📍 Capturer ma position" avant de valider.');
+    }
     setBusy(true);
     try {
       await prospectService.devDecision(p.id, {
         approved,
         comment,
-        latitude: p.latitude,
-        longitude: p.longitude,
+        latitude: gpsLat,
+        longitude: gpsLng,
       });
       fetchNotifications(); // fetch immédiat après action
       setSuccess({ approved });
@@ -1727,16 +1744,34 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
 
         {canDecide && (
           <>
+            {/* ── Bloc GPS : obligatoire si le prospect n'a pas encore de géoloc ── */}
+            <div style={{ marginTop: 12, background: gpsLat && gpsLng ? 'rgba(34,197,94,0.08)' : 'rgba(255,71,87,0.08)', border: `1px solid ${gpsLat && gpsLng ? 'rgba(34,197,94,0.3)' : 'rgba(255,71,87,0.3)'}`, borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: gpsLat && gpsLng ? '#22c55e' : '#ff4757' }}>
+                    {gpsLat && gpsLng ? `✅ Position capturée : ${parseFloat(gpsLat).toFixed(4)}, ${parseFloat(gpsLng).toFixed(4)}` : '⚠️ Position GPS obligatoire pour valider'}
+                  </div>
+                  {hasGps && <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>GPS déjà enregistré — vous pouvez re-capturer sur place si besoin</div>}
+                </div>
+                <button type="button" onClick={captureGPS} disabled={gpsLoading}
+                  style={{ padding: '7px 14px', borderRadius: 8, border: 'none', cursor: gpsLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                    background: gpsLat && gpsLng ? 'rgba(34,197,94,0.15)' : 'linear-gradient(135deg,#FF6900,#ff9500)',
+                    color: gpsLat && gpsLng ? '#22c55e' : '#fff' }}>
+                  {gpsLoading ? '⏳ Localisation…' : gpsLat && gpsLng ? '🔄 Re-capturer' : '📍 Capturer ma position'}
+                </button>
+              </div>
+            </div>
+
             <textarea
               placeholder="Justification obligatoire (ex: lieu accessible, bon emplacement, zone concurrentielle…)"
               value={comment} onChange={e => setComment(e.target.value)}
-              style={{ width: '100%', marginTop: 12, minHeight: 70, boxSizing: 'border-box' }}
+              style={{ width: '100%', marginTop: 8, minHeight: 70, boxSizing: 'border-box' }}
             />
             <div className="action-bar" style={{ marginTop: 8 }}>
-              <button className="btn-success" disabled={busy || comment.trim().length < 3} onClick={() => decide(true)}>
+              <button className="btn-success" disabled={busy || comment.trim().length < 3 || !gpsLat || !gpsLng} onClick={() => decide(true)}>
                 <CheckCircle size={14}/> Valider le prospect
               </button>
-              <button className="btn-danger" disabled={busy || comment.trim().length < 3} onClick={() => decide(false)}>
+              <button className="btn-danger" disabled={busy || comment.trim().length < 3 || !gpsLat || !gpsLng} onClick={() => decide(false)}>
                 <XCircle size={14}/> Rejeter le prospect
               </button>
             </div>
