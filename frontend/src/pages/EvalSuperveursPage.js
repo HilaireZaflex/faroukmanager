@@ -362,11 +362,43 @@ function exportPDF(evaluation, superviseur, mois, annee) {
   const objectifs = kpis.objectifs || {};
   const scores_kpi = kpis.scores_kpi || {};
 
+  // Tous les KPIs disponibles (superviseur + autres rôles)
   const KPI_LABELS = {
-    nb_pdv: 'Nb PDV actifs OMY', ca_omy: 'CA OMY', moy_ca_omy: 'Moy. CA OMY',
-    commission_omy: 'Commission OMY', actif_omy: 'PDVs Actifs OMY',
-    taux_actif_kaabu: 'Taux Actif Kaabu', nb_actif_nafama: 'Nb Actif NAFAMA',
-    taux_actif_nafama: 'Taux Actif NAFAMA', ca_nafama: 'CA NAFAMA',
+    // Superviseur
+    montant_transactions:  '💰 Montant Transactions (CA OMY)',
+    commission_totale:     '💸 Commission Totale',
+    pdv_actifs:            '🏪 PDV Actifs OMY',
+    montant_vente_nafama:  '🟢 Montant Vente NAFAMA',
+    taux_actif_omy:        '📊 Taux Actif OMY (%)',
+    nb_actifs_omy:         '📱 Nb Actifs OMY',
+    taux_actif_nafama:     '🟢 Taux Actif NAFAMA (%)',
+    nb_actifs_nafama:      '🟢 Nb Actifs NAFAMA',
+    taux_actif_kaabu:      '💳 Taux Actif Kaabu (%)',
+    nb_actifs_kaabu:       '💳 Nb Actifs Kaabu',
+    // Compatibilité anciens noms
+    nb_pdv:                '🏪 Nb PDV actifs',
+    ca_omy:                '💰 CA OMY',
+    moy_ca_omy:            '📈 Moy. CA OMY',
+    commission_omy:        '💸 Commission OMY',
+    actif_omy:             '📱 PDVs Actifs OMY',
+    nb_actif_nafama:       '🟢 Nb Actif NAFAMA',
+    ca_nafama:             '🟢 CA NAFAMA',
+    // Développeur
+    taux_reussite_global:  '🎯 Taux Réussite Global (%)',
+    taux_recuperation:     '🔄 Taux Récupération (%)',
+    volume_prospection:    '📋 Volume Prospection',
+    volume_visites:        '🚶 Volume Visites',
+    taux_validation:       '✅ Taux Validation (%)',
+    pct_sla_respecte:      '⏱️ SLA Respecté (%)',
+    qualite_fiches:        '📝 Qualité Fiches (%)',
+    // Téléconseillère
+    taux_joignabilite:     '📞 Taux Joignabilité (%)',
+    taux_connaissance:     '📚 Taux Connaissance (%)',
+    score_accueil:         '😊 Score Accueil',
+    nb_appels_effectues:   '📲 Nb Appels Effectués',
+    // Gestionnaire
+    taux_couverture:       '🗺️ Taux Couverture (%)',
+    nb_pdv_visites:        '👣 Nb PDV Visités',
   };
 
   const pdvsEnRetardRows = pdvsEnRetard.map(c => {
@@ -386,19 +418,25 @@ function exportPDF(evaluation, superviseur, mois, annee) {
       </tr>`;
   }).join('');
 
+  // Récupérer TOUS les KPIs disponibles: depuis kpis_data directement (valeurs brutes)
+  // + depuis objectifs/scores_kpi si disponibles
+  const allKpiData = { ...kpis, ...objectifs, ...scores_kpi, ...(evaluation.kpis_data || {}) };
+
   const kpiRows = Object.entries(KPI_LABELS).map(([key, label]) => {
-    const obj = objectifs[key];
-    const sc = scores_kpi[key];
-    if (obj == null && sc == null) return '';
-    const fmt = v => v != null ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—';
-    const pct = sc != null ? Math.round(sc) : null;
-    const color = pct == null ? '#6b7280' : pct >= 80 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
+    const val = allKpiData[key];
+    if (val == null) return '';
+    const fmt = v => {
+      if (typeof v === 'number') return new Intl.NumberFormat('fr-FR').format(Number.isInteger(v) ? v : Math.round(v * 100) / 100);
+      return String(v);
+    };
+    const isPct = label.includes('%') || typeof val === 'number' && val <= 100;
+    const numVal = parseFloat(val);
+    const color = isPct ? (numVal >= 80 ? '#16a34a' : numVal >= 60 ? '#d97706' : '#dc2626') : '#111827';
     return `<tr>
-      <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}</td>
-      <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-size:13px;color:#6b7280">${fmt(obj)}</td>
-      <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:700;color:${color};font-size:13px">${pct != null ? pct + '%' : '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:700;color:${color};font-size:13px">${fmt(val)}${isPct && typeof val === 'number' && val <= 100 ? '%' : ''}</td>
     </tr>`;
-  }).join('');
+  }).filter(r => r).join('');
 
   const html = `<!DOCTYPE html><html lang="fr"><head>
   <meta charset="UTF-8"/>
