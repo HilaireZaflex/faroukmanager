@@ -2708,11 +2708,81 @@ function TabConformite({ currentUser, onRefresh }) {
                 ))}
               </div>
 
-              {/* Pièces jointes */}
+              {/* Détails complets (infos activation + pièces) */}
               {viewProspect?.id === p.id && (
-                <div style={{ marginBottom: 16, padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 10 }}>📎 Pièces jointes soumises</div>
-                  <AttachmentGallery prospectId={p.id} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+
+                  {/* Section équipe */}
+                  <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#FF6900', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 }}>👥 Équipe assignée</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                      {[
+                        { label: 'Type de réseau', value: p.activation_type_pdv || '—', color: '#ffa502' },
+                        { label: 'Superviseur', value: p.activation_superviseur || '—', color: '#4a9eff' },
+                        { label: 'Gestionnaire', value: p.activation_gestionnaire || '—', color: '#FF6900' },
+                        { label: 'Téléconseillère', value: p.activation_teleconseillere || '—', color: '#a29bfe' },
+                        { label: 'Développeur', value: p.activation_developpeur || '—', color: '#00d68f' },
+                      ].map((info, i) => (
+                        <div key={i} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, borderLeft: `3px solid ${info.color}` }}>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{info.label}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: info.value === '—' ? '#475569' : '#e2e8f0' }}>{info.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Section infos PDV / gérant */}
+                  <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0ea5e9', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 }}>🏪 Informations du PDV</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                      {[
+                        { label: 'N° Puce (Flotte)', value: p.puce_numero || p.numero_personnel || '—', color: '#22c55e' },
+                        { label: 'Zone', value: p.puce_zone || p.zone || '—', color: '#3742fa' },
+                        { label: 'Quartier', value: p.quartier || '—', color: '#94a3b8' },
+                        { label: 'Adresse', value: p.adresse_pdv || '—', color: '#94a3b8' },
+                        { label: 'Nom gérant', value: `${p.prenom || ''} ${p.nom || ''}`.trim() || '—', color: '#fff' },
+                        { label: 'Téléphone', value: p.telephone_principal || '—', color: '#94a3b8' },
+                        { label: 'N° Personnel', value: p.numero_personnel || '—', color: '#94a3b8' },
+                        { label: 'Type local', value: p.type_local || '—', color: '#94a3b8' },
+                      ].map((info, i) => (
+                        <div key={i} style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{info.label}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: info.value === '—' ? '#475569' : info.color }}>{info.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* GPS */}
+                    {(p.latitude && p.longitude) && (
+                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: '#22c55e' }}>📍 GPS : {parseFloat(p.latitude).toFixed(5)}, {parseFloat(p.longitude).toFixed(5)}</span>
+                        <a href={`https://maps.google.com/?q=${p.latitude},${p.longitude}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#0ea5e9' }}>Voir sur la carte →</a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section garant */}
+                  {(p.nom_garant || p.tel_garant) && (
+                    <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#a29bfe', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 }}>🤝 Garant</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                        <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Nom du garant</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{p.nom_garant || '—'}</div>
+                        </div>
+                        <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                          <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Téléphone garant</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{p.tel_garant || '—'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pièces jointes */}
+                  <div style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.8 }}>📎 Pièces jointes soumises</div>
+                    <AttachmentGallery prospectId={p.id} />
+                  </div>
+
                 </div>
               )}
 
