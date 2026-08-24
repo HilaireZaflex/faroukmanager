@@ -1,6 +1,6 @@
 /**
  * EvalSuperveursPage — Module d'évaluation mensuelle des superviseurs
- * KPIs (70%) + Mystery TC (20%) + Présentiel (10%)
+ * KPIs (70%) + Appel des Téléconseillères (20%) + Présentiel (10%)
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
@@ -88,7 +88,7 @@ function KPIsSection({ kpis }) {
   );
 }
 
-// ─── Mystery Calls Section ────────────────────────────────────────────────────
+// ─── Appel TCs Section ────────────────────────────────────────────────────
 function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
   const userAuth = useAuthStore(s => s.user);
   const roleUser = (userAuth?.role || '').toLowerCase().replace('userrole.', '');
@@ -113,7 +113,7 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>📞 Mystery Calls TC</h3>
+        <h3 style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>📞 Appels des Téléconseillères</h3>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: '#22c55e' }}>✅ {joignables.length}/5 joignables</span>
           <span style={{ fontSize: 12, color: '#ff4757' }}>📵 {injoignables.length} injoignables</span>
@@ -134,7 +134,7 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
         </div>
         {joignables.length > 0 && (
           <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(34,197,94,0.1)', borderRadius: 8, color: '#22c55e', fontWeight: 600 }}>
-            📞 Score actuel Mystery TC : <strong>{evaluation?.score_mystery != null ? Math.round(evaluation.score_mystery) + '/100' : 'En attente'}</strong>
+            📞 Score actuel Appel des Téléconseillères : <strong>{evaluation?.score_mystery != null ? Math.round(evaluation.score_mystery) + '/100' : 'En attente'}</strong>
             {joignables.length > 0 && ` · ${joignables.length} appel(s) enregistré(s) sur 5`}
           </div>
         )}
@@ -349,13 +349,38 @@ function exportPDF(evaluation, superviseur, mois, annee) {
   const scoreColor = score >= 75 ? '#16a34a' : score >= 50 ? '#d97706' : '#dc2626';
   const scoreColorLight = score >= 75 ? '#dcfce7' : score >= 50 ? '#fef3c7' : '#fee2e2';
 
-  // PDV qui impactent négativement
-  const pdvsEnRetard = (evaluation.mystery_calls || []).filter(c =>
+  // PDV qui impactent négativement le superviseur (toutes catégories)
+  const mysteryCalls = evaluation.mystery_calls || [];
+  const pdvsMystery = mysteryCalls.filter(c =>
     c.statut === 'INJOIGNABLE' ||
     (c.note_connaissance != null && c.note_connaissance < 5) ||
     (c.note_visite != null && c.note_visite < 5) ||
-    (c.note_superviseur != null && c.note_superviseur < 5)
+    (c.note_superviseur != null && c.note_superviseur < 5) ||
+    (c.note_connaissance != null && c.note_visite != null && ((c.note_connaissance + c.note_visite) / 2) < 6)
   );
+
+  // KPIs sous objectif — catégories importantes
+  const kpisData = evaluation.kpis_data || {};
+  const kpisProblemes = [];
+  if (kpisData.taux_actif_omy != null && kpisData.objectifs?.taux_actif_omy != null && kpisData.taux_actif_omy < kpisData.objectifs.taux_actif_omy * 0.9) {
+    kpisProblemes.push({ cat: 'OMY — Taux actif faible', val: `${kpisData.taux_actif_omy}% (obj: ${kpisData.objectifs.taux_actif_omy}%)`, color: '#dc2626' });
+  }
+  if (kpisData.taux_actif_nafama != null && kpisData.objectifs?.taux_actif_nafama != null && kpisData.taux_actif_nafama < kpisData.objectifs.taux_actif_nafama * 0.9) {
+    kpisProblemes.push({ cat: 'NAFAMA — Taux actif faible', val: `${kpisData.taux_actif_nafama}% (obj: ${kpisData.objectifs.taux_actif_nafama}%)`, color: '#d97706' });
+  }
+  if (kpisData.taux_actif_kaabu != null && kpisData.objectifs?.taux_actif_kaabu != null && kpisData.taux_actif_kaabu < kpisData.objectifs.taux_actif_kaabu * 0.9) {
+    kpisProblemes.push({ cat: 'Kaabu — Adoption insuffisante', val: `${kpisData.taux_actif_kaabu}% (obj: ${kpisData.objectifs.taux_actif_kaabu}%)`, color: '#7c3aed' });
+  }
+  if (kpisData.ca_omy != null && kpisData.objectifs?.ca_omy != null && kpisData.ca_omy < kpisData.objectifs.ca_omy * 0.9) {
+    const fmt2 = v => new Intl.NumberFormat('fr-FR').format(Math.round(v));
+    kpisProblemes.push({ cat: 'CA OMY — Baisse par rapport objectif', val: `${fmt2(kpisData.ca_omy)} (obj: ${fmt2(kpisData.objectifs.ca_omy)})`, color: '#dc2626' });
+  }
+  if (kpisData.commission_totale != null && kpisData.objectifs?.commission_totale != null && kpisData.commission_totale < kpisData.objectifs.commission_totale * 0.9) {
+    const fmt2 = v => new Intl.NumberFormat('fr-FR').format(Math.round(v));
+    kpisProblemes.push({ cat: 'Commission — Objectif non atteint', val: `${fmt2(kpisData.commission_totale)} (obj: ${fmt2(kpisData.objectifs.commission_totale)})`, color: '#dc2626' });
+  }
+
+  const pdvsEnRetard = pdvsMystery;
 
   // KPIs avec écart
   const kpis = evaluation.kpis_data || {};
@@ -422,19 +447,26 @@ function exportPDF(evaluation, superviseur, mois, annee) {
   // + depuis objectifs/scores_kpi si disponibles
   const allKpiData = { ...kpis, ...objectifs, ...scores_kpi, ...(evaluation.kpis_data || {}) };
 
+  const fmt = v => {
+    if (v == null) return '—';
+    if (typeof v === 'number') return new Intl.NumberFormat('fr-FR').format(Number.isInteger(v) ? v : parseFloat(v.toFixed(1)));
+    return String(v);
+  };
+
   const kpiRows = Object.entries(KPI_LABELS).map(([key, label]) => {
-    const val = allKpiData[key];
-    if (val == null) return '';
-    const fmt = v => {
-      if (typeof v === 'number') return new Intl.NumberFormat('fr-FR').format(Number.isInteger(v) ? v : Math.round(v * 100) / 100);
-      return String(v);
-    };
-    const isPct = label.includes('%') || typeof val === 'number' && val <= 100;
-    const numVal = parseFloat(val);
-    const color = isPct ? (numVal >= 80 ? '#16a34a' : numVal >= 60 ? '#d97706' : '#dc2626') : '#111827';
+    const realisation = (evaluation.kpis_data || {})[key];
+    const objectifVal = objectifs[key];
+    const scoreVal = scores_kpi[key];
+    // Ne montrer que les clés qui ont au moins une valeur
+    if (realisation == null && objectifVal == null && scoreVal == null) return '';
+    const isPct = label.includes('%');
+    const sc = scoreVal != null ? Math.round(scoreVal) : null;
+    const scoreColor = sc == null ? '#6b7280' : sc >= 80 ? '#16a34a' : sc >= 60 ? '#d97706' : '#dc2626';
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:700;color:${color};font-size:13px">${fmt(val)}${isPct && typeof val === 'number' && val <= 100 ? '%' : ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;color:#6b7280;font-size:13px">${objectifVal != null ? fmt(objectifVal) + (isPct ? '%' : '') : '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600;font-size:13px">${realisation != null ? fmt(realisation) + (isPct ? '%' : '') : '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:center;font-weight:800;color:${scoreColor};font-size:13px">${sc != null ? sc + '%' : '—'}</td>
     </tr>`;
   }).filter(r => r).join('');
 
@@ -484,7 +516,7 @@ function exportPDF(evaluation, superviseur, mois, annee) {
       <div class="score-info">
         <h2>${mention}</h2>
         <p>Score final sur 100 points</p>
-        <p style="margin-top:8px;font-size:13px;color:#374151">KPIs 70% &nbsp;·&nbsp; Mystery TC 20% &nbsp;·&nbsp; Présentiel 10%</p>
+        <p style="margin-top:8px;font-size:13px;color:#374151">KPIs 70% &nbsp;·&nbsp; Appel des Téléconseillères 20% &nbsp;·&nbsp; Présentiel 10%</p>
       </div>
     </div>
     <!-- Composantes -->
@@ -495,7 +527,7 @@ function exportPDF(evaluation, superviseur, mois, annee) {
         <div class="sub">Poids : 70%</div>
       </div>
       <div class="comp-card">
-        <div class="label">📞 Mystery TC</div>
+        <div class="label">📞 Appel des Téléconseillères</div>
         <div class="val" style="color:#16a34a">${Math.round(evaluation.score_mystery || 0)}<span style="font-size:16px;color:#9ca3af">/100</span></div>
         <div class="sub">Poids : 20%</div>
       </div>
@@ -507,17 +539,30 @@ function exportPDF(evaluation, superviseur, mois, annee) {
     </div>
     <!-- KPIs tableau -->
     ${kpiRows ? `<div class="section-title">📊 Détail des KPIs</div>
-    <table><thead><tr><th>Indicateur</th><th style="text-align:right">Objectif</th><th style="text-align:right">Score</th></tr></thead>
+    <table><thead><tr><th>Indicateur</th><th style="text-align:right">Objectif</th><th style="text-align:right">Réalisation</th><th style="text-align:center">Score</th></tr></thead>
     <tbody>${kpiRows}</tbody></table>` : ''}
-    <!-- PDV en retard -->
-    ${pdvsEnRetardRows ? `<div class="section-title" style="margin-top:32px">⚠️ PDV impactant négativement le score (${pdvsEnRetard.length})</div>
+    <!-- KPIs sous objectif -->
+    ${kpisProblemes.length > 0 ? `
+    <div class="section-title" style="margin-top:32px">📉 Catégories KPI sous objectif</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+      ${kpisProblemes.map(k => `
+        <div style="flex:1;min-width:220px;border-radius:10px;padding:14px;border-left:4px solid ${k.color};background:${k.color}18">
+          <div style="font-weight:700;color:${k.color};font-size:13px">${k.cat}</div>
+          <div style="color:#374151;font-size:12px;margin-top:4px">${k.val}</div>
+        </div>`).join('')}
+    </div>` : ''}
+    <!-- PDV problématiques appels TC -->
+    ${pdvsEnRetardRows ? `<div class="section-title" style="margin-top:20px">📵 PDV problématiques — Appels des Téléconseillères (${pdvsEnRetard.length})</div>
     <div class="alert-box">
-      <h3>Ces PDV ont des insuffisances détectées lors du Mystery Call</h3>
+      <h3>Ces PDV ont des insuffisances détectées lors des appels des Téléconseillères</h3>
       <table>
         <thead><tr><th>PDV</th><th>Numéro</th><th>Quartier</th><th>Problèmes détectés</th></tr></thead>
         <tbody>${pdvsEnRetardRows}</tbody>
       </table>
-    </div>` : `<div class="section-title" style="margin-top:32px">✅ Aucun PDV en retard détecté</div>`}
+    </div>` : kpisProblemes.length === 0 ? `<div class="section-title" style="margin-top:32px">✅ Aucune anomalie détectée</div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;color:#16a34a;font-weight:600;text-align:center">
+      Toutes les catégories KPIs sont au-dessus des objectifs et aucun PDV n'est en difficulté.
+    </div>` : ''}
     <div class="footer">
       <p>Rapport généré le ${new Date().toLocaleDateString('fr-FR')} &nbsp;·&nbsp; Farouk Distribution &nbsp;·&nbsp; Système de Gestion Réseau</p>
     </div>
@@ -755,7 +800,7 @@ export default function EvalSuperveursPage() {
     { id: 'classement', label: '🏆 Classement' },
     ...(selectedSup ? [
       { id: 'kpis', label: '📊 KPIs Auto' },
-      { id: 'mystery', label: '📞 Mystery TC' },
+      { id: 'mystery', label: '📞 Appel des Téléconseillères' },
       { id: 'presentiel', label: '🏢 Présentiel' },
       { id: 'resultats', label: '🎯 Résultats' },
     ] : []),
@@ -784,7 +829,7 @@ export default function EvalSuperveursPage() {
         <div>
           <h1 className="page-title">🎯 Évaluation Superviseurs</h1>
           <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
-            KPIs 70% · Mystery TC 20% · Présentiel 10%
+            KPIs 70% · Appel des Téléconseillères 20% · Présentiel 10%
           </p>
           {/* Sélecteur de période — design pill sur une ligne */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0, marginTop: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, overflow: 'hidden' }}>
@@ -952,7 +997,7 @@ export default function EvalSuperveursPage() {
             </div>
           )}
 
-          {/* ── Mystery Calls ── */}
+          {/* ── Appel TCs ── */}
           {activeTab === 'mystery' && selectedSup && evaluation && (
             <MysterySection evaluation={evaluation} superviseur={selectedSup} annee={annee} mois={mois} onRefresh={refetchEval} />
           )}
@@ -989,7 +1034,7 @@ export default function EvalSuperveursPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
                     {[
                       { label: '📊 KPIs (70%)', score: evaluation.score_kpi, poids: 70, color: '#3742fa' },
-                      { label: '📞 Mystery TC (20%)', score: evaluation.score_mystery, poids: 20, color: '#22c55e' },
+                      { label: '📞 Appel des Téléconseillères (20%)', score: evaluation.score_mystery, poids: 20, color: '#22c55e' },
                       { label: '🏢 Présentiel (10%)', score: evaluation.score_presentiel, poids: 10, color: '#FF6900' },
                     ].map((comp, i) => (
                       <div key={i} style={{ padding: '16px', background: `rgba(${comp.color === '#3742fa' ? '55,66,250' : comp.color === '#22c55e' ? '34,197,94' : '255,105,0'},0.08)`, border: `1px solid ${comp.color}25`, borderRadius: 12, textAlign: 'center' }}>
