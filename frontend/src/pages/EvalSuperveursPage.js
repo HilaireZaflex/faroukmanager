@@ -341,6 +341,156 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 // ─── Vue Téléconseillère ────────────────────────────────────────────────────
+// ── Fonction export PDF élégant ───────────────────────────────────────────────
+function exportPDF(evaluation, superviseur, mois, annee) {
+  const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const score = Math.round(evaluation.score_final || 0);
+  const mention = evaluation.mention || '—';
+  const scoreColor = score >= 75 ? '#16a34a' : score >= 50 ? '#d97706' : '#dc2626';
+  const scoreColorLight = score >= 75 ? '#dcfce7' : score >= 50 ? '#fef3c7' : '#fee2e2';
+
+  // PDV qui impactent négativement
+  const pdvsEnRetard = (evaluation.mystery_calls || []).filter(c =>
+    c.statut === 'INJOIGNABLE' ||
+    (c.note_connaissance != null && c.note_connaissance < 5) ||
+    (c.note_visite != null && c.note_visite < 5) ||
+    (c.note_superviseur != null && c.note_superviseur < 5)
+  );
+
+  // KPIs avec écart
+  const kpis = evaluation.kpis_data || {};
+  const objectifs = kpis.objectifs || {};
+  const scores_kpi = kpis.scores_kpi || {};
+
+  const KPI_LABELS = {
+    nb_pdv: 'Nb PDV actifs OMY', ca_omy: 'CA OMY', moy_ca_omy: 'Moy. CA OMY',
+    commission_omy: 'Commission OMY', actif_omy: 'PDVs Actifs OMY',
+    taux_actif_kaabu: 'Taux Actif Kaabu', nb_actif_nafama: 'Nb Actif NAFAMA',
+    taux_actif_nafama: 'Taux Actif NAFAMA', ca_nafama: 'CA NAFAMA',
+  };
+
+  const pdvsEnRetardRows = pdvsEnRetard.map(c => {
+    const raisons = [];
+    if (c.statut === 'INJOIGNABLE') raisons.push('Injoignable');
+    if (c.note_connaissance != null && c.note_connaissance < 5) raisons.push(`Connaissance: ${c.note_connaissance}/10`);
+    if (c.note_visite != null && c.note_visite < 5) raisons.push(`Visite: ${c.note_visite}/10`);
+    if (c.note_superviseur != null && c.note_superviseur < 5) raisons.push(`Supervision: ${c.note_superviseur}/10`);
+    return `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600">${c.pdv_nom || c.pdv_numero}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${c.pdv_numero}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${c.quartier || c.localite || '—'}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">
+          ${raisons.map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;border-radius:12px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600">${r}</span>`).join('')}
+        </td>
+      </tr>`;
+  }).join('');
+
+  const kpiRows = Object.entries(KPI_LABELS).map(([key, label]) => {
+    const obj = objectifs[key];
+    const sc = scores_kpi[key];
+    if (obj == null && sc == null) return '';
+    const fmt = v => v != null ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—';
+    const pct = sc != null ? Math.round(sc) : null;
+    const color = pct == null ? '#6b7280' : pct >= 80 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
+    return `<tr>
+      <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}</td>
+      <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-size:13px;color:#6b7280">${fmt(obj)}</td>
+      <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:700;color:${color};font-size:13px">${pct != null ? pct + '%' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head>
+  <meta charset="UTF-8"/>
+  <title>Évaluation — ${superviseur} — ${MOIS[mois]} ${annee}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #111827; background: #fff; }
+    @media print {
+      .no-print { display: none !important; }
+      body { padding: 0; }
+      .page-break { page-break-before: always; }
+    }
+    .header { background: linear-gradient(135deg, #FF6900, #ff9500); color: white; padding: 32px 40px; }
+    .header h1 { font-size: 26px; font-weight: 900; margin-bottom: 4px; }
+    .header p { font-size: 14px; opacity: 0.85; }
+    .content { padding: 32px 40px; }
+    .score-box { display: flex; align-items: center; justify-content: center; gap: 40px; background: ${scoreColorLight}; border: 2px solid ${scoreColor}; border-radius: 16px; padding: 28px; margin-bottom: 28px; }
+    .score-big { font-size: 72px; font-weight: 900; color: ${scoreColor}; line-height: 1; }
+    .score-info h2 { font-size: 22px; font-weight: 800; color: ${scoreColor}; }
+    .score-info p { color: #6b7280; font-size: 14px; margin-top: 4px; }
+    .composantes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+    .comp-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; text-align: center; }
+    .comp-card .label { font-size: 12px; color: #6b7280; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .comp-card .val { font-size: 32px; font-weight: 900; }
+    .comp-card .sub { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+    .section-title { font-size: 15px; font-weight: 800; color: #111827; margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 2px solid #f3f4f6; display: flex; align-items: center; gap: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #f9fafb; padding: 10px 12px; text-align: left; font-weight: 700; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+    .alert-box { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .alert-box h3 { color: #dc2626; font-size: 14px; font-weight: 800; margin-bottom: 12px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin: 2px; }
+    .footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px solid #f3f4f6; padding-top: 20px; }
+    .print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 24px; background: #FF6900; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 4px 12px rgba(255,105,0,0.4); }
+  </style>
+  </head><body>
+  <button class="no-print print-btn" onclick="window.print()">🖨️ Imprimer / Sauvegarder PDF</button>
+  <div class="header">
+    <h1>🎯 Rapport d'Évaluation Superviseur</h1>
+    <p>${superviseur} &nbsp;·&nbsp; ${MOIS[mois]} ${annee} &nbsp;·&nbsp; Farouk Distribution</p>
+  </div>
+  <div class="content">
+    <!-- Score global -->
+    <div class="score-box">
+      <div class="score-big">${score}</div>
+      <div class="score-info">
+        <h2>${mention}</h2>
+        <p>Score final sur 100 points</p>
+        <p style="margin-top:8px;font-size:13px;color:#374151">KPIs 70% &nbsp;·&nbsp; Mystery TC 20% &nbsp;·&nbsp; Présentiel 10%</p>
+      </div>
+    </div>
+    <!-- Composantes -->
+    <div class="composantes">
+      <div class="comp-card">
+        <div class="label">📊 KPIs</div>
+        <div class="val" style="color:#3742fa">${Math.round(evaluation.score_kpi || 0)}<span style="font-size:16px;color:#9ca3af">/100</span></div>
+        <div class="sub">Poids : 70%</div>
+      </div>
+      <div class="comp-card">
+        <div class="label">📞 Mystery TC</div>
+        <div class="val" style="color:#16a34a">${Math.round(evaluation.score_mystery || 0)}<span style="font-size:16px;color:#9ca3af">/100</span></div>
+        <div class="sub">Poids : 20%</div>
+      </div>
+      <div class="comp-card">
+        <div class="label">🏢 Présentiel</div>
+        <div class="val" style="color:#FF6900">${Math.round(evaluation.score_presentiel || 0)}<span style="font-size:16px;color:#9ca3af">/100</span></div>
+        <div class="sub">Poids : 10%</div>
+      </div>
+    </div>
+    <!-- KPIs tableau -->
+    ${kpiRows ? `<div class="section-title">📊 Détail des KPIs</div>
+    <table><thead><tr><th>Indicateur</th><th style="text-align:right">Objectif</th><th style="text-align:right">Score</th></tr></thead>
+    <tbody>${kpiRows}</tbody></table>` : ''}
+    <!-- PDV en retard -->
+    ${pdvsEnRetardRows ? `<div class="section-title" style="margin-top:32px">⚠️ PDV impactant négativement le score (${pdvsEnRetard.length})</div>
+    <div class="alert-box">
+      <h3>Ces PDV ont des insuffisances détectées lors du Mystery Call</h3>
+      <table>
+        <thead><tr><th>PDV</th><th>Numéro</th><th>Quartier</th><th>Problèmes détectés</th></tr></thead>
+        <tbody>${pdvsEnRetardRows}</tbody>
+      </table>
+    </div>` : `<div class="section-title" style="margin-top:32px">✅ Aucun PDV en retard détecté</div>`}
+    <div class="footer">
+      <p>Rapport généré le ${new Date().toLocaleDateString('fr-FR')} &nbsp;·&nbsp; Farouk Distribution &nbsp;·&nbsp; Système de Gestion Réseau</p>
+    </div>
+  </div>
+  </body></html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+}
+
 function VueTeleconseillere({ annee, mois }) {
   const qc = useQueryClient();
   const [appelEnCours, setAppelEnCours] = useState(null);
@@ -812,12 +962,53 @@ export default function EvalSuperveursPage() {
                     ))}
                   </div>
 
-                  {/* Bouton calculer */}
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  {/* PDV qui retardent le superviseur */}
+                  {evaluation.mystery_calls && evaluation.mystery_calls.length > 0 && (() => {
+                    const pdvsEnRetard = evaluation.mystery_calls.filter(c =>
+                      c.statut === 'INJOIGNABLE' ||
+                      (c.note_connaissance != null && c.note_connaissance < 5) ||
+                      (c.note_visite != null && c.note_visite < 5)
+                    );
+                    if (!pdvsEnRetard.length) return null;
+                    return (
+                      <div style={{ margin: '20px 0', background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.2)', borderRadius: 14, padding: 20 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#ff4757', marginBottom: 14 }}>
+                          ⚠️ PDV qui impactent négativement le score ({pdvsEnRetard.length} PDV)
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {pdvsEnRetard.map((c, i) => (
+                            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 16px', borderLeft: '3px solid #ff4757' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#e2e8f0', fontSize: 14 }}>{c.pdv_nom || c.pdv_numero}</div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{c.pdv_numero} · {c.quartier || c.localite || '—'}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {c.statut === 'INJOIGNABLE' && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,71,87,0.15)', color: '#ff4757', fontWeight: 700 }}>📵 Injoignable</span>}
+                                  {c.note_connaissance != null && c.note_connaissance < 5 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,165,2,0.15)', color: '#ffa502', fontWeight: 700 }}>📚 Connaissance faible ({c.note_connaissance}/10)</span>}
+                                  {c.note_visite != null && c.note_visite < 5 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,165,2,0.15)', color: '#ffa502', fontWeight: 700 }}>🏃 Visite insuffisante ({c.note_visite}/10)</span>}
+                                  {c.note_superviseur != null && c.note_superviseur < 5 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(99,102,241,0.15)', color: '#6366f1', fontWeight: 700 }}>👔 Gestion faible ({c.note_superviseur}/10)</span>}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Boutons calculer + exporter PDF */}
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                     <button onClick={() => calcMutation.mutate()} disabled={calcMutation.isLoading}
                       style={{ padding: '12px 32px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(255,105,0,0.35)' }}>
                       {calcMutation.isLoading ? '⏳ Calcul en cours...' : '🎯 Calculer / Recalculer le Score Final'}
                     </button>
+                    {evaluation.score_final && (
+                      <button onClick={() => exportPDF(evaluation, selectedSup, mois, annee)}
+                        style={{ padding: '12px 32px', borderRadius: 12, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
+                        📄 Exporter en PDF
+                      </button>
+                    )}
                   </div>
                 </>
               )}
