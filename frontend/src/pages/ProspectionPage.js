@@ -1352,7 +1352,40 @@ function TabWorkflow({ onOpen, currentUser, onRefresh, initialStep }) {
 }
 
 // ── Étape 2 : RC affecte les demandes NOUVELLES aux développeurs ──────────────
+// Calcule un score de priorité pour classer les prospects à visiter
+function calcPriorityScore(p) {
+  let score = 0;
+  // Déjà client OM → fort potentiel
+  if (p.fait_om) score += 30;
+  // CA mensuel renseigné et > 0
+  const ca = parseFloat(p.om_ca_mensuel || 0);
+  if (ca > 500000) score += 25;
+  else if (ca > 100000) score += 15;
+  else if (ca > 0) score += 8;
+  // Type de local stable
+  if (p.type_local === 'BOUTIQUE_FIXE') score += 15;
+  else if (p.type_local === 'KIOSQUE') score += 8;
+  // GPS disponible (visite facile à localiser)
+  if (p.latitude && p.longitude) score += 10;
+  // Capital de démarrage renseigné
+  if (p.capital_demarrage && parseFloat(p.capital_demarrage) > 0) score += 10;
+  // Fréquentation mentionnée
+  if (p.frequentation) score += 5;
+  // Commission mensuelle OM
+  const comm = parseFloat(p.om_commission_mensuelle || 0);
+  if (comm > 0) score += 5;
+  return Math.min(score, 100);
+}
+
+function getPriorityLabel(score) {
+  if (score >= 60) return { label: '🔥 Priorité haute', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' };
+  if (score >= 35) return { label: '🟡 Priorité moyenne', color: '#ffa502', bg: 'rgba(255,165,2,0.12)' };
+  return { label: '⚪ Priorité normale', color: '#64748b', bg: 'rgba(255,255,255,0.04)' };
+}
+
 function Etape2Attribution({ prospects, refuseesDev = [], developers, onDone, onOpen }) {
+  // Trier les prospects par score de priorité (plus élevé en premier)
+  const sorted = [...prospects].sort((a, b) => calcPriorityScore(b) - calcPriorityScore(a));
   return (
     <>
       <StepLegend
@@ -1384,7 +1417,7 @@ function Etape2Attribution({ prospects, refuseesDev = [], developers, onDone, on
         <div className="empty-state">✅ Aucune nouvelle demande en attente d'attribution.</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {prospects.map(p => <Attribution2Card key={p.id} prospect={p} developers={developers} onDone={onDone} onOpen={onOpen}/>)}
+          {sorted.map((p, idx) => <Attribution2Card key={p.id} prospect={p} developers={developers} onDone={onDone} onOpen={onOpen} rank={idx + 1} score={calcPriorityScore(p)}/>)}
         </div>
       )}
     </>
@@ -1502,7 +1535,8 @@ function RefusDevCard({ prospect: p, developers, onDone, onOpen }) {
   );
 }
 
-function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
+function Attribution2Card({ prospect: p, developers, onDone, onOpen, rank, score }) {
+  const priority = getPriorityLabel(score || 0);
   const [devId, setDevId] = useState('');
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -1537,7 +1571,23 @@ function Attribution2Card({ prospect: p, developers, onDone, onOpen }) {
           onClose={() => { setSuccess(false); onDone(); }}
         />
       )}
-      <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: '4px solid #f59e0b' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: 16, borderLeft: `4px solid ${priority.color}`, borderTop: `1px solid ${priority.color}30` }}>
+        {/* Badge priorité + rang */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {rank && <span style={{ fontSize: 12, fontWeight: 900, color: '#475569', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 6 }}>#{rank}</span>}
+            <span style={{ fontSize: 12, fontWeight: 700, color: priority.color, background: priority.bg, padding: '3px 10px', borderRadius: 20 }}>{priority.label}</span>
+          </div>
+          <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>Score : {score || 0}/100</span>
+        </div>
+        {/* Critères qui ont contribué au score */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+          {p.fait_om && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>✅ Déjà OM</span>}
+          {p.latitude && p.longitude && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(14,165,233,0.1)', color: '#0ea5e9' }}>📍 GPS</span>}
+          {p.type_local === 'BOUTIQUE_FIXE' && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,165,2,0.1)', color: '#ffa502' }}>🏪 Boutique fixe</span>}
+          {parseFloat(p.om_ca_mensuel || 0) > 0 && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,105,0,0.1)', color: '#FF6900' }}>💰 CA OM connu</span>}
+          {p.capital_demarrage && parseFloat(p.capital_demarrage) > 0 && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>💵 Capital</span>}
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{p.reference} — {p.prenom} {p.nom}</div>
