@@ -184,6 +184,98 @@ def ma_liste_mystery_early(
     return {"tc_nom": tc_nom, "total": len(ma_liste), "liste": ma_liste}
 
 
+@router.get("/eval-superviseurs/{superviseur}/pdv-details")
+def get_pdv_details(
+    superviseur: str,
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne les PDV inactifs et en baisse de CA pour le superviseur (OMY, NAFAMA, KAABU)."""
+    from app.models.pdv import PDV
+    from app.models.performance import MonthlyPerformance
+
+    # Trouver le mois précédent pour comparer
+    mois_prec = mois - 1 if mois > 1 else 12
+    annee_prec = annee if mois > 1 else annee - 1
+
+    # PDVs du superviseur
+    pdvs = db.query(PDV).filter(
+        PDV.superviseur.ilike(f"%{superviseur}%")
+    ).all()
+    pdv_ids = [p.id for p in pdvs]
+
+    if not pdv_ids:
+        return {"omy": {"inactifs": [], "en_baisse": []}, "nafama": {"inactifs": [], "en_baisse": []}, "kaabu": {"inactifs": [], "en_baisse": []}}
+
+    # Performances mois courant et précédent
+    perfs_actuel = {
+        p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+            MonthlyPerformance.pdv_id.in_(pdv_ids),
+            MonthlyPerformance.annee == annee,
+            MonthlyPerformance.mois == mois,
+        ).all()
+    }
+    perfs_prec = {
+        p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+            MonthlyPerformance.pdv_id.in_(pdv_ids),
+            MonthlyPerformance.annee == annee_prec,
+            MonthlyPerformance.mois == mois_prec,
+        ).all()
+    }
+
+    def pdv_info(pdv, perf, perf_p=None, ca_field='ca_omy', actif_field='est_actif'):
+        ca_act = getattr(perf, ca_field, None) if perf else None
+        ca_prev = getattr(perf_p, ca_field, None) if perf_p else None
+        variation = None
+        if ca_act is not None and ca_prev and ca_prev > 0:
+            variation = round((ca_act - ca_prev) / ca_prev * 100, 1)
+        return {
+            "id": pdv.id,
+            "numero_pdv": pdv.numero_pdv,
+            "nom": pdv.nom,
+            "quartier": pdv.quartier or '—',
+            "teleconseillere": pdv.teleconseillere or '—',
+            "ca_actuel": round(ca_act) if ca_act is not None else None,
+            "ca_precedent": round(ca_prev) if ca_prev is not None else None,
+            "variation_pct": variation,
+        }
+
+    result = {"omy": {"inactifs": [], "en_baisse": []},
+              "nafama": {"inactifs": [], "en_baisse": []},
+              "kaabu": {"inactifs": [], "en_baisse": []}}
+
+    for pdv in pdvs:
+        perf = perfs_actuel.get(pdv.id)
+        perf_p = perfs_prec.get(pdv.id)
+        if not perf:
+            continue
+
+        # OMY
+        if not perf.est_actif:
+            result["omy"]["inactifs"].append(pdv_info(pdv, perf, perf_p, 'ca_omy'))
+        elif perf_p and perf_p.ca_omy and perf_p.ca_omy > 0 and perf.ca_omy is not None:
+            if perf.ca_omy < perf_p.ca_omy * 0.70:  # baisse de 30%+
+                result["omy"]["en_baisse"].append(pdv_info(pdv, perf, perf_p, 'ca_omy'))
+
+        # NAFAMA
+        ca_naf = getattr(perf, 'ca_nafama', None)
+        ca_naf_p = getattr(perf_p, 'ca_nafama', None) if perf_p else None
+        actif_naf = getattr(perf, 'actif_nafama', perf.est_actif)
+        if not actif_naf and ca_naf is not None:
+            result["nafama"]["inactifs"].append(pdv_info(pdv, perf, perf_p, 'ca_nafama'))
+        elif ca_naf_p and ca_naf_p > 0 and ca_naf is not None and ca_naf < ca_naf_p * 0.70:
+            result["nafama"]["en_baisse"].append(pdv_info(pdv, perf, perf_p, 'ca_nafama'))
+
+        # KAABU
+        actif_kaabu = getattr(perf, 'actif_kaabu', None)
+        if actif_kaabu is not None and not actif_kaabu:
+            result["kaabu"]["inactifs"].append(pdv_info(pdv, perf, perf_p, 'ca_kaabu'))
+
+    return result
+
+
 @router.get("/eval-superviseurs/{superviseur}")
 def get_evaluation(
     superviseur: str,

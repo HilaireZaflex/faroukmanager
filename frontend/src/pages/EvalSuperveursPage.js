@@ -342,7 +342,14 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 // ─── Vue Téléconseillère ────────────────────────────────────────────────────
 // ── Fonction export PDF élégant ───────────────────────────────────────────────
-function exportPDF(evaluation, superviseur, mois, annee) {
+async function exportPDF(evaluation, superviseur, mois, annee) {
+  // Charger les PDV inactifs/en baisse depuis l'API
+  let pdvDetails = { omy: { inactifs: [], en_baisse: [] }, nafama: { inactifs: [], en_baisse: [] }, kaabu: { inactifs: [] } };
+  try {
+    const api = require('../services/api').default;
+    const r = await api.get(`/eval-superviseurs/${encodeURIComponent(superviseur)}/pdv-details`, { params: { annee, mois } });
+    pdvDetails = r.data;
+  } catch (e) { console.warn('PDV details non disponibles:', e); }
   const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const score = Math.round(evaluation.score_final || 0);
   const mention = evaluation.mention || '—';
@@ -462,11 +469,15 @@ function exportPDF(evaluation, superviseur, mois, annee) {
     const isPct = label.includes('%');
     const sc = scoreVal != null ? Math.round(scoreVal) : null;
     const scoreColor = sc == null ? '#6b7280' : sc >= 80 ? '#16a34a' : sc >= 60 ? '#d97706' : '#dc2626';
+    // Appréciation selon le score
+    const apprecMsg = sc == null ? '—' : sc >= 95 ? 'Exceptionnel !' : sc >= 85 ? 'Très bien' : sc >= 75 ? 'Bien' : sc >= 60 ? 'Peut mieux faire' : sc >= 40 ? 'Insuffisant' : 'Critique';
+    const apprecColor = sc == null ? '#6b7280' : sc >= 85 ? '#16a34a' : sc >= 65 ? '#d97706' : '#dc2626';
     return `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:13px">${label}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;color:#6b7280;font-size:13px">${objectifVal != null ? fmt(objectifVal) + (isPct ? '%' : '') : '—'}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600;font-size:13px">${realisation != null ? fmt(realisation) + (isPct ? '%' : '') : '—'}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:center;font-weight:800;color:${scoreColor};font-size:13px">${sc != null ? sc + '%' : '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:center;font-weight:700;color:${apprecColor};font-size:12px">${apprecMsg}</td>
     </tr>`;
   }).filter(r => r).join('');
 
@@ -539,7 +550,7 @@ function exportPDF(evaluation, superviseur, mois, annee) {
     </div>
     <!-- KPIs tableau -->
     ${kpiRows ? `<div class="section-title">📊 Détail des KPIs</div>
-    <table><thead><tr><th>Indicateur</th><th style="text-align:right">Objectif</th><th style="text-align:right">Réalisation</th><th style="text-align:center">Score</th></tr></thead>
+    <table><thead><tr><th>Indicateur</th><th style="text-align:right">Objectif</th><th style="text-align:right">Réalisation</th><th style="text-align:center">Score</th><th style="text-align:center">Appréciation</th></tr></thead>
     <tbody>${kpiRows}</tbody></table>` : ''}
     <!-- KPIs sous objectif -->
     ${kpisProblemes.length > 0 ? `
@@ -563,6 +574,57 @@ function exportPDF(evaluation, superviseur, mois, annee) {
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;color:#16a34a;font-weight:600;text-align:center">
       Toutes les catégories KPIs sont au-dessus des objectifs et aucun PDV n'est en difficulté.
     </div>` : ''}
+    <!-- PDV OMY, NAFAMA, KAABU -->
+    ${(() => {
+      const fmtRow = (p, baisse) => {
+        const varStr = p.variation_pct != null ? ` (${p.variation_pct > 0 ? '+' : ''}${p.variation_pct}%)` : '';
+        const caStr = p.ca_actuel != null ? new Intl.NumberFormat('fr-FR').format(p.ca_actuel) : '—';
+        const caPStr = p.ca_precedent != null ? new Intl.NumberFormat('fr-FR').format(p.ca_precedent) : '—';
+        const badge = baisse
+          ? `<span style="background:#fee2e2;color:#dc2626;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">📉 ${varStr}</span>`
+          : `<span style="background:#fef3c7;color:#d97706;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">💤 Inactif</span>`;
+        return `<tr>
+          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:12px;font-weight:600">${p.nom || p.numero_pdv}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px;color:#6b7280">${p.numero_pdv}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px;color:#6b7280">${p.quartier}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px">${caStr}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px;color:#6b7280">${caPStr}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6">${badge}</td>
+        </tr>`;
+      };
+      const thead = `<thead><tr><th>PDV</th><th>Numéro</th><th>Quartier</th><th>CA Mois</th><th>CA Préc.</th><th>Statut</th></tr></thead>`;
+      let html = '';
+
+      const omyAll = [...(pdvDetails.omy?.inactifs||[]), ...(pdvDetails.omy?.en_baisse||[])];
+      if (omyAll.length) html += `
+        <div class="section-title" style="margin-top:24px">📱 OMY — PDV inactifs & en baisse (${omyAll.length})</div>
+        <table>${thead}<tbody>
+          ${(pdvDetails.omy?.inactifs||[]).map(p => fmtRow(p, false)).join('')}
+          ${(pdvDetails.omy?.en_baisse||[]).map(p => fmtRow(p, true)).join('')}
+        </tbody></table>`;
+
+      const nafAll = [...(pdvDetails.nafama?.inactifs||[]), ...(pdvDetails.nafama?.en_baisse||[])];
+      if (nafAll.length) html += `
+        <div class="section-title" style="margin-top:20px">🟢 NAFAMA — PDV inactifs & en baisse (${nafAll.length})</div>
+        <table>${thead}<tbody>
+          ${(pdvDetails.nafama?.inactifs||[]).map(p => fmtRow(p, false)).join('')}
+          ${(pdvDetails.nafama?.en_baisse||[]).map(p => fmtRow(p, true)).join('')}
+        </tbody></table>`;
+
+      const kaabuAll = pdvDetails.kaabu?.inactifs || [];
+      if (kaabuAll.length) html += `
+        <div class="section-title" style="margin-top:20px">💳 KAABU — PDV inactifs (${kaabuAll.length})</div>
+        <table>${thead}<tbody>
+          ${kaabuAll.map(p => fmtRow(p, false)).join('')}
+        </tbody></table>`;
+
+      if (!omyAll.length && !nafAll.length && !kaabuAll.length) html = `
+        <div class="section-title" style="margin-top:24px">✅ Aucun PDV inactif ou en baisse détecté</div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;color:#16a34a;font-weight:600;text-align:center">
+          Tous les PDVs sont actifs et sans baisse significative de CA. Excellent travail !
+        </div>`;
+      return html;
+    })()}
     <div class="footer">
       <p>Rapport généré le ${new Date().toLocaleDateString('fr-FR')} &nbsp;·&nbsp; Farouk Distribution &nbsp;·&nbsp; Système de Gestion Réseau</p>
     </div>
