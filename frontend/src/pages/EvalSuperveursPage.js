@@ -598,18 +598,17 @@ export default function EvalSuperveursPage() {
           <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
             KPIs 70% · Mystery TC 20% · Présentiel 10%
           </p>
-          {/* Sélecteur de période */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>📅 Période :</span>
+          {/* Sélecteur de période — design pill sur une ligne */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0, marginTop: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, overflow: 'hidden' }}>
+            <span style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, color: '#FF6900', borderRight: '1px solid rgba(255,105,0,0.2)', whiteSpace: 'nowrap', letterSpacing: 0.5 }}>📅 Période</span>
             <select value={mois} onChange={e => { setMois(parseInt(e.target.value)); setActiveTab('classement'); qc.invalidateQueries(['eval-classement']); qc.invalidateQueries(['eval-sup']); }}
-              style={{ padding: '6px 10px', background: 'rgba(255,105,0,0.1)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, color: '#FF6900', fontSize: 13, fontWeight: 700, cursor: 'pointer', outline: 'none' }}>
-              {MOIS_NOMS.slice(1).map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+              style={{ padding: '8px 14px', background: 'transparent', border: 'none', borderRight: '1px solid rgba(255,105,0,0.2)', color: '#e2e8f0', fontSize: 13, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', minWidth: 110 }}>
+              {MOIS_NOMS.slice(1).map((m, i) => <option key={i+1} value={i+1} style={{ background: '#1e2236' }}>{m}</option>)}
             </select>
             <select value={annee} onChange={e => { setAnnee(parseInt(e.target.value)); setActiveTab('classement'); qc.invalidateQueries(['eval-classement']); qc.invalidateQueries(['eval-sup']); }}
-              style={{ padding: '6px 10px', background: 'rgba(255,105,0,0.1)', border: '1px solid rgba(255,105,0,0.3)', borderRadius: 8, color: '#FF6900', fontSize: 13, fontWeight: 700, cursor: 'pointer', outline: 'none' }}>
-              {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+              style={{ padding: '8px 14px', background: 'transparent', border: 'none', color: '#e2e8f0', fontSize: 13, fontWeight: 700, cursor: 'pointer', outline: 'none', appearance: 'none', minWidth: 70 }}>
+              {[2025, 2026, 2027].map(y => <option key={y} value={y} style={{ background: '#1e2236' }}>{y}</option>)}
             </select>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#FF6900' }}>→ {MOIS_NOMS[mois]} {annee}</span>
           </div>
         </div>
         <div>
