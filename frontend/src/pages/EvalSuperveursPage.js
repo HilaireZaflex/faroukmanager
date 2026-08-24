@@ -360,24 +360,43 @@ function partagerWhatsApp(evaluation, superviseur, mois, annee, numeroFourni) {
     ? 'Des efforts notables mais il faut accélérer. Nous comptons sur vous ce mois-ci !'
     : 'Des actions correctives urgentes sont nécessaires. Nous vous accompagnons pour améliorer les résultats.';
 
+  // Construire les lignes KPI
+  const kpisData = evaluation.kpis_data || {};
+  const KPI_LABELS_WA = {
+    montant_transactions: '💰 CA OMY', commission_totale: '💸 Commission',
+    pdv_actifs: '🏪 PDV Actifs', montant_vente_nafama: '🟢 CA NAFAMA',
+    taux_actif_omy: '📊 Taux Actif OMY', nb_actifs_omy: '📱 Nb Actifs OMY',
+    taux_actif_nafama: '🟢 Taux Actif NAFAMA', nb_actifs_nafama: '🟢 Nb Actifs NAFAMA',
+    taux_actif_kaabu: '💳 Taux Actif Kaabu', nb_actifs_kaabu: '💳 Nb Actifs Kaabu',
+  };
+  const kpiLines = Object.entries(KPI_LABELS_WA)
+    .map(([k, label]) => {
+      const v = kpisData[k];
+      if (v == null) return '';
+      const isPct = label.includes('Taux');
+      const fmt = n => typeof n === 'number' ? new Intl.NumberFormat('fr-FR').format(Math.round(n)) : String(n);
+      return `• ${label} : *${fmt(v)}${isPct ? '%' : ''}*`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
   const message = `${emoji} *RAPPORT D'ÉVALUATION — ${MOIS[mois].toUpperCase()} ${annee}*
-
 👤 *Superviseur :* ${superviseur}
-📅 *Période :* ${MOIS[mois]} ${annee}
 
-━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
 🎯 *SCORE FINAL : ${score}/100 — ${mention}*
-━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
 
-📊 *Détail des composantes :*
+📊 *Composantes :*
 • KPIs (70%) : *${scoreKpi}/100*
-• Appels TC (20%) : *${scoreMystery}/100*
+• Appels Téléconseillères (20%) : *${scoreMystery}/100*
 • Présentiel (10%) : *${scorePresentiel}/100*
 
+${kpiLines ? `📈 *Détail des KPIs :*\n${kpiLines}\n` : ''}
 💬 _${encourage}_
 
-━━━━━━━━━━━━━━━━━━━━
-_Rapport généré par Farouk Distribution — Système de Gestion Réseau_`;
+━━━━━━━━━━━━━━━━━━
+_Farouk Distribution — ${MOIS[mois]} ${annee}_`;
 
   // Utiliser le numéro fourni ou celui du superviseur
   let numero = (numeroFourni || evaluation.superviseur_telephone || '').replace(/\D/g, '').replace(/^0/, '223');
