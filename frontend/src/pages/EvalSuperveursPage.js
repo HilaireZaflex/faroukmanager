@@ -342,7 +342,7 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 // ─── Vue Téléconseillère ────────────────────────────────────────────────────
 // ── Fonction partage WhatsApp ─────────────────────────────────────────────────
-function partagerWhatsApp(evaluation, superviseur, mois, annee) {
+function partagerWhatsApp(evaluation, superviseur, mois, annee, numeroFourni) {
   const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const score = Math.round(evaluation.score_final || 0);
   const mention = evaluation.mention || '—';
@@ -379,15 +379,8 @@ function partagerWhatsApp(evaluation, superviseur, mois, annee) {
 ━━━━━━━━━━━━━━━━━━━━
 _Rapport généré par Farouk Distribution — Système de Gestion Réseau_`;
 
-  // Demander le numéro si pas disponible
-  const tel = evaluation.superviseur_telephone || '';
-  let numero = tel;
-  if (!numero) {
-    numero = window.prompt(`📲 Numéro WhatsApp de ${superviseur} (format: 22376XXXXXX) :`, '223');
-    if (!numero) return;
-  }
-  // Nettoyer le numéro
-  numero = numero.replace(/\D/g, '').replace(/^0/, '223');
+  // Utiliser le numéro fourni ou celui du superviseur
+  let numero = (numeroFourni || evaluation.superviseur_telephone || '').replace(/\D/g, '').replace(/^0/, '223');
 
   const url = `https://wa.me/${numero}?text=${encodeURIComponent(message)}`;
   window.open(url, '_blank');
@@ -871,6 +864,8 @@ export default function EvalSuperveursPage() {
   const [selectedSup, setSelectedSup] = useState('');
   const [annee, setAnnee] = useState(evalAnnee);
   const [mois, setMois] = useState(evalMois);
+  const [showWaModal, setShowWaModal] = useState(false);
+  const [waTel, setWaTel] = useState('223');
   const [activeTab, setActiveTab] = useState('classement'); // classement | evaluation | mystery | presentiel
   const [searchSup, setSearchSup] = useState('');
 
@@ -1205,7 +1200,7 @@ export default function EvalSuperveursPage() {
                         style={{ padding: '12px 32px', borderRadius: 12, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
                         📄 Exporter en PDF
                       </button>
-                      <button onClick={() => partagerWhatsApp(evaluation, selectedSup, mois, annee)}
+                      <button onClick={() => setShowWaModal(true)}
                         style={{ padding: '12px 32px', borderRadius: 12, border: '1px solid rgba(37,211,102,0.4)', background: 'rgba(37,211,102,0.1)', color: '#25D166', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
                         📲 Envoyer sur WhatsApp
                       </button>
@@ -1217,6 +1212,57 @@ export default function EvalSuperveursPage() {
           )}
         </div>
       </div>
+
+      {/* ── Modal WhatsApp élégant ── */}
+      {showWaModal && evaluation && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#1a1f36', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 20, padding: '32px', maxWidth: 440, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg,#25D166,#128C7E)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>📲</div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>Envoyer via WhatsApp</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Rapport pour <strong style={{ color: '#25D166' }}>{selectedSup}</strong></div>
+              </div>
+            </div>
+            <div style={{ background: 'rgba(37,211,102,0.06)', border: '1px solid rgba(37,211,102,0.2)', borderRadius: 12, padding: '14px 18px', marginBottom: 24 }}>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>📋 Aperçu du message</div>
+              <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.7 }}>
+                🎯 Score final : <strong style={{ color: '#25D166' }}>{Math.round(evaluation.score_final || 0)}/100</strong> — {evaluation.mention}<br/>
+                📊 KPIs : {Math.round(evaluation.score_kpi || 0)} · TC : {Math.round(evaluation.score_mystery || 0)} · Présentiel : {Math.round(evaluation.score_presentiel || 0)}
+              </div>
+            </div>
+            <label style={{ display: 'block', marginBottom: 22 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>📱 Numéro WhatsApp</div>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span style={{ position: 'absolute', left: 14, fontSize: 18 }}>🇲🇱</span>
+                <input
+                  type="tel" value={waTel} onChange={e => setWaTel(e.target.value)}
+                  placeholder="223 76 00 00 00" autoFocus
+                  style={{ width: '100%', padding: '14px 14px 14px 44px', background: 'rgba(255,255,255,0.05)', border: '2px solid rgba(37,211,102,0.3)', borderRadius: 12, color: '#e2e8f0', fontSize: 16, fontWeight: 700, outline: 'none', letterSpacing: 1, boxSizing: 'border-box' }}
+                  onFocus={e => e.target.style.borderColor = '#25D166'}
+                  onBlur={e => e.target.style.borderColor = 'rgba(37,211,102,0.3)'}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: '#475569', marginTop: 6 }}>Format : 223 suivi du numéro (ex: 22376123456)</div>
+            </label>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => { setShowWaModal(false); setWaTel('223'); }}
+                style={{ flex: 1, padding: '13px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={() => {
+                  const numero = waTel.replace(/\D/g, '');
+                  if (numero.length < 10) { alert('Numéro invalide. Exemple: 22376123456'); return; }
+                  partagerWhatsApp(evaluation, selectedSup, mois, annee, numero);
+                  setShowWaModal(false); setWaTel('223');
+                }}
+                style={{ flex: 2, padding: '13px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#25D166,#128C7E)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,211,102,0.35)' }}>
+                📲 Envoyer sur WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
