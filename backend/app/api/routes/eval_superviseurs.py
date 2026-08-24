@@ -209,69 +209,61 @@ def get_pdv_details(
     if not pdv_ids:
         return {"omy": {"inactifs": [], "en_baisse": []}, "nafama": {"inactifs": [], "en_baisse": []}, "kaabu": {"inactifs": [], "en_baisse": []}}
 
-    # Performances mois courant et précédent
-    perfs_actuel = {
-        p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
-            MonthlyPerformance.pdv_id.in_(pdv_ids),
-            MonthlyPerformance.annee == annee,
-            MonthlyPerformance.mois == mois,
-        ).all()
-    }
-    perfs_prec = {
-        p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
-            MonthlyPerformance.pdv_id.in_(pdv_ids),
-            MonthlyPerformance.annee == annee_prec,
-            MonthlyPerformance.mois == mois_prec,
-        ).all()
-    }
+    # Performances par indicateur (OMY, NAFAMA, KAABU)
+    def get_perfs_by_indicateur(indicateur_val):
+        return {
+            p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+                MonthlyPerformance.pdv_id.in_(pdv_ids),
+                MonthlyPerformance.annee == annee,
+                MonthlyPerformance.mois == mois,
+                MonthlyPerformance.indicateur == indicateur_val,
+            ).all()
+        }
 
-    def pdv_info(pdv, perf, perf_p=None, ca_field='ca_omy', actif_field='est_actif'):
-        ca_act = getattr(perf, ca_field, None) if perf else None
-        ca_prev = getattr(perf_p, ca_field, None) if perf_p else None
-        variation = None
-        if ca_act is not None and ca_prev and ca_prev > 0:
-            variation = round((ca_act - ca_prev) / ca_prev * 100, 1)
+    perfs_omy = get_perfs_by_indicateur('OMY')
+    perfs_nafama = get_perfs_by_indicateur('NAFAMA')
+    perfs_kaabu = get_perfs_by_indicateur('KAABU')
+
+    def pdv_info(pdv, perf):
+        ca_act = perf.montant_ca if perf else None
+        ca_prev = perf.ca_mois_precedent if perf else None
+        taux_var = perf.taux_variation if perf else None
         return {
             "id": pdv.id,
             "numero_pdv": pdv.numero_pdv,
             "nom": pdv.nom,
             "quartier": pdv.quartier or '—',
             "teleconseillere": pdv.teleconseillere or '—',
-            "ca_actuel": round(ca_act) if ca_act is not None else None,
-            "ca_precedent": round(ca_prev) if ca_prev is not None else None,
-            "variation_pct": variation,
+            "ca_actuel": round(ca_act) if ca_act else None,
+            "ca_precedent": round(ca_prev) if ca_prev else None,
+            "variation_pct": round(taux_var, 1) if taux_var is not None else None,
         }
 
     result = {"omy": {"inactifs": [], "en_baisse": []},
               "nafama": {"inactifs": [], "en_baisse": []},
-              "kaabu": {"inactifs": [], "en_baisse": []}}
+              "kaabu": {"inactifs": []}}
 
     for pdv in pdvs:
-        perf = perfs_actuel.get(pdv.id)
-        perf_p = perfs_prec.get(pdv.id)
-        if not perf:
-            continue
-
         # OMY
-        if not perf.est_actif:
-            result["omy"]["inactifs"].append(pdv_info(pdv, perf, perf_p, 'ca_omy'))
-        elif perf_p and perf_p.ca_omy and perf_p.ca_omy > 0 and perf.ca_omy is not None:
-            if perf.ca_omy < perf_p.ca_omy * 0.70:  # baisse de 30%+
-                result["omy"]["en_baisse"].append(pdv_info(pdv, perf, perf_p, 'ca_omy'))
+        perf_omy = perfs_omy.get(pdv.id)
+        if perf_omy:
+            if not perf_omy.est_actif:
+                result["omy"]["inactifs"].append(pdv_info(pdv, perf_omy))
+            elif perf_omy.taux_variation is not None and perf_omy.taux_variation < -30:
+                result["omy"]["en_baisse"].append(pdv_info(pdv, perf_omy))
 
         # NAFAMA
-        ca_naf = getattr(perf, 'ca_nafama', None)
-        ca_naf_p = getattr(perf_p, 'ca_nafama', None) if perf_p else None
-        actif_naf = getattr(perf, 'actif_nafama', perf.est_actif)
-        if not actif_naf and ca_naf is not None:
-            result["nafama"]["inactifs"].append(pdv_info(pdv, perf, perf_p, 'ca_nafama'))
-        elif ca_naf_p and ca_naf_p > 0 and ca_naf is not None and ca_naf < ca_naf_p * 0.70:
-            result["nafama"]["en_baisse"].append(pdv_info(pdv, perf, perf_p, 'ca_nafama'))
+        perf_naf = perfs_nafama.get(pdv.id)
+        if perf_naf:
+            if not perf_naf.est_actif:
+                result["nafama"]["inactifs"].append(pdv_info(pdv, perf_naf))
+            elif perf_naf.taux_variation is not None and perf_naf.taux_variation < -30:
+                result["nafama"]["en_baisse"].append(pdv_info(pdv, perf_naf))
 
         # KAABU
-        actif_kaabu = getattr(perf, 'actif_kaabu', None)
-        if actif_kaabu is not None and not actif_kaabu:
-            result["kaabu"]["inactifs"].append(pdv_info(pdv, perf, perf_p, 'ca_kaabu'))
+        perf_kaabu = perfs_kaabu.get(pdv.id)
+        if perf_kaabu and not perf_kaabu.est_actif:
+            result["kaabu"]["inactifs"].append(pdv_info(pdv, perf_kaabu))
 
     return result
 
