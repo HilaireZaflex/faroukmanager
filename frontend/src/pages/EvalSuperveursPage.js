@@ -341,6 +341,58 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 // ─── Vue Téléconseillère ────────────────────────────────────────────────────
+// ── Fonction partage WhatsApp ─────────────────────────────────────────────────
+function partagerWhatsApp(evaluation, superviseur, mois, annee) {
+  const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const score = Math.round(evaluation.score_final || 0);
+  const mention = evaluation.mention || '—';
+  const scoreKpi = Math.round(evaluation.score_kpi || 0);
+  const scoreMystery = Math.round(evaluation.score_mystery || 0);
+  const scorePresentiel = Math.round(evaluation.score_presentiel || 0);
+
+  // Emoji selon le score
+  const emoji = score >= 85 ? '🏆' : score >= 70 ? '⭐' : score >= 55 ? '💪' : '⚠️';
+  const encourage = score >= 85
+    ? 'Félicitations pour cette excellente performance ! Continuez sur cette lancée.'
+    : score >= 70
+    ? 'Bon travail ! Quelques axes d\'amélioration vous permettront d\'atteindre l\'excellence.'
+    : score >= 55
+    ? 'Des efforts notables mais il faut accélérer. Nous comptons sur vous ce mois-ci !'
+    : 'Des actions correctives urgentes sont nécessaires. Nous vous accompagnons pour améliorer les résultats.';
+
+  const message = `${emoji} *RAPPORT D'ÉVALUATION — ${MOIS[mois].toUpperCase()} ${annee}*
+
+👤 *Superviseur :* ${superviseur}
+📅 *Période :* ${MOIS[mois]} ${annee}
+
+━━━━━━━━━━━━━━━━━━━━
+🎯 *SCORE FINAL : ${score}/100 — ${mention}*
+━━━━━━━━━━━━━━━━━━━━
+
+📊 *Détail des composantes :*
+• KPIs (70%) : *${scoreKpi}/100*
+• Appels TC (20%) : *${scoreMystery}/100*
+• Présentiel (10%) : *${scorePresentiel}/100*
+
+💬 _${encourage}_
+
+━━━━━━━━━━━━━━━━━━━━
+_Rapport généré par Farouk Distribution — Système de Gestion Réseau_`;
+
+  // Demander le numéro si pas disponible
+  const tel = evaluation.superviseur_telephone || '';
+  let numero = tel;
+  if (!numero) {
+    numero = window.prompt(`📲 Numéro WhatsApp de ${superviseur} (format: 22376XXXXXX) :`, '223');
+    if (!numero) return;
+  }
+  // Nettoyer le numéro
+  numero = numero.replace(/\D/g, '').replace(/^0/, '223');
+
+  const url = `https://wa.me/${numero}?text=${encodeURIComponent(message)}`;
+  window.open(url, '_blank');
+}
+
 // ── Fonction export PDF élégant ───────────────────────────────────────────────
 async function exportPDF(evaluation, superviseur, mois, annee) {
   // Charger les PDV inactifs/en baisse depuis l'API
@@ -1148,12 +1200,16 @@ export default function EvalSuperveursPage() {
                       style={{ padding: '12px 32px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(255,105,0,0.35)' }}>
                       {calcMutation.isLoading ? '⏳ Calcul en cours...' : '🎯 Calculer / Recalculer le Score Final'}
                     </button>
-                    {evaluation.score_final && (
+                    {evaluation.score_final && (<>
                       <button onClick={() => exportPDF(evaluation, selectedSup, mois, annee)}
                         style={{ padding: '12px 32px', borderRadius: 12, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
                         📄 Exporter en PDF
                       </button>
-                    )}
+                      <button onClick={() => partagerWhatsApp(evaluation, selectedSup, mois, annee)}
+                        style={{ padding: '12px 32px', borderRadius: 12, border: '1px solid rgba(37,211,102,0.4)', background: 'rgba(37,211,102,0.1)', color: '#25D166', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
+                        📲 Envoyer sur WhatsApp
+                      </button>
+                    </>)}
                   </div>
                 </>
               )}
