@@ -556,9 +556,11 @@ async function exportPDF(evaluation, superviseur, mois, annee) {
       body { padding: 0; }
       .page-break { page-break-before: always; }
     }
-    .header { background: linear-gradient(135deg, #FF6900, #ff9500); color: white; padding: 32px 40px; }
-    .header h1 { font-size: 26px; font-weight: 900; margin-bottom: 4px; }
-    .header p { font-size: 14px; opacity: 0.85; }
+    .header { background: linear-gradient(135deg, #FF6900, #ff9500); color: white; padding: 36px 44px; }
+    .header h1 { font-size: 13px; font-weight: 700; opacity: 0.85; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+    .header h2 { font-size: 38px; font-weight: 900; margin-bottom: 6px; line-height: 1.1; }
+    .header .meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .header .badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; }
     .content { padding: 32px 40px; }
     .score-box { display: flex; align-items: center; justify-content: center; gap: 40px; background: ${scoreColorLight}; border: 2px solid ${scoreColor}; border-radius: 16px; padding: 28px; margin-bottom: 28px; }
     .score-big { font-size: 72px; font-weight: 900; color: ${scoreColor}; line-height: 1; }
@@ -581,8 +583,14 @@ async function exportPDF(evaluation, superviseur, mois, annee) {
   </head><body>
   <button class="no-print print-btn" onclick="window.print()">🖨️ Imprimer / Sauvegarder PDF</button>
   <div class="header">
-    <h1>🎯 Rapport d'Évaluation Superviseur</h1>
-    <p>${superviseur} &nbsp;·&nbsp; ${MOIS[mois]} ${annee} &nbsp;·&nbsp; Farouk Distribution</p>
+    <h1>🎯 Rapport d'Évaluation Superviseur — Farouk Distribution</h1>
+    <h2>${superviseur}</h2>
+    <div class="meta">
+      <span class="badge">📅 ${MOIS[mois]} ${annee}</span>
+      ${kpisData.zone ? `<span class="badge">📍 Zone : ${kpisData.zone}</span>` : ''}
+      ${(kpisData.sous_zones||[]).length > 0 ? `<span class="badge">🗺️ ${(kpisData.sous_zones||[]).join(' · ')}</span>` : ''}
+      <span class="badge">👔 Superviseur</span>
+    </div>
   </div>
   <div class="content">
     <!-- Score global -->
