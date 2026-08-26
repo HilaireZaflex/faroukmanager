@@ -721,7 +721,7 @@ function TabDashboard({ dashboard }) {
     { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: getIndTaux('PDV_ACTIF') ?? kpis?.pdv_actifs?.taux ?? null,  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
     { key: 'recrutement',    label: '\uD83D\uDC65 Recrutement Orange Money',        poids: 15, taux: kpis?.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux / 100 : null, objectif: '1000 clients actifs / DZ (250/mois)' },
     { key: 'adoption_kaabu', label: '\uD83D\uDCB3 Adoption Kaabu',                  poids: 15, taux: getIndTaux('KAABU MOBILE'),     objectif: 'Min 10 tx/PDV/mois, taux actif atteint' },
-    { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: null,                           objectif: 'P\u00e9n\u00e9tration fintech < 2%' },
+    { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: 0,    objectif: 'P\u00e9n\u00e9tration fintech < 2% \u2014 Actuel: 4% \u26a0\uFE0F' },
     { key: 'deploiement_plv', label: '\uD83D\uDCE6 D\u00e9ploiement support visibilit\u00e9', poids: 15, taux: kpis?.deploiement_plv?.taux || null, objectif: 'Min 100 PLV / DZ (25/mois)' },
   ];
 
@@ -1463,7 +1463,41 @@ function TabOMDigital({ kpis }) {
             </div>
           </div>
           {selected === 'kaabu' && <TabKaabuDetail />}
-          {selected === 'fintech' && <TabIndicateurs filter="FINTECH_RISK" />}
+          {selected === 'fintech' && (
+            <div className="ch-card" style={{ borderTop: '3px solid #a29bfe' }}>
+              <h3 className="ch-section-title" style={{ color: '#a29bfe' }}>{"🔒"} {"Ma\u00eetrise du risque Fintech"} — Poids : 15%</h3>
+              <div style={{ background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: '#ff4757', marginBottom: 6 }}>{"⚠️ Objectif non atteint"}</div>
+                    <div style={{ fontSize: 13, color: '#94a3b8' }}>{"Notre taux de p\u00e9n\u00e9tration fintech est \u00e0 4% — L'objectif Orange exige < 2%"}</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '12px 20px', background: 'rgba(255,71,87,0.1)', borderRadius: 10 }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: '#ff4757' }}>4%</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{"Taux actuel"}</div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{"Objectif Orange"}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: '#22c55e' }}>{"< 2%"}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{"Notre taux"}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: '#ff4757' }}>{"4%"}</div>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{"Score"}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: '#ff4757' }}>{"0%"}</div>
+                  <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{"Poids : 15%"}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 14, padding: '12px 16px', background: 'rgba(255,165,2,0.08)', borderRadius: 10, fontSize: 12, color: '#ffa502' }}>
+                {"💡 Action requise : R\u00e9duire le taux de p\u00e9n\u00e9tration fintech en dessous de 2% pour valider ce crit\u00e8re"}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
