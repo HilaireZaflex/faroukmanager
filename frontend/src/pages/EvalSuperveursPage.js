@@ -933,6 +933,123 @@ export default function EvalSuperveursPage() {
   const [mois, setMois] = useState(evalMois);
   const [showWaModal, setShowWaModal] = useState(false);
   const [waTel, setWaTel] = useState('223');
+  const [publiant, setPubliant] = useState(false);
+
+  const { data: userMe } = useQuery('me', () => api.get('/auth/me').then(r => r.data), { staleTime: 300000 });
+  const isAdmin = ['admin','ADMIN','manager','MANAGER','rc','RC'].includes(userMe?.role || '');
+
+  const publierClassement = async () => {
+    setPubliant(true);
+    try {
+      const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
+      const data = resp.data;
+      if (!data.classement?.length) { alert('Aucun superviseur n\'a encore validé son évaluation.'); setPubliant(false); return; }
+
+      const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+      const podium = ['🥇','🥈','🥉'];
+      const mentionColor = s => s >= 80 ? '#16a34a' : s >= 65 ? '#d97706' : '#dc2626';
+
+      const lignes = data.classement.map((s, i) => `
+        <tr style="background:${i < 3 ? ['#fffbeb','#f0fdf4','#eff6ff'][i] : '#fff'}">
+          <td style="padding:12px 16px;font-size:${i < 3 ? 22 : 15}px;text-align:center">${i < 3 ? podium[i] : `<span style="font-weight:700;color:#6b7280">${s.rang}</span>`}</td>
+          <td style="padding:12px 16px;font-weight:${i < 3 ? 900 : 700};font-size:15px;color:#111827">${s.superviseur}</td>
+          <td style="padding:12px 16px;text-align:center;font-size:${i < 3 ? 24 : 18}px;font-weight:900;color:${mentionColor(s.score_final)}">${s.score_final}</td>
+          <td style="padding:12px 16px;text-align:center;font-size:12px;font-weight:700;color:${mentionColor(s.score_final)}">${s.mention}</td>
+          <td style="padding:12px 16px;text-align:center;color:#6b7280;font-size:13px">${s.score_kpi}/100</td>
+          <td style="padding:12px 16px;text-align:center;color:#6b7280;font-size:13px">${s.score_mystery}/100</td>
+          <td style="padding:12px 16px;text-align:center;color:#6b7280;font-size:13px">${s.score_presentiel}/100</td>
+        </tr>`).join('');
+
+      const moy = Math.round(data.classement.reduce((s, e) => s + e.score_final, 0) / data.classement.length);
+      const best = data.classement[0];
+      const worst = data.classement[data.classement.length - 1];
+
+      const html = `<!DOCTYPE html><html lang="fr"><head>
+      <meta charset="UTF-8"/>
+      <meta name="viewport" content="width=device-width, initial-scale=1"/>
+      <title>Classement Évaluation — ${MOIS[mois]} ${annee}</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc;color:#111827;min-height:100vh}
+        @media print{.no-print{display:none!important}body{background:#fff}}
+        .header{background:linear-gradient(135deg,#FF6900,#ff9500);color:#fff;padding:40px 48px;text-align:center}
+        .header h1{font-size:14px;opacity:.8;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
+        .header h2{font-size:42px;font-weight:900;margin-bottom:12px}
+        .header .sub{font-size:15px;opacity:.85}
+        .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:32px 48px}
+        .stat-card{background:#fff;border-radius:16px;padding:24px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.07);border-top:4px solid}
+        .stat-card .val{font-size:36px;font-weight:900;margin-bottom:6px}
+        .stat-card .label{font-size:13px;color:#6b7280;font-weight:600}
+        .table-wrap{margin:0 48px 48px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07)}
+        .table-title{padding:20px 24px;font-size:16px;font-weight:800;color:#111827;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:10px}
+        table{width:100%;border-collapse:collapse}
+        th{background:#f9fafb;padding:12px 16px;text-align:left;font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+        tr{border-bottom:1px solid #f3f4f6}
+        tr:last-child{border-bottom:none}
+        .footer{text-align:center;padding:24px;color:#9ca3af;font-size:12px}
+        .print-btn{position:fixed;top:20px;right:20px;padding:10px 24px;background:#FF6900;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(255,105,0,.4)}
+      </style></head><body>
+      <button class="no-print print-btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
+      <div class="header">
+        <h1>🏆 Classement des Évaluations — Farouk Distribution</h1>
+        <h2>${MOIS[mois].toUpperCase()} ${annee}</h2>
+        <div class="sub">${data.total} superviseur${data.total > 1 ? 's' : ''} évalué${data.total > 1 ? 's' : ''} · Résultats officiels</div>
+      </div>
+      <div class="stats">
+        <div class="stat-card" style="border-color:#FF6900">
+          <div class="val" style="color:#FF6900">${data.total}</div>
+          <div class="label">Superviseurs évalués</div>
+        </div>
+        <div class="stat-card" style="border-color:#16a34a">
+          <div class="val" style="color:#16a34a">${moy}</div>
+          <div class="label">Score moyen /100</div>
+        </div>
+        <div class="stat-card" style="border-color:#6366f1">
+          <div class="val" style="color:#6366f1">${best?.score_final || '—'}</div>
+          <div class="label">Meilleur score — ${best?.superviseur?.split(' ')[0] || '—'}</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-title">📊 Classement complet — KPIs 70% · Appels TC 20% · Présentiel 10%</div>
+        <table>
+          <thead><tr>
+            <th style="text-align:center">Rang</th>
+            <th>Superviseur</th>
+            <th style="text-align:center">Score</th>
+            <th style="text-align:center">Mention</th>
+            <th style="text-align:center">KPIs</th>
+            <th style="text-align:center">Appels TC</th>
+            <th style="text-align:center">Présentiel</th>
+          </tr></thead>
+          <tbody>${lignes}</tbody>
+        </table>
+      </div>
+      <div class="footer">Rapport généré le ${new Date().toLocaleDateString('fr-FR')} · Farouk Distribution · Système de Gestion Réseau</div>
+      </body></html>`;
+
+      // Sauvegarder sur le serveur et obtenir un lien partageable
+      const saveResp = await api.post('/rapports/generer-superviseur', {
+        html, superviseur: `CLASSEMENT_${MOIS[mois]}_${annee}`,
+        mois: MOIS[mois], annee,
+      });
+
+      const lien = saveResp.data.url;
+      const expire = saveResp.data.expire;
+
+      // Ouvrir la page
+      const w = window.open('', '_blank', 'width=1000,height=700');
+      w.document.write(html);
+      w.document.close();
+
+      // Copier le lien dans le presse-papiers
+      if (navigator.clipboard) await navigator.clipboard.writeText(lien);
+
+      alert(`✅ Classement généré !\n\n🔗 Lien copié dans le presse-papiers :\n${lien}\n\n⏱️ Valide jusqu'au ${expire}\n\nCollez ce lien dans votre groupe WhatsApp.`);
+    } catch (e) {
+      console.error(e);
+      alert('Erreur lors de la génération du classement.');
+    } finally { setPubliant(false); }
+  };
   const [activeTab, setActiveTab] = useState('classement'); // classement | evaluation | mystery | presentiel
   const [searchSup, setSearchSup] = useState('');
 

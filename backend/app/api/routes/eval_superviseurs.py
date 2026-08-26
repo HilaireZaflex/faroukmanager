@@ -62,6 +62,46 @@ def _fmt(e: EvalSuperviseur) -> dict:
 
 # ─── Liste superviseurs ────────────────────────────────────────────────────────
 
+@router.get("/eval-superviseurs/classement-global")
+def classement_global(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne le classement de TOUS les superviseurs ayant validé leur évaluation (score_final calculé)."""
+    from app.models.eval_superviseur import EvalSuperviseur
+    # Tous les superviseurs avec un score_final calculé pour cette période
+    evals = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+        EvalSuperviseur.score_final.isnot(None),
+    ).order_by(EvalSuperviseur.score_final.desc()).all()
+
+    result = []
+    for i, e in enumerate(evals, 1):
+        result.append({
+            "rang": i,
+            "superviseur": e.superviseur,
+            "score_final": round(e.score_final, 1),
+            "mention": e.mention or getattr(e, 'grade', None) or _mention(e.score_final),
+            "score_kpi": round(e.score_kpi or 0, 1),
+            "score_mystery": round(e.score_mystery or 0, 1),
+            "score_presentiel": round(e.score_presentiel or 0, 1),
+            "zone": getattr(e, 'zone', None),
+        })
+    return {"total": len(result), "annee": annee, "mois": mois, "classement": result}
+
+def _mention(score):
+    if score is None: return '—'
+    if score >= 90: return '🏆 Excellent'
+    if score >= 80: return '⭐ Très Bien'
+    if score >= 70: return '👍 Bien'
+    if score >= 60: return '💪 Assez Bien'
+    if score >= 50: return '⚠️ Passable'
+    return '🔴 Insuffisant'
+
+
 @router.get("/eval-superviseurs/superviseurs")
 def liste_superviseurs(
     db: Session = Depends(get_db),
