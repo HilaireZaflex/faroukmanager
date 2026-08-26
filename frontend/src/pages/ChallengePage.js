@@ -505,7 +505,6 @@ const MAIN_TABS = [
   { id: 'om',        label: '\uD83D\uDFE0 Challenge Orange Money', color: '#FF6900' },
   { id: 'simulation', label: '\uD83D\uDD2E Simulation' },
   { id: 'projection', label: '\uD83D\uDCC8 Projection' },
-  { id: 'classement', label: '\u2B50 Classement' },
   { id: 'alertes',   label: '\uD83D\uDEA8 Alertes' },
 ];
 
