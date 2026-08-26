@@ -936,7 +936,8 @@ export default function EvalSuperveursPage() {
   const [publiant, setPubliant] = useState(false);
 
   const { data: userMe } = useQuery('me', () => api.get('/auth/me').then(r => r.data), { staleTime: 300000 });
-  const isAdmin = ['admin','ADMIN','manager','MANAGER','rc','RC'].includes(userMe?.role || '');
+  const userRole = (userMe?.role || '').toLowerCase().replace('userrole.','');
+  const isAdmin = ['admin','manager','rc'].includes(userRole);
 
   const publierClassement = async () => {
     setPubliant(true);
