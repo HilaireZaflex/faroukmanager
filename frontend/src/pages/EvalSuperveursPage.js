@@ -1483,17 +1483,23 @@ export default function EvalSuperveursPage() {
 
         {/* ── Contenu principal ── */}
         <div>
-          {/* Onglets */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 5 }}>
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setActiveTab(t.id)}
-                style={{ padding: '8px 16px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                  background: activeTab === t.id ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'transparent',
-                  color: activeTab === t.id ? '#fff' : '#8a8a9a', transition: 'all 0.2s',
-                  boxShadow: activeTab === t.id ? '0 4px 12px rgba(255,105,0,0.3)' : 'none' }}>
-                {t.label}
-              </button>
-            ))}
+          {/* Onglets — design scrollable, bien espacés */}
+          <div style={{ overflowX: 'auto', marginBottom: 20, paddingBottom: 4 }}>
+            <div style={{ display: 'flex', gap: 8, minWidth: 'max-content', background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '6px 8px' }}>
+              {tabs.map(t => (
+                <button key={t.id} onClick={() => setActiveTab(t.id)}
+                  style={{
+                    padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.2s',
+                    background: activeTab === t.id ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'rgba(255,255,255,0.04)',
+                    color: activeTab === t.id ? '#fff' : '#8a8a9a',
+                    boxShadow: activeTab === t.id ? '0 4px 14px rgba(255,105,0,0.35)' : 'none',
+                    letterSpacing: 0.3,
+                  }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* ── Classement ── */}
