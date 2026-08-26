@@ -1125,6 +1125,13 @@ export default function EvalSuperveursPage() {
           <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
             KPIs 70% · Appel des Téléconseillères 20% · Présentiel 10%
           </p>
+          {/* Bouton Publier Classement */}
+          {isAdmin && (
+            <button onClick={publierClassement} disabled={publiant}
+              style={{ marginTop: 12, padding: '10px 18px', borderRadius: 12, border: 'none', background: publiant ? 'rgba(99,102,241,0.4)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: publiant ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.35)', whiteSpace: 'nowrap', display: 'inline-block' }}>
+              {publiant ? '⏳ Génération...' : '📊 Publier le Classement'}
+            </button>
+          )}
           {/* Sélecteur de période — design pill sur une ligne */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0, marginTop: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, overflow: 'hidden' }}>
             <span style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, color: '#FF6900', borderRight: '1px solid rgba(255,105,0,0.2)', whiteSpace: 'nowrap', letterSpacing: 0.5 }}>📅 Période</span>
