@@ -513,6 +513,7 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
     nb_actifs_nafama:      '🟢 Nb Actifs NAFAMA',
     taux_actif_kaabu:      '💳 Taux Actif Kaabu (%)',
     nb_actifs_kaabu:       '💳 Nb Actifs Kaabu',
+    taux_actif_km:         '📍 Taux Actif KM (%)',
     // Compatibilité anciens noms
     nb_pdv:                '🏪 Nb PDV actifs',
     ca_omy:                '💰 CA OMY',
@@ -630,7 +631,7 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
     <div class="meta">
       <span class="badge">📅 ${MOIS[mois]} ${annee}</span>
       ${kpisData.zone ? `<span class="badge">📍 Zone : ${kpisData.zone}</span>` : ''}
-      ${(kpisData.sous_zones||[]).length > 0 ? `<span class="badge">🗺️ ${(kpisData.sous_zones||[]).join(' · ')}</span>` : ''}
+      ${(kpisData.sous_zones||[]).length > 0 ? `<span class="badge">🗺️ Sous-zone : ${(kpisData.sous_zones||[])[0]}</span>` : ''}
       <span class="badge">👔 Superviseur</span>
     </div>
   </div>
