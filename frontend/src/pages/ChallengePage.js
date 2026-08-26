@@ -503,6 +503,8 @@ const MAIN_TABS = [
   { id: 'dashboard', label: '\uD83C\uDFC6 Score Global' },
   { id: 'telco',     label: '\uD83D\uDD35 Challenge PDG TELCO', color: '#0ea5e9' },
   { id: 'om',        label: '\uD83D\uDFE0 Challenge Orange Money', color: '#FF6900' },
+  { id: 'simulation', label: '\uD83D\uDD2E Simulation' },
+  { id: 'projection', label: '\uD83D\uDCC8 Projection' },
   { id: 'classement', label: '\u2B50 Classement' },
   { id: 'alertes',   label: '\uD83D\uDEA8 Alertes' },
 ];
@@ -670,6 +672,10 @@ export default function ChallengePage() {
               detail={<TabPLV />}
             />}
 
+            {/* Simulation What-If */}
+            {activeTab === 'simulation' && <TabSimulation dashboard={dashboard} />}
+            {/* Projection fin de challenge */}
+            {activeTab === 'projection' && <TabProjection dashboard={dashboard} />}
             {/* Commun */}
             {activeTab === 'classement' && <TabClassement />}
             {activeTab === 'alertes' && <TabAlertes alertes={alertes} dashboard={dashboard} />}
@@ -1934,6 +1940,235 @@ function TabPointsControles() {
 }
 
 // ── Tab Classement ────────────────────────────────────────────────────────────
+// ── 🔮 Simulateur What-If ─────────────────────────────────────────────────────
+function TabSimulation({ dashboard }) {
+  const { data: awardData } = useQuery('award-dashboard', () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 });
+  const getIndTaux = (ind) => {
+    const d = awardData?.[ind] || {};
+    const last = (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0];
+    return last?.taux_orange != null ? Math.min(1, last.taux_orange) : null;
+  };
+
+  const kpis = dashboard?.kpis || {};
+  const CRITERES_TELCO = [
+    { key: 'nafama', label: '🟢 CA Sell out (NAFAMA)', poids: 40, current: getIndTaux('NAFAMA') },
+    { key: 'terminaux', label: '🖥️ Vente terminaux', poids: 15, current: getIndTaux('TERMINAUX') },
+    { key: 'points', label: '📍 Points contrôlés', poids: 15, current: kpis.points_controles?.realise != null ? Math.min(1, kpis.points_controles.realise/25) : null },
+    { key: 'energie', label: '☀️ Kit Orange Énergie', poids: 15, current: getIndTaux('ORANGE ENERGIE') },
+    { key: 'note_dz', label: '⭐ Note DZ', poids: 15, current: null },
+  ];
+  const CRITERES_OM = [
+    { key: 'omy', label: '📱 CA Cash-out (OMY)', poids: 30, current: getIndTaux('OMY') },
+    { key: 'pdv_actif', label: '🏪 PDV actif', poids: 10, current: getIndTaux('PDV_ACTIF') },
+    { key: 'recrutement', label: '👥 Recrutement OMY', poids: 15, current: kpis.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux/100 : null },
+    { key: 'kaabu', label: '💳 Adoption Kaabu', poids: 15, current: getIndTaux('KAABU MOBILE') },
+    { key: 'fintech', label: '🔒 Risque Fintech', poids: 15, current: 0 },
+    { key: 'plv', label: '📦 Déploiement PLV', poids: 15, current: kpis.deploiement_plv?.taux || null },
+  ];
+
+  const initSimValues = (criteres) => Object.fromEntries(criteres.map(c => [c.key, Math.round((c.current || 0) * 100)]));
+  const [simTelco, setSimTelco] = useState(() => initSimValues(CRITERES_TELCO));
+  const [simOM, setSimOM] = useState(() => initSimValues(CRITERES_OM));
+
+  const calcScore = (criteres, simVals) => {
+    let totalPoids = 0, totalScore = 0;
+    criteres.forEach(c => {
+      const taux = (simVals[c.key] || 0) / 100;
+      totalPoids += c.poids;
+      totalScore += Math.min(1, taux) * c.poids;
+    });
+    return totalPoids > 0 ? Math.round(totalScore / totalPoids * 100) : 0;
+  };
+
+  const scoreTelcoSim = calcScore(CRITERES_TELCO, simTelco);
+  const scoreOMSim = calcScore(CRITERES_OM, simOM);
+  const scoreGlobalSim = Math.round((scoreTelcoSim + scoreOMSim) / 2);
+  const scoreColor = scoreGlobalSim >= 80 ? '#22c55e' : scoreGlobalSim >= 65 ? '#ffa502' : '#ff4757';
+
+  const SliderRow = ({ c, vals, setVals, color }) => {
+    const current = Math.round((c.current || 0) * 100);
+    const simVal = vals[c.key] || 0;
+    const diff = simVal - current;
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>{c.label}</span>
+            <span style={{ marginLeft: 8, fontSize: 11, color: '#64748b' }}>Poids: {c.poids}%</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {diff !== 0 && <span style={{ fontSize: 11, fontWeight: 700, color: diff > 0 ? '#22c55e' : '#ff4757' }}>{diff > 0 ? '+' : ''}{diff}%</span>}
+            <span style={{ fontSize: 16, fontWeight: 900, color: simVal >= 95 ? '#22c55e' : simVal >= 70 ? '#ffa502' : '#ff4757' }}>{simVal}%</span>
+          </div>
+        </div>
+        <input type="range" min="0" max="150" step="1" value={simVal}
+          onChange={e => setVals(v => ({ ...v, [c.key]: parseInt(e.target.value) }))}
+          style={{ width: '100%', accentColor: color, height: 6, cursor: 'pointer' }}/>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#475569', marginTop: 2 }}>
+          <span>Actuel: {current}%</span>
+          <span>Objectif: 95%</span>
+        </div>
+      </div>
+    );
+  };
+
+  const resetToActual = () => {
+    setSimTelco(initSimValues(CRITERES_TELCO));
+    setSimOM(initSimValues(CRITERES_OM));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Score projeté */}
+      <div className="ch-card" style={{ background: `${scoreColor}12`, border: `2px solid ${scoreColor}40` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>🔮 Score simulé si ces taux sont atteints :</div>
+            <div style={{ fontSize: 11, color: '#475569' }}>Ajustez les curseurs pour voir l{"'"}impact sur votre score final</div>
+          </div>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: '#64748b' }}>TELCO</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#0ea5e9' }}>{scoreTelcoSim}%</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: '#64748b' }}>OM</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#FF6900' }}>{scoreOMSim}%</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: '12px 20px', background: `${scoreColor}18`, borderRadius: 12 }}>
+              <div style={{ fontSize: 11, color: '#64748b' }}>GLOBAL</div>
+              <div style={{ fontSize: 42, fontWeight: 900, color: scoreColor }}>{scoreGlobalSim}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 14, fontWeight: 700, color: scoreColor, textAlign: 'center' }}>
+          {scoreGlobalSim >= 95 ? '🏆 Vous remportez le challenge !'
+            : scoreGlobalSim >= 85 ? '🎯 Vous êtes sur le podium !'
+            : scoreGlobalSim >= 75 ? '📈 Bonne performance — continuez !'
+            : scoreGlobalSim >= 65 ? '⚠️ Il faut accélérer pour atteindre le podium'
+            : '🔴 Mobilisation urgente requise sur tous les critères'}
+        </div>
+        <button onClick={resetToActual} style={{ marginTop: 12, padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 12 }}>
+          🔄 Revenir aux données réelles
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* TELCO sliders */}
+        <div className="ch-card" style={{ borderLeft: '4px solid #0ea5e9' }}>
+          <h4 style={{ color: '#0ea5e9', marginBottom: 20, fontSize: 14, fontWeight: 800 }}>🔵 Challenge PDG TELCO — Score: {scoreTelcoSim}%</h4>
+          {CRITERES_TELCO.map(c => <SliderRow key={c.key} c={c} vals={simTelco} setVals={setSimTelco} color="#0ea5e9" />)}
+        </div>
+        {/* OM sliders */}
+        <div className="ch-card" style={{ borderLeft: '4px solid #FF6900' }}>
+          <h4 style={{ color: '#FF6900', marginBottom: 20, fontSize: 14, fontWeight: 800 }}>🟠 Challenge Orange Money — Score: {scoreOMSim}%</h4>
+          {CRITERES_OM.map(c => <SliderRow key={c.key} c={c} vals={simOM} setVals={setSimOM} color="#FF6900" />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 📈 Projection fin de challenge ────────────────────────────────────────────
+function TabProjection({ dashboard }) {
+  const { data: awardData } = useQuery('award-dashboard', () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 });
+
+  const getLastTaux = (ind) => {
+    const d = awardData?.[ind] || {};
+    const last = (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0];
+    return last?.taux_orange != null ? Math.min(1.5, last.taux_orange) : null;
+  };
+
+  const periode = dashboard?.periode || {};
+  const moisEcoules = (periode.mois_ecoules || []).length || 1;
+  const moisRestants = 4 - moisEcoules;
+  const avancement = (periode.avancement_pct || 25) / 100;
+
+  const CRITERES = [
+    { label: '📱 CA Cash-out (OMY)', ind: 'OMY', objectif: 0.95, poids: '30% OM', color: '#FF6900' },
+    { label: '🟢 CA Sell-out (NAFAMA)', ind: 'NAFAMA', objectif: 0.95, poids: '40% TELCO', color: '#22c55e' },
+    { label: '💳 Adoption Kaabu', ind: 'KAABU MOBILE', objectif: 0.85, poids: '15% OM', color: '#00d68f' },
+    { label: '☀️ Orange Énergie', ind: 'ORANGE ENERGIE', objectif: 0.80, poids: '15% TELCO', color: '#f59e0b' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div className="ch-card">
+        <h3 className="ch-section-title">📈 Projection fin de challenge — Octobre 2026</h3>
+        <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+          Basée sur la tendance actuelle ({moisEcoules} mois écoulés, {moisRestants} restants)
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {CRITERES.map(c => {
+            const taux = getLastTaux(c.ind);
+            if (taux === null) return null;
+            const projection = Math.min(1.5, taux); // tendance linéaire simple
+            const gap = c.objectif - projection;
+            const atteindra = projection >= c.objectif;
+            const effortHebdo = gap > 0 ? Math.round(gap / (moisRestants * 4) * 100 * 10) / 10 : 0;
+
+            return (
+              <div key={c.ind} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${atteindra ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{c.label}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>Poids: {c.poids}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>Actuel</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: c.color }}>{Math.round(taux*100)}%</div>
+                    </div>
+                    <div style={{ fontSize: 20 }}>→</div>
+                    <div style={{ textAlign: 'center', padding: '8px 12px', borderRadius: 8, background: atteindra ? 'rgba(34,197,94,0.1)' : 'rgba(255,165,2,0.1)' }}>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>Projection</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: atteindra ? '#22c55e' : '#ffa502' }}>{Math.round(projection*100)}%</div>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.04)' }}>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>Objectif</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: '#94a3b8' }}>{Math.round(c.objectif*100)}%</div>
+                    </div>
+                  </div>
+                </div>
+                {atteindra ? (
+                  <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 700 }}>✅ Objectif atteignable à ce rythme !</div>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#ffa502', fontWeight: 700 }}>
+                    ⬆️ Il faut +{Math.round(gap*100)}% supplémentaires — effort de +{effortHebdo}% par semaine pendant {moisRestants * 4} semaines
+                  </div>
+                )}
+                <div style={{ marginTop: 8, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(100, taux/c.objectif*100)}%`, background: atteindra ? '#22c55e' : '#ffa502', borderRadius: 3 }}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Résumé semaine en cours — Objectifs à atteindre */}
+      <div className="ch-card" style={{ borderLeft: '4px solid #6366f1' }}>
+        <h3 className="ch-section-title">🎯 Objectifs de cette semaine pour rester sur la trajectoire</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
+          {[
+            { label: 'CA OMY hebdo requis', val: `15 702 713 FCFA`, sub: 'soit 95% de l\'objectif hebdo', color: '#FF6900', icon: '📱' },
+            { label: 'CA NAFAMA hebdo requis', val: `42 388 000 FCFA`, sub: 'taux >= 95%', color: '#22c55e', icon: '🟢' },
+            { label: 'PDVs Kaabu actifs', val: `≥ 1 013 PDVs`, sub: 'soit >= 86%', color: '#00d68f', icon: '💳' },
+            { label: 'Kits Orange Énergie', val: `≥ 2 kits/semaine`, sub: 'pour maintenir 100%', color: '#f59e0b', icon: '☀️' },
+          ].map((item, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${item.color}30`, borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 20, marginBottom: 6 }}>{item.icon}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{item.label}</div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: item.color, marginBottom: 2 }}>{item.val}</div>
+              <div style={{ fontSize: 10, color: '#475569' }}>{item.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ClassementSection({ title, icon, color, data, unite, objLabel }) {
   if (!data || data.length === 0) return (
     <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
