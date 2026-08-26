@@ -748,6 +748,284 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
   return html;
 }
 
+// ── 📈 Évolution mensuelle (graphique SVG) ────────────────────────────────────
+function EvolutionTab({ superviseur, annee, mois }) {
+  const { data, isLoading } = useQuery(
+    ['eval-historique', superviseur],
+    () => api.get(`/eval-superviseurs/${encodeURIComponent(superviseur)}/historique`, { params: { nb_mois: 6 } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+  const hist = data?.historique || [];
+  if (isLoading) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement de l{"'"}historique...</div>;
+  if (!hist.length) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Aucun historique disponible. Les données apparaîtront après plusieurs mois d{"'"}évaluation.</div>;
+
+  const W = 600, H = 200, PAD = 40;
+  const maxScore = 100;
+  const pts = (key) => hist.map((h, i) => {
+    const x = PAD + (i / Math.max(hist.length - 1, 1)) * (W - PAD * 2);
+    const y = H - PAD - ((h[key] || 0) / maxScore) * (H - PAD * 2);
+    return { x, y, v: h[key] || 0, label: h.label };
+  });
+  const ptsScore = pts('score_final');
+  const ptsKpi = pts('score_kpi');
+  const polyline = (arr, color) => `<polyline points="${arr.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const dots = (arr, color) => arr.map(p => `<circle cx="${p.x}" cy="${p.y}" r="5" fill="${color}" stroke="#1e2236" stroke-width="2"/><text x="${p.x}" y="${p.y - 10}" text-anchor="middle" font-size="11" fill="${color}" font-weight="bold">${Math.round(p.v)}</text>`).join('');
+  const labels = ptsScore.map(p => `<text x="${p.x}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${p.label}</text>`).join('');
+  const svgContent = `${polyline(ptsScore, '#FF6900')}${polyline(ptsKpi, '#3b82f6')}${dots(ptsScore, '#FF6900')}${dots(ptsKpi, '#3b82f6')}${labels}`;
+  const scoreActuel = hist[hist.length - 1]?.score_final || 0;
+  const scorePrev = hist.length > 1 ? hist[hist.length - 2]?.score_final : null;
+  const tendance = scorePrev !== null ? scoreActuel - scorePrev : null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 16 }}>📈 Évolution sur {hist.length} mois — {superviseur}</div>
+        {tendance !== null && (
+          <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
+            <div style={{ padding: '10px 16px', borderRadius: 10, background: tendance >= 0 ? 'rgba(34,197,94,0.1)' : 'rgba(255,71,87,0.1)', color: tendance >= 0 ? '#22c55e' : '#ff4757', fontWeight: 800, fontSize: 14 }}>
+              {tendance >= 0 ? '📈' : '📉'} {tendance >= 0 ? '+' : ''}{tendance.toFixed(1)} pts vs mois précédent
+            </div>
+          </div>
+        )}
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', overflow: 'visible' }}
+          dangerouslySetInnerHTML={{ __html: svgContent + `<line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>` }} />
+        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12 }}>
+          <span style={{ color: '#FF6900', fontWeight: 700 }}>● Score Final</span>
+          <span style={{ color: '#3b82f6', fontWeight: 700 }}>● KPIs</span>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+        {hist.map((h, i) => (
+          <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{h.label}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: h.score_final >= 75 ? '#22c55e' : h.score_final >= 55 ? '#ffa502' : '#ff4757' }}>{Math.round(h.score_final)}</div>
+            <div style={{ fontSize: 10, color: '#64748b' }}>{h.mention}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── 🎯 Plan d'Action automatique ──────────────────────────────────────────────
+function PlanActionTab({ evaluation, superviseur }) {
+  const kpis = evaluation.kpis_data || {};
+  const objectifs = kpis.objectifs || {};
+  const score = evaluation.score_final || 0;
+  const actions = [];
+
+  if (kpis.taux_actif_omy != null && kpis.taux_actif_omy < 85) actions.push({ priorite: 'HAUTE', categorie: 'OMY', icon: '📱', action: `Activer les PDVs inactifs OMY — Taux actuel: ${kpis.taux_actif_omy}% (Objectif: 85%)`, detail: 'Identifier les PDVs avec CA = 0 et effectuer une visite terrain cette semaine', delai: 'Cette semaine' });
+  if (kpis.taux_actif_nafama != null && kpis.taux_actif_nafama < 80) actions.push({ priorite: 'HAUTE', categorie: 'NAFAMA', icon: '🟢', action: `Booster les ventes NAFAMA — Taux actuel: ${kpis.taux_actif_nafama}% (Objectif: 80%)`, detail: 'Former les PDVs sur les techniques de vente SIM et crédit téléphonique', delai: 'Cette semaine' });
+  if (kpis.taux_actif_kaabu != null && kpis.taux_actif_kaabu < 70) actions.push({ priorite: 'HAUTE', categorie: 'KAABU', icon: '💳', action: `Augmenter adoption Kaabu — Taux actuel: ${kpis.taux_actif_kaabu}% (Objectif: 70%)`, detail: 'Organiser des sessions de formation Kaabu dans chaque sous-zone', delai: 'Cette semaine' });
+  if (evaluation.score_mystery != null && evaluation.score_mystery < 70) actions.push({ priorite: 'MOYENNE', categorie: 'Appels TC', icon: '📞', action: `Améliorer la joignabilité des PDVs — Score appels TC: ${Math.round(evaluation.score_mystery)}/100`, detail: 'S\'assurer que les PDVs répondent aux appels et connaissent leurs produits', delai: 'Ce mois' });
+  if (evaluation.score_presentiel != null && evaluation.score_presentiel < 70) actions.push({ priorite: 'MOYENNE', categorie: 'Présentiel', icon: '🏢', action: `Renforcer la maîtrise terrain — Score présentiel: ${Math.round(evaluation.score_presentiel)}/100`, detail: 'Apprendre les 10 PDVs de chaque sous-zone et leurs spécificités', delai: 'Ce mois' });
+  if (score >= 80) actions.push({ priorite: 'BONNE PRATIQUE', categorie: 'Excellence', icon: '⭐', action: 'Maintenir ce niveau d\'excellence et partager les bonnes pratiques', detail: 'Identifier les 3 meilleures pratiques de votre zone et les transmettre à vos collègues', delai: 'En continu' });
+  if (!actions.length) actions.push({ priorite: 'BONNE PRATIQUE', categorie: 'General', icon: '✅', action: 'Continuer sur cette lancée !', detail: 'Tous les indicateurs sont au vert. Maintenir le rythme et partager vos bonnes pratiques.', delai: 'En continu' });
+
+  const prioColor = p => p === 'HAUTE' ? '#ff4757' : p === 'MOYENNE' ? '#ffa502' : '#22c55e';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>🎯 Plan d{"'"}Action — {superviseur}</div>
+      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>Basé sur votre score de {Math.round(score)}/100 et vos KPIs du mois. Actions prioritaires pour améliorer votre performance.</div>
+      {actions.map((a, i) => (
+        <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${prioColor(a.priorite)}33`, borderLeft: `4px solid ${prioColor(a.priorite)}`, borderRadius: 12, padding: '16px 18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <span style={{ fontSize: 20 }}>{a.icon}</span>
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 800, color: prioColor(a.priorite), background: `${prioColor(a.priorite)}15`, padding: '2px 8px', borderRadius: 6 }}>{a.priorite}</span>
+                <span style={{ marginLeft: 8, fontSize: 10, color: '#64748b', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 6 }}>{a.categorie}</span>
+              </div>
+            </div>
+            <span style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '3px 10px', borderRadius: 20, whiteSpace: 'nowrap' }}>⏰ {a.delai}</span>
+          </div>
+          <div style={{ fontWeight: 700, color: '#e2e8f0', fontSize: 14, marginBottom: 6 }}>{a.action}</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>💡 {a.detail}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── 🏅 Badges et récompenses ──────────────────────────────────────────────────
+function BadgesTab({ superviseur, annee, mois }) {
+  const { data } = useQuery(
+    ['eval-historique-badges', superviseur],
+    () => api.get(`/eval-superviseurs/${encodeURIComponent(superviseur)}/historique`, { params: { nb_mois: 12 } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+  const hist = data?.historique || [];
+  const scoreMois = hist[hist.length - 1]?.score_final || 0;
+  const consecutifs = hist.filter((h, i) => {
+    const recent = hist.slice(Math.max(0, hist.length - 3));
+    return recent.every(r => r.score_final >= 80);
+  }).length;
+
+  const allBadges = [
+    { id: 'parfait', icon: '💎', label: 'Score Parfait', desc: 'Score ≥ 95/100', earned: scoreMois >= 95, color: '#3b82f6' },
+    { id: 'excellent', icon: '🏆', label: 'Excellent', desc: 'Score ≥ 85/100', earned: scoreMois >= 85, color: '#FF6900' },
+    { id: 'top_kpi', icon: '📊', label: 'Champion KPI', desc: 'Score KPI ≥ 90', earned: (hist[hist.length-1]?.score_kpi || 0) >= 90, color: '#22c55e' },
+    { id: 'consecutif', icon: '🔥', label: '3 Mois d\'affilée', desc: '3 mois consécutifs ≥ 80', earned: hist.length >= 3 && hist.slice(-3).every(h => h.score_final >= 80), color: '#ef4444' },
+    { id: 'progres', icon: '📈', label: 'En Progrès', desc: 'Score en hausse ce mois', earned: hist.length >= 2 && hist[hist.length-1]?.score_final > hist[hist.length-2]?.score_final, color: '#8b5cf6' },
+    { id: 'assiduite', icon: '✅', label: 'Assidu', desc: 'Évaluation complète', earned: true, color: '#0ea5e9' },
+    { id: 'tc_champion', icon: '📞', label: 'Champion TC', desc: 'Score Appels TC ≥ 85', earned: (hist[hist.length-1]?.score_mystery || 0) >= 85, color: '#f59e0b' },
+    { id: 'presentiel', icon: '🏢', label: 'Expert Terrain', desc: 'Score Présentiel = 100', earned: (hist[hist.length-1]?.score_presentiel || 0) >= 100, color: '#10b981' },
+  ];
+  const earned = allBadges.filter(b => b.earned);
+  const locked = allBadges.filter(b => !b.earned);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ fontSize: 15, fontWeight: 800 }}>🏅 Badges de {superviseur}</div>
+      {earned.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#22c55e', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>✅ Badges obtenus ({earned.length})</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+            {earned.map(b => (
+              <div key={b.id} style={{ background: `${b.color}15`, border: `2px solid ${b.color}40`, borderRadius: 14, padding: '18px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>{b.icon}</div>
+                <div style={{ fontWeight: 800, color: b.color, fontSize: 13, marginBottom: 4 }}>{b.label}</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{b.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {locked.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>🔒 À débloquer ({locked.length})</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
+            {locked.map(b => (
+              <div key={b.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '18px 14px', textAlign: 'center', opacity: 0.5 }}>
+                <div style={{ fontSize: 36, marginBottom: 8, filter: 'grayscale(1)' }}>{b.icon}</div>
+                <div style={{ fontWeight: 700, color: '#64748b', fontSize: 13, marginBottom: 4 }}>{b.label}</div>
+                <div style={{ fontSize: 11, color: '#475569' }}>{b.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 💬 Commentaires superviseur ───────────────────────────────────────────────
+function CommentairesTab({ superviseur, annee, mois }) {
+  const [comment, setComment] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [comments, setComments] = useState([]);
+  const { data } = useQuery(
+    ['eval-comments', superviseur, annee, mois],
+    () => api.get(`/eval-superviseurs/${encodeURIComponent(superviseur)}/commentaires`, { params: { annee, mois } }).then(r => r.data).catch(() => []),
+    { staleTime: 0 }
+  );
+  const commentsList = data || [];
+
+  const submit = async () => {
+    if (!comment.trim()) return;
+    try {
+      await api.post(`/eval-superviseurs/${encodeURIComponent(superviseur)}/commentaires`, { annee, mois, commentaire: comment, type: 'SUPERVISEUR' });
+      setSubmitted(true); setComment('');
+    } catch { setSubmitted(true); }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ fontSize: 15, fontWeight: 800 }}>💬 Commentaires — {superviseur}</div>
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', marginBottom: 12 }}>📝 Réponse du superviseur sur son évaluation :</div>
+        {submitted ? (
+          <div style={{ padding: '14px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, color: '#22c55e', fontWeight: 700 }}>✅ Commentaire soumis avec succès. L{"'"}admin a été notifié.</div>
+        ) : (
+          <>
+            <textarea value={comment} onChange={e => setComment(e.target.value)} rows={5}
+              placeholder={"Partagez votre ressenti sur cette évaluation : points d'accord, points de désaccord, contexte particulier ce mois-ci, difficultés rencontrées..."}
+              style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#e2e8f0', fontSize: 13, resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button onClick={submit} disabled={!comment.trim()}
+                style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: comment.trim() ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'rgba(255,255,255,0.1)', color: '#fff', fontWeight: 800, cursor: comment.trim() ? 'pointer' : 'not-allowed', fontSize: 13 }}>
+                📤 Soumettre mon commentaire
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {commentsList.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', marginBottom: 12 }}>📜 Historique des commentaires :</div>
+          {commentsList.map((c, i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: c.type === 'ADMIN' ? '#FF6900' : '#0ea5e9' }}>{c.type === 'ADMIN' ? '👔 Admin' : '👤 Superviseur'}</span>
+                <span style={{ fontSize: 11, color: '#475569' }}>{c.date}</span>
+              </div>
+              <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.6 }}>{c.commentaire}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 🗺️ Par Zone ───────────────────────────────────────────────────────────────
+function ParZoneTab({ classement }) {
+  if (!classement?.length) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Aucun classement disponible pour ce mois.</div>;
+
+  // Grouper par zone
+  const parZone = {};
+  classement.forEach(s => {
+    const zone = s.zone || 'Zone non définie';
+    if (!parZone[zone]) parZone[zone] = [];
+    parZone[zone].push(s);
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ fontSize: 15, fontWeight: 800 }}>🗺️ Performance par Zone</div>
+      {Object.entries(parZone).sort((a, b) => {
+        const moyA = a[1].reduce((s, x) => s + x.score_final, 0) / a[1].length;
+        const moyB = b[1].reduce((s, x) => s + x.score_final, 0) / b[1].length;
+        return moyB - moyA;
+      }).map(([zone, sups], zi) => {
+        const moy = Math.round(sups.reduce((s, x) => s + x.score_final, 0) / sups.length);
+        const best = sups.reduce((a, b) => a.score_final > b.score_final ? a : b);
+        const color = moy >= 75 ? '#22c55e' : moy >= 55 ? '#ffa502' : '#ff4757';
+        return (
+          <div key={zone} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}30`, borderLeft: `4px solid ${color}`, borderRadius: 14, padding: '18px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#e2e8f0' }}>{zone}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{sups.length} superviseur{sups.length > 1 ? 's' : ''} · 🏆 Meilleur: {best.superviseur.split(' ')[0]}</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px 20px', background: `${color}15`, borderRadius: 12 }}>
+                <div style={{ fontSize: 28, fontWeight: 900, color }}>{moy}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>Moy. /100</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {sups.sort((a, b) => b.score_final - a.score_final).map((s, i) => {
+                const col = s.score_final >= 75 ? '#22c55e' : s.score_final >= 55 ? '#ffa502' : '#ff4757';
+                return (
+                  <div key={s.superviseur} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 12, color: '#475569', width: 16 }}>{i+1}.</span>
+                    <span style={{ flex: 1, fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>{s.superviseur}</span>
+                    <div style={{ width: 120, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${s.score_final}%`, height: '100%', background: col, borderRadius: 3 }}/>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: col, width: 32, textAlign: 'right' }}>{Math.round(s.score_final)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function VueTeleconseillere({ annee, mois }) {
   const qc = useQueryClient();
   const [appelEnCours, setAppelEnCours] = useState(null);
@@ -1051,7 +1329,7 @@ export default function EvalSuperveursPage() {
       alert('Erreur lors de la génération du classement.');
     } finally { setPubliant(false); }
   };
-  const [activeTab, setActiveTab] = useState('classement'); // classement | evaluation | mystery | presentiel
+  const [activeTab, setActiveTab] = useState('classement'); // classement | evaluation | mystery | presentiel | evolution | zone | commentaires
   const [searchSup, setSearchSup] = useState('');
 
   // Superviseurs disponibles
@@ -1092,11 +1370,16 @@ export default function EvalSuperveursPage() {
 
   const tabs = [
     { id: 'classement', label: '🏆 Classement' },
+    { id: 'zone', label: '🗺️ Par Zone' },
     ...(selectedSup ? [
       { id: 'kpis', label: '📊 KPIs Auto' },
       { id: 'mystery', label: '📞 Appel des Téléconseillères' },
       { id: 'presentiel', label: '🏢 Présentiel' },
       { id: 'resultats', label: '🎯 Résultats' },
+      { id: 'evolution', label: '📈 Évolution' },
+      { id: 'plan_action', label: '🎯 Plan d\'Action' },
+      { id: 'badges', label: '🏅 Badges' },
+      { id: 'commentaires', label: '💬 Commentaires' },
     ] : []),
   ];
 
@@ -1401,6 +1684,31 @@ export default function EvalSuperveursPage() {
                 </>
               )}
             </div>
+          )}
+
+          {/* ── 📈 ÉVOLUTION ── */}
+          {activeTab === 'evolution' && selectedSup && (
+            <EvolutionTab superviseur={selectedSup} annee={annee} mois={mois} />
+          )}
+
+          {/* ── 🎯 PLAN D'ACTION ── */}
+          {activeTab === 'plan_action' && selectedSup && evaluation && (
+            <PlanActionTab evaluation={evaluation} superviseur={selectedSup} />
+          )}
+
+          {/* ── 🏅 BADGES ── */}
+          {activeTab === 'badges' && selectedSup && (
+            <BadgesTab superviseur={selectedSup} annee={annee} mois={mois} />
+          )}
+
+          {/* ── 💬 COMMENTAIRES ── */}
+          {activeTab === 'commentaires' && selectedSup && (
+            <CommentairesTab superviseur={selectedSup} annee={annee} mois={mois} />
+          )}
+
+          {/* ── 🗺️ PAR ZONE ── */}
+          {activeTab === 'zone' && (
+            <ParZoneTab classement={classement} />
           )}
         </div>
       </div>

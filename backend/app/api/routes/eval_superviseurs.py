@@ -62,6 +62,75 @@ def _fmt(e: EvalSuperviseur) -> dict:
 
 # ─── Liste superviseurs ────────────────────────────────────────────────────────
 
+@router.get("/eval-superviseurs/{superviseur}/commentaires")
+def get_commentaires(superviseur: str, annee: int = Query(...), mois: int = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Retourne les commentaires de l'évaluation d'un superviseur."""
+    from app.models.eval_superviseur import EvalSuperviseur
+    e = db.query(EvalSuperviseur).filter(EvalSuperviseur.superviseur == superviseur, EvalSuperviseur.annee == annee, EvalSuperviseur.mois == mois).first()
+    if not e: return []
+    comments = getattr(e, 'commentaires', None) or []
+    if isinstance(comments, str):
+        import json
+        try: comments = json.loads(comments)
+        except: comments = []
+    return comments
+
+@router.post("/eval-superviseurs/{superviseur}/commentaires")
+def add_commentaire(superviseur: str, payload: dict = Body(default={}), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Ajoute un commentaire à l'évaluation d'un superviseur."""
+    from app.models.eval_superviseur import EvalSuperviseur
+    from sqlalchemy import text
+    import json
+    from datetime import datetime
+    annee = payload.get("annee")
+    mois = payload.get("mois")
+    commentaire = payload.get("commentaire", "").strip()
+    type_com = payload.get("type", "SUPERVISEUR")
+    if not commentaire: raise HTTPException(400, "Commentaire vide")
+    e = db.query(EvalSuperviseur).filter(EvalSuperviseur.superviseur == superviseur, EvalSuperviseur.annee == annee, EvalSuperviseur.mois == mois).first()
+    if not e: raise HTTPException(404, "Évaluation non trouvée")
+    comments = getattr(e, 'commentaires', None) or []
+    if isinstance(comments, str):
+        try: comments = json.loads(comments)
+        except: comments = []
+    comments.append({"type": type_com, "commentaire": commentaire, "date": datetime.now().strftime("%d/%m/%Y"), "auteur": f"{current_user.prenom} {current_user.nom}".strip()})
+    db.execute(text("UPDATE eval_superviseurs SET commentaires = :c WHERE id = :id"), {"c": json.dumps(comments, ensure_ascii=False), "id": e.id})
+    db.commit()
+    return {"success": True, "total": len(comments)}
+
+
+@router.get("/eval-superviseurs/{superviseur}/historique")
+def historique_superviseur(
+    superviseur: str,
+    nb_mois: int = Query(6),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne l'évolution des scores sur les N derniers mois pour un superviseur."""
+    from app.models.eval_superviseur import EvalSuperviseur
+    from datetime import date
+
+    evals = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.superviseur == superviseur,
+        EvalSuperviseur.score_final.isnot(None),
+    ).order_by(EvalSuperviseur.annee.desc(), EvalSuperviseur.mois.desc()).limit(nb_mois).all()
+
+    MOIS_NOMS = ['','Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc']
+    result = []
+    for e in reversed(evals):
+        result.append({
+            "mois": e.mois,
+            "annee": e.annee,
+            "label": f"{MOIS_NOMS[e.mois]} {e.annee}",
+            "score_final": round(e.score_final, 1),
+            "score_kpi": round(e.score_kpi or 0, 1),
+            "score_mystery": round(e.score_mystery or 0, 1),
+            "score_presentiel": round(e.score_presentiel or 0, 1),
+            "mention": e.mention or _mention(e.score_final),
+        })
+    return {"superviseur": superviseur, "historique": result}
+
+
 @router.get("/eval-superviseurs/classement-global")
 def classement_global(
     annee: int = Query(...),
