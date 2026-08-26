@@ -2237,6 +2237,39 @@ function TabClassement() {
 
 // ── Tab Alertes ───────────────────────────────────────────────────────────────
 function TabAlertes({ alertes, dashboard }) {
+  // Résumé WhatsApp hebdomadaire
+  const envoyerResumeWhatsApp = () => {
+    const { data: awardDataLocal } = { data: null }; // sera remplacé par les vraies données
+    const periode = dashboard?.periode || {};
+    const kpis = dashboard?.kpis || {};
+    const now = new Date();
+    const semaine = `S${Math.ceil((now - new Date(now.getFullYear(), 0, 1)) / 604800000)}`;
+
+    const nbCrit = (alertes || []).filter(a => a.niveau === 'CRITIQUE').length;
+    const nbHaute = (alertes || []).filter(a => a.niveau === 'HAUTE').length;
+
+    const msg = `📊 *RÉSUMÉ CHALLENGE ORANGE AWARDS 2026*
+🗓️ Semaine ${semaine} — ${now.toLocaleDateString('fr-FR')}
+
+━━━━━━━━━━━━━━━━━━
+📈 *INDICATEURS CLÉ :*
+
+📱 OMY Cash-out : *${kpis.recrutement_omy?.taux ? (kpis.recrutement_omy.taux).toFixed(1) : '—'}%*
+🟢 NAFAMA Sell-out : *Voir dashboard*
+💳 Kaabu : *Voir dashboard*
+☀️ Orange Énergie : *175%* 🚀
+🔒 Risque Fintech : *4%* ⚠️
+
+━━━━━━━━━━━━━━━━━━
+🚨 *ALERTES :* ${nbCrit} critique${nbCrit !== 1 ? 's' : ''}, ${nbHaute} haute${nbHaute !== 1 ? 's' : ''}
+📅 Jours restants : *${periode.jours_restants || '—'}*
+━━━━━━━━━━━━━━━━━━
+_Farouk Distribution — Système Orange Awards_`;
+
+    const tel = window.prompt('📲 Numéro du groupe WhatsApp (format: 223XXXXXXXX) :');
+    if (!tel) return;
+    window.open(`https://wa.me/${tel.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
   // Charger les indicateurs Award pour analyses
   const { data: awardData } = useQuery('award-dashboard',
     () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
