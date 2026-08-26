@@ -2083,11 +2083,24 @@ function TabProjection({ dashboard }) {
   const moisRestants = 4 - moisEcoules;
   const avancement = (periode.avancement_pct || 25) / 100;
 
+  const kpisProj = dashboard?.kpis || {};
   const CRITERES = [
-    { label: '📱 CA Cash-out (OMY)', ind: 'OMY', objectif: 0.95, poids: '30% OM', color: '#FF6900' },
-    { label: '🟢 CA Sell-out (NAFAMA)', ind: 'NAFAMA', objectif: 0.95, poids: '40% TELCO', color: '#22c55e' },
-    { label: '💳 Adoption Kaabu', ind: 'KAABU MOBILE', objectif: 0.85, poids: '15% OM', color: '#00d68f' },
-    { label: '☀️ Orange Énergie', ind: 'ORANGE ENERGIE', objectif: 0.80, poids: '15% TELCO', color: '#f59e0b' },
+    // Challenge PDG TELCO
+    { label: '🟢 CA Sell-out (NAFAMA)', ind: 'NAFAMA', objectif: 0.95, poids: '40% TELCO', color: '#22c55e', challenge: 'TELCO', emoji: '🟢' },
+    { label: '🖥️ Vente terminaux', ind: 'TERMINAUX', objectif: 0.95, poids: '15% TELCO', color: '#0ea5e9', challenge: 'TELCO', emoji: '🖥️' },
+    { label: '📍 Points contrôlés', ind: null, objectif: 1.0, poids: '15% TELCO', color: '#3742fa', challenge: 'TELCO', emoji: '📍',
+      customTaux: kpisProj.points_controles?.realise != null ? Math.min(1, kpisProj.points_controles.realise / 25) : null },
+    { label: '☀️ Kit Orange Énergie', ind: 'ORANGE ENERGIE', objectif: 0.80, poids: '15% TELCO', color: '#f59e0b', challenge: 'TELCO', emoji: '☀️' },
+    { label: '⭐ Note DZ', ind: null, objectif: 1.0, poids: '15% TELCO', color: '#a29bfe', challenge: 'TELCO', emoji: '⭐', customTaux: null },
+    // Challenge Orange Money
+    { label: '📱 CA Cash-out (OMY)', ind: 'OMY', objectif: 0.95, poids: '30% OM', color: '#FF6900', challenge: 'OM', emoji: '📱' },
+    { label: '🏪 PDV actif', ind: 'PDV_ACTIF', objectif: 0.90, poids: '10% OM', color: '#ffa502', challenge: 'OM', emoji: '🏪' },
+    { label: '👥 Recrutement OMY', ind: null, objectif: 1.0, poids: '15% OM', color: '#8b5cf6', challenge: 'OM', emoji: '👥',
+      customTaux: kpisProj.recrutement_omy?.taux != null ? kpisProj.recrutement_omy.taux / 100 : null },
+    { label: '💳 Adoption Kaabu', ind: 'KAABU MOBILE', objectif: 0.85, poids: '15% OM', color: '#00d68f', challenge: 'OM', emoji: '💳' },
+    { label: '🔒 Risque Fintech', ind: null, objectif: 1.0, poids: '15% OM', color: '#ff4757', challenge: 'OM', emoji: '🔒', customTaux: 0 },
+    { label: '📦 Déploiement PLV', ind: null, objectif: 1.0, poids: '15% OM', color: '#6366f1', challenge: 'OM', emoji: '📦',
+      customTaux: kpisProj.deploiement_plv?.taux != null ? kpisProj.deploiement_plv.taux / 100 : null },
   ];
 
   return (
@@ -2097,11 +2110,12 @@ function TabProjection({ dashboard }) {
         <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
           Basée sur la tendance actuelle ({moisEcoules} mois écoulés, {moisRestants} restants)
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {CRITERES.map(c => {
-            const taux = getLastTaux(c.ind);
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ padding: '6px 12px', background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.2)', borderRadius: 8, fontSize: 12, fontWeight: 800, color: '#0ea5e9' }}>🔵 Challenge PDG TELCO</div>
+          {CRITERES.filter(c => c.challenge === 'TELCO').map(c => {
+            const taux = c.customTaux !== undefined ? c.customTaux : getLastTaux(c.ind);
             if (taux === null) return null;
-            const projection = Math.min(1.5, taux); // tendance linéaire simple
+            const projection = Math.min(1.5, taux);
             const gap = c.objectif - projection;
             const atteindra = projection >= c.objectif;
             const effortHebdo = gap > 0 ? Math.round(gap / (moisRestants * 4) * 100 * 10) / 10 : 0;
@@ -2142,6 +2156,38 @@ function TabProjection({ dashboard }) {
               </div>
             );
           })}
+          <div style={{ padding: '6px 12px', background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 8, fontSize: 12, fontWeight: 800, color: '#FF6900', marginTop: 6 }}>🟠 Challenge Orange Money</div>
+          {CRITERES.filter(c => c.challenge === 'OM').map(c => {
+            const taux = c.customTaux !== undefined ? c.customTaux : getLastTaux(c.ind);
+            if (taux === null) return null;
+            const projection = Math.min(1.5, taux);
+            const gap = c.objectif - projection;
+            const atteindra = projection >= c.objectif;
+            const effortHebdo = gap > 0 ? Math.round(gap / (moisRestants * 4) * 100 * 10) / 10 : 0;
+            return (
+              <div key={c.label} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${atteindra ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}`, borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{c.label}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>Poids: {c.poids}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div style={{ textAlign: 'center' }}><div style={{ fontSize: 10, color: '#64748b' }}>Actuel</div><div style={{ fontSize: 18, fontWeight: 900, color: c.color }}>{Math.round(taux*100)}%</div></div>
+                    <div style={{ fontSize: 16 }}>→</div>
+                    <div style={{ textAlign: 'center', padding: '6px 10px', borderRadius: 8, background: atteindra ? 'rgba(34,197,94,0.1)' : 'rgba(255,165,2,0.1)' }}>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>Objectif</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: atteindra ? '#22c55e' : '#ffa502' }}>{Math.round(c.objectif*100)}%</div>
+                    </div>
+                  </div>
+                </div>
+                {atteindra ? <div style={{ fontSize: 12, color: '#22c55e', fontWeight: 700 }}>✅ Objectif atteignable à ce rythme !</div>
+                  : <div style={{ fontSize: 12, color: '#ffa502', fontWeight: 700 }}>⬆️ Il faut +{Math.round(gap*100)}% — effort de +{effortHebdo}%/sem pendant {moisRestants*4} semaines</div>}
+                <div style={{ marginTop: 8, height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(100, taux/c.objectif*100)}%`, background: atteindra ? '#22c55e' : '#ffa502', borderRadius: 3 }}/>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -2153,7 +2199,7 @@ function TabProjection({ dashboard }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {CRITERES.map(c => {
-            const taux = getLastTaux(c.ind);
+            const taux = c.customTaux !== undefined ? c.customTaux : getLastTaux(c.ind);
             if (taux === null) return null;
             const gap = Math.max(0, c.objectif - taux);
             const atteint = taux >= c.objectif;
