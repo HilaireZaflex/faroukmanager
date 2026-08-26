@@ -782,14 +782,62 @@ function TabDashboard({ dashboard }) {
           <ScoreJauge label="Orange Money" score={scoreOM} color="#FF6900"/>
           <ScoreJauge label="Score Global" score={scoreGlobal} color="#10b981"/>
         </div>
-        <div style={{ textAlign: 'center', marginBottom: 10 }}>
-          {scoreGlobal >= 95 ? (
-            <div style={{ color: '#10b981', fontWeight: 700 }}>{'\uD83C\uDF89'} Excellente performance ! Vous {'\u00ea'}tes sur la bonne voie pour remporter le prix !</div>
-          ) : scoreGlobal >= 70 ? (
-            <div style={{ color: '#f59e0b', fontWeight: 700 }}>{'\u26A0\uFE0F'} Performance correcte mais des efforts suppl{'\u00e9'}mentaires sont n{'\u00e9'}cessaires</div>
-          ) : (
-            <div style={{ color: '#ef4444', fontWeight: 700 }}>{'\uD83D\uDD34'} Situation critique {'\u2014'} Des actions imm{'\u00e9'}diates sont n{'\u00e9'}cessaires !</div>
-          )}
+        {/* Messages dynamiques selon niveau + tendance */}
+        <div style={{ marginTop: 8 }}>
+          {/* Message principal selon score */}
+          <div style={{ textAlign: 'center', padding: '12px 20px', borderRadius: 12, marginBottom: 12,
+            background: scoreGlobal >= 95 ? 'rgba(16,185,129,0.1)' : scoreGlobal >= 80 ? 'rgba(34,197,94,0.08)' : scoreGlobal >= 70 ? 'rgba(245,158,11,0.08)' : scoreGlobal >= 55 ? 'rgba(255,71,87,0.08)' : 'rgba(239,68,68,0.12)',
+            border: `1px solid ${scoreGlobal >= 80 ? 'rgba(16,185,129,0.3)' : scoreGlobal >= 70 ? 'rgba(245,158,11,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: scoreGlobal >= 80 ? '#10b981' : scoreGlobal >= 70 ? '#f59e0b' : '#ef4444', marginBottom: 6 }}>
+              {scoreGlobal >= 95 ? '🏆 Objectif atteint ! Vous êtes en position de remporter le prix Orange Awards 2026 !'
+                : scoreGlobal >= 85 ? '🎯 Excellente performance ! Maintenez cette dynamique pour sécuriser le podium !'
+                : scoreGlobal >= 75 ? '📈 Bonne performance ! Un effort supplémentaire vous propulse dans le top !'
+                : scoreGlobal >= 65 ? '⚠️ Performance correcte mais insuffisante — mobilisation nécessaire sur les points faibles'
+                : scoreGlobal >= 50 ? '🔴 Situation préoccupante — des actions urgentes sont requises pour rattraper le retard'
+                : '🚨 Situation critique — mobilisation générale immédiate pour éviter le déclassement'}
+            </div>
+          </div>
+          {/* Indicateurs clés de tendance */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+            {/* OMY — indicateur clé */}
+            {getIndTaux('OMY') != null && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: getIndTaux('OMY') >= 0.95 ? 'rgba(34,197,94,0.08)' : 'rgba(255,165,2,0.08)', border: `1px solid ${getIndTaux('OMY') >= 0.95 ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}` }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>📱 CA Cash-out OMY</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: getIndTaux('OMY') >= 0.95 ? '#22c55e' : '#ffa502' }}>{Math.round(getIndTaux('OMY') * 100)}%</div>
+                <div style={{ fontSize: 10, color: '#475569' }}>{getIndTaux('OMY') >= 0.95 ? '✅ Objectif atteint' : `⚠️ Écart: ${Math.round((0.95 - getIndTaux('OMY')) * 100)}%`}</div>
+              </div>
+            )}
+            {/* NAFAMA */}
+            {getIndTaux('NAFAMA') != null && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: getIndTaux('NAFAMA') >= 0.95 ? 'rgba(34,197,94,0.08)' : 'rgba(255,165,2,0.08)', border: `1px solid ${getIndTaux('NAFAMA') >= 0.95 ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}` }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>🟢 CA Sell-out NAFAMA</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: getIndTaux('NAFAMA') >= 0.95 ? '#22c55e' : '#ffa502' }}>{Math.round(getIndTaux('NAFAMA') * 100)}%</div>
+                <div style={{ fontSize: 10, color: '#475569' }}>{getIndTaux('NAFAMA') >= 0.95 ? '✅ Objectif atteint' : `⚠️ Écart: ${Math.round((0.95 - getIndTaux('NAFAMA')) * 100)}%`}</div>
+              </div>
+            )}
+            {/* KAABU */}
+            {getIndTaux('KAABU MOBILE') != null && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: getIndTaux('KAABU MOBILE') >= 0.85 ? 'rgba(34,197,94,0.08)' : 'rgba(255,165,2,0.08)', border: `1px solid ${getIndTaux('KAABU MOBILE') >= 0.85 ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}` }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>💳 Adoption Kaabu</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: getIndTaux('KAABU MOBILE') >= 0.85 ? '#22c55e' : '#ffa502' }}>{Math.round(getIndTaux('KAABU MOBILE') * 100)}%</div>
+                <div style={{ fontSize: 10, color: '#475569' }}>{getIndTaux('KAABU MOBILE') >= 0.85 ? '✅ En bonne voie' : `⬆️ +${Math.round((0.85 - getIndTaux('KAABU MOBILE')) * 100)}% requis`}</div>
+              </div>
+            )}
+            {/* Fintech */}
+            <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.2)' }}>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>🔒 Risque Fintech</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#ff4757' }}>4%</div>
+              <div style={{ fontSize: 10, color: '#ff4757' }}>🔴 Objectif non atteint (&lt;2%)</div>
+            </div>
+            {/* Orange Énergie */}
+            {getIndTaux('ORANGE ENERGIE') != null && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, background: getIndTaux('ORANGE ENERGIE') >= 0.80 ? 'rgba(34,197,94,0.08)' : 'rgba(255,165,2,0.08)', border: `1px solid ${getIndTaux('ORANGE ENERGIE') >= 0.80 ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}` }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>☀️ Orange Énergie</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: getIndTaux('ORANGE ENERGIE') >= 0.80 ? '#22c55e' : '#ffa502' }}>{Math.round(Math.min(1, getIndTaux('ORANGE ENERGIE')) * 100)}%</div>
+                <div style={{ fontSize: 10, color: '#22c55e' }}>🚀 Dépassement objectif</div>
+              </div>
+            )}
+          </div>
         </div>
 
       </div>
