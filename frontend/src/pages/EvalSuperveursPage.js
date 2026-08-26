@@ -1483,23 +1483,22 @@ export default function EvalSuperveursPage() {
 
         {/* ── Contenu principal ── */}
         <div>
-          {/* Onglets — design scrollable, bien espacés */}
-          <div style={{ overflowX: 'auto', overflowY: 'visible', marginBottom: 20, paddingBottom: 8, WebkitOverflowScrolling: 'touch', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,105,0,0.4) transparent' }}>
-            <div style={{ display: 'inline-flex', gap: 8, background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '6px 8px' }}>
-              {tabs.map(t => (
-                <button key={t.id} onClick={() => setActiveTab(t.id)}
-                  style={{
-                    flexShrink: 0, padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                    fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.2s',
-                    background: activeTab === t.id ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'rgba(255,255,255,0.05)',
-                    color: activeTab === t.id ? '#fff' : '#8a8a9a',
-                    boxShadow: activeTab === t.id ? '0 4px 14px rgba(255,105,0,0.35)' : 'none',
-                    letterSpacing: 0.3,
-                  }}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
+          {/* Onglets — deux lignes si nécessaire, bien espacés */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id)}
+                style={{
+                  padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.2s',
+                  background: activeTab === t.id ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'rgba(255,255,255,0.05)',
+                  color: activeTab === t.id ? '#fff' : '#8a8a9a',
+                  boxShadow: activeTab === t.id ? '0 4px 14px rgba(255,105,0,0.35)' : 'none',
+                  border: activeTab === t.id ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                  letterSpacing: 0.3,
+                }}>
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {/* ── Classement ── */}
