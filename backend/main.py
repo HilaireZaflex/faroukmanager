@@ -93,6 +93,55 @@ app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 
+@app.post("/api/rapports/generer-superviseur")
+async def generer_rapport_superviseur(request: Request):
+    """Génère un rapport HTML pour un superviseur et retourne un lien partageable."""
+    import os, uuid, time
+    from pathlib import Path
+    from datetime import datetime, timedelta
+
+    body = await request.json()
+    html_content = body.get("html", "")
+    superviseur = body.get("superviseur", "superviseur")
+    mois = body.get("mois", "")
+    annee = body.get("annee", "")
+
+    if not html_content:
+        return {"error": "HTML manquant"}
+
+    # Dossier rapports
+    rapports_dir = Path("/app/uploads/rapports")
+    rapports_dir.mkdir(parents=True, exist_ok=True)
+
+    # Nettoyer les anciens rapports (>24h)
+    now = time.time()
+    for f in rapports_dir.glob("*.html"):
+        if now - f.stat().st_mtime > 86400:
+            f.unlink(missing_ok=True)
+
+    # Nom de fichier unique
+    nom_safe = superviseur.replace(" ", "_").upper()[:30]
+    filename = f"rapport_{nom_safe}_{mois}_{annee}_{uuid.uuid4().hex[:8]}.html"
+    filepath = rapports_dir / filename
+
+    # Écrire le HTML
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    # URL de téléchargement
+    base_url = str(request.base_url).rstrip("/")
+    url = f"{base_url}/uploads/rapports/{filename}"
+    expire = (datetime.now() + timedelta(hours=24)).strftime("%d/%m/%Y à %H:%M")
+
+    return {
+        "success": True,
+        "url": url,
+        "filename": filename,
+        "expire": expire,
+        "superviseur": superviseur,
+    }
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

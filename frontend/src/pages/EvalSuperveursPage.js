@@ -341,8 +341,8 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 // ─── Vue Téléconseillère ────────────────────────────────────────────────────
-// ── Fonction partage WhatsApp ─────────────────────────────────────────────────
-function partagerWhatsApp(evaluation, superviseur, mois, annee, numeroFourni) {
+// ── Fonction partage WhatsApp avec lien rapport ───────────────────────────────
+async function partagerWhatsApp(evaluation, superviseur, mois, annee, numeroFourni) {
   const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const score = Math.round(evaluation.score_final || 0);
   const mention = evaluation.mention || '—';
@@ -401,12 +401,54 @@ _Farouk Distribution — ${MOIS[mois]} ${annee}_`;
   // Utiliser le numéro fourni ou celui du superviseur
   let numero = (numeroFourni || evaluation.superviseur_telephone || '').replace(/\D/g, '').replace(/^0/, '223');
 
-  const url = `https://wa.me/${numero}?text=${encodeURIComponent(message)}`;
-  window.open(url, '_blank');
+  // Générer le rapport HTML sur le serveur pour obtenir un lien partageable
+  let rapportUrl = null;
+  let rapportExpire = null;
+  try {
+    const apiModule = require('../services/api');
+    const apiInst = apiModule.default;
+    // Récupérer le HTML du rapport (fenêtre déjà générée)
+    const htmlResp = await exportPDFHTML(evaluation, superviseur, mois, annee);
+    const resp = await apiInst.post('/rapports/generer-superviseur', {
+      html: htmlResp,
+      superviseur,
+      mois: MOIS[mois],
+      annee,
+    });
+    rapportUrl = resp.data.url;
+    rapportExpire = resp.data.expire;
+  } catch (e) {
+    console.warn('Génération rapport échouée, envoi sans lien:', e);
+  }
+
+  // Message enrichi avec lien PDF si disponible
+  const messageAvecLien = rapportUrl
+    ? `${message}
+
+📎 *Rapport complet disponible ici :*
+${rapportUrl}
+⏱️ _Lien valide jusqu'au ${rapportExpire}_`
+    : message;
+
+  const waUrl = `https://wa.me/${numero}?text=${encodeURIComponent(messageAvecLien)}`;
+  window.open(waUrl, '_blank');
+}
+
+// ── Génère le HTML du rapport (partagé entre exportPDF et partagerWhatsApp) ───
+async function exportPDFHTML(evaluation, superviseur, mois, annee) {
+  // Appel identique à exportPDF mais retourne le HTML au lieu d'ouvrir une fenêtre
+  return await _buildReportHTML(evaluation, superviseur, mois, annee);
 }
 
 // ── Fonction export PDF élégant ───────────────────────────────────────────────
 async function exportPDF(evaluation, superviseur, mois, annee) {
+  const html = await _buildReportHTML(evaluation, superviseur, mois, annee);
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+}
+
+async function _buildReportHTML(evaluation, superviseur, mois, annee) {
   // Charger les PDV inactifs/en baisse depuis l'API
   let pdvDetails = { omy: { inactifs: [], en_baisse: [] }, nafama: { inactifs: [], en_baisse: [] }, kaabu: { inactifs: [] } };
   try {
@@ -703,9 +745,7 @@ async function exportPDF(evaluation, superviseur, mois, annee) {
   </div>
   </body></html>`;
 
-  const w = window.open('', '_blank', 'width=900,height=700');
-  w.document.write(html);
-  w.document.close();
+  return html;
 }
 
 function VueTeleconseillere({ annee, mois }) {
