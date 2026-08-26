@@ -160,6 +160,7 @@ function TabIndicateurs({ filter }) {
     OM: ['OMY', 'KAABU MOBILE'],
     OM_CA: ['OMY'],  // Performance commerciale OM: CA Cash-out uniquement
     OM_DIGITAL: ['KAABU MOBILE'],
+    FINTECH_RISK: ['FINTECH'],
   };
   const filteredList = filter ? FILTER_MAP[filter] || INDICATEURS_LIST : INDICATEURS_LIST;
   const [activeInd, setActiveInd] = useState(null); // null = vue globale
@@ -1427,11 +1428,11 @@ function TabOMDigital({ kpis }) {
       label: 'Ma\u00eetrise du risque Fintech',
       poids: 15,
       color: '#a29bfe',
-      objectif_desc: 'Taux de p\u00e9n\u00e9tration fintech < 2%',
-      taux: null,
-      realise: null,
-      objectif_val: null,
-      unite: '',
+      objectif_desc: 'Taux de p\u00e9n\u00e9tration fintech < 2% — Notre taux actuel : 4% (\u26a0\uFE0F Au-dessus du seuil)',
+      taux: 0,  // Non atteint car 4% > 2%
+      realise: 4,
+      objectif_val: '< 2',
+      unite: '%',
     },
   ];
 
@@ -1462,13 +1463,7 @@ function TabOMDigital({ kpis }) {
             </div>
           </div>
           {selected === 'kaabu' && <TabKaabuDetail />}
-          {selected === 'fintech' && (
-            <div className="ch-card" style={{ borderTop: '3px solid #a29bfe' }}>
-              <div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>
-                {"Ce crit\u00e8re est \u00e9valu\u00e9 et communiqu\u00e9 directement par Orange Mali. Les donn\u00e9es seront affich\u00e9es ici lorsqu'elles seront disponibles."}
-              </div>
-            </div>
-          )}
+          {selected === 'fintech' && <TabIndicateurs filter="FINTECH_RISK" />}
         </div>
       )}
     </div>
