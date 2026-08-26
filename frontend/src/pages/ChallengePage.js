@@ -2146,23 +2146,51 @@ function TabProjection({ dashboard }) {
         </div>
       </div>
 
-      {/* Résumé semaine en cours — Objectifs à atteindre */}
+      {/* #2 Objectifs hebdomadaires automatiques */}
       <div className="ch-card" style={{ borderLeft: '4px solid #6366f1' }}>
-        <h3 className="ch-section-title">🎯 Objectifs de cette semaine pour rester sur la trajectoire</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginTop: 12 }}>
-          {[
-            { label: 'CA OMY hebdo requis', val: `15 702 713 FCFA`, sub: 'soit 95% de l\'objectif hebdo', color: '#FF6900', icon: '📱' },
-            { label: 'CA NAFAMA hebdo requis', val: `42 388 000 FCFA`, sub: 'taux >= 95%', color: '#22c55e', icon: '🟢' },
-            { label: 'PDVs Kaabu actifs', val: `≥ 1 013 PDVs`, sub: 'soit >= 86%', color: '#00d68f', icon: '💳' },
-            { label: 'Kits Orange Énergie', val: `≥ 2 kits/semaine`, sub: 'pour maintenir 100%', color: '#f59e0b', icon: '☀️' },
-          ].map((item, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${item.color}30`, borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{item.icon}</div>
-              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{item.label}</div>
-              <div style={{ fontSize: 15, fontWeight: 900, color: item.color, marginBottom: 2 }}>{item.val}</div>
-              <div style={{ fontSize: 10, color: '#475569' }}>{item.sub}</div>
-            </div>
-          ))}
+        <h3 className="ch-section-title">🎯 Ce qu{"'"}il faut faire cette semaine pour atteindre l{"'"}objectif</h3>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+          Calculé automatiquement selon les semaines restantes ({moisRestants * 4} semaines) et l{"'"}objectif de 95%
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {CRITERES.map(c => {
+            const taux = getLastTaux(c.ind);
+            if (taux === null) return null;
+            const gap = Math.max(0, c.objectif - taux);
+            const atteint = taux >= c.objectif;
+            // Calcul du CA hebdo requis pour OMY et NAFAMA
+            const hebiReq = gap > 0 ? Math.round(gap / (moisRestants * 4) * 100 * 10) / 10 : 0;
+            const statutColor = atteint ? '#22c55e' : hebiReq < 5 ? '#ffa502' : '#ff4757';
+            return (
+              <div key={c.ind} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: atteint ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${statutColor}25`, borderRadius: 12 }}>
+                <div style={{ fontSize: 24, flexShrink: 0 }}>{c.emoji || '📊'}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 2 }}>{c.label}</div>
+                  <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden', width: '100%' }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, taux/c.objectif*100)}%`, background: statutColor, borderRadius: 2 }}/>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>Actuel</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: statutColor }}>{Math.round(taux*100)}%</div>
+                </div>
+                <div style={{ textAlign: 'right', minWidth: 130, flexShrink: 0, padding: '8px 12px', background: `${statutColor}10`, borderRadius: 8 }}>
+                  {atteint ? (
+                    <>
+                      <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 700 }}>✅ Objectif atteint</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>Maintenir le rythme</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>Effort requis</div>
+                      <div style={{ fontSize: 15, fontWeight: 900, color: statutColor }}>+{hebiReq}%/sem</div>
+                      <div style={{ fontSize: 10, color: '#64748b' }}>sur {moisRestants * 4} semaines</div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
