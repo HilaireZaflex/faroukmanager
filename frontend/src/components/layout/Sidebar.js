@@ -172,8 +172,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {(role === 'admin' || role === 'rc' || role === 'manager') && nl('/suivi-tc', Bell, '📞 Suivi TC')}
             {can('indicateurs') && nl('/indicateurs',  Activity,    'Indicateurs')}
             {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}
-            {can('evaluations') && nl('/evaluations',  Star,        'Évaluations')}
-            {can('evaluations') && nl('/evaluations/superviseurs', Star, '↳ Eval. Superviseurs')}
+            {can('evaluations') && nl('/evaluations/superviseurs', Star, '⭐ Éval. Superviseurs')}
             {role === 'teleconseillere' && nl('/evaluations/superviseurs', Star, '📋 Mes Appels Éval.')}
             {can('alerts')      && nl('/alerts',       Bell,        'Alertes')}
             {can('reseau')      && nl('/reseau',       Network,     'Gestion du Réseau')}
