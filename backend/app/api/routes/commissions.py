@@ -42,7 +42,7 @@ def list_entries(
     reversement_status: Optional[ReversementStatus] = None,
     gere_reversement: Optional[bool] = None,
     search: Optional[str] = None,
-    skip: int = 0, limit: int = 200,
+    skip: int = 0, limit: int = 5000,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     f = get_pdv_filters(current_user)

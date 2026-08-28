@@ -643,7 +643,7 @@ def list_entries(
     reversement_status: Optional[ReversementStatus] = None,
     search: Optional[str] = None,
     gere_reversement: Optional[bool] = None,
-    skip: int = 0, limit: int = 200,
+    skip: int = 0, limit: int = 5000,
     superviseur: Optional[str] = None,
     gestionnaire: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
