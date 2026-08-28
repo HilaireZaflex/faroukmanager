@@ -1263,6 +1263,23 @@ export default function EvalSuperveursPage() {
   const [showWaModal, setShowWaModal] = useState(false);
   const [waTel, setWaTel] = useState('223');
   const [publiant, setPubliant] = useState(false);
+  const [calculantTous, setCalculantTous] = useState(false);
+
+  const calculerTous = async () => {
+    if (!window.confirm(`Calculer les scores de TOUS les superviseurs pour ${MOIS_NOMS[mois]} ${annee} ?`)) return;
+    setCalculantTous(true);
+    try {
+      const resp = await api.post('/eval-superviseurs/calculer-tous', null, { params: { annee, mois } });
+      const { calcules, erreurs, resultats } = resp.data;
+      qc.invalidateQueries(['eval-classement']);
+      qc.invalidateQueries(['eval-classement-zone']);
+      const topScores = resultats.slice(0, 3).map(r => `${r.superviseur.split(' ')[0]}: ${Math.round(r.score || 0)}/100`).join(' · ');
+      alert(`✅ ${calcules} score${calcules > 1 ? 's' : ''} calculé${calcules > 1 ? 's' : ''} !\n${erreurs > 0 ? `⚠️ ${erreurs} erreur(s)\n` : ''}${topScores ? `\nTop: ${topScores}` : ''}\n\nLe classement est maintenant à jour.`);
+      setActiveTab('classement');
+    } catch (e) {
+      alert('Erreur lors du calcul. Vérifiez que les données sont bien saisies.');
+    } finally { setCalculantTous(false); }
+  };
 
   const { data: userMe } = useQuery('me', () => api.get('/auth/me').then(r => r.data), { staleTime: 300000 });
   const userRole = (userMe?.role || '').toLowerCase().replace('userrole.','');
@@ -1461,10 +1478,16 @@ export default function EvalSuperveursPage() {
           </p>
           {/* Bouton Publier Classement */}
           {isAdmin && (
-            <button onClick={publierClassement} disabled={publiant}
-              style={{ marginTop: 12, padding: '10px 18px', borderRadius: 12, border: 'none', background: publiant ? 'rgba(99,102,241,0.4)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: publiant ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.35)', whiteSpace: 'nowrap', display: 'inline-block' }}>
-              {publiant ? '⏳ Génération...' : '📊 Publier le Classement'}
-            </button>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+              <button onClick={calculerTous} disabled={calculantTous}
+                style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: calculantTous ? 'rgba(34,197,94,0.3)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: calculantTous ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(34,197,94,0.35)', whiteSpace: 'nowrap' }}>
+                {calculantTous ? '⏳ Calcul en cours...' : '⚡ Calculer tous les scores'}
+              </button>
+              <button onClick={publierClassement} disabled={publiant}
+                style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: publiant ? 'rgba(99,102,241,0.4)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: publiant ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.35)', whiteSpace: 'nowrap' }}>
+                {publiant ? '⏳ Génération...' : '📊 Publier le Classement'}
+              </button>
+            </div>
           )}
           {/* Sélecteur de période — design pill sur une ligne */}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0, marginTop: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 12, overflow: 'hidden' }}>

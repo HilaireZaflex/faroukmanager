@@ -62,6 +62,42 @@ def _fmt(e: EvalSuperviseur) -> dict:
 
 # ─── Liste superviseurs ────────────────────────────────────────────────────────
 
+@router.post("/eval-superviseurs/calculer-tous")
+def calculer_tous_scores(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Calcule automatiquement les scores de TOUS les superviseurs pour le mois donné."""
+    from app.models.eval_superviseur import EvalSuperviseur
+    from app.services.eval_service import calculer_score_superviseur
+    import traceback
+
+    # Récupérer tous les superviseurs ayant une évaluation ce mois
+    evals = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+    ).all()
+
+    resultats = []
+    erreurs = []
+    for e in evals:
+        try:
+            result = calculer_score_superviseur(db, e.superviseur, annee, mois)
+            resultats.append({"superviseur": e.superviseur, "score": result.get("score_final"), "mention": result.get("mention")})
+        except Exception as ex:
+            erreurs.append({"superviseur": e.superviseur, "erreur": str(ex)[:100]})
+
+    return {
+        "success": True,
+        "calcules": len(resultats),
+        "erreurs": len(erreurs),
+        "resultats": resultats,
+        "erreurs_detail": erreurs,
+    }
+
+
 @router.get("/eval-superviseurs/{superviseur}/commentaires")
 def get_commentaires(superviseur: str, annee: int = Query(...), mois: int = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Retourne les commentaires de l'évaluation d'un superviseur."""
