@@ -1264,17 +1264,18 @@ export default function EvalSuperveursPage() {
   const [waTel, setWaTel] = useState('223');
   const [publiant, setPubliant] = useState(false);
   const [calculantTous, setCalculantTous] = useState(false);
+  const [showCalcModal, setShowCalcModal] = useState(false);
+  const [calcResult, setCalcResult] = useState(null);
 
   const calculerTous = async () => {
-    if (!window.confirm(`Calculer les scores de TOUS les superviseurs pour ${MOIS_NOMS[mois]} ${annee} ?`)) return;
+    setShowCalcModal(false);
     setCalculantTous(true);
     try {
       const resp = await api.post('/eval-superviseurs/calculer-tous', null, { params: { annee, mois } });
       const { calcules, erreurs, resultats } = resp.data;
       qc.invalidateQueries(['eval-classement']);
       qc.invalidateQueries(['eval-classement-zone']);
-      const topScores = resultats.slice(0, 3).map(r => `${r.superviseur.split(' ')[0]}: ${Math.round(r.score || 0)}/100`).join(' · ');
-      alert(`✅ ${calcules} score${calcules > 1 ? 's' : ''} calculé${calcules > 1 ? 's' : ''} !\n${erreurs > 0 ? `⚠️ ${erreurs} erreur(s)\n` : ''}${topScores ? `\nTop: ${topScores}` : ''}\n\nLe classement est maintenant à jour.`);
+      setCalcResult({ calcules, erreurs, resultats });
       setActiveTab('classement');
     } catch (e) {
       alert('Erreur lors du calcul. Vérifiez que les données sont bien saisies.');
@@ -1479,7 +1480,7 @@ export default function EvalSuperveursPage() {
           {/* Bouton Publier Classement */}
           {isAdmin && (
             <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-              <button onClick={calculerTous} disabled={calculantTous}
+              <button onClick={() => setShowCalcModal(true)} disabled={calculantTous}
                 style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: calculantTous ? 'rgba(34,197,94,0.3)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: calculantTous ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(34,197,94,0.35)', whiteSpace: 'nowrap' }}>
                 {calculantTous ? '⏳ Calcul en cours...' : '⚡ Calculer tous les scores'}
               </button>
@@ -1791,6 +1792,71 @@ export default function EvalSuperveursPage() {
           )}
         </div>
       </div>
+
+      {/* ── Modal Confirmation Calcul Tous ── */}
+      {showCalcModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#1a1f36', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '32px', maxWidth: 440, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg,#22c55e,#16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>⚡</div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>Calculer tous les scores</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{MOIS_NOMS[mois]} {annee} — Tous les superviseurs</div>
+              </div>
+            </div>
+            <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 12, padding: '14px 18px', marginBottom: 24 }}>
+              <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.7 }}>
+                Cette action va calculer et mettre à jour le <strong style={{ color: '#22c55e' }}>score final</strong> de tous les superviseurs ayant une évaluation pour <strong style={{ color: '#22c55e' }}>{MOIS_NOMS[mois]} {annee}</strong>.<br/>
+                Le classement sera automatiquement mis à jour.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={() => setShowCalcModal(false)}
+                style={{ flex: 1, padding: '13px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={calculerTous}
+                style={{ flex: 2, padding: '13px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(34,197,94,0.35)' }}>
+                ⚡ Calculer maintenant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Résultat Calcul Tous ── */}
+      {calcResult && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#1a1f36', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 20, padding: '32px', maxWidth: 520, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.6)', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+              <div style={{ fontSize: 36 }}>✅</div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#22c55e' }}>{calcResult.calcules} score{calcResult.calcules > 1 ? 's' : ''} calculé{calcResult.calcules > 1 ? 's' : ''} !</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>{MOIS_NOMS[mois]} {annee} {calcResult.erreurs > 0 ? `· ⚠️ ${calcResult.erreurs} erreur(s)` : ''}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {calcResult.resultats.sort((a,b) => (b.score||0)-(a.score||0)).map((r, i) => {
+                const score = Math.round(r.score || 0);
+                const col = score >= 75 ? '#22c55e' : score >= 55 ? '#ffa502' : '#ff4757';
+                const podium = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+                return (
+                  <div key={r.superviseur} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 10 }}>
+                    <span style={{ fontSize: i < 3 ? 20 : 13, width: 24 }}>{podium}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{r.superviseur}</span>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>{r.mention}</span>
+                    <span style={{ fontSize: 18, fontWeight: 900, color: col }}>{score}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setCalcResult(null)}
+              style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
+              ✅ Voir le classement
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal WhatsApp élégant ── */}
       {showWaModal && evaluation && (

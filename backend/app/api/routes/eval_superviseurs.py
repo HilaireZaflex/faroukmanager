@@ -71,8 +71,6 @@ def calculer_tous_scores(
 ):
     """Calcule automatiquement les scores de TOUS les superviseurs pour le mois donné."""
     from app.models.eval_superviseur import EvalSuperviseur
-    from app.services.eval_service import calculer_score_superviseur
-    import traceback
 
     # Récupérer tous les superviseurs ayant une évaluation ce mois
     evals = db.query(EvalSuperviseur).filter(
@@ -84,10 +82,23 @@ def calculer_tous_scores(
     erreurs = []
     for e in evals:
         try:
-            result = calculer_score_superviseur(db, e.superviseur, annee, mois)
-            resultats.append({"superviseur": e.superviseur, "score": result.get("score_final"), "mention": result.get("mention")})
+            result = svc.calculer_score_final(
+                score_kpi=e.score_kpi or 0,
+                mystery_calls=e.mystery_calls or [],
+                note_maitrise_pdv=e.note_maitrise_pdv or 0,
+                note_maitrise_zone=e.note_maitrise_zone or 0,
+            )
+            e.score_mystery = result['score_mystery']
+            e.score_presentiel = result['score_presentiel']
+            e.score_final = result['score_final']
+            e.mention = result['mention']
+            e.statut = 'TERMINEE'
+            db.add(e)
+            resultats.append({"superviseur": e.superviseur, "score": result['score_final'], "mention": result['mention']})
         except Exception as ex:
             erreurs.append({"superviseur": e.superviseur, "erreur": str(ex)[:100]})
+
+    db.commit()
 
     return {
         "success": True,
