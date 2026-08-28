@@ -1354,7 +1354,14 @@ export default function EvalSuperveursPage() {
     try {
       const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
       const data = resp.data;
-      if (!data.classement?.length) { alert('Aucun superviseur n\'a encore validé son évaluation.'); setPubliant(false); return; }
+      if (!data.classement?.length) {
+        const msg = data.total_non_valides > 0
+          ? `Aucun superviseur n'a validé tous les critères.\n\n${data.total_non_valides} superviseur(s) ont un score calculé mais n'ont pas atteint tous les objectifs (NB PDV ≥ 30, Actif OMY ≥ 90%, CA OMY, Commission, KM, NAFAMA).`
+          : 'Aucun superviseur n\'a encore complété son évaluation.';
+        alert(msg);
+        setPubliant(false);
+        return;
+      }
 
       const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
       const podium = ['🥇','🥈','🥉'];
@@ -1404,7 +1411,8 @@ export default function EvalSuperveursPage() {
       <div class="header">
         <h1>🏆 Classement des Évaluations — Farouk Distribution</h1>
         <h2>${MOIS[mois].toUpperCase()} ${annee}</h2>
-        <div class="sub">${data.total} superviseur${data.total > 1 ? 's' : ''} évalué${data.total > 1 ? 's' : ''} · Résultats officiels</div>
+        <div class="sub">${data.total} superviseur${data.total > 1 ? 's' : ''} qualifié${data.total > 1 ? 's' : ''} · Résultats officiels</div>
+        <div style="margin-top:8px;font-size:12px;opacity:0.75">Critères : NB PDV ≥ 30 · Actif OMY ≥ 90% · CA OMY ✓ · Commission ✓ · KM ✓ · NAFAMA ✓${data.total_non_valides > 0 ? ` · ${data.total_non_valides} superviseur(s) non qualifié(s)` : ''}</div>
       </div>
       <div class="stats">
         <div class="stat-card" style="border-color:#FF6900">

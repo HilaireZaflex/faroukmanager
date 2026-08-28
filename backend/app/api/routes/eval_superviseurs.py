@@ -194,19 +194,78 @@ def classement_global(
         EvalSuperviseur.score_final.isnot(None),
     ).order_by(EvalSuperviseur.score_final.desc()).all()
 
+    # Objectifs de validation — critères obligatoires
+    OBJECTIFS_VALIDATION = {
+        "nb_pdv": 30,           # Minimum 30 PDVs
+        "taux_actif_omy": 90,   # Actif OMY >= 90%
+    }
+
     result = []
-    for i, e in enumerate(evals, 1):
-        result.append({
-            "rang": i,
+    non_valides = []
+    for e in evals:
+        kpis = getattr(e, 'kpis_data', {}) or {}
+        if isinstance(kpis, str):
+            import json
+            try: kpis = json.loads(kpis)
+            except: kpis = {}
+
+        objectifs = kpis.get('objectifs', {}) if isinstance(kpis, dict) else {}
+        realise = kpis if isinstance(kpis, dict) else {}
+
+        # Vérifier les critères de validation
+        nb_pdv = realise.get('nb_pdv') or realise.get('nb_pdvs') or 0
+        taux_actif_omy = realise.get('taux_actif_omy') or 0
+        ca_omy = realise.get('ca_omy') or realise.get('montant_transactions') or 0
+        commission = realise.get('commission_totale') or realise.get('commission_omy') or 0
+        taux_km = realise.get('taux_actif_km') or realise.get('taux_actif_kaabu') or 0
+        taux_nafama = realise.get('taux_actif_nafama') or 0
+        ca_nafama = realise.get('montant_vente_nafama') or realise.get('ca_nafama') or 0
+
+        obj_ca_omy = objectifs.get('ca_omy') or objectifs.get('montant_transactions') or 1
+        obj_commission = objectifs.get('commission_totale') or 1
+        obj_km = objectifs.get('taux_actif_km') or objectifs.get('taux_actif_kaabu') or 80
+        obj_nafama = objectifs.get('taux_actif_nafama') or 80
+        obj_ca_nafama = objectifs.get('montant_vente_nafama') or 1
+
+        raisons_rejet = []
+        if nb_pdv < 30: raisons_rejet.append(f"NB PDV: {nb_pdv} < 30")
+        if taux_actif_omy < 90: raisons_rejet.append(f"Actif OMY: {taux_actif_omy:.1f}% < 90%")
+        if ca_omy < obj_ca_omy: raisons_rejet.append(f"CA OMY non atteint")
+        if commission < obj_commission: raisons_rejet.append(f"Commission non atteinte")
+        if taux_km < obj_km: raisons_rejet.append(f"Taux KM: {taux_km:.1f}% < {obj_km}%")
+        if taux_nafama < obj_nafama: raisons_rejet.append(f"Taux NAFAMA: {taux_nafama:.1f}% < {obj_nafama}%")
+        if ca_nafama < obj_ca_nafama: raisons_rejet.append(f"CA NAFAMA non atteint")
+
+        info = {
             "superviseur": e.superviseur,
             "score_final": round(e.score_final, 1),
-            "mention": e.mention or getattr(e, 'grade', None) or _mention(e.score_final),
+            "mention": e.mention or _mention(e.score_final),
             "score_kpi": round(e.score_kpi or 0, 1),
             "score_mystery": round(e.score_mystery or 0, 1),
             "score_presentiel": round(e.score_presentiel or 0, 1),
             "zone": getattr(e, 'zone', None),
-        })
-    return {"total": len(result), "annee": annee, "mois": mois, "classement": result}
+            "nb_pdv": nb_pdv,
+            "raisons_rejet": raisons_rejet,
+        }
+
+        if not raisons_rejet:
+            result.append(info)
+        else:
+            non_valides.append(info)
+
+    # Trier par score final décroissant + numéroter
+    result = sorted(result, key=lambda x: x['score_final'], reverse=True)
+    for i, r in enumerate(result, 1):
+        r['rang'] = i
+
+    return {
+        "total": len(result),
+        "total_non_valides": len(non_valides),
+        "annee": annee,
+        "mois": mois,
+        "classement": result,
+        "non_valides": non_valides,
+    }
 
 def _mention(score):
     if score is None: return '—'
