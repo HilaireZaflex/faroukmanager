@@ -253,7 +253,14 @@ def classement_global(
             "score_mystery": round(e.score_mystery or 0, 1),
             "score_presentiel": round(e.score_presentiel or 0, 1),
             "zone": getattr(e, 'zone', None),
+            # KPIs détaillés pour le rapport
             "nb_pdv": nb_pdv,
+            "ca_omy": round(ca_omy) if ca_omy else None,
+            "commission": round(commission) if commission else None,
+            "actif_omy": round(taux_actif_omy, 1) if taux_actif_omy else None,
+            "taux_km": round(taux_km, 1) if taux_km else None,
+            "taux_nafama": round(taux_nafama, 1) if taux_nafama else None,
+            "ca_nafama": round(ca_nafama) if ca_nafama else None,
             "raisons_rejet": raisons_rejet,
         }
 
