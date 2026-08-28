@@ -1266,6 +1266,7 @@ export default function EvalSuperveursPage() {
   const [calculantTous, setCalculantTous] = useState(false);
   const [showCalcModal, setShowCalcModal] = useState(false);
   const [calcResult, setCalcResult] = useState(null);
+  const [calcDejaFait, setCalcDejaFait] = useState(false);
 
   const calculerTous = async () => {
     setShowCalcModal(false);
@@ -1480,7 +1481,16 @@ export default function EvalSuperveursPage() {
           {/* Bouton Publier Classement */}
           {isAdmin && (
             <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-              <button onClick={() => setShowCalcModal(true)} disabled={calculantTous}
+              <button onClick={async () => {
+                // Vérifier si des scores existent déjà pour ce mois
+                try {
+                  const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
+                  const dejaCalcules = (resp.data.classement || []).filter(s => s.score_final != null).length;
+                  setCalcDejaFait(dejaCalcules > 0);
+                  setCalcResult(null);
+                } catch { setCalcDejaFait(false); }
+                setShowCalcModal(true);
+              }} disabled={calculantTous}
                 style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: calculantTous ? 'rgba(34,197,94,0.3)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: calculantTous ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(34,197,94,0.35)', whiteSpace: 'nowrap' }}>
                 {calculantTous ? '⏳ Calcul en cours...' : '⚡ Calculer tous les scores'}
               </button>
@@ -1804,10 +1814,18 @@ export default function EvalSuperveursPage() {
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{MOIS_NOMS[mois]} {annee} — Tous les superviseurs</div>
               </div>
             </div>
-            <div style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 12, padding: '14px 18px', marginBottom: 24 }}>
+            {calcDejaFait && (
+              <div style={{ background: 'rgba(255,165,2,0.08)', border: '1px solid rgba(255,165,2,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#ffa502', marginBottom: 4 }}>⚠️ Calcul déjà effectué pour {MOIS_NOMS[mois]} {annee}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>Des scores ont déjà été calculés pour ce mois. Voulez-vous recalculer et écraser les résultats existants ?</div>
+              </div>
+            )}
+            <div style={{ background: calcDejaFait ? 'rgba(255,255,255,0.03)' : 'rgba(34,197,94,0.06)', border: `1px solid ${calcDejaFait ? 'rgba(255,255,255,0.08)' : 'rgba(34,197,94,0.2)'}`, borderRadius: 12, padding: '14px 18px', marginBottom: 24 }}>
               <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.7 }}>
-                Cette action va calculer et mettre à jour le <strong style={{ color: '#22c55e' }}>score final</strong> de tous les superviseurs ayant une évaluation pour <strong style={{ color: '#22c55e' }}>{MOIS_NOMS[mois]} {annee}</strong>.<br/>
-                Le classement sera automatiquement mis à jour.
+                {calcDejaFait
+                  ? <>Cette action va <strong style={{ color: '#ffa502' }}>recalculer et remplacer</strong> les scores existants de tous les superviseurs pour <strong style={{ color: '#ffa502' }}>{MOIS_NOMS[mois]} {annee}</strong>.</>
+                  : <>Cette action va calculer et mettre à jour le <strong style={{ color: '#22c55e' }}>score final</strong> de tous les superviseurs ayant une évaluation pour <strong style={{ color: '#22c55e' }}>{MOIS_NOMS[mois]} {annee}</strong>.</>
+                }<br/>Le classement sera automatiquement mis à jour.
               </div>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
@@ -1816,8 +1834,8 @@ export default function EvalSuperveursPage() {
                 Annuler
               </button>
               <button onClick={calculerTous}
-                style={{ flex: 2, padding: '13px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 16px rgba(34,197,94,0.35)' }}>
-                ⚡ Calculer maintenant
+                style={{ flex: 2, padding: '13px', borderRadius: 12, border: 'none', background: calcDejaFait ? 'linear-gradient(135deg,#ffa502,#f59e0b)' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', boxShadow: calcDejaFait ? '0 4px 16px rgba(255,165,2,0.35)' : '0 4px 16px rgba(34,197,94,0.35)' }}>
+                {calcDejaFait ? '🔄 Recalculer quand même' : '⚡ Calculer maintenant'}
               </button>
             </div>
           </div>
