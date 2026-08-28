@@ -126,23 +126,37 @@ def compute_kpi_superviseur(db: Session, user: User,
     sup_name = f"{user.prenom or ''} {user.nom}".strip()
     period_key = date_start.strftime("%Y-%m")
 
-    # Commissions — chercher par nom complet ET prénom+nom dans l'ordre inverse
+    # Commissions — recherche flexible par prénom, nom, ou nom complet (tolère les fautes de frappe)
     sup_name_full = f"{user.prenom or ''} {user.nom or ''}".strip()
     sup_name_inv = f"{user.nom or ''} {user.prenom or ''}".strip()
 
     from sqlalchemy import or_
+    filters = []
+    if sup_name_full: filters.append(CommissionEntry.superviseur.ilike(f"%{sup_name_full}%"))
+    if sup_name_inv and sup_name_inv != sup_name_full: filters.append(CommissionEntry.superviseur.ilike(f"%{sup_name_inv}%"))
+    if user.nom: filters.append(CommissionEntry.superviseur.ilike(f"%{user.nom}%"))
+    if user.prenom: filters.append(CommissionEntry.superviseur.ilike(f"%{user.prenom}%"))
+
     entries = db.query(CommissionEntry).filter(
         CommissionEntry.period_key == period_key,
-        or_(
-            CommissionEntry.superviseur.ilike(f"%{sup_name_full}%"),
-            CommissionEntry.superviseur.ilike(f"%{sup_name_inv}%"),
-            CommissionEntry.superviseur.ilike(f"%{user.nom}%"),
-        )
+        or_(*filters) if filters else False,
     ).all()
 
-    # Calcul identique au menu Commissions / TabRapportSuperviseur
+    # Dédoublonner si plusieurs filtres matchent le même superviseur
+    # Prendre le superviseur qui a le plus d'entrées (le plus proche)
+    if entries:
+        from collections import Counter
+        sup_counts = Counter(e.superviseur for e in entries)
+        best_sup = sup_counts.most_common(1)[0][0]
+        entries = [e for e in entries if e.superviseur == best_sup]
+
+    # Calcul IDENTIQUE à CommissionsPage TabRapportSuperviseur ligne 368:
+    # commReelle = (montant_reseau * 0.3) + (montant_pdv * 0.3)
     montant_transactions = sum(e.montant_brut or 0 for e in entries)
-    commission_totale = sum(e.montant_reseau or 0 for e in entries)
+    commission_totale = sum(
+        (e.montant_reseau or 0) * 0.3 + (e.montant_pdv or 0) * 0.3
+        for e in entries
+    )
     pdv_actifs = len(set(e.pdv_numero for e in entries if e.pdv_numero))
 
     # Indicateurs
