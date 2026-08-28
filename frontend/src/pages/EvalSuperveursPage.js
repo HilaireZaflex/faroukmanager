@@ -971,51 +971,101 @@ function CommentairesTab({ superviseur, annee, mois }) {
 }
 
 // ── 🗺️ Par Zone ───────────────────────────────────────────────────────────────
-function ParZoneTab({ classement }) {
-  if (!classement?.length) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Aucun classement disponible pour ce mois.</div>;
+function ParZoneTab({ annee, mois }) {
+  // Charger le classement global avec les zones depuis les KPIs
+  const { data, isLoading } = useQuery(
+    ['eval-classement-zone', annee, mois],
+    async () => {
+      // Charger le classement global
+      const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
+      const classement = resp.data.classement || [];
+      // Pour chaque superviseur, récupérer sa zone depuis les KPIs
+      const enriched = await Promise.all(classement.map(async (s) => {
+        try {
+          const kpiResp = await api.get(`/eval-superviseurs/${encodeURIComponent(s.superviseur)}`, { params: { annee, mois } });
+          const zone = kpiResp.data?.kpis_data?.zone || kpiResp.data?.zone || 'Zone non définie';
+          return { ...s, zone };
+        } catch { return { ...s, zone: 'Zone non définie' }; }
+      }));
+      return enriched;
+    },
+    { staleTime: 60000 }
+  );
+
+  if (isLoading) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement...</div>;
+  if (!data?.length) return <div style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Aucun superviseur évalué pour ce mois.</div>;
 
   // Grouper par zone
   const parZone = {};
-  classement.forEach(s => {
+  data.forEach(s => {
     const zone = s.zone || 'Zone non définie';
     if (!parZone[zone]) parZone[zone] = [];
     parZone[zone].push(s);
   });
 
+  // Trier zones par score moyen décroissant
+  const zonesSorted = Object.entries(parZone).sort((a, b) => {
+    const moyA = a[1].reduce((s, x) => s + (x.score_final||0), 0) / a[1].length;
+    const moyB = b[1].reduce((s, x) => s + (x.score_final||0), 0) / b[1].length;
+    return moyB - moyA;
+  });
+
+  const podium = ['🥇','🥈','🥉'];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ fontSize: 15, fontWeight: 800 }}>🗺️ Performance par Zone</div>
-      {Object.entries(parZone).sort((a, b) => {
-        const moyA = a[1].reduce((s, x) => s + x.score_final, 0) / a[1].length;
-        const moyB = b[1].reduce((s, x) => s + x.score_final, 0) / b[1].length;
-        return moyB - moyA;
-      }).map(([zone, sups], zi) => {
-        const moy = Math.round(sups.reduce((s, x) => s + x.score_final, 0) / sups.length);
-        const best = sups.reduce((a, b) => a.score_final > b.score_final ? a : b);
+      <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>
+        🗺️ Performance par Zone — {['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][mois]} {annee}
+      </div>
+
+      {/* Vue globale des zones */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+        {zonesSorted.map(([zone, sups], zi) => {
+          const moy = Math.round(sups.reduce((s, x) => s + (x.score_final||0), 0) / sups.length);
+          const color = moy >= 75 ? '#22c55e' : moy >= 55 ? '#ffa502' : '#ff4757';
+          return (
+            <div key={zone} style={{ background: 'rgba(255,255,255,0.03)', border: `2px solid ${color}30`, borderRadius: 12, padding: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: 22 }}>{zi < 3 ? podium[zi] : `${zi+1}.`}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#e2e8f0', marginTop: 6, marginBottom: 4 }}>{zone}</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color }}>{moy}</div>
+              <div style={{ fontSize: 10, color: '#64748b' }}>Moy. /100 · {sups.length} sup{sups.length > 1 ? 's' : ''}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Détail par zone */}
+      {zonesSorted.map(([zone, sups], zi) => {
+        const moy = Math.round(sups.reduce((s, x) => s + (x.score_final||0), 0) / sups.length);
+        const best = sups.reduce((a, b) => (a.score_final||0) > (b.score_final||0) ? a : b);
         const color = moy >= 75 ? '#22c55e' : moy >= 55 ? '#ffa502' : '#ff4757';
         return (
           <div key={zone} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}30`, borderLeft: `4px solid ${color}`, borderRadius: 14, padding: '18px 20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 900, color: '#e2e8f0' }}>{zone}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{sups.length} superviseur{sups.length > 1 ? 's' : ''} · 🏆 Meilleur: {best.superviseur.split(' ')[0]}</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#e2e8f0' }}>{zi < 3 ? podium[zi] : `${zi+1}.`} {zone}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  {sups.length} superviseur{sups.length > 1 ? 's' : ''} · 🏆 Meilleur: <strong style={{ color: '#FF6900' }}>{best.superviseur.split(' ')[0]}</strong>
+                </div>
               </div>
               <div style={{ textAlign: 'center', padding: '10px 20px', background: `${color}15`, borderRadius: 12 }}>
                 <div style={{ fontSize: 28, fontWeight: 900, color }}>{moy}</div>
                 <div style={{ fontSize: 10, color: '#64748b' }}>Moy. /100</div>
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {sups.sort((a, b) => b.score_final - a.score_final).map((s, i) => {
-                const col = s.score_final >= 75 ? '#22c55e' : s.score_final >= 55 ? '#ffa502' : '#ff4757';
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {sups.sort((a, b) => (b.score_final||0) - (a.score_final||0)).map((s, i) => {
+                const col = (s.score_final||0) >= 75 ? '#22c55e' : (s.score_final||0) >= 55 ? '#ffa502' : '#ff4757';
+                const mention = (s.score_final||0) >= 85 ? '⭐ Très Bien' : (s.score_final||0) >= 70 ? '👍 Bien' : (s.score_final||0) >= 55 ? '💪 Passable' : '⚠️ Insuffisant';
                 return (
-                  <div key={s.superviseur} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 12, color: '#475569', width: 16 }}>{i+1}.</span>
+                  <div key={s.superviseur} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                    <span style={{ fontSize: 13, color: '#475569', width: 18, fontWeight: 700 }}>{i+1}.</span>
                     <span style={{ flex: 1, fontSize: 13, color: '#e2e8f0', fontWeight: 600 }}>{s.superviseur}</span>
-                    <div style={{ width: 120, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${s.score_final}%`, height: '100%', background: col, borderRadius: 3 }}/>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>{mention}</span>
+                    <div style={{ width: 100, height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${s.score_final||0}%`, height: '100%', background: col, borderRadius: 3 }}/>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: col, width: 32, textAlign: 'right' }}>{Math.round(s.score_final)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 900, color: col, width: 32, textAlign: 'right' }}>{Math.round(s.score_final||0)}</span>
                   </div>
                 );
               })}
@@ -1714,7 +1764,7 @@ export default function EvalSuperveursPage() {
 
           {/* ── 🗺️ PAR ZONE ── */}
           {activeTab === 'zone' && (
-            <ParZoneTab classement={classement} />
+            <ParZoneTab annee={annee} mois={mois} />
           )}
         </div>
       </div>
