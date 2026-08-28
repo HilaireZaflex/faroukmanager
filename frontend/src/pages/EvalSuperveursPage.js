@@ -1396,7 +1396,13 @@ export default function EvalSuperveursPage() {
       <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc;color:#111827;min-height:100vh}
-        @media print{.no-print{display:none!important}body{background:#fff}}
+        @media print{
+          .no-print{display:none!important}
+          body{background:#fff}
+          @page{size:A4 landscape;margin:10mm}
+          table{font-size:10px!important}
+          th,td{padding:5px 4px!important}
+        }
         .header{background:linear-gradient(135deg,#FF6900,#ff9500);color:#fff;padding:40px 48px;text-align:center}
         .header h1{font-size:14px;opacity:.8;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
         .header h2{font-size:42px;font-weight:900;margin-bottom:12px}
@@ -1405,7 +1411,8 @@ export default function EvalSuperveursPage() {
         .stat-card{background:#fff;border-radius:16px;padding:24px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.07);border-top:4px solid}
         .stat-card .val{font-size:36px;font-weight:900;margin-bottom:6px}
         .stat-card .label{font-size:13px;color:#6b7280;font-weight:600}
-        .table-wrap{margin:0 48px 48px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.07)}
+        .table-wrap{margin:0 20px 48px;background:#fff;border-radius:16px;overflow-x:auto;box-shadow:0 2px 12px rgba(0,0,0,.07)}
+        .table-wrap table{min-width:100%;white-space:nowrap}
         .table-title{padding:20px 24px;font-size:16px;font-weight:800;color:#111827;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:10px}
         table{width:100%;border-collapse:collapse}
         th{background:#f9fafb;padding:12px 16px;text-align:left;font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
