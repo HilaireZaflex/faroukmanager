@@ -43,6 +43,13 @@ import EvaluationsPage from './pages/EvaluationsPage';
 import Layout from './components/layout/Layout';
 
 // ── Redirection selon le rôle ─────────────────────────────────────────────────
+const AccueilOrTCRedirect = () => {
+  const user = useAuthStore((state) => state.user);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  if (role === 'teleconseillere') return <Navigate to="/accueil-tc" replace />;
+  return <AccueilPage />;
+};
+
 const RoleRedirect = () => {
   const user = useAuthStore((state) => state.user);
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
@@ -151,7 +158,7 @@ function App() {
               <NotificationCenter />
               <Routes>
                 {/* ── Routes libres (toujours accessibles) ── */}
-                <Route path="/accueil" element={<AccueilPage />} />
+                <Route path="/accueil" element={<AccueilOrTCRedirect />} />
                 <Route path="/accueil-tc" element={<AccueilTCPage />} />
                 <Route path="/kaabu/dashboard" element={<KaabuMensuelPage />} />
                 <Route path="/kaabu/dashboard/weekly" element={<KaabuDashboardPage />} />
