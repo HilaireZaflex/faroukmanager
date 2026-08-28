@@ -126,14 +126,24 @@ def compute_kpi_superviseur(db: Session, user: User,
     sup_name = f"{user.prenom or ''} {user.nom}".strip()
     period_key = date_start.strftime("%Y-%m")
 
-    # Commissions
+    # Commissions — chercher par nom complet ET prénom+nom dans l'ordre inverse
+    sup_name_full = f"{user.prenom or ''} {user.nom or ''}".strip()
+    sup_name_inv = f"{user.nom or ''} {user.prenom or ''}".strip()
+
+    from sqlalchemy import or_
     entries = db.query(CommissionEntry).filter(
         CommissionEntry.period_key == period_key,
-        CommissionEntry.superviseur.ilike(f"%{user.nom}%"),
+        or_(
+            CommissionEntry.superviseur.ilike(f"%{sup_name_full}%"),
+            CommissionEntry.superviseur.ilike(f"%{sup_name_inv}%"),
+            CommissionEntry.superviseur.ilike(f"%{user.nom}%"),
+        )
     ).all()
-    montant_transactions = sum(e.montant_brut for e in entries)
-    commission_totale = sum(e.montant_reseau for e in entries)
-    pdv_actifs = len(entries)
+
+    # Calcul identique au menu Commissions / TabRapportSuperviseur
+    montant_transactions = sum(e.montant_brut or 0 for e in entries)
+    commission_totale = sum(e.montant_reseau or 0 for e in entries)
+    pdv_actifs = len(set(e.pdv_numero for e in entries if e.pdv_numero))
 
     # Indicateurs
     def taux_actif(code: str) -> float:
