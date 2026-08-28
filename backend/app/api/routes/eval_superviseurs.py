@@ -213,28 +213,37 @@ def classement_global(
         realise = kpis if isinstance(kpis, dict) else {}
 
         # Vérifier les critères de validation
+        # Récupérer les valeurs réelles — chercher tous les noms de champs possibles
         nb_pdv = realise.get('nb_pdv') or realise.get('nb_pdvs') or 0
         taux_actif_omy = realise.get('taux_actif_omy') or 0
-        ca_omy = realise.get('ca_omy') or realise.get('montant_transactions') or 0
+        ca_omy = realise.get('montant_transactions') or realise.get('ca_omy') or 0
         commission = realise.get('commission_totale') or realise.get('commission_omy') or 0
         taux_km = realise.get('taux_actif_km') or realise.get('taux_actif_kaabu') or 0
         taux_nafama = realise.get('taux_actif_nafama') or 0
-        ca_nafama = realise.get('montant_vente_nafama') or realise.get('ca_nafama') or 0
+        ca_nafama = realise.get('ca_nafama') or realise.get('montant_vente_nafama') or 0
 
-        obj_ca_omy = objectifs.get('ca_omy') or objectifs.get('montant_transactions') or 1
-        obj_commission = objectifs.get('commission_totale') or 1
+        # Objectifs — si None ou 0, la condition ne peut pas être vérifiée (on rejette par sécurité)
+        obj_ca_omy = objectifs.get('montant_transactions') or objectifs.get('ca_omy') or None
+        obj_commission = objectifs.get('commission_totale') or None
         obj_km = objectifs.get('taux_actif_km') or objectifs.get('taux_actif_kaabu') or 80
-        obj_nafama = objectifs.get('taux_actif_nafama') or 80
-        obj_ca_nafama = objectifs.get('montant_vente_nafama') or 1
+        obj_nafama_taux = objectifs.get('taux_actif_nafama') or 80
+        obj_ca_nafama = objectifs.get('ca_nafama') or objectifs.get('montant_vente_nafama') or None
 
         raisons_rejet = []
-        if nb_pdv < 30: raisons_rejet.append(f"NB PDV: {nb_pdv} < 30")
-        if taux_actif_omy < 90: raisons_rejet.append(f"Actif OMY: {taux_actif_omy:.1f}% < 90%")
-        if ca_omy < obj_ca_omy: raisons_rejet.append(f"CA OMY non atteint")
-        if commission < obj_commission: raisons_rejet.append(f"Commission non atteinte")
-        if taux_km < obj_km: raisons_rejet.append(f"Taux KM: {taux_km:.1f}% < {obj_km}%")
-        if taux_nafama < obj_nafama: raisons_rejet.append(f"Taux NAFAMA: {taux_nafama:.1f}% < {obj_nafama}%")
-        if ca_nafama < obj_ca_nafama: raisons_rejet.append(f"CA NAFAMA non atteint")
+        if nb_pdv < 30:
+            raisons_rejet.append(f"NB PDV: {nb_pdv} < 30")
+        if taux_actif_omy < 90:
+            raisons_rejet.append(f"Actif OMY: {taux_actif_omy:.1f}% < 90%")
+        if obj_ca_omy is not None and ca_omy < obj_ca_omy:
+            raisons_rejet.append(f"CA OMY: {int(ca_omy):,} < objectif {int(obj_ca_omy):,}")
+        if obj_commission is not None and commission < obj_commission:
+            raisons_rejet.append(f"Commission: {int(commission):,} < objectif {int(obj_commission):,}")
+        if taux_km < obj_km:
+            raisons_rejet.append(f"Taux KM: {taux_km:.1f}% < {obj_km}%")
+        if taux_nafama < obj_nafama_taux:
+            raisons_rejet.append(f"Taux NAFAMA: {taux_nafama:.1f}% < {obj_nafama_taux}%")
+        if obj_ca_nafama is not None and ca_nafama < obj_ca_nafama:
+            raisons_rejet.append(f"CA NAFAMA: {int(ca_nafama):,} < objectif {int(obj_ca_nafama):,}")
 
         info = {
             "superviseur": e.superviseur,
