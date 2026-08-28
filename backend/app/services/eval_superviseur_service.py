@@ -94,17 +94,37 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
         from app.services import commission_service as comm_svc
         period_key = f"{annee}-{str(mois).zfill(2)}"
         # Appel identique à CommissionsPage: entries limit=200, pas de filtre superviseur
-        entries = comm_svc.list_entries(db, period_key, limit=200)
-        # Agréger par superviseur exact (comme ligne 364-368 CommissionsPage.js)
+        # Charger TOUTES les entrées (limit=5000) pour ce superviseur
+        # Chercher par prénom pour tolérer les fautes de frappe (DIAARA vs DIARRA)
+        prenom_sup = superviseur.split()[0] if superviseur else superviseur
+        all_entries = comm_svc.list_entries(db, period_key, limit=5000)
+        
+        # Trouver le bon superviseur dans la table commissions
+        from collections import Counter
+        matched = [e for e in all_entries if prenom_sup.upper() in str(
+            (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
+        ).upper()]
+        
+        if matched:
+            # Prendre le superviseur qui a le plus d'entrées (le plus proche)
+            sup_counts = Counter(
+                (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
+                for e in matched
+            )
+            best_sup = sup_counts.most_common(1)[0][0]
+            entries_sup = [e for e in matched if (
+                (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
+            ) == best_sup]
+        else:
+            entries_sup = []
+        
         commission_omy = 0.0
         nb_comm = 0
-        for e in entries:
-            sup_e = (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
-            if sup_e == superviseur:
-                reseau = (e.get('montant_reseau') or 0) if isinstance(e, dict) else (getattr(e, 'montant_reseau', 0) or 0)
-                pdv_m = (e.get('montant_pdv') or 0) if isinstance(e, dict) else (getattr(e, 'montant_pdv', 0) or 0)
-                commission_omy += reseau * 0.3 + pdv_m * 0.3
-                nb_comm += 1
+        for e in entries_sup:
+            reseau = (e.get('montant_reseau') or 0) if isinstance(e, dict) else (getattr(e, 'montant_reseau', 0) or 0)
+            pdv_m = (e.get('montant_pdv') or 0) if isinstance(e, dict) else (getattr(e, 'montant_pdv', 0) or 0)
+            commission_omy += reseau * 0.3 + pdv_m * 0.3
+            nb_comm += 1
         commission_omy = round(commission_omy, 2)
         moy_commission = round(commission_omy / nb_comm, 0) if nb_comm else 0
     except Exception as e:
