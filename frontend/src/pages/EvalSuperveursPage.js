@@ -1394,7 +1394,7 @@ export default function EvalSuperveursPage() {
         .header h1{font-size:14px;opacity:.8;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
         .header h2{font-size:42px;font-weight:900;margin-bottom:12px}
         .header .sub{font-size:15px;opacity:.85}
-        .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:32px 48px}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:32px 48px}
         .stat-card{background:#fff;border-radius:16px;padding:24px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.07);border-top:4px solid}
         .stat-card .val{font-size:36px;font-weight:900;margin-bottom:6px}
         .stat-card .label{font-size:13px;color:#6b7280;font-weight:600}
@@ -1415,9 +1415,13 @@ export default function EvalSuperveursPage() {
         <div style="margin-top:8px;font-size:12px;opacity:0.75">Critères : NB PDV ≥ 30 · Actif OMY ≥ 90% · CA OMY ✓ · Commission ✓ · KM ✓ · NAFAMA ✓${data.total_non_valides > 0 ? ` · ${data.total_non_valides} superviseur(s) non qualifié(s)` : ''}</div>
       </div>
       <div class="stats">
+        <div class="stat-card" style="border-color:#64748b">
+          <div class="val" style="color:#64748b">${data.total + (data.total_non_valides || 0)}</div>
+          <div class="label">Total évalués</div>
+        </div>
         <div class="stat-card" style="border-color:#FF6900">
           <div class="val" style="color:#FF6900">${data.total}</div>
-          <div class="label">Superviseurs évalués</div>
+          <div class="label">✅ Qualifiés</div>
         </div>
         <div class="stat-card" style="border-color:#16a34a">
           <div class="val" style="color:#16a34a">${moy}</div>
