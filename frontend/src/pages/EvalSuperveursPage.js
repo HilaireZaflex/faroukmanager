@@ -140,6 +140,56 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
         )}
       </div>
 
+      {/* Tableau récapitulatif des notes (visible Admin/RC) */}
+      {!isTelec && joignables.length > 0 && (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 16, marginBottom: 14, overflowX: 'auto' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 12 }}>📊 Récapitulatif des notes — {joignables.length} appel{joignables.length > 1 ? 's' : ''} joignable{joignables.length > 1 ? 's' : ''}</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <th style={{ textAlign: 'left', padding: '6px 10px', color: '#64748b', fontWeight: 700 }}>PDV</th>
+                <th style={{ textAlign: 'center', padding: '6px 10px', color: '#3b82f6', fontWeight: 700 }}>📚 Connaissance</th>
+                <th style={{ textAlign: 'center', padding: '6px 10px', color: '#8b5cf6', fontWeight: 700 }}>🚶 Visite</th>
+                <th style={{ textAlign: 'center', padding: '6px 10px', color: '#FF6900', fontWeight: 700 }}>⭐ Note sup.</th>
+                <th style={{ textAlign: 'center', padding: '6px 10px', color: '#22c55e', fontWeight: 700 }}>Moy.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {joignables.map((c, i) => {
+                const moy = ((c.note_connaissance||0) + (c.note_visite||0) + (c.note_superviseur||0)) / 3;
+                const col = moy >= 7 ? '#22c55e' : moy >= 5 ? '#ffa502' : '#ff4757';
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ padding: '8px 10px', color: '#e2e8f0', fontWeight: 600 }}>{c.pdv_nom || c.pdv_numero}</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 800, color: (c.note_connaissance||0) >= 7 ? '#22c55e' : (c.note_connaissance||0) >= 5 ? '#ffa502' : '#ff4757' }}>{c.note_connaissance ?? '—'}/10</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 800, color: (c.note_visite||0) >= 7 ? '#22c55e' : (c.note_visite||0) >= 5 ? '#ffa502' : '#ff4757' }}>{c.note_visite ?? '—'}/10</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 800, color: (c.note_superviseur||0) >= 7 ? '#22c55e' : (c.note_superviseur||0) >= 5 ? '#ffa502' : '#ff4757' }}>{c.note_superviseur ?? '—'}/10</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 900, color: col, fontSize: 14 }}>{moy.toFixed(1)}</td>
+                  </tr>
+                );
+              })}
+              {/* Ligne moyenne globale */}
+              {joignables.length > 1 && (() => {
+                const moyConn = joignables.reduce((s, c) => s + (c.note_connaissance||0), 0) / joignables.length;
+                const moyVis = joignables.reduce((s, c) => s + (c.note_visite||0), 0) / joignables.length;
+                const moyNote = joignables.reduce((s, c) => s + (c.note_superviseur||0), 0) / joignables.length;
+                const moyGlob = (moyConn + moyVis + moyNote) / 3;
+                const col = moyGlob >= 7 ? '#22c55e' : moyGlob >= 5 ? '#ffa502' : '#ff4757';
+                return (
+                  <tr style={{ borderTop: '2px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)' }}>
+                    <td style={{ padding: '8px 10px', color: '#fff', fontWeight: 800 }}>Moyenne</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 900, color: '#3b82f6' }}>{moyConn.toFixed(1)}/10</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 900, color: '#8b5cf6' }}>{moyVis.toFixed(1)}/10</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 900, color: '#FF6900' }}>{moyNote.toFixed(1)}/10</td>
+                    <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 900, color: col, fontSize: 16 }}>{moyGlob.toFixed(1)}</td>
+                  </tr>
+                );
+              })()}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {pdvsGeneres.map((pdv, i) => {
           const call = getCallStatus(pdv);
@@ -178,15 +228,27 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
                     </>
                   )}
                   {appele && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: call.statut === 'JOIGNABLE' ? '#22c55e' : '#ff4757' }}>
                         {call.statut === 'JOIGNABLE' ? '✅ Joignable' : '📵 Injoignable'}
                       </span>
                       {call.statut === 'JOIGNABLE' && (
-                        <div style={{ fontSize: 11, color: '#8a8a9a' }}>
-                          Conn:{call.note_connaissance}/10 · Vis:{call.note_visite}/10 · Note:{call.note_superviseur}/10
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          {[
+                            { label: '📚 Connaissance', val: call.note_connaissance, color: '#3b82f6' },
+                            { label: '🚶 Visite', val: call.note_visite, color: '#8b5cf6' },
+                            { label: '⭐ Note sup.', val: call.note_superviseur, color: '#FF6900' },
+                          ].map((n, ni) => (
+                            <div key={ni} style={{ textAlign: 'center', padding: '4px 10px', borderRadius: 8, background: `${n.color}15`, border: `1px solid ${n.color}30` }}>
+                              <div style={{ fontSize: 10, color: '#64748b' }}>{n.label}</div>
+                              <div style={{ fontSize: 15, fontWeight: 900, color: n.val >= 7 ? '#22c55e' : n.val >= 5 ? '#ffa502' : '#ff4757' }}>
+                                {n.val ?? '—'}<span style={{ fontSize: 9, color: '#64748b' }}>/10</span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
+                      {call.commentaire && <div style={{ fontSize: 10, color: '#64748b', fontStyle: 'italic', maxWidth: 200, textAlign: 'right' }}>💬 {call.commentaire}</div>}
                     </div>
                   )}
                 </div>
