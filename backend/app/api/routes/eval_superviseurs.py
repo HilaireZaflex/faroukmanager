@@ -228,6 +228,13 @@ def classement_global(
         # Objectifs fixés par Farouk Distribution
         obj_km = 80          # Taux Actif KM >= 80%
         obj_nafama_taux = 80 # Taux Actif NAFAMA >= 80%
+
+        # Superviseurs exclus manuellement (cas isolés)
+        EXCLUS = ['MAKAN DEMBELE']
+        if e.superviseur in EXCLUS:
+            raisons_rejet = [f"Cas isolé — exclu manuellement"]
+            non_valides.append({"superviseur": e.superviseur, "score_final": round(e.score_final, 1), "mention": e.mention or _mention(e.score_final), "score_kpi": round(e.score_kpi or 0, 1), "score_mystery": round(e.score_mystery or 0, 1), "score_presentiel": round(e.score_presentiel or 0, 1), "zone": getattr(e, 'zone', None), "nb_pdv": nb_pdv, "raisons_rejet": raisons_rejet})
+            continue
         obj_ca_nafama = objectifs.get('ca_nafama') or objectifs.get('montant_vente_nafama') or None
 
         raisons_rejet = []
