@@ -225,8 +225,9 @@ def classement_global(
         # Objectifs — si None ou 0, la condition ne peut pas être vérifiée (on rejette par sécurité)
         obj_ca_omy = objectifs.get('montant_transactions') or objectifs.get('ca_omy') or None
         obj_commission = objectifs.get('commission_totale') or None
-        obj_km = objectifs.get('taux_actif_km') or objectifs.get('taux_actif_kaabu') or 80
-        obj_nafama_taux = objectifs.get('taux_actif_nafama') or 80
+        # Objectifs fixés par Farouk Distribution
+        obj_km = 80          # Taux Actif KM >= 80%
+        obj_nafama_taux = 80 # Taux Actif NAFAMA >= 80%
         obj_ca_nafama = objectifs.get('ca_nafama') or objectifs.get('montant_vente_nafama') or None
 
         raisons_rejet = []
