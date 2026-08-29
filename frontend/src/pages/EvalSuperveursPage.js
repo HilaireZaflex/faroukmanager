@@ -1398,10 +1398,18 @@ export default function EvalSuperveursPage() {
         body{font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc;color:#111827;min-height:100vh}
         @media print{
           .no-print{display:none!important}
-          body{background:#fff}
-          @page{size:A4 landscape;margin:10mm}
-          table{font-size:10px!important}
-          th,td{padding:5px 4px!important}
+          body{background:#fff;font-size:9px}
+          @page{size:A4 portrait;margin:8mm}
+          .header{padding:16px 20px!important}
+          .header h2{font-size:24px!important}
+          .stats{margin:12px 8px!important;gap:8px!important}
+          .stat-card{padding:10px!important}
+          .stat-card .val{font-size:22px!important}
+          .table-wrap{margin:0 8px 16px!important}
+          .table-title{padding:10px 12px!important;font-size:11px!important}
+          table{font-size:8px!important;width:100%!important}
+          th,td{padding:4px 3px!important}
+          .footer{padding:8px!important;font-size:9px!important}
         }
         .header{background:linear-gradient(135deg,#FF6900,#ff9500);color:#fff;padding:40px 48px;text-align:center}
         .header h1{font-size:14px;opacity:.8;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
