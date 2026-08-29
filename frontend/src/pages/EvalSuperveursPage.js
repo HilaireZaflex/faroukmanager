@@ -1367,22 +1367,19 @@ export default function EvalSuperveursPage() {
       const podium = ['🥇','🥈','🥉'];
       const mentionColor = s => s >= 80 ? '#16a34a' : s >= 65 ? '#d97706' : '#dc2626';
 
+      const fmtK = v => v ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—';
       const lignes = data.classement.map((s, i) => `
-        <tr style="background:${i < 3 ? ['#fffbeb','#f0fdf4','#eff6ff'][i] : '#fff'}">
-          <td style="padding:12px 16px;font-size:${i < 3 ? 22 : 15}px;text-align:center">${i < 3 ? podium[i] : `<span style="font-weight:700;color:#6b7280">${s.rang}</span>`}</td>
-          <td style="padding:12px 16px;font-weight:${i < 3 ? 900 : 700};font-size:15px;color:#111827">${s.superviseur}</td>
-          <td style="padding:12px 16px;text-align:center;font-size:${i < 3 ? 24 : 18}px;font-weight:900;color:${mentionColor(s.score_final)}">${s.score_final}</td>
-          <td style="padding:12px 16px;text-align:center;font-size:12px;font-weight:700;color:${mentionColor(s.score_final)}">${s.mention}</td>
-          <td style="padding:12px 16px;text-align:center;color:#6b7280;font-size:13px">${s.score_kpi}/100</td>
-          <td style="padding:12px 16px;text-align:center;color:#6b7280;font-size:13px">${s.score_mystery}/100</td>
-          <td style="padding:8px 10px;text-align:center;color:#6b7280;font-size:12px">${s.score_presentiel}/100</td>
-          <td style="padding:8px 6px;text-align:center;font-size:12px;font-weight:700;color:${(s.nb_pdv||0)>=30?'#16a34a':'#dc2626'}">${s.nb_pdv||'—'}</td>
-          <td style="padding:8px 6px;text-align:right;font-size:11px">${s.ca_omy ? new Intl.NumberFormat('fr-FR').format(Math.round(s.ca_omy)) : '—'}</td>
-          <td style="padding:8px 6px;text-align:right;font-size:11px">${s.commission ? new Intl.NumberFormat('fr-FR').format(Math.round(s.commission)) : '—'}</td>
-          <td style="padding:8px 6px;text-align:center;font-size:11px;font-weight:700;color:${(s.actif_omy||0)>=90?'#16a34a':'#dc2626'}">${s.actif_omy ? s.actif_omy.toFixed(1)+'%' : '—'}</td>
-          <td style="padding:8px 6px;text-align:center;font-size:11px;font-weight:700;color:${(s.taux_km||0)>=80?'#16a34a':'#dc2626'}">${s.taux_km ? s.taux_km.toFixed(1)+'%' : '—'}</td>
-          <td style="padding:8px 6px;text-align:center;font-size:11px;font-weight:700;color:${(s.taux_nafama||0)>=80?'#16a34a':'#dc2626'}">${s.taux_nafama ? s.taux_nafama.toFixed(1)+'%' : '—'}</td>
-          <td style="padding:8px 6px;text-align:right;font-size:11px">${s.ca_nafama ? new Intl.NumberFormat('fr-FR').format(Math.round(s.ca_nafama)) : '—'}</td>
+        <tr style="background:${i < 3 ? ['#fffbeb','#f0fdf4','#eff6ff'][i] : i%2===0?'#fff':'#f9fafb'}">
+          <td style="padding:7px 5px;font-size:${i < 3 ? 16 : 12}px;text-align:center">${i < 3 ? podium[i] : `<b style="color:#6b7280">${s.rang}</b>`}</td>
+          <td style="padding:7px 5px;font-weight:700;font-size:11px;color:#111827">${s.superviseur}</td>
+          <td style="padding:7px 5px;text-align:center;font-size:13px;font-weight:900;color:${mentionColor(s.score_final)}">${s.score_final}</td>
+          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.nb_pdv||0)>=30?'#16a34a':'#dc2626'}">${s.nb_pdv||'—'}</td>
+          <td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">${fmtK(s.ca_omy)}</td>
+          <td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">${fmtK(s.commission)}</td>
+          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.actif_omy||0)>=90?'#16a34a':'#dc2626'}">${s.actif_omy ? s.actif_omy.toFixed(1)+'%' : '—'}</td>
+          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.taux_km||0)>=80?'#16a34a':'#dc2626'}">${s.taux_km ? s.taux_km.toFixed(1)+'%' : '—'}</td>
+          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.taux_nafama||0)>=80?'#16a34a':'#dc2626'}">${s.taux_nafama ? s.taux_nafama.toFixed(1)+'%' : '—'}</td>
+          <td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">${fmtK(s.ca_nafama)}</td>
         </tr>`).join('');
 
       const moy = Math.round(data.classement.reduce((s, e) => s + e.score_final, 0) / data.classement.length);
@@ -1458,20 +1455,16 @@ export default function EvalSuperveursPage() {
         <div class="table-title">📊 Classement complet — KPIs 70% · Appels TC 20% · Présentiel 10%</div>
         <table>
           <thead><tr>
-            <th style="text-align:center;padding:10px 8px">Rang</th>
-            <th style="padding:10px 8px">Superviseur</th>
-            <th style="text-align:center;padding:10px 8px">Score</th>
-            <th style="text-align:center;padding:10px 8px">Mention</th>
-            <th style="text-align:center;padding:10px 8px">KPIs</th>
-            <th style="text-align:center;padding:10px 8px">Appels TC</th>
-            <th style="text-align:center;padding:10px 8px">Présentiel</th>
-            <th style="text-align:center;padding:10px 8px">NB PDV</th>
-            <th style="text-align:right;padding:10px 8px">CA OMY</th>
-            <th style="text-align:right;padding:10px 8px">Commission</th>
-            <th style="text-align:center;padding:10px 8px">Actif OMY</th>
-            <th style="text-align:center;padding:10px 8px">KM</th>
-            <th style="text-align:center;padding:10px 8px">NAFAMA</th>
-            <th style="text-align:right;padding:10px 8px">CA NAFAMA</th>
+            <th style="text-align:center;padding:8px 6px;font-size:11px">Rang</th>
+            <th style="padding:8px 6px;font-size:11px">Superviseur</th>
+            <th style="text-align:center;padding:8px 6px;font-size:11px">Score</th>
+            <th style="text-align:center;padding:8px 6px;font-size:11px">NB PDV</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px">CA OMY</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px">Commission</th>
+            <th style="text-align:center;padding:8px 6px;font-size:11px">Actif OMY</th>
+            <th style="text-align:center;padding:8px 6px;font-size:11px">KM%</th>
+            <th style="text-align:center;padding:8px 6px;font-size:11px">NAFAMA%</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px">CA NAFAMA</th>
           </tr></thead>
           <tbody>${lignes}</tbody>
         </table>
