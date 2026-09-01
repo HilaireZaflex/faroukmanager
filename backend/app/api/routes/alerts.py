@@ -584,14 +584,30 @@ def get_recovery_liste(
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── NOUVELLES ACTIVATIONS PROSPECTION : PDVs activés via le module prospection ─
+    # Deux méthodes d'activation coexistent :
+    # 1) Nouvelle méthode : activated_pdv_id est renseigné sur le prospect
+    # 2) Ancienne méthode : puce_numero du prospect correspond au numero_pdv
     from app.models.prospect import Prospect
-    prospect_pdv_ids = set(
+    # Méthode 1 : via activated_pdv_id
+    ids_via_lien = set(
         r[0] for r in db.query(Prospect.activated_pdv_id)
         .filter(
             Prospect.status == "PUCE_ACTIVEE",
             Prospect.activated_pdv_id.isnot(None)
         ).all()
     )
+    # Méthode 2 : via puce_numero → numero_pdv (ancienne méthode)
+    puces_activees = set(
+        r[0] for r in db.query(Prospect.puce_numero)
+        .filter(
+            Prospect.status == "PUCE_ACTIVEE",
+            Prospect.puce_numero.isnot(None),
+            Prospect.puce_numero != ""
+        ).all()
+    )
+    # Union des deux méthodes : IDs directs + numéros PDV à matcher
+    prospect_pdv_ids = ids_via_lien  # IDs de PDV
+    prospect_puces   = puces_activees  # numéros PDV (pour matcher avec pdv.numero_pdv)
     # ─────────────────────────────────────────────────────────────────────────
 
     liste = []
@@ -658,7 +674,9 @@ def get_recovery_liste(
             continue
 
         # ── EXCLUSION 6 : Nouvelle activation via module Prospection (PUCE_ACTIVEE)
-        if pdv.id in prospect_pdv_ids:
+        # Méthode 1 : lien direct via activated_pdv_id
+        # Méthode 2 : puce_numero du prospect == numero_pdv
+        if pdv.id in prospect_pdv_ids or pdv.numero_pdv in prospect_puces:
             exclusions["nouvelle_activation_prospection"] += 1
             exclusions_detail["nouvelle_activation_prospection"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
