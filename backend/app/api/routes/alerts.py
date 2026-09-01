@@ -556,23 +556,36 @@ def get_recovery_liste(
     # PDVs actifs (non désactivés)
     pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
 
-    # ── NAFAMA : montants du mois courant par PDV ────────────────────────────
+    # ── NAFAMA : montants cumulés sur les 2 mois (courant + précédent) par PDV ─
     from app.models.nafama import NafamaTransaction
-    from sqlalchemy import func as sqlfunc
+    from sqlalchemy import func as sqlfunc, or_ as sqlor
     nafama_rows = db.query(
         NafamaTransaction.numero_pdv,
         sqlfunc.sum(NafamaTransaction.montant).label("total_nafama")
     ).filter(
-        NafamaTransaction.annee == annee_courante,
-        NafamaTransaction.mois == mois_courant,
+        sqlor(
+            (NafamaTransaction.annee == annee_courante) & (NafamaTransaction.mois == mois_courant),
+            (NafamaTransaction.annee == annee_prec)     & (NafamaTransaction.mois == mois_prec),
+        )
     ).group_by(NafamaTransaction.numero_pdv).all()
     nafama_map = {row.numero_pdv: int(row.total_nafama) for row in nafama_rows}
-    SEUIL_NAFAMA = 250_000  # PDVs avec NAFAMA >= 250 000 FCFA exclus
+    SEUIL_NAFAMA = 250_000  # PDVs avec NAFAMA >= 250 000 FCFA (sur 2 mois) exclus
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # ── NOUVELLES ACTIVATIONS PROSPECTION : PDVs activés via le module prospection ─
+    from app.models.prospect import Prospect
+    prospect_pdv_ids = set(
+        r[0] for r in db.query(Prospect.activated_pdv_id)
+        .filter(
+            Prospect.status == "PUCE_ACTIVEE",
+            Prospect.activated_pdv_id.isnot(None)
+        ).all()
+    )
     # ─────────────────────────────────────────────────────────────────────────
 
     liste = []
-    exclusions = {"au_bureau": 0, "activation_recente": 0, "nouvelle_creation": 0, "inactif_zero_ops": 0, "flotte": 0, "nafama_actif": 0}
-    exclusions_detail = {"au_bureau": [], "activation_recente": [], "nouvelle_creation": [], "inactif_zero_ops": [], "flotte": [], "nafama_actif": []}
+    exclusions = {"au_bureau": 0, "activation_recente": 0, "nouvelle_creation": 0, "inactif_zero_ops": 0, "flotte": 0, "nafama_actif": 0, "nouvelle_activation_prospection": 0}
+    exclusions_detail = {"au_bureau": [], "activation_recente": [], "nouvelle_creation": [], "inactif_zero_ops": [], "flotte": [], "nafama_actif": [], "nouvelle_activation_prospection": []}
 
     def pdv_mini(pdv, ca_prec=0, ca_courant=0):
         return {
@@ -624,13 +637,19 @@ def get_recovery_liste(
             exclusions_detail["flotte"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
-        # ── EXCLUSION 5 : NAFAMA >= 250 000 FCFA (PDV actif Nafama)
+        # ── EXCLUSION 5 : NAFAMA >= 250 000 FCFA (PDV actif Nafama sur 2 mois)
         mt_nafama = nafama_map.get(pdv.numero_pdv, 0)
         if mt_nafama >= SEUIL_NAFAMA:
             exclusions["nafama_actif"] += 1
             excl_item = pdv_mini(pdv, mt_p, mt_c)
             excl_item["montant_nafama"] = mt_nafama
             exclusions_detail["nafama_actif"].append(excl_item)
+            continue
+
+        # ── EXCLUSION 6 : Nouvelle activation via module Prospection (PUCE_ACTIVEE)
+        if pdv.id in prospect_pdv_ids:
+            exclusions["nouvelle_activation_prospection"] += 1
+            exclusions_detail["nouvelle_activation_prospection"].append(pdv_mini(pdv, mt_p, mt_c))
             continue
 
         # Critère : somme du MONTANT DES TRANSACTIONS des 2 mois

@@ -348,7 +348,8 @@ export default function RecoveryListePage() {
       ['✨ Nouvelles attributions', data?.exclusions?.nouvelle_creation ?? 0, 'PDVs nouvellement attribués à un nouveau gérant — période de démarrage, exclusion normale', ''],
       ['💤 Inactifs 0 opérations', data?.exclusions?.inactif_zero_ops ?? 0, 'PDVs sans aucune opération sur 2 mois complets — traités séparément (fermeture / réaffectation)', ''],
       ['🚗 Numéros Flotte', data?.exclusions?.flotte ?? 0, 'Lignes Flotte Orange incluses dans le réseau — gérées par le département Flotte, pas la récupération standard', ''],
-      ['💰 NAFAMA ≥ 250 000 FCFA', data?.exclusions?.nafama_actif ?? 0, 'PDVs ayant un montant NAFAMA ≥ 250 000 FCFA ce mois — considérés actifs sur le réseau Nafama, non éligibles à la récupération', ''],
+      ['💰 NAFAMA ≥ 250 000 FCFA', data?.exclusions?.nafama_actif ?? 0, 'PDVs ayant un montant NAFAMA ≥ 250 000 FCFA (cumul 2 mois) — considérés actifs sur le réseau Nafama, non éligibles à la récupération', ''],
+      ['🆕 Nouvelles activations (Prospection)', data?.exclusions?.nouvelle_activation_prospection ?? 0, 'PDVs activés via le module Prospection (statut PUCE_ACTIVEE) — nouvellement créés, non éligibles à la récupération', ''],
       ['', '', '', ''],
       ['TOTAL PDVs exclus :', totalExclus, '', ''],
       ['', '', '', ''],
@@ -504,6 +505,7 @@ export default function RecoveryListePage() {
             { key: 'inactif_zero_ops',  label: '💤 Inactifs 0 opérations', cls: 'excl-inactif'},
             { key: 'flotte',            label: '🚗 Numéros Flotte (15)',    cls: 'excl-flotte' },
             { key: 'nafama_actif',      label: '💰 NAFAMA ≥ 250 000',       cls: 'excl-nafama' },
+            { key: 'nouvelle_activation_prospection', label: '🆕 Nouvelles activations', cls: 'excl-prospect' },
           ].map(({ key, label, cls }) => (
             <button
               key={key}
