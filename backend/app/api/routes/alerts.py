@@ -556,9 +556,23 @@ def get_recovery_liste(
     # PDVs actifs (non désactivés)
     pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
 
+    # ── NAFAMA : montants du mois courant par PDV ────────────────────────────
+    from app.models.nafama import NafamaTransaction
+    from sqlalchemy import func as sqlfunc
+    nafama_rows = db.query(
+        NafamaTransaction.numero_pdv,
+        sqlfunc.sum(NafamaTransaction.montant).label("total_nafama")
+    ).filter(
+        NafamaTransaction.annee == annee_courante,
+        NafamaTransaction.mois == mois_courant,
+    ).group_by(NafamaTransaction.numero_pdv).all()
+    nafama_map = {row.numero_pdv: int(row.total_nafama) for row in nafama_rows}
+    SEUIL_NAFAMA = 250_000  # PDVs avec NAFAMA >= 250 000 FCFA exclus
+    # ─────────────────────────────────────────────────────────────────────────
+
     liste = []
-    exclusions = {"au_bureau": 0, "activation_recente": 0, "nouvelle_creation": 0, "inactif_zero_ops": 0, "flotte": 0}
-    exclusions_detail = {"au_bureau": [], "activation_recente": [], "nouvelle_creation": [], "inactif_zero_ops": [], "flotte": []}
+    exclusions = {"au_bureau": 0, "activation_recente": 0, "nouvelle_creation": 0, "inactif_zero_ops": 0, "flotte": 0, "nafama_actif": 0}
+    exclusions_detail = {"au_bureau": [], "activation_recente": [], "nouvelle_creation": [], "inactif_zero_ops": [], "flotte": [], "nafama_actif": []}
 
     def pdv_mini(pdv, ca_prec=0, ca_courant=0):
         return {
@@ -608,6 +622,15 @@ def get_recovery_liste(
         if pdv.numero_flotte:
             exclusions["flotte"] += 1
             exclusions_detail["flotte"].append(pdv_mini(pdv, mt_p, mt_c))
+            continue
+
+        # ── EXCLUSION 5 : NAFAMA >= 250 000 FCFA (PDV actif Nafama)
+        mt_nafama = nafama_map.get(pdv.numero_pdv, 0)
+        if mt_nafama >= SEUIL_NAFAMA:
+            exclusions["nafama_actif"] += 1
+            excl_item = pdv_mini(pdv, mt_p, mt_c)
+            excl_item["montant_nafama"] = mt_nafama
+            exclusions_detail["nafama_actif"].append(excl_item)
             continue
 
         # Critère : somme du MONTANT DES TRANSACTIONS des 2 mois
@@ -664,6 +687,7 @@ def get_recovery_liste(
                 "nb_operations_prec":    nb_ops_prec,
                 "deja_en_recuperation":  deja_en_recuperation,
                 "mois_recuperation_precedent": mois_recuperation_precedent,
+                "montant_nafama": nafama_map.get(pdv.numero_pdv, 0),
             })
 
     # Trier par montant total croissant (les plus critiques en premier)

@@ -238,6 +238,7 @@
 .excl-new     { background: rgba(0,184,148,0.1);   color: #00b894; }
 .excl-inactif { background: rgba(255,71,87,0.1);   color: #ff6b81; }
 .excl-flotte  { background: rgba(9,132,227,0.1);   color: #74b9ff; }
+.excl-nafama  { background: rgba(0,206,201,0.1);   color: #00cec9; }
 .rl-excl-btn {
   border: none; cursor: pointer; transition: all 0.2s;
   display: inline-flex; align-items: center; gap: 5px;

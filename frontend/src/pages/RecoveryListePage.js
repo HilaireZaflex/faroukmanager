@@ -301,6 +301,7 @@ export default function RecoveryListePage() {
       'Mois Récup. Précédent': p.mois_recuperation_precedent || '—',
       'N° Flotte': p.numero_flotte ? 'OUI 🚗' : 'Non',
       'Nouvelle Attribution': p.nouvelle_creation ? 'OUI ✨' : 'Non',
+      'Montant NAFAMA (FCFA)': p.montant_nafama || 0,
       'Statut Suivi': '[ À COMPLÉTER ]',
       'Actions Terrain': '',
     }));
@@ -313,7 +314,7 @@ export default function RecoveryListePage() {
       {wch:28},{wch:28},{wch:16},{wch:18},{wch:14},
       {wch:18},{wch:18},{wch:18},
       {wch:14},{wch:20},{wch:12},{wch:18},
-      {wch:18},{wch:24}
+      {wch:20},{wch:18},{wch:24}
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, `Liste Récupération ${moisNom}`);
@@ -347,6 +348,7 @@ export default function RecoveryListePage() {
       ['✨ Nouvelles attributions', data?.exclusions?.nouvelle_creation ?? 0, 'PDVs nouvellement attribués à un nouveau gérant — période de démarrage, exclusion normale', ''],
       ['💤 Inactifs 0 opérations', data?.exclusions?.inactif_zero_ops ?? 0, 'PDVs sans aucune opération sur 2 mois complets — traités séparément (fermeture / réaffectation)', ''],
       ['🚗 Numéros Flotte', data?.exclusions?.flotte ?? 0, 'Lignes Flotte Orange incluses dans le réseau — gérées par le département Flotte, pas la récupération standard', ''],
+      ['💰 NAFAMA ≥ 250 000 FCFA', data?.exclusions?.nafama_actif ?? 0, 'PDVs ayant un montant NAFAMA ≥ 250 000 FCFA ce mois — considérés actifs sur le réseau Nafama, non éligibles à la récupération', ''],
       ['', '', '', ''],
       ['TOTAL PDVs exclus :', totalExclus, '', ''],
       ['', '', '', ''],
@@ -367,6 +369,7 @@ export default function RecoveryListePage() {
       ['Déjà en Récup.', '"OUI" = ce PDV était déjà dans la liste de récupération le mois précédent (récidiviste — priorité haute)', '', ''],
       ['N° Flotte', '"OUI" = ce PDV utilise une ligne Flotte Orange — à coordonner avec le département Flotte', '', ''],
       ['Nouvelle Attribution', '"OUI" = PDV récemment attribué à un nouveau gérant, mais inclus tout de même dans la liste', '', ''],
+      ['Montant NAFAMA (FCFA)', 'Montant total des transactions NAFAMA du PDV pour le mois courant — à titre informatif (les PDVs ≥ 250 000 FCFA ont été exclus)', '', ''],
       ['Statut Suivi', 'À compléter par les superviseurs terrain : Identifié / Contacté / SIM Récupérée / Redéployé', '', ''],
       ['Actions Terrain', 'Notes libres sur les actions menées (appel, visite, commentaire...)', '', ''],
       ['', '', '', ''],
@@ -500,6 +503,7 @@ export default function RecoveryListePage() {
             { key: 'nouvelle_creation', label: '✨ Nouvelles attributions',  cls: 'excl-new'    },
             { key: 'inactif_zero_ops',  label: '💤 Inactifs 0 opérations', cls: 'excl-inactif'},
             { key: 'flotte',            label: '🚗 Numéros Flotte (15)',    cls: 'excl-flotte' },
+            { key: 'nafama_actif',      label: '💰 NAFAMA ≥ 250 000',       cls: 'excl-nafama' },
           ].map(({ key, label, cls }) => (
             <button
               key={key}
@@ -613,6 +617,11 @@ export default function RecoveryListePage() {
                       Total 2 mois <SortIco col="ca_total" />
                     </span>
                   </th>
+                  <th className="th-right" onClick={() => handleSort('montant_nafama')} style={{ color:'#00cec9' }}>
+                    <span style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}>
+                      💰 NAFAMA <SortIco col="montant_nafama" />
+                    </span>
+                  </th>
                   <th className="th-center">Infos</th>
                   <th className="th-center">Statut / Action</th>
                 </tr>
@@ -658,6 +667,15 @@ export default function RecoveryListePage() {
                         <TrendingDown size={12} />
                         {fmtFull(pdv.ca_total)}
                       </div>
+                    </td>
+                    <td className="td-right">
+                      {pdv.montant_nafama > 0 ? (
+                        <span style={{ color:'#00cec9', fontWeight:600, fontSize:12 }}>
+                          {fmtFull(pdv.montant_nafama)}
+                        </span>
+                      ) : (
+                        <span style={{ color:'#444', fontSize:11 }}>—</span>
+                      )}
                     </td>
                     <td className="td-center">
                       <div className="flags-cell" style={{ alignItems:'center' }}>
