@@ -348,7 +348,7 @@ export default function RecoveryListePage() {
       ['✨ Nouvelles attributions', data?.exclusions?.nouvelle_creation ?? 0, 'PDVs nouvellement attribués à un nouveau gérant — période de démarrage, exclusion normale', ''],
       ['💤 Inactifs 0 opérations', data?.exclusions?.inactif_zero_ops ?? 0, 'PDVs sans aucune opération sur 2 mois complets — traités séparément (fermeture / réaffectation)', ''],
       ['🚗 Numéros Flotte', data?.exclusions?.flotte ?? 0, 'Lignes Flotte Orange incluses dans le réseau — gérées par le département Flotte, pas la récupération standard', ''],
-      ['💰 NAFAMA ≥ 250 000 FCFA', data?.exclusions?.nafama_actif ?? 0, 'PDVs ayant un montant NAFAMA ≥ 250 000 FCFA (cumul 2 mois) — considérés actifs sur le réseau Nafama, non éligibles à la récupération', ''],
+      [`💰 NAFAMA ≥ 250 000 FCFA (${data?.nafama_mois_ref || ''} ${data?.nafama_annee_ref || ''})`, data?.exclusions?.nafama_actif ?? 0, `PDVs ayant un montant NAFAMA ≥ 250 000 FCFA sur le mois ${data?.nafama_mois_ref || ''} — considérés actifs sur le réseau Nafama, non éligibles à la récupération`, ''],
       ['🆕 Nouvelles activations (Prospection)', data?.exclusions?.nouvelle_activation_prospection ?? 0, 'PDVs activés via le module Prospection (statut PUCE_ACTIVEE) — nouvellement créés, non éligibles à la récupération', ''],
       ['', '', '', ''],
       ['TOTAL PDVs exclus :', totalExclus, '', ''],
@@ -621,7 +621,7 @@ export default function RecoveryListePage() {
                   </th>
                   <th className="th-right" onClick={() => handleSort('montant_nafama')} style={{ color:'#00cec9' }}>
                     <span style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}>
-                      💰 NAFAMA <SortIco col="montant_nafama" />
+                      💰 NAFAMA {data?.nafama_mois_ref ? `(${data.nafama_mois_ref})` : ''} <SortIco col="montant_nafama" />
                     </span>
                   </th>
                   <th className="th-center">Infos</th>
@@ -748,14 +748,23 @@ export default function RecoveryListePage() {
               <button
                 onClick={() => {
                   // Export Excel CSV
+                  const isNafama = exclusionModal.key === 'nafama_actif';
+                  const headers = ['#','N° PDV','Nom','Type','Zone','Sous-zone','Superviseur','Gestionnaire','Téléphone','Date Activation',
+                    ...(isNafama
+                      ? [`Montant NAFAMA (${data?.nafama_mois_ref || ''})`]
+                      : [`Montant Trans. ${data?.mois_precedent_nom}`,`Montant Trans. ${data?.mois_courant_nom}`,'Total 2 mois']
+                    )
+                  ];
                   const rows = [
-                    ['#','N° PDV','Nom','Type','Zone','Sous-zone','Superviseur','Gestionnaire','Téléphone','Date Activation',
-                     `Montant Trans. ${data?.mois_precedent_nom}`,`Montant Trans. ${data?.mois_courant_nom}`,'Total 2 mois'].join(';'),
+                    headers.join(';'),
                     ...exclusionModal.liste.map((p, i) => [
                       i+1, p.numero_pdv, p.nom||'', p.type_pdv||'', p.zone||'', p.sous_zone||'',
                       p.superviseur||'', p.gestionnaire||'', p.telephone||'',
                       p.date_activation ? p.date_activation.slice(0,10) : '',
-                      p.ca_mois_precedent||0, p.ca_mois_courant||0, p.ca_total||0
+                      ...(isNafama
+                        ? [p.montant_nafama||0]
+                        : [p.ca_mois_precedent||0, p.ca_mois_courant||0, p.ca_total||0]
+                      )
                     ].join(';'))
                   ].join('\n')
                   const blob = new Blob(['\uFEFF'+rows], { type: 'text/csv;charset=utf-8;' })
@@ -797,9 +806,17 @@ export default function RecoveryListePage() {
                     <th>Gestionnaire</th>
                     <th>Téléphone</th>
                     <th>Date Activ.</th>
-                    <th className="th-right">Montant Trans. {data?.mois_precedent_nom}</th>
-                    <th className="th-right">Montant Trans. {data?.mois_courant_nom}</th>
-                    <th className="th-right">Total 2 mois</th>
+                    {exclusionModal.key === 'nafama_actif' ? (
+                      <th className="th-right" style={{ color:'#00cec9' }}>
+                        💰 Montant NAFAMA {data?.nafama_mois_ref ? `(${data.nafama_mois_ref})` : ''}
+                      </th>
+                    ) : (
+                      <>
+                        <th className="th-right">Montant Trans. {data?.mois_precedent_nom}</th>
+                        <th className="th-right">Montant Trans. {data?.mois_courant_nom}</th>
+                        <th className="th-right">Total 2 mois</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -816,9 +833,17 @@ export default function RecoveryListePage() {
                       <td style={{ fontSize: 12, color: '#bbb' }}>{pdv.gestionnaire || '—'}</td>
                       <td style={{ fontSize: 11, color: '#777' }}>{pdv.telephone || '—'}</td>
                       <td style={{ fontSize: 11, color: '#777', whiteSpace: 'nowrap' }}>{fmtDate(pdv.date_activation)}</td>
-                      <td className="td-right ca-cell" style={{ color: '#888' }}>{fmtFull(pdv.ca_mois_precedent)}</td>
-                      <td className="td-right ca-cell" style={{ color: '#888' }}>{fmtFull(pdv.ca_mois_courant)}</td>
-                      <td className="td-right ca-cell" style={{ color: '#aaa', fontWeight: 700 }}>{fmtFull(pdv.ca_total)}</td>
+                      {exclusionModal.key === 'nafama_actif' ? (
+                        <td className="td-right" style={{ color:'#00cec9', fontWeight:700 }}>
+                          {fmtFull(pdv.montant_nafama || 0)}
+                        </td>
+                      ) : (
+                        <>
+                          <td className="td-right ca-cell" style={{ color: '#888' }}>{fmtFull(pdv.ca_mois_precedent)}</td>
+                          <td className="td-right ca-cell" style={{ color: '#888' }}>{fmtFull(pdv.ca_mois_courant)}</td>
+                          <td className="td-right ca-cell" style={{ color: '#aaa', fontWeight: 700 }}>{fmtFull(pdv.ca_total)}</td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
