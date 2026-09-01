@@ -504,7 +504,7 @@ export default function RecoveryListePage() {
             { key: 'nouvelle_creation', label: '✨ Nouvelles attributions',  cls: 'excl-new'    },
             { key: 'inactif_zero_ops',  label: '💤 Inactifs 0 opérations', cls: 'excl-inactif'},
             { key: 'flotte',            label: '🚗 Numéros Flotte (15)',    cls: 'excl-flotte' },
-            { key: 'nafama_actif',      label: '💰 NAFAMA ≥ 250 000',       cls: 'excl-nafama' },
+            { key: 'nafama_actif',      label: `💰 NAFAMA ≥ 250 000 (${data?.nafama_mois_ref || ''})`, cls: 'excl-nafama' },
             { key: 'nouvelle_activation_prospection', label: '🆕 Nouvelles activations', cls: 'excl-prospect' },
           ].map(({ key, label, cls }) => (
             <button

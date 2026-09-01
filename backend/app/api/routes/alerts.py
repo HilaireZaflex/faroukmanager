@@ -556,20 +556,31 @@ def get_recovery_liste(
     # PDVs actifs (non désactivés)
     pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
 
-    # ── NAFAMA : montants cumulés sur les 2 mois (courant + précédent) par PDV ─
+    # ── NAFAMA : montant du DERNIER MOIS disponible dans la table NAFAMA ───────
+    # On prend le dernier mois importé dans nafama_transactions (indépendamment
+    # du mois des performances), car les deux imports ont des calendriers différents.
     from app.models.nafama import NafamaTransaction
-    from sqlalchemy import func as sqlfunc, or_ as sqlor
-    nafama_rows = db.query(
-        NafamaTransaction.numero_pdv,
-        sqlfunc.sum(NafamaTransaction.montant).label("total_nafama")
-    ).filter(
-        sqlor(
-            (NafamaTransaction.annee == annee_courante) & (NafamaTransaction.mois == mois_courant),
-            (NafamaTransaction.annee == annee_prec)     & (NafamaTransaction.mois == mois_prec),
-        )
-    ).group_by(NafamaTransaction.numero_pdv).all()
-    nafama_map = {row.numero_pdv: int(row.total_nafama) for row in nafama_rows}
-    SEUIL_NAFAMA = 250_000  # PDVs avec NAFAMA >= 250 000 FCFA (sur 2 mois) exclus
+    from sqlalchemy import func as sqlfunc
+    last_nafama = db.query(
+        NafamaTransaction.annee, NafamaTransaction.mois
+    ).order_by(
+        NafamaTransaction.annee.desc(), NafamaTransaction.mois.desc()
+    ).first()
+    if last_nafama:
+        nafama_annee, nafama_mois = last_nafama.annee, last_nafama.mois
+        nafama_rows = db.query(
+            NafamaTransaction.numero_pdv,
+            sqlfunc.sum(NafamaTransaction.montant).label("total_nafama")
+        ).filter(
+            NafamaTransaction.annee == nafama_annee,
+            NafamaTransaction.mois == nafama_mois,
+        ).group_by(NafamaTransaction.numero_pdv).all()
+        nafama_map = {row.numero_pdv: int(row.total_nafama) for row in nafama_rows}
+    else:
+        nafama_map = {}
+        nafama_mois = mois_courant
+        nafama_annee = annee_courante
+    SEUIL_NAFAMA = 250_000  # PDVs avec NAFAMA >= 250 000 FCFA sur le dernier mois disponible
     # ─────────────────────────────────────────────────────────────────────────
 
     # ── NOUVELLES ACTIVATIONS PROSPECTION : PDVs activés via le module prospection ─
@@ -723,6 +734,8 @@ def get_recovery_liste(
         "liste": liste,
         "exclusions": exclusions,
         "exclusions_detail": exclusions_detail,
+        "nafama_mois_ref": MOIS_NOMS.get(nafama_mois, ''),
+        "nafama_annee_ref": nafama_annee,
     }
 
 
