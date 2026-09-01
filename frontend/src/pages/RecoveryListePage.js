@@ -301,7 +301,8 @@ export default function RecoveryListePage() {
       'Mois Récup. Précédent': p.mois_recuperation_precedent || '—',
       'N° Flotte': p.numero_flotte ? 'OUI 🚗' : 'Non',
       'Nouvelle Attribution': p.nouvelle_creation ? 'OUI ✨' : 'Non',
-      'Montant NAFAMA (FCFA)': p.montant_nafama || 0,
+      [`NAFAMA ${data?.nafama_mois_prec_ref || 'Mois Préc.'} (FCFA)`]: p.montant_nafama_prec || 0,
+      [`NAFAMA ${data?.nafama_mois_ref || 'Mois Cour.'} (FCFA)`]: p.montant_nafama || 0,
       'Statut Suivi': '[ À COMPLÉTER ]',
       'Actions Terrain': '',
     }));
@@ -314,7 +315,7 @@ export default function RecoveryListePage() {
       {wch:28},{wch:28},{wch:16},{wch:18},{wch:14},
       {wch:18},{wch:18},{wch:18},
       {wch:14},{wch:20},{wch:12},{wch:18},
-      {wch:20},{wch:18},{wch:24}
+      {wch:20},{wch:20},{wch:18},{wch:24}
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, `Liste Récupération ${moisNom}`);
@@ -370,7 +371,8 @@ export default function RecoveryListePage() {
       ['Déjà en Récup.', '"OUI" = ce PDV était déjà dans la liste de récupération le mois précédent (récidiviste — priorité haute)', '', ''],
       ['N° Flotte', '"OUI" = ce PDV utilise une ligne Flotte Orange — à coordonner avec le département Flotte', '', ''],
       ['Nouvelle Attribution', '"OUI" = PDV récemment attribué à un nouveau gérant, mais inclus tout de même dans la liste', '', ''],
-      ['Montant NAFAMA (FCFA)', 'Montant total des transactions NAFAMA du PDV pour le mois courant — à titre informatif (les PDVs ≥ 250 000 FCFA ont été exclus)', '', ''],
+      [`NAFAMA ${data?.nafama_mois_prec_ref || 'Mois Préc.'} (FCFA)`, `Montant total des transactions NAFAMA du PDV en ${data?.nafama_mois_prec_ref || 'mois précédent'} — à titre informatif`, '', ''],
+      [`NAFAMA ${data?.nafama_mois_ref || 'Mois Cour.'} (FCFA)`, `Montant total des transactions NAFAMA du PDV en ${data?.nafama_mois_ref || 'mois courant'} — les PDVs ≥ 250 000 FCFA sur ce mois ont été exclus de la liste`, '', ''],
       ['Statut Suivi', 'À compléter par les superviseurs terrain : Identifié / Contacté / SIM Récupérée / Redéployé', '', ''],
       ['Actions Terrain', 'Notes libres sur les actions menées (appel, visite, commentaire...)', '', ''],
       ['', '', '', ''],
@@ -619,9 +621,14 @@ export default function RecoveryListePage() {
                       Total 2 mois <SortIco col="ca_total" />
                     </span>
                   </th>
+                  <th className="th-right" onClick={() => handleSort('montant_nafama_prec')} style={{ color:'#81ecec' }}>
+                    <span style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}>
+                      💰 NAFAMA {data?.nafama_mois_prec_ref ? `(${data.nafama_mois_prec_ref})` : 'Préc.'} <SortIco col="montant_nafama_prec" />
+                    </span>
+                  </th>
                   <th className="th-right" onClick={() => handleSort('montant_nafama')} style={{ color:'#00cec9' }}>
                     <span style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:4 }}>
-                      💰 NAFAMA {data?.nafama_mois_ref ? `(${data.nafama_mois_ref})` : ''} <SortIco col="montant_nafama" />
+                      💰 NAFAMA {data?.nafama_mois_ref ? `(${data.nafama_mois_ref})` : 'Cour.'} <SortIco col="montant_nafama" />
                     </span>
                   </th>
                   <th className="th-center">Infos</th>
@@ -669,6 +676,15 @@ export default function RecoveryListePage() {
                         <TrendingDown size={12} />
                         {fmtFull(pdv.ca_total)}
                       </div>
+                    </td>
+                    <td className="td-right">
+                      {pdv.montant_nafama_prec > 0 ? (
+                        <span style={{ color:'#81ecec', fontWeight:500, fontSize:12 }}>
+                          {fmtFull(pdv.montant_nafama_prec)}
+                        </span>
+                      ) : (
+                        <span style={{ color:'#444', fontSize:11 }}>—</span>
+                      )}
                     </td>
                     <td className="td-right">
                       {pdv.montant_nafama > 0 ? (

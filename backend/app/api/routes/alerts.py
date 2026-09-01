@@ -568,6 +568,13 @@ def get_recovery_liste(
     ).first()
     if last_nafama:
         nafama_annee, nafama_mois = last_nafama.annee, last_nafama.mois
+        # Mois précédent NAFAMA
+        if nafama_mois == 1:
+            nafama_mois_prec, nafama_annee_prec = 12, nafama_annee - 1
+        else:
+            nafama_mois_prec, nafama_annee_prec = nafama_mois - 1, nafama_annee
+
+        # Montants mois courant NAFAMA
         nafama_rows = db.query(
             NafamaTransaction.numero_pdv,
             sqlfunc.sum(NafamaTransaction.montant).label("total_nafama")
@@ -576,10 +583,23 @@ def get_recovery_liste(
             NafamaTransaction.mois == nafama_mois,
         ).group_by(NafamaTransaction.numero_pdv).all()
         nafama_map = {row.numero_pdv: int(row.total_nafama) for row in nafama_rows}
+
+        # Montants mois précédent NAFAMA
+        nafama_prec_rows = db.query(
+            NafamaTransaction.numero_pdv,
+            sqlfunc.sum(NafamaTransaction.montant).label("total_nafama_prec")
+        ).filter(
+            NafamaTransaction.annee == nafama_annee_prec,
+            NafamaTransaction.mois == nafama_mois_prec,
+        ).group_by(NafamaTransaction.numero_pdv).all()
+        nafama_prec_map = {row.numero_pdv: int(row.total_nafama_prec) for row in nafama_prec_rows}
     else:
         nafama_map = {}
+        nafama_prec_map = {}
         nafama_mois = mois_courant
         nafama_annee = annee_courante
+        nafama_mois_prec = mois_prec
+        nafama_annee_prec = annee_prec
     SEUIL_NAFAMA = 250_000  # PDVs avec NAFAMA >= 250 000 FCFA sur le dernier mois disponible
     # ─────────────────────────────────────────────────────────────────────────
 
@@ -736,6 +756,7 @@ def get_recovery_liste(
                 "deja_en_recuperation":  deja_en_recuperation,
                 "mois_recuperation_precedent": mois_recuperation_precedent,
                 "montant_nafama": nafama_map.get(pdv.numero_pdv, 0),
+                "montant_nafama_prec": nafama_prec_map.get(pdv.numero_pdv, 0),
             })
 
     # Trier par montant total croissant (les plus critiques en premier)
@@ -754,6 +775,8 @@ def get_recovery_liste(
         "exclusions_detail": exclusions_detail,
         "nafama_mois_ref": MOIS_NOMS.get(nafama_mois, ''),
         "nafama_annee_ref": nafama_annee,
+        "nafama_mois_prec_ref": MOIS_NOMS.get(nafama_mois_prec, ''),
+        "nafama_annee_prec_ref": nafama_annee_prec,
     }
 
 
