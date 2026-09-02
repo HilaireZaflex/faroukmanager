@@ -52,6 +52,26 @@ function FormSelect({ value, onChange, children, required }) {
   );
 }
 
+// ── Composants internes du formulaire (définis HORS du modal) ─────────────
+function SectionTitle({ icon, title }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'2px solid rgba(255,105,0,0.25)' }}>
+      <span style={{ fontSize:16 }}>{icon}</span>
+      <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>{title}</span>
+    </div>
+  );
+}
+function FL({ label, required, children, span }) {
+  return (
+    <div style={span ? { gridColumn:`span ${span}` } : {}}>
+      <label style={{ fontSize:10, color:'#FF6900', display:'block', marginBottom:4, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px' }}>
+        {label}{required && <span style={{ color:'#ff4757', marginLeft:3 }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 // ── Modal Édition PDV ─────────────────────────────────────────────────────
 function EditPDVModal({ pdv, onClose, onSuccess }) {
   const [form, setForm] = useState({
@@ -94,8 +114,8 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
     try {
       await api.put(`/pdvs/${pdv.id}`, form);
       toast.success(`PDV "${form.nom}" mis à jour avec succès !`);
-      onSuccess();
       onClose();
+      onSuccess();
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Erreur lors de la mise à jour');
     } finally { setLoading(false); }
@@ -114,20 +134,6 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
 
   const IS = { width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' };
   const SS = { ...IS, background:'#1a1a2e' };
-  const SectionTitle = ({ icon, title }) => (
-    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'2px solid rgba(255,105,0,0.25)' }}>
-      <span style={{ fontSize:16 }}>{icon}</span>
-      <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>{title}</span>
-    </div>
-  );
-  const FL = ({ label, required, children, span }) => (
-    <div style={span ? { gridColumn:`span ${span}` } : {}}>
-      <label style={{ fontSize:10, color:'#FF6900', display:'block', marginBottom:4, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px' }}>
-        {label}{required && <span style={{ color:'#ff4757', marginLeft:3 }}>*</span>}
-      </label>
-      {children}
-    </div>
-  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
