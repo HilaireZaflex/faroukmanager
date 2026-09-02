@@ -1354,42 +1354,56 @@ export default function EvalSuperveursPage() {
     setPubliantTous(true);
     try {
       const resp = await api.get('/eval-superviseurs/classement/tous', { params: { annee, mois } });
-      const tous = (resp.data || []).filter(s => s.score_final != null);
+      const apiData = resp.data || {};
+      // La route retourne { classement: [...valides], non_valides: [...], total, total_non_valides }
+      const valides = apiData.classement || [];
+      const nonValides = apiData.non_valides || [];
+      const tous = [...valides, ...nonValides].sort((a, b) => (b.score_final||0) - (a.score_final||0));
       if (!tous.length) {
-        alert('Aucun superviseur n\'a encore de score calculé pour ce mois.');
+        alert("Aucun superviseur n'a encore de score calculé pour ce mois.");
         setPubliantTous(false);
         return;
       }
       const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
       const podium = ['🥇','🥈','🥉'];
-      const mentionColor = s => s >= 80 ? '#16a34a' : s >= 65 ? '#d97706' : '#dc2626';
-      const statutBadge = s => s === 'TERMINEE'
-        ? '<span style="background:#dcfce7;color:#16a34a;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">✅ Validé</span>'
-        : '<span style="background:#fef9c3;color:#d97706;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">🔄 En cours</span>';
-      const fmtK = v => v ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—';
-      const lignes = tous.map((s, i) => `
-        <tr style="background:${i < 3 ? ['#fffbeb','#f0fdf4','#eff6ff'][i] : i%2===0?'#fff':'#f9fafb'}">
-          <td style="padding:7px 5px;font-size:${i < 3 ? 16 : 12}px;text-align:center">${i < 3 ? podium[i] : `<b style="color:#6b7280">${i+1}</b>`}</td>
-          <td style="padding:7px 5px;font-weight:700;font-size:11px;color:#111827">${s.superviseur}</td>
-          <td style="padding:7px 5px;text-align:center">${statutBadge(s.statut)}</td>
-          <td style="padding:7px 5px;text-align:center;font-size:13px;font-weight:900;color:${mentionColor(s.score_final)}">${s.score_final}</td>
-          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.nb_pdv||0)>=30?'#16a34a':'#dc2626'}">${s.nb_pdv||'—'}</td>
-          <td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">${fmtK(s.ca_omy)}</td>
-          <td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">${fmtK(s.commission)}</td>
-          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.actif_omy||0)>=90?'#16a34a':'#dc2626'}">${s.actif_omy ? s.actif_omy.toFixed(1)+'%' : '—'}</td>
-          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.taux_km||0)>=80?'#16a34a':'#dc2626'}">${s.taux_km ? s.taux_km.toFixed(1)+'%' : '—'}</td>
-          <td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:${(s.taux_nafama||0)>=80?'#16a34a':'#dc2626'}">${s.taux_nafama ? s.taux_nafama.toFixed(1)+'%' : '—'}</td>
-          <td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">${fmtK(s.ca_nafama)}</td>
-        </tr>`).join('');
+      const mentionColor = score => score >= 80 ? '#16a34a' : score >= 65 ? '#d97706' : '#dc2626';
+      const valideSet = new Set(valides.map(v => v.superviseur));
+      const fmtK = v => v != null ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—';
+      const fmtPct = v => v != null ? v.toFixed(1)+'%' : '—';
 
-      const moy = Math.round(tous.reduce((acc, e) => acc + e.score_final, 0) / tous.length);
+      const lignes = tous.map((s, i) => {
+        const isVal = valideSet.has(s.superviseur);
+        const rang = i < 3 ? podium[i] : '<b style="color:#6b7280">'+(i+1)+'</b>';
+        const bg = i < 3 && isVal ? ['#fffbeb','#f0fdf4','#eff6ff'][i] : i%2===0?'#fff':'#f9fafb';
+        const statutBadge = isVal
+          ? '<span style="background:#dcfce7;color:#16a34a;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">✅ Validé</span>'
+          : '<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700">❌ Non validé</span>';
+        const raisons = (s.raisons_rejet||[]).join(' | ') || '—';
+        return '<tr style="background:'+bg+'">'
+          +'<td style="padding:7px 5px;font-size:'+(i<3?'16':'12')+'px;text-align:center">'+rang+'</td>'
+          +'<td style="padding:7px 5px;font-weight:700;font-size:12px;color:#111827">'+s.superviseur+'</td>'
+          +'<td style="padding:7px 5px;text-align:center">'+statutBadge+'</td>'
+          +'<td style="padding:7px 5px;text-align:center;font-size:14px;font-weight:900;color:'+mentionColor(s.score_final||0)+'">'+s.score_final+'</td>'
+          +'<td style="padding:7px 5px;text-align:center;font-size:10px;color:#6b7280">'+(s.mention||'—')+'</td>'
+          +'<td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:'+((s.nb_pdv||0)>=30?'#16a34a':'#dc2626')+'">'+(s.nb_pdv||'—')+'</td>'
+          +'<td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">'+fmtK(s.ca_omy)+'</td>'
+          +'<td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">'+fmtK(s.commission)+'</td>'
+          +'<td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:'+((s.actif_omy||0)>=90?'#16a34a':'#dc2626')+'">'+fmtPct(s.actif_omy)+'</td>'
+          +'<td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:'+((s.taux_km||0)>=80?'#16a34a':'#dc2626')+'">'+fmtPct(s.taux_km)+'</td>'
+          +'<td style="padding:7px 5px;text-align:center;font-size:11px;font-weight:700;color:'+((s.taux_nafama||0)>=80?'#16a34a':'#dc2626')+'">'+fmtPct(s.taux_nafama)+'</td>'
+          +'<td style="padding:7px 5px;text-align:right;font-size:10px;white-space:nowrap">'+fmtK(s.ca_nafama)+'</td>'
+          +'<td style="padding:7px 5px;font-size:9px;color:#dc2626;max-width:160px">'+(!isVal ? raisons : '')+'</td>'
+          +'</tr>';
+      }).join('');
+
+      const nbValides = valides.length;
+      const moy = Math.round(tous.reduce((acc, e) => acc + (e.score_final||0), 0) / tous.length);
       const best = tous[0];
-      const nbValides = tous.filter(s => s.statut === 'TERMINEE').length;
 
       const html = `<!DOCTYPE html><html lang="fr"><head>
       <meta charset="UTF-8"/>
       <meta name="viewport" content="width=device-width, initial-scale=1"/>
-      <title>Classement Évaluation — ${MOIS[mois]} ${annee}</title>
+      <title>Classement Evaluations - ${MOIS[mois]} ${annee}</title>
       <style>
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc;color:#111827;min-height:100vh}
@@ -1398,81 +1412,71 @@ export default function EvalSuperveursPage() {
           body{background:#fff;font-size:9px}
           @page{size:A4 landscape;margin:8mm}
           table{font-size:8px!important;width:100%!important}
-          th,td{padding:4px 3px!important}
+          th,td{padding:3px 2px!important}
         }
-        .header{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:40px 48px;text-align:center}
-        .header h1{font-size:14px;opacity:.8;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
-        .header h2{font-size:42px;font-weight:900;margin-bottom:12px}
+        .header{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:36px 48px;text-align:center}
+        .header h1{font-size:13px;opacity:.8;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+        .header h2{font-size:38px;font-weight:900;margin-bottom:10px}
         .header .sub{font-size:15px;opacity:.85}
-        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:32px 48px}
-        .stat-card{background:#fff;border-radius:16px;padding:24px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.07);border-top:4px solid}
-        .stat-card .val{font-size:36px;font-weight:900;margin-bottom:6px}
+        .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:28px 48px}
+        .stat-card{background:#fff;border-radius:16px;padding:20px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.07);border-top:4px solid}
+        .stat-card .val{font-size:32px;font-weight:900;margin-bottom:6px}
         .stat-card .label{font-size:13px;color:#6b7280;font-weight:600}
-        .table-wrap{margin:0 20px 48px;background:#fff;border-radius:16px;overflow-x:auto;box-shadow:0 2px 12px rgba(0,0,0,.07)}
-        .table-title{padding:20px 24px;font-size:16px;font-weight:800;color:#111827;border-bottom:1px solid #f3f4f6}
+        .table-wrap{margin:0 20px 40px;background:#fff;border-radius:16px;overflow-x:auto;box-shadow:0 2px 12px rgba(0,0,0,.07)}
+        .table-title{padding:18px 24px;font-size:15px;font-weight:800;color:#111827;border-bottom:1px solid #f3f4f6}
         table{width:100%;border-collapse:collapse}
-        th{background:#f9fafb;padding:12px 16px;text-align:left;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+        th{background:#f9fafb;padding:10px 8px;text-align:left;font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
         tr{border-bottom:1px solid #f3f4f6}
         tr:last-child{border-bottom:none}
         .footer{text-align:center;padding:24px;color:#9ca3af;font-size:12px}
         .print-btn{position:fixed;top:20px;right:20px;padding:10px 24px;background:#f59e0b;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,.4)}
       </style></head><body>
-      <button class="no-print print-btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
+      <button class="no-print print-btn" onclick="window.print()">Imprimer / PDF</button>
       <div class="header">
-        <h1>📊 Classement des Évaluations — Farouk Distribution</h1>
+        <h1>Classement des Evaluations - Farouk Distribution</h1>
         <h2>${MOIS[mois].toUpperCase()} ${annee}</h2>
-        <div class="sub">${tous.length} superviseur${tous.length > 1 ? 's' : ''} évalué${tous.length > 1 ? 's' : ''} · ${nbValides} validé${nbValides > 1 ? 's' : ''}</div>
+        <div class="sub">${tous.length} superviseur${tous.length > 1 ? 's' : ''} evalues · ${nbValides} valide${nbValides > 1 ? 's' : ''}</div>
       </div>
       <div class="stats">
-        <div class="stat-card" style="border-color:#64748b">
-          <div class="val" style="color:#64748b">${tous.length}</div>
-          <div class="label">Total évalués</div>
-        </div>
-        <div class="stat-card" style="border-color:#16a34a">
-          <div class="val" style="color:#16a34a">${nbValides}</div>
-          <div class="label">✅ Validés</div>
-        </div>
-        <div class="stat-card" style="border-color:#f59e0b">
-          <div class="val" style="color:#f59e0b">${moy}</div>
-          <div class="label">Score moyen /100</div>
-        </div>
-        <div class="stat-card" style="border-color:#6366f1">
-          <div class="val" style="color:#6366f1">${best?.score_final || '—'}</div>
-          <div class="label">Meilleur score — ${best?.superviseur?.split(' ')[0] || '—'}</div>
-        </div>
+        <div class="stat-card" style="border-color:#64748b"><div class="val" style="color:#64748b">${tous.length}</div><div class="label">Total evalues</div></div>
+        <div class="stat-card" style="border-color:#16a34a"><div class="val" style="color:#16a34a">${nbValides}</div><div class="label">Valides</div></div>
+        <div class="stat-card" style="border-color:#f59e0b"><div class="val" style="color:#f59e0b">${moy}</div><div class="label">Score moyen /100</div></div>
+        <div class="stat-card" style="border-color:#6366f1"><div class="val" style="color:#6366f1">${best?.score_final || '—'}</div><div class="label">Meilleur score — ${best?.superviseur?.split(' ')[0] || '—'}</div></div>
       </div>
       <div class="table-wrap">
-        <div class="table-title">📊 Classement complet — Tous superviseurs évalués</div>
+        <div class="table-title">Classement complet — Tous superviseurs evalues</div>
         <table>
           <thead><tr>
-            <th style="text-align:center;padding:8px 6px;font-size:11px">Rang</th>
-            <th style="padding:8px 6px;font-size:11px">Superviseur</th>
-            <th style="text-align:center;padding:8px 6px;font-size:11px">Statut</th>
-            <th style="text-align:center;padding:8px 6px;font-size:11px">Score</th>
-            <th style="text-align:center;padding:8px 6px;font-size:11px">NB PDV</th>
-            <th style="text-align:right;padding:8px 6px;font-size:11px">CA OMY</th>
-            <th style="text-align:right;padding:8px 6px;font-size:11px">Commission</th>
-            <th style="text-align:center;padding:8px 6px;font-size:11px">Actif OMY</th>
-            <th style="text-align:center;padding:8px 6px;font-size:11px">KM%</th>
-            <th style="text-align:center;padding:8px 6px;font-size:11px">NAFAMA%</th>
-            <th style="text-align:right;padding:8px 6px;font-size:11px">CA NAFAMA</th>
+            <th style="text-align:center">Rang</th>
+            <th>Superviseur</th>
+            <th style="text-align:center">Statut</th>
+            <th style="text-align:center">Score</th>
+            <th style="text-align:center">Mention</th>
+            <th style="text-align:center">NB PDV</th>
+            <th style="text-align:right">CA OMY</th>
+            <th style="text-align:right">Commission</th>
+            <th style="text-align:center">Actif OMY</th>
+            <th style="text-align:center">KM%</th>
+            <th style="text-align:center">NAFAMA%</th>
+            <th style="text-align:right">CA NAFAMA</th>
+            <th>Raisons non-validation</th>
           </tr></thead>
           <tbody>${lignes}</tbody>
         </table>
       </div>
-      <div class="footer">Rapport généré le ${new Date().toLocaleDateString('fr-FR')} · Farouk Distribution · Système de Gestion Réseau</div>
+      <div class="footer">Rapport genere le ${new Date().toLocaleDateString('fr-FR')} · Farouk Distribution</div>
       </body></html>`;
 
-      const w = window.open('', '_blank', 'width=1100,height=750');
+      const w = window.open('', '_blank', 'width=1200,height=800');
       w.document.write(html);
       w.document.close();
     } catch (e) {
       console.error(e);
-      alert('Erreur lors de la génération du classement.');
+      alert('Erreur lors de la generation du classement.');
     } finally { setPubliantTous(false); }
   };
 
-  const publierClassement = async () => {
+    const publierClassement = async () => {
     setPubliant(true);
     try {
       const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
