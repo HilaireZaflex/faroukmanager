@@ -1558,6 +1558,355 @@ function TabProgression({ annee, criterion }) {
 }
 
 // ============ MAIN COMPONENT ============
+// ─── Multi-select dropdown pour mois comparaison ─────────────────────────────
+function MultiMoisSelect({ options, selected, onToggle }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  // Fermer si clic en dehors
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const label = selected.length === 0
+    ? 'Sélectionner les mois...'
+    : selected.map(v => options.find(o => o.val === v)?.label.split(' ')[0]).filter(Boolean).join(', ');
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <div style={{ fontSize:11, color:'#3b82f6', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>🔄 Mois à comparer</div>
+      {/* Trigger */}
+      <div onClick={() => setOpen(o => !o)}
+        style={{ padding:'9px 14px', borderRadius:10, border:`1px solid ${open ? '#3b82f6' : 'rgba(59,130,246,0.25)'}`,
+          background:'rgba(59,130,246,0.06)', color: selected.length ? '#60a5fa' : '#64748b',
+          fontSize:13, fontWeight: selected.length ? 700 : 400, cursor:'pointer',
+          display:'flex', justifyContent:'space-between', alignItems:'center', userSelect:'none',
+          boxShadow: open ? '0 0 0 2px rgba(59,130,246,0.3)' : 'none' }}>
+        <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{label}</span>
+        <span style={{ marginLeft:8, fontSize:10, color:'#64748b', transition:'transform 0.2s', display:'inline-block', transform: open ? 'rotate(180deg)' : 'none' }}>▼</span>
+      </div>
+      {/* Dropdown */}
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, zIndex:999,
+          background:'#1a1a2e', border:'1px solid rgba(59,130,246,0.3)', borderRadius:10,
+          boxShadow:'0 8px 30px rgba(0,0,0,0.4)', overflow:'hidden' }}>
+          {options.map(m => {
+            const checked = selected.includes(m.val);
+            return (
+              <div key={m.val} onClick={() => onToggle(m.val)}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer',
+                  background: checked ? 'rgba(59,130,246,0.12)' : 'transparent',
+                  borderBottom:'1px solid rgba(255,255,255,0.04)' }}
+                onMouseEnter={e => e.currentTarget.style.background = checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)'}
+                onMouseLeave={e => e.currentTarget.style.background = checked ? 'rgba(59,130,246,0.12)' : 'transparent'}>
+                <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${checked ? '#3b82f6' : '#64748b'}`,
+                  background: checked ? '#3b82f6' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {checked && <span style={{ color:'#fff', fontSize:10, fontWeight:900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:13, color: checked ? '#60a5fa' : '#94a3b8', fontWeight: checked ? 700 : 400 }}>{m.label}</span>
+              </div>
+            );
+          })}
+          {selected.length > 0 && (
+            <div style={{ padding:'8px 14px', borderTop:'1px solid rgba(255,255,255,0.08)', textAlign:'center' }}>
+              <button onClick={e => { e.stopPropagation(); options.forEach(m => { if(selected.includes(m.val)) onToggle(m.val); }); setOpen(false); }}
+                style={{ fontSize:11, color:'#ff4757', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>
+                Tout désélectionner
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab Comparaison Multi-Mois ───────────────────────────────────────────────
+const MOIS_OPTIONS = [
+  { val: '2026-04', label: 'Avril 2026',      annee: 2026, mois: 4 },
+  { val: '2026-05', label: 'Mai 2026',        annee: 2026, mois: 5 },
+  { val: '2026-06', label: 'Juin 2026',       annee: 2026, mois: 6 },
+  { val: '2026-07', label: 'Juillet 2026',    annee: 2026, mois: 7 },
+  { val: '2026-08', label: 'Août 2026',       annee: 2026, mois: 8 },
+  { val: '2026-09', label: 'Septembre 2026',  annee: 2026, mois: 9 },
+  { val: '2026-10', label: 'Octobre 2026',    annee: 2026, mois: 10 },
+];
+const ALERTE_CFG = {
+  CRITIQUE:     { color: '#ff4757', bg: 'rgba(255,71,87,0.12)',   icon: '🔴', label: 'Critique' },
+  DISPARU:      { color: '#6b7280', bg: 'rgba(107,114,128,0.12)', icon: '⚫', label: 'Disparu' },
+  SURVEILLANCE: { color: '#ffa502', bg: 'rgba(255,165,2,0.12)',   icon: '🟡', label: 'Surveillance' },
+  STABLE:       { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  icon: '🔵', label: 'Stable' },
+  PERFORMANT:   { color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   icon: '🟢', label: 'Performant' },
+};
+
+function TabComparaisonOMY() {
+  const [moisRef,  setMoisRef]  = React.useState('2026-07');
+  const [moisComp, setMoisComp] = React.useState(['2026-08', '2026-09']);
+  const [filtre,   setFiltre]   = React.useState('TOUS');
+  const [search,   setSearch]   = React.useState('');
+  const [zoneF,    setZoneF]    = React.useState('');
+  const [supF,     setSupF]     = React.useState('');
+  const [data,     setData]     = React.useState(null);
+  const [loading,  setLoading]  = React.useState(false);
+  const [sort,     setSort]     = React.useState({ col: 'ca_ref', asc: false });
+
+  const toggleMoisComp = (val) => {
+    if (val === moisRef) return;
+    setMoisComp(prev => prev.includes(val) ? prev.filter(m => m !== val) : [...prev, val]);
+  };
+
+  const fetchData = async () => {
+    if (!moisComp.length) return;
+    setLoading(true);
+    try {
+      const refObj = MOIS_OPTIONS.find(m => m.val === moisRef) || MOIS_OPTIONS[0];
+      const compStr = moisComp.map(m => {
+        const o = MOIS_OPTIONS.find(x => x.val === m);
+        return o ? `${o.annee}-${o.mois}` : null;
+      }).filter(Boolean).join(',');
+      const resp = await api.get('/dashboard/monthly-comparaison', {
+        params: { mois_ref: refObj.mois, annee_ref: refObj.annee, mois_list: compStr }
+      });
+      setData(resp.data);
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const fmtK = v => v ? new Intl.NumberFormat('fr-FR').format(v) : '—';
+  const varColor = v => v == null ? '#64748b' : v >= 0 ? '#22c55e' : v >= -20 ? '#ffa502' : '#ff4757';
+  const varTxt = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+
+  // Filtrage + tri
+  const moisRefObj = MOIS_OPTIONS.find(m => m.val === moisRef);
+  const moisCompObjs = moisComp.map(m => MOIS_OPTIONS.find(x => x.val === m)).filter(Boolean)
+    .sort((a, b) => a.val.localeCompare(b.val));
+
+  const pdvs = (data?.pdvs || [])
+    .filter(p => filtre === 'TOUS' || p.alerte === filtre)
+    .filter(p => !search || p.nom?.toLowerCase().includes(search.toLowerCase()) || p.numero_pdv?.includes(search))
+    .filter(p => !zoneF || p.zone === zoneF)
+    .filter(p => !supF || p.superviseur === supF);
+
+  const sorted = [...pdvs].sort((a, b) => {
+    let va, vb;
+    if (sort.col === 'variation') { va = a.variation ?? -9999; vb = b.variation ?? -9999; }
+    else if (sort.col === 'nom') { va = a.nom || ''; vb = b.nom || ''; }
+    else if (sort.col.startsWith('comp_')) {
+      const mVal = sort.col.replace('comp_', '');
+      const mObj = MOIS_OPTIONS.find(m => m.val === mVal);
+      const hKey = mObj ? `${mObj.annee}-${mObj.mois.toString().padStart(2,'0')}` : mVal;
+      va = a.historique?.[hKey] ?? 0; vb = b.historique?.[hKey] ?? 0;
+    }
+    else { va = a[sort.col] ?? 0; vb = b[sort.col] ?? 0; }
+    if (typeof va === 'string') return sort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return sort.asc ? va - vb : vb - va;
+  });
+
+  const zones = [...new Set((data?.pdvs||[]).map(p => p.zone).filter(Boolean))].sort();
+  const sups  = [...new Set((data?.pdvs||[]).map(p => p.superviseur).filter(Boolean))].sort();
+
+  const thS = (col) => ({
+    padding:'10px 12px', fontSize:11, fontWeight:700, color: sort.col===col ? '#FF6900' : '#64748b',
+    textAlign:'right', cursor:'pointer', whiteSpace:'nowrap', userSelect:'none',
+    background:'rgba(255,255,255,0.03)'
+  });
+
+  // Export Excel
+  const exportExcel = () => {
+    const XLSX = window.XLSX || XLSX;
+    const cols = [moisRefObj?.label || moisRef, ...moisCompObjs.map(m => m.label)];
+    const rows = sorted.map((p, i) => {
+      const base = {
+        '#': i+1, 'N° PDV': p.numero_pdv, 'Nom PDV': p.nom, 'Zone': p.zone,
+        'Superviseur': p.superviseur, 'Alerte': ALERTE_CFG[p.alerte]?.label || p.alerte,
+        'Variation vs Ref': p.variation != null ? p.variation+'%' : '—',
+        'Action suggérée': p.action,
+      };
+      cols.forEach((label, idx) => {
+        const key = idx === 0 ? `${moisRefObj?.annee}-${moisRefObj?.mois?.toString().padStart(2,'0')}`
+          : `${moisCompObjs[idx-1]?.annee}-${moisCompObjs[idx-1]?.mois?.toString().padStart(2,'0')}`;
+        base[label] = p.historique?.[key] || 0;
+      });
+      return base;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Comparaison OMY');
+    XLSX.writeFile(wb, `Comparaison_NAFAMA_${moisRef}_vs_${moisComp.join('_')}.xlsx`);
+  };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom:20 }}>
+        <div style={{ fontSize:16, fontWeight:900, color:'#fff', marginBottom:6 }}>📊 Comparaison Multi-Mois OMY</div>
+        <div style={{ fontSize:12, color:'#64748b' }}>Identifiez les PDVs en baisse et planifiez les actions de relance</div>
+      </div>
+
+      {/* Sélecteur */}
+      <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, padding:20, marginBottom:20 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:20, alignItems:'end' }}>
+
+          {/* Mois référence — select */}
+          <div>
+            <div style={{ fontSize:11, color:'#FF6900', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>📌 Mois de référence</div>
+            <div style={{ background:'rgba(255,105,0,0.06)', border:'1px solid rgba(255,105,0,0.25)', borderRadius:10, padding:12 }}>
+              <select value={moisRef} onChange={e => setMoisRef(e.target.value)}
+                style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#FF6900', fontSize:13, fontWeight:700, outline:'none' }}>
+                {MOIS_OPTIONS.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Mois comparaison — dropdown multi-select personnalisé */}
+          <MultiMoisSelect
+            options={MOIS_OPTIONS.filter(m => m.val !== moisRef)}
+            selected={moisComp}
+            onToggle={toggleMoisComp}
+          />
+
+          {/* Bouton */}
+          <div>
+            <button onClick={fetchData} disabled={loading || !moisComp.length}
+              style={{ width:'100%', padding:'12px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)',
+                color:'#fff', fontSize:14, fontWeight:800, cursor:'pointer', whiteSpace:'nowrap',
+                opacity: loading || !moisComp.length ? 0.6 : 1, boxShadow:'0 4px 15px rgba(255,105,0,0.3)' }}>
+              {loading ? '⏳ Analyse...' : '🔍 Comparer'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      {data && (
+        <>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
+            {[
+              ['CRITIQUE',     'critiques',   ALERTE_CFG.CRITIQUE],
+              ['DISPARU',      'disparus',    ALERTE_CFG.DISPARU],
+              ['SURVEILLANCE', 'surveillance',ALERTE_CFG.SURVEILLANCE],
+              ['STABLE',       'stables',     ALERTE_CFG.STABLE],
+              ['PERFORMANT',   'performants', ALERTE_CFG.PERFORMANT],
+            ].map(([key, apiKey, cfg]) => (
+              <div key={key} onClick={() => setFiltre(filtre===key?'TOUS':key)}
+                style={{ background: filtre===key ? cfg.bg : 'rgba(255,255,255,0.02)', border:`2px solid ${filtre===key ? cfg.color : 'rgba(255,255,255,0.07)'}`,
+                  borderRadius:12, padding:'14px', textAlign:'center', cursor:'pointer', transition:'all 0.2s' }}>
+                <div style={{ fontSize:24, fontWeight:900, color: cfg.color }}>{data.stats?.[apiKey] ?? 0}</div>
+                <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>{cfg.icon} {cfg.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Filtres — une seule ligne */}
+          <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center', flexWrap:'nowrap', overflowX:'auto' }}>
+            <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
+              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:12, flex:'1 1 180px', minWidth:140 }} />
+            <select value={zoneF} onChange={e=>setZoneF(e.target.value)}
+              style={{ padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12, flex:'0 0 auto', maxWidth:150 }}>
+              <option value="">Toutes zones</option>
+              {zones.map(z => <option key={z} value={z}>{z}</option>)}
+            </select>
+            <select value={supF} onChange={e=>setSupF(e.target.value)}
+              style={{ padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12, flex:'0 0 auto', maxWidth:160 }}>
+              <option value="">Tous superviseurs</option>
+              {sups.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <span style={{ fontSize:12, color:'#64748b', whiteSpace:'nowrap', flex:'0 0 auto' }}>{sorted.length} PDVs</span>
+            <button onClick={exportExcel}
+              style={{ padding:'8px 14px', borderRadius:8, border:'1px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'#22c55e', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flex:'0 0 auto' }}>
+              📥 Excel
+            </button>
+          </div>
+
+          {/* Tableau */}
+          <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', minWidth:800 }}>
+              <thead>
+                <tr style={{ background:'rgba(255,255,255,0.04)' }}>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', width:30 }}>#</th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'nom',asc:s.col==='nom'?!s.asc:true}))}>PDV</th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left' }}>Zone</th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left' }}>Superviseur</th>
+                  <th style={{ ...thS('ca_ref'), textAlign:'right', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'ca_ref',asc:s.col==='ca_ref'?!s.asc:false}))}>
+                    📌 {moisRefObj?.label || moisRef} {sort.col==='ca_ref' ? (sort.asc ? '↑' : '↓') : '↕'}
+                  </th>
+                  {moisCompObjs.map(m => {
+                    const key = `comp_${m.val}`;
+                    return (
+                      <th key={m.val} onClick={() => setSort(s => ({col: key, asc: s.col===key ? !s.asc : false}))}
+                        style={{ padding:'10px 12px', fontSize:11, color: sort.col===key ? '#60a5fa' : '#3b82f6', fontWeight:700, textAlign:'right', whiteSpace:'nowrap', background:'rgba(255,255,255,0.03)', cursor:'pointer' }}>
+                        {m.label} {sort.col===key ? (sort.asc ? '↑' : '↓') : '↕'}
+                      </th>
+                    );
+                  })}
+                  <th style={{ ...thS('variation'), cursor:'pointer' }} onClick={()=>setSort(s=>({col:'variation',asc:s.col==='variation'?!s.asc:false}))}>
+                    Variation {sort.col==='variation' ? (sort.asc ? '↑' : '↓') : '↕'}
+                  </th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'center' }}>Alerte</th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', minWidth:200 }}>Action suggérée</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.length === 0 ? (
+                  <tr><td colSpan={8 + moisCompObjs.length} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Aucun PDV trouvé</td></tr>
+                ) : sorted.map((p, i) => {
+                  const cfg = ALERTE_CFG[p.alerte] || ALERTE_CFG.STABLE;
+                  return (
+                    <tr key={p.numero_pdv} style={{ borderTop:'1px solid rgba(255,255,255,0.04)', background: i%2===0?'transparent':'rgba(255,255,255,0.01)' }}>
+                      <td style={{ padding:'8px 12px', fontSize:11, color:'#64748b' }}>{i+1}</td>
+                      <td style={{ padding:'8px 12px' }}>
+                        <div style={{ fontSize:12, fontWeight:700, color:'#e2e8f0' }}>{p.nom}</div>
+                        <div style={{ fontSize:10, color:'#64748b' }}>{p.numero_pdv}</div>
+                      </td>
+                      <td style={{ padding:'8px 12px', fontSize:11, color:'#94a3b8' }}>{p.zone}</td>
+                      <td style={{ padding:'8px 12px', fontSize:11, color:'#94a3b8' }}>{p.superviseur}</td>
+                      <td style={{ padding:'8px 12px', textAlign:'right', fontSize:12, fontWeight:700, color:'#FF6900' }}>
+                        {fmtK(p.ca_ref)}
+                      </td>
+                      {moisCompObjs.map(m => {
+                        const key = `${m.annee}-${m.mois.toString().padStart(2,'0')}`;
+                        const ca = p.historique?.[key] || 0;
+                        const varM = p.ca_ref > 0 ? ((ca - p.ca_ref) / p.ca_ref * 100) : null;
+                        return (
+                          <td key={m.val} style={{ padding:'8px 12px', textAlign:'right' }}>
+                            <div style={{ fontSize:12, fontWeight:700, color: ca === 0 ? '#6b7280' : '#e2e8f0' }}>{fmtK(ca)}</div>
+                            {varM != null && <div style={{ fontSize:10, color: varColor(varM) }}>{varTxt(varM)}</div>}
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding:'8px 12px', textAlign:'right', fontSize:13, fontWeight:900, color: varColor(p.variation) }}>
+                        {varTxt(p.variation)}
+                      </td>
+                      <td style={{ padding:'8px 12px', textAlign:'center' }}>
+                        <span style={{ background: cfg.bg, color: cfg.color, borderRadius:6, padding:'3px 8px', fontSize:10, fontWeight:700 }}>
+                          {cfg.icon} {cfg.label}
+                        </span>
+                      </td>
+                      <td style={{ padding:'8px 12px', fontSize:11, color:'#94a3b8' }}>{p.action}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {!data && !loading && (
+        <div style={{ textAlign:'center', padding:'60px 20px', color:'#64748b' }}>
+          <div style={{ fontSize:48, marginBottom:16 }}>📊</div>
+          <div style={{ fontSize:16, fontWeight:700, color:'#94a3b8', marginBottom:8 }}>Sélectionnez un mois de référence et des mois de comparaison</div>
+          <div style={{ fontSize:13 }}>Puis cliquez sur "Comparer" pour voir l'évolution de vos PDVs NAFAMA</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ─── Page Principale Mensuelle ─────────────────────────────────────────────
 export default function OMyDashboardPage() {
   const now = new Date();
   const [annee, setAnnee] = useState(2026);
