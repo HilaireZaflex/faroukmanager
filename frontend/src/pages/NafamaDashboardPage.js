@@ -1320,6 +1320,71 @@ function TabProgression({ annee }) {
   );
 }
 
+// ─── Multi-select dropdown pour mois comparaison ─────────────────────────────
+function MultiMoisSelect({ options, selected, onToggle }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  // Fermer si clic en dehors
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const label = selected.length === 0
+    ? 'Sélectionner les mois...'
+    : selected.map(v => options.find(o => o.val === v)?.label.split(' ')[0]).filter(Boolean).join(', ');
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <div style={{ fontSize:11, color:'#3b82f6', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>🔄 Mois à comparer</div>
+      {/* Trigger */}
+      <div onClick={() => setOpen(o => !o)}
+        style={{ padding:'9px 14px', borderRadius:10, border:`1px solid ${open ? '#3b82f6' : 'rgba(59,130,246,0.25)'}`,
+          background:'rgba(59,130,246,0.06)', color: selected.length ? '#60a5fa' : '#64748b',
+          fontSize:13, fontWeight: selected.length ? 700 : 400, cursor:'pointer',
+          display:'flex', justifyContent:'space-between', alignItems:'center', userSelect:'none',
+          boxShadow: open ? '0 0 0 2px rgba(59,130,246,0.3)' : 'none' }}>
+        <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{label}</span>
+        <span style={{ marginLeft:8, fontSize:10, color:'#64748b', transition:'transform 0.2s', display:'inline-block', transform: open ? 'rotate(180deg)' : 'none' }}>▼</span>
+      </div>
+      {/* Dropdown */}
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, zIndex:999,
+          background:'#1a1a2e', border:'1px solid rgba(59,130,246,0.3)', borderRadius:10,
+          boxShadow:'0 8px 30px rgba(0,0,0,0.4)', overflow:'hidden' }}>
+          {options.map(m => {
+            const checked = selected.includes(m.val);
+            return (
+              <div key={m.val} onClick={() => onToggle(m.val)}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer',
+                  background: checked ? 'rgba(59,130,246,0.12)' : 'transparent',
+                  borderBottom:'1px solid rgba(255,255,255,0.04)' }}
+                onMouseEnter={e => e.currentTarget.style.background = checked ? 'rgba(59,130,246,0.18)' : 'rgba(255,255,255,0.04)'}
+                onMouseLeave={e => e.currentTarget.style.background = checked ? 'rgba(59,130,246,0.12)' : 'transparent'}>
+                <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${checked ? '#3b82f6' : '#64748b'}`,
+                  background: checked ? '#3b82f6' : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {checked && <span style={{ color:'#fff', fontSize:10, fontWeight:900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:13, color: checked ? '#60a5fa' : '#94a3b8', fontWeight: checked ? 700 : 400 }}>{m.label}</span>
+              </div>
+            );
+          })}
+          {selected.length > 0 && (
+            <div style={{ padding:'8px 14px', borderTop:'1px solid rgba(255,255,255,0.08)', textAlign:'center' }}>
+              <button onClick={e => { e.stopPropagation(); options.forEach(m => { if(selected.includes(m.val)) onToggle(m.val); }); setOpen(false); }}
+                style={{ fontSize:11, color:'#ff4757', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>
+                Tout désélectionner
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tab Comparaison Multi-Mois ───────────────────────────────────────────────
 const MOIS_OPTIONS = [
   { val: '2026-04', label: 'Avril 2026',      annee: 2026, mois: 4 },
@@ -1449,25 +1514,12 @@ function TabComparaison() {
             </div>
           </div>
 
-          {/* Mois comparaison — checkboxes dans bloc */}
-          <div>
-            <div style={{ fontSize:11, color:'#3b82f6', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>🔄 Mois à comparer (multi-sélection)</div>
-            <div style={{ background:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:10, padding:12 }}>
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                {MOIS_OPTIONS.filter(m => m.val !== moisRef).map(m => (
-                  <label key={m.val} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'4px 6px', borderRadius:6,
-                    background: moisComp.includes(m.val) ? 'rgba(59,130,246,0.15)' : 'transparent' }}>
-                    <input type="checkbox" checked={moisComp.includes(m.val)} onChange={() => toggleMoisComp(m.val)}
-                      style={{ width:15, height:15, accentColor:'#3b82f6', cursor:'pointer' }} />
-                    <span style={{ fontSize:13, color: moisComp.includes(m.val) ? '#60a5fa' : '#94a3b8', fontWeight: moisComp.includes(m.val) ? 700 : 400 }}>
-                      {m.label}
-                    </span>
-                    {moisComp.includes(m.val) && <span style={{ marginLeft:'auto', fontSize:10, color:'#3b82f6' }}>✓</span>}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
+          {/* Mois comparaison — dropdown multi-select personnalisé */}
+          <MultiMoisSelect
+            options={MOIS_OPTIONS.filter(m => m.val !== moisRef)}
+            selected={moisComp}
+            onToggle={toggleMoisComp}
+          />
 
           {/* Bouton */}
           <div>
