@@ -487,6 +487,7 @@ function TabPareto({ annee, mois }) {
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
   const [quarFilter, setQuarFilter] = useState('');
+  const [appelPDV, setAppelPDV] = useState(null);
   const { thSort: thSortP, sortFn: sortFnP } = useSortable('ca');
 
   const { data, isLoading } = useQuery(
