@@ -1353,7 +1353,7 @@ export default function EvalSuperveursPage() {
   const publierClassementTous = async () => {
     setPubliantTous(true);
     try {
-      const resp = await api.get('/eval-superviseurs/classement/tous', { params: { annee, mois } });
+      const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
       const apiData = resp.data || {};
       // La route retourne { classement: [...valides], non_valides: [...], total, total_non_valides }
       const valides = apiData.classement || [];
