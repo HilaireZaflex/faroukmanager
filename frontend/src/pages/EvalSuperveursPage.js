@@ -1593,12 +1593,12 @@ export default function EvalSuperveursPage() {
               <button onClick={publierClassement} disabled={publiant}
                 style={{ padding: '10px 18px', borderRadius: 12, border: 'none', background: publiant ? 'rgba(99,102,241,0.4)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: publiant ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.35)', whiteSpace: 'nowrap', display:'flex', alignItems:'center', gap:7 }}>
                 {publiant ? (
-                  <>⏳ Génération WhatsApp...</>
+                  <>⏳ Diffusion en cours...</>
                 ) : (
                   <>
-                    📲 Publier le classement
+                    📨 Diffuser les résultats validés
                     <span style={{ background:'rgba(255,255,255,0.2)', borderRadius:8, padding:'2px 8px', fontSize:11, fontWeight:700 }}>
-                      {classement.filter(c => c.score_final != null).length} superviseurs validés
+                      {classement.filter(c => c.statut === 'TERMINEE').length} validés
                     </span>
                   </>
                 )}
