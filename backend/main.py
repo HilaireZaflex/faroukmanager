@@ -190,6 +190,12 @@ async def auto_migrate():
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_teleconseillere VARCHAR(200)",
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_developpeur VARCHAR(200)",
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_type_pdv VARCHAR(200)",
+        # Colonnes PDVs manquantes
+        "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
+        "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
+        "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS adresse VARCHAR(300)",
+        "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS developpeur VARCHAR(200)",
+        "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS gestionnaire VARCHAR(200)",
         # S'assurer que status est VARCHAR (supporte EN_ATTENTE_CONFORMITE)
         "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
         # Colonne role utilisateur en VARCHAR (supporte rôles personnalisés)

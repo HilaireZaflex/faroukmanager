@@ -670,10 +670,20 @@ def update_pdv(
         raise HTTPException(status_code=404, detail="PDV non trouvé")
     update_data = pdv_data.dict(exclude_unset=True)
     for k, v in update_data.items():
-        setattr(pdv, k, v)
-    pdv.updated_at = datetime.utcnow()  # forcer la mise à jour de la date
-    db.commit()
-    db.refresh(pdv)
+        try:
+            setattr(pdv, k, v)
+        except Exception:
+            pass  # ignorer les champs inconnus
+    try:
+        pdv.updated_at = datetime.utcnow()
+    except Exception:
+        pass
+    try:
+        db.commit()
+        db.refresh(pdv)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erreur base de données : {str(e)}")
     return PDVOut.from_orm(pdv)
 
 
