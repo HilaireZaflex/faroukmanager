@@ -10,6 +10,22 @@ import alertService from '../services/alertService';
 import toast from 'react-hot-toast';
 import './PDVDetailPage.css';
 
+// ── Sous-composant Field HORS du modal pour éviter la perte de focus ─────
+function EditField({ label, fieldKey, type='text', options, value, onChange }) {
+  return (
+    <div>
+      <label style={{ fontSize:11, fontWeight:600, color:'var(--text-secondary)', display:'block', marginBottom:5, textTransform:'uppercase' }}>{label}</label>
+      {options ? (
+        <select value={value} onChange={e => onChange(fieldKey, e.target.value)}>
+          {options.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      ) : (
+        <input type={type} value={value} onChange={e => onChange(fieldKey, e.target.value)} placeholder={label} />
+      )}
+    </div>
+  );
+}
+
 // ── Modal Édition PDV ─────────────────────────────────────────────────────
 function EditPDVModal({ pdv, onClose, onSuccess }) {
   const [form, setForm] = useState({
@@ -54,19 +70,6 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
     } catch { toast.error('Erreur lors de la suppression'); setLoading(false); }
   };
 
-  const Field = ({ label, k, type='text', options }) => (
-    <div>
-      <label style={{ fontSize:11, fontWeight:600, color:'var(--text-secondary)', display:'block', marginBottom:5, textTransform:'uppercase' }}>{label}</label>
-      {options ? (
-        <select value={form[k]} onChange={e => set(k, e.target.value)}>
-          {options.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-      ) : (
-        <input type={type} value={form[k]} onChange={e => set(k, e.target.value)} placeholder={label} />
-      )}
-    </div>
-  );
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" style={{ maxWidth:680, width:'95%' }} onClick={e => e.stopPropagation()}>
@@ -76,16 +79,16 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
         </div>
         <form onSubmit={handleSubmit}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
-            <Field label="Nom PDV *" k="nom" />
-            <Field label="Type PDV" k="type_pdv" options={[['RS','RS'],['RSF','RSF'],['RNS','RNS'],['KIOSQUE','Kiosque']]} />
-            <Field label="Zone" k="zone" />
-            <Field label="Sous-zone" k="sous_zone" />
-            <Field label="Quartier" k="quartier" />
-            <Field label="Statut" k="statut" options={[['ACTIF','Actif'],['INACTIF','Inactif'],['RECUPERATION','Récupération'],['DESACTIVE','Désactivé']]} />
-            <Field label="Superviseur" k="superviseur" />
-            <Field label="Téléconseillère" k="teleconseillere" />
-            <Field label="Téléphone" k="telephone" />
-            <Field label="Nom Gérant" k="nom_gerant" />
+            <EditField label="Nom PDV *" fieldKey="nom" value={form.nom} onChange={set} />
+            <EditField label="Type PDV" fieldKey="type_pdv" value={form.type_pdv} onChange={set} options={[['RS','RS'],['RSF','RSF'],['RNS','RNS'],['KIOSQUE','Kiosque']]} />
+            <EditField label="Zone" fieldKey="zone" value={form.zone} onChange={set} />
+            <EditField label="Sous-zone" fieldKey="sous_zone" value={form.sous_zone} onChange={set} />
+            <EditField label="Quartier" fieldKey="quartier" value={form.quartier} onChange={set} />
+            <EditField label="Statut" fieldKey="statut" value={form.statut} onChange={set} options={[['ACTIF','Actif'],['INACTIF','Inactif'],['RECUPERATION','Récupération'],['DESACTIVE','Désactivé']]} />
+            <EditField label="Superviseur" fieldKey="superviseur" value={form.superviseur} onChange={set} />
+            <EditField label="Téléconseillère" fieldKey="teleconseillere" value={form.teleconseillere} onChange={set} />
+            <EditField label="Téléphone" fieldKey="telephone" value={form.telephone} onChange={set} />
+            <EditField label="Nom Gérant" fieldKey="nom_gerant" value={form.nom_gerant} onChange={set} />
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
             {[['sim_au_bureau','SIM au Bureau'],['sim_coupee','SIM Coupée']].map(([k,l]) => (
