@@ -112,7 +112,10 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.put(`/pdvs/${pdv.id}`, form);
+      // Nettoyer les champs vides → null pour éviter les erreurs Pydantic
+      const payload = { ...form };
+      if (!payload.date_activation) payload.date_activation = null;
+      await api.put(`/pdvs/${pdv.id}`, payload);
       toast.success(`PDV "${form.nom}" mis à jour avec succès !`);
       onClose();
       onSuccess();
