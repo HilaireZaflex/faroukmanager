@@ -117,7 +117,11 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
       onClose();
       onSuccess();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Erreur lors de la mise à jour');
+      const detail = err?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map(e => e.msg || JSON.stringify(e)).join(', ')
+        : (typeof detail === 'string' ? detail : 'Erreur lors de la mise à jour');
+      toast.error(msg);
     } finally { setLoading(false); }
   };
 
