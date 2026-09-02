@@ -1680,8 +1680,8 @@ function TabComparaisonOMY() {
 
   // Filtrage + tri
   const moisRefObj = MOIS_OPTIONS.find(m => m.val === moisRef);
-  const moisCompObjs = moisComp.map(m => MOIS_OPTIONS.find(x => x.val === m)).filter(Boolean)
-    .sort((a, b) => a.val.localeCompare(b.val));
+  const moisCompObjs = (moisComp || []).map(m => MOIS_OPTIONS.find(x => x.val === m)).filter(Boolean)
+    .sort((a, b) => (a?.val || '').localeCompare(b?.val || ''));
 
   const pdvs = (data?.pdvs || [])
     .filter(p => filtre === 'TOUS' || p.alerte === filtre)
@@ -1704,8 +1704,8 @@ function TabComparaisonOMY() {
     return sort.asc ? va - vb : vb - va;
   });
 
-  const zones = [...new Set((data?.pdvs||[]).map(p => p.zone).filter(Boolean))].sort();
-  const sups  = [...new Set((data?.pdvs||[]).map(p => p.superviseur).filter(Boolean))].sort();
+  const zones = [...new Set((data?.pdvs || []).map(p => p?.zone).filter(Boolean))].sort();
+  const sups  = [...new Set((data?.pdvs || []).map(p => p?.superviseur).filter(Boolean))].sort();
 
   const thS = (col) => ({
     padding:'10px 12px', fontSize:11, fontWeight:700, color: sort.col===col ? '#FF6900' : '#64748b',
@@ -1849,8 +1849,8 @@ function TabComparaisonOMY() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.length === 0 ? (
-                  <tr><td colSpan={8 + moisCompObjs.length} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Aucun PDV trouvé</td></tr>
+                {(sorted || []).length === 0 ? (
+                  <tr><td colSpan={8 + (moisCompObjs || []).length} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Aucun PDV trouvé</td></tr>
                 ) : sorted.map((p, i) => {
                   const cfg = ALERTE_CFG[p.alerte] || ALERTE_CFG.STABLE;
                   return (
