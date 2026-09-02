@@ -719,12 +719,24 @@ function TabDashboard({ dashboard }) {
   // Extraire le dernier total disponible pour chaque indicateur
   const getLastTotal = (ind) => {
     const data = awardData?.[ind] || {};
-    return (data.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
+    return (data.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0] || null;
   };
 
+  // Taux GLOBAL du challenge = cumul réalisations / objectif global
   const getIndTaux = (ind) => {
-    const total = getLastTotal(ind);
-    return total?.taux_orange != null ? Math.min(1, total.taux_orange) : null;
+    const data = awardData?.[ind] || {};
+    const totaux = data.totaux || [];
+    const globalEntry = totaux.find(t => t.mois === 'GLOBAL');
+    const totauxMensuels = totaux.filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
+    const cumulReal = totauxMensuels.reduce((acc, t) => acc + (t.realisation || 0), 0);
+    // Pour TERMINAUX : objectif global = 100, on compare réalisation cumulée
+    if (globalEntry?.objectif_orange) {
+      const taux = cumulReal / globalEntry.objectif_orange;
+      return Math.min(1, taux);
+    }
+    // Sinon utiliser le taux orange du dernier mois
+    const lastTotal = totauxMensuels.slice(-1)[0];
+    return lastTotal?.taux_orange != null ? Math.min(1, lastTotal.taux_orange) : null;
   };
 
   const indData = INDICATEURS_LIST.map(ind => ({
