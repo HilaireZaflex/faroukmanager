@@ -113,6 +113,21 @@ function CountdownTimer({ joursRestants }) {
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 const INDICATEURS_LIST = ["OMY", "KAABU MOBILE", "NAFAMA", "TERMINAUX", "ORANGE ENERGIE"];
 const MOIS_CHALLENGE_LIST = ["JUILLET", "AOÛT", "SEPTEMBRE", "OCTOBRE"];
+// ── Mois courant du challenge (dynamique) ───────────────────────────────────
+function getMoisCourantChallenge() {
+  const now = new Date();
+  const moisNum = now.getMonth() + 1; // 1=Jan, 9=Sep
+  const annee = now.getFullYear();
+  const MAP = { 7:'JUILLET', 8:'AOÛT', 9:'SEPTEMBRE', 10:'OCTOBRE' };
+  const MAP2 = { 7:'2026-07', 8:'2026-08', 9:'2026-09', 10:'2026-10' };
+  return {
+    label: MAP[moisNum] || 'SEPTEMBRE',
+    value: MAP2[moisNum] || '2026-09',
+  };
+}
+const MOIS_COURANT = getMoisCourantChallenge();
+
+
 
 const INDICATEUR_CONFIG = {
   "OMY":            { icon: "📱", color: "#FF6900", unite: "FCFA", hasFarouk: true },
@@ -527,7 +542,7 @@ const SUB_TABS = {
 export default function ChallengePage() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeSubTab, setActiveSubTab] = useState('');
-  const [moisSelectionne, setMoisSelectionne] = useState('2026-07');
+  const [moisSelectionne, setMoisSelectionne] = useState(MOIS_COURANT.value);
 
   // Quand on change de tab principal, activer le premier sous-tab
   const handleMainTab = (id) => {
@@ -1250,7 +1265,7 @@ function TabOMQualite({ kpis }) {
 
 // ── Tab PDV Actif : 2 tableaux (PDVs actifs + PDVs CA>=1000F) ────────────────
 function TabPDVActif() {
-  const [moisSel, setMoisSel] = useState('AOÛT');
+  const [moisSel, setMoisSel] = useState(MOIS_COURANT.label);
 
   const { data: awardData } = useQuery('award-dashboard-pdv',
     () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
@@ -1365,7 +1380,7 @@ function TabPDVActif() {
 
 // ── Tab Kaabu Detail : tableau par semaine ───────────────────────────────────
 function TabKaabuDetail() {
-  const [moisSel, setMoisSel] = useState('AOÛT');
+  const [moisSel, setMoisSel] = useState(MOIS_COURANT.label);
   const { data: awardData } = useQuery('award-dashboard',
     () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
   );
@@ -1561,7 +1576,7 @@ function TabOMDigital({ kpis }) {
 function TabRecrutement() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [mois, setMois] = useState('2026-07');
+  const [mois, setMois] = useState(MOIS_COURANT.value);
   const [form, setForm] = useState({ numero_client: '', nom_client: '', pdv_numero: '', pdv_nom: '', superviseur: '', developpeur: '', zone: '', mois: '2026-07' });
 
   const { data } = useQuery(['challenge-recrutements', mois],
@@ -1686,7 +1701,7 @@ function TabRecrutement() {
 function TabPLV() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [mois, setMois] = useState('2026-07');
+  const [mois, setMois] = useState(MOIS_COURANT.value);
   const [form, setForm] = useState({ pdv_numero: '', pdv_nom: '', zone: '', superviseur: '', type_plv: 'Kakemono', quantite: 1, mois: '2026-07' });
 
   const { data } = useQuery(['challenge-plv', mois],
