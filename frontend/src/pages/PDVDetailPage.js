@@ -10,41 +10,83 @@ import alertService from '../services/alertService';
 import toast from 'react-hot-toast';
 import './PDVDetailPage.css';
 
-// ── Sous-composant Field HORS du modal pour éviter la perte de focus ─────
-function EditField({ label, fieldKey, type='text', options, value, onChange }) {
+// ── Composants UI du formulaire ────────────────────────────────────────────
+function FormSection({ title, icon, children, cols = 2 }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'2px solid rgba(255,105,0,0.25)' }}>
+        <span style={{ fontSize:16 }}>{icon}</span>
+        <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>{title}</span>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${cols}, 1fr)`, gap:12 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function FormLabel({ label, required, children }) {
   return (
     <div>
-      <label style={{ fontSize:11, fontWeight:600, color:'var(--text-secondary)', display:'block', marginBottom:5, textTransform:'uppercase' }}>{label}</label>
-      {options ? (
-        <select value={value} onChange={e => onChange(fieldKey, e.target.value)}>
-          {options.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
-      ) : (
-        <input type={type} value={value} onChange={e => onChange(fieldKey, e.target.value)} placeholder={label} />
-      )}
+      <label style={{ fontSize:10, color:'#FF6900', display:'block', marginBottom:4, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px' }}>
+        {label}{required && <span style={{ color:'#ff4757', marginLeft:3 }}>*</span>}
+      </label>
+      {children}
     </div>
+  );
+}
+
+function FormInput({ type='text', placeholder, value, onChange, required }) {
+  return (
+    <input type={type} placeholder={placeholder} value={value||''} onChange={onChange} required={required}
+      style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+  );
+}
+
+function FormSelect({ value, onChange, children, required }) {
+  return (
+    <select value={value||''} onChange={onChange} required={required}
+      style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' }}>
+      {children}
+    </select>
   );
 }
 
 // ── Modal Édition PDV ─────────────────────────────────────────────────────
 function EditPDVModal({ pdv, onClose, onSuccess }) {
   const [form, setForm] = useState({
-    nom: pdv?.nom || '',
-    type_pdv: pdv?.type_pdv || 'RS',
-    zone: pdv?.zone || '',
-    sous_zone: pdv?.sous_zone || '',
-    quartier: pdv?.quartier || '',
-    superviseur: pdv?.superviseur || '',
+    nom:             pdv?.nom || '',
+    type_pdv:        pdv?.type_pdv || 'RS',
+    telephone:       pdv?.telephone || '',
+    adresse:         pdv?.adresse || '',
+    zone:            pdv?.zone || '',
+    sous_zone:       pdv?.sous_zone || '',
+    quartier:        pdv?.quartier || '',
+    superviseur:     pdv?.superviseur || '',
+    gestionnaire:    pdv?.gestionnaire || '',
     teleconseillere: pdv?.teleconseillere || '',
-    telephone: pdv?.telephone || '',
-    nom_gerant: pdv?.nom_gerant || '',
-    statut: pdv?.statut || 'ACTIF',
-    sim_au_bureau: pdv?.sim_au_bureau || false,
-    sim_coupee: pdv?.sim_coupee || false,
-    notes: pdv?.notes || '',
+    developpeur:     pdv?.developpeur || '',
+    statut:          pdv?.statut || 'ACTIF',
+    date_activation: pdv?.date_activation ? pdv.date_activation.slice(0,10) : '',
+    sim_au_bureau:   pdv?.sim_au_bureau || false,
+    sim_coupee:      pdv?.sim_coupee || false,
+    notes:           pdv?.notes || '',
   });
   const [loading, setLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const { data: equipe } = useQuery('equipe-edit', () =>
+    api.get('/reseau/equipe').then(r => r.data).catch(() => ({ superviseurs:[], gestionnaires:[], developpeurs:[], teleconseilleres:[] })),
+    { staleTime: 300000 }
+  );
+  const { data: zones = [] } = useQuery('zones-edit', () =>
+    api.get('/pdvs/zones').then(r => r.data).catch(() => []),
+    { staleTime: 300000 }
+  );
+  const { data: sousZones = [] } = useQuery(['sous-zones-edit', form.zone], () =>
+    api.get(`/pdvs/sous-zones${form.zone ? `?zone=${encodeURIComponent(form.zone)}` : ''}`).then(r => r.data).catch(() => []),
+    { staleTime: 60000 }
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,46 +112,154 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
     } catch { toast.error('Erreur lors de la suppression'); setLoading(false); }
   };
 
+  const IS = { width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, outline:'none', boxSizing:'border-box' };
+  const SS = { ...IS, background:'#1a1a2e' };
+  const SectionTitle = ({ icon, title }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, paddingBottom:8, borderBottom:'2px solid rgba(255,105,0,0.25)' }}>
+      <span style={{ fontSize:16 }}>{icon}</span>
+      <span style={{ fontSize:12, fontWeight:800, color:'#FF6900', textTransform:'uppercase', letterSpacing:'1px' }}>{title}</span>
+    </div>
+  );
+  const FL = ({ label, required, children, span }) => (
+    <div style={span ? { gridColumn:`span ${span}` } : {}}>
+      <label style={{ fontSize:10, color:'#FF6900', display:'block', marginBottom:4, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px' }}>
+        {label}{required && <span style={{ color:'#ff4757', marginLeft:3 }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth:680, width:'95%' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-          <h3 style={{ fontSize:16, fontWeight:700 }}>✏️ Modifier le PDV — {pdv?.numero_pdv}</h3>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={15}/></button>
+      <div onClick={e => e.stopPropagation()}
+        style={{ maxWidth:800, width:'95%', maxHeight:'92vh', overflowY:'auto', background:'#0f0f1a', borderRadius:16, padding:28, margin:'auto', marginTop:'4vh' }}>
+
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24, paddingBottom:16, borderBottom:'2px solid rgba(255,105,0,0.3)' }}>
+          <div>
+            <div style={{ fontSize:11, color:'#FF6900', fontWeight:700, textTransform:'uppercase', letterSpacing:'1px', marginBottom:4 }}>Modification PDV</div>
+            <div style={{ fontSize:20, fontWeight:900, color:'#fff' }}>{pdv?.numero_pdv} — {pdv?.nom}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'none', borderRadius:8, width:36, height:36, cursor:'pointer', color:'#aaa', fontSize:20, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <X size={18}/>
+          </button>
         </div>
+
         <form onSubmit={handleSubmit}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
-            <EditField label="Nom PDV *" fieldKey="nom" value={form.nom} onChange={set} />
-            <EditField label="Type PDV" fieldKey="type_pdv" value={form.type_pdv} onChange={set} options={[['RS','RS'],['RSF','RSF'],['RNS','RNS'],['KIOSQUE','Kiosque']]} />
-            <EditField label="Zone" fieldKey="zone" value={form.zone} onChange={set} />
-            <EditField label="Sous-zone" fieldKey="sous_zone" value={form.sous_zone} onChange={set} />
-            <EditField label="Quartier" fieldKey="quartier" value={form.quartier} onChange={set} />
-            <EditField label="Statut" fieldKey="statut" value={form.statut} onChange={set} options={[['ACTIF','Actif'],['INACTIF','Inactif'],['RECUPERATION','Récupération'],['DESACTIVE','Désactivé']]} />
-            <EditField label="Superviseur" fieldKey="superviseur" value={form.superviseur} onChange={set} />
-            <EditField label="Téléconseillère" fieldKey="teleconseillere" value={form.teleconseillere} onChange={set} />
-            <EditField label="Téléphone" fieldKey="telephone" value={form.telephone} onChange={set} />
-            <EditField label="Nom Gérant" fieldKey="nom_gerant" value={form.nom_gerant} onChange={set} />
+
+          <div style={{ marginBottom:20 }}>
+            <SectionTitle icon="👤" title="Informations du Gérant" />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <FL label="Nom complet du gérant" required><input style={IS} placeholder="Nom complet" value={form.nom} onChange={e => set('nom', e.target.value)} required /></FL>
+              <FL label="Téléphone gérant"><input style={IS} placeholder="+223 XX XX XX XX" value={form.telephone} onChange={e => set('telephone', e.target.value)} /></FL>
+            </div>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
-            {[['sim_au_bureau','SIM au Bureau'],['sim_coupee','SIM Coupée']].map(([k,l]) => (
-              <label key={k} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', fontSize:13 }}>
-                <input type="checkbox" checked={form[k]} onChange={e => set(k, e.target.checked)} style={{ width:16, height:16 }} />
-                {l}
+
+          <div style={{ marginBottom:20 }}>
+            <SectionTitle icon="🏪" title="Informations du PDV" />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+              <FL label="Type PDV">
+                <select style={SS} value={form.type_pdv} onChange={e => set('type_pdv', e.target.value)}>
+                  {['RS','RSF','RNS','KIOSQUE'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </FL>
+              <FL label="Statut">
+                <select style={SS} value={form.statut} onChange={e => set('statut', e.target.value)}>
+                  <option value="ACTIF">Actif</option>
+                  <option value="INACTIF">Inactif</option>
+                  <option value="RECUPERATION">Récupération</option>
+                  <option value="DESACTIVE">Désactivé</option>
+                </select>
+              </FL>
+              <FL label="Date d'activation">
+                <input type="date" style={IS} value={form.date_activation} onChange={e => set('date_activation', e.target.value)} />
+              </FL>
+              <FL label="Adresse PDV" span={2}><input style={IS} placeholder="Adresse complète du PDV" value={form.adresse} onChange={e => set('adresse', e.target.value)} /></FL>
+              <FL label="Quartier / Localité"><input style={IS} placeholder="Quartier ou commune" value={form.quartier} onChange={e => set('quartier', e.target.value)} /></FL>
+            </div>
+          </div>
+
+          <div style={{ marginBottom:20 }}>
+            <SectionTitle icon="📍" title="Zone et Territoire" />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <FL label="Zone" required>
+                <select style={SS} value={form.zone} onChange={e => { set('zone', e.target.value); set('sous_zone', ''); }} required>
+                  <option value="">Sélectionner une zone</option>
+                  {zones.map(z => <option key={z} value={z}>{z}</option>)}
+                </select>
+              </FL>
+              <FL label="Sous-zone">
+                <select style={SS} value={form.sous_zone} onChange={e => set('sous_zone', e.target.value)}>
+                  <option value="">Sélectionner une sous-zone</option>
+                  {sousZones.map(sz => <option key={sz} value={sz}>{sz}</option>)}
+                </select>
+              </FL>
+            </div>
+          </div>
+
+          <div style={{ marginBottom:20 }}>
+            <SectionTitle icon="👥" title="Equipe de suivi" />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <FL label="Superviseur">
+                <select style={SS} value={form.superviseur} onChange={e => set('superviseur', e.target.value)}>
+                  <option value="">Sélectionner un superviseur</option>
+                  {(equipe?.superviseurs || []).map(s => <option key={s.nom} value={s.nom}>{s.nom}</option>)}
+                </select>
+              </FL>
+              <FL label="Gestionnaire">
+                <select style={SS} value={form.gestionnaire} onChange={e => set('gestionnaire', e.target.value)}>
+                  <option value="">Sélectionner un gestionnaire</option>
+                  {(equipe?.gestionnaires || []).map(g => <option key={g.nom} value={g.nom}>{g.nom}</option>)}
+                </select>
+              </FL>
+              <FL label="Téléconseillère">
+                <select style={SS} value={form.teleconseillere} onChange={e => set('teleconseillere', e.target.value)}>
+                  <option value="">Sélectionner une téléconseillère</option>
+                  {(equipe?.teleconseilleres || []).map(t => <option key={t.nom} value={t.nom}>{t.nom}</option>)}
+                </select>
+              </FL>
+              <FL label="Développeur">
+                <select style={SS} value={form.developpeur} onChange={e => set('developpeur', e.target.value)}>
+                  <option value="">Sélectionner un développeur</option>
+                  {(equipe?.developpeurs || []).map(d => <option key={d.nom} value={d.nom}>{d.nom}</option>)}
+                </select>
+              </FL>
+            </div>
+          </div>
+
+          <div style={{ marginBottom:20 }}>
+            <SectionTitle icon="📱" title="Statut SIM" />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:8, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                <input type="checkbox" checked={form.sim_au_bureau} onChange={e => set('sim_au_bureau', e.target.checked)} style={{ width:18, height:18, accentColor:'#FF6900' }} />
+                <span style={{ color:'#fff', fontSize:13 }}>SIM au bureau</span>
               </label>
-            ))}
+              <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'10px 12px', borderRadius:8, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                <input type="checkbox" checked={form.sim_coupee} onChange={e => set('sim_coupee', e.target.checked)} style={{ width:18, height:18, accentColor:'#ff4757' }} />
+                <span style={{ color:'#fff', fontSize:13 }}>SIM coupée</span>
+              </label>
+            </div>
           </div>
-          <div style={{ marginBottom:16 }}>
-            <label style={{ fontSize:11, fontWeight:600, color:'var(--text-secondary)', display:'block', marginBottom:5, textTransform:'uppercase' }}>Notes</label>
-            <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Observations, remarques..." style={{ width:'100%' }} />
+
+          <div style={{ marginBottom:24 }}>
+            <SectionTitle icon="📝" title="Notes et Observations" />
+            <textarea rows={3} value={form.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Observations, remarques terrain..."
+              style={{ ...IS, resize:'vertical' }} />
           </div>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={handleDelete} disabled={loading} style={{ color:'var(--danger)' }}>
+
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingTop:16, borderTop:'1px solid rgba(255,255,255,0.08)' }}>
+            <button type="button" onClick={handleDelete} disabled={loading}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:8, border:'1px solid rgba(255,71,87,0.4)', background:'transparent', color:'#ff4757', fontSize:13, fontWeight:700, cursor:'pointer' }}>
               <Trash2 size={13}/> Supprimer
             </button>
             <div style={{ display:'flex', gap:10 }}>
-              <button type="button" className="btn btn-ghost" onClick={onClose}>Annuler</button>
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                <Save size={14}/> {loading ? 'Sauvegarde...' : 'Enregistrer'}
+              <button type="button" onClick={onClose}
+                style={{ padding:'9px 20px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'transparent', color:'#aaa', fontSize:13, cursor:'pointer' }}>
+                Annuler
+              </button>
+              <button type="submit" disabled={loading}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 24px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff', fontSize:13, fontWeight:800, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+                <Save size={14}/> {loading ? 'Sauvegarde...' : 'Enregistrer les modifications'}
               </button>
             </div>
           </div>
@@ -195,7 +345,6 @@ function TabInformations({ pdv }) {
             <InfoRow label="Gestionnaire" value={pdv?.gestionnaire} />
             <InfoRow label="Téléconseillère" value={pdv?.teleconseillere} />
             <InfoRow label="Développeur" value={pdv?.developpeur} />
-            <InfoRow label="Nom du gérant" value={pdv?.nom} />
             <InfoRow label="N° téléphone gérant" value={pdv?.numero_personnel} />
           </div>
         </div>
