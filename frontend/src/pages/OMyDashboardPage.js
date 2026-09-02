@@ -1680,6 +1680,7 @@ export default function OMyDashboardPage() {
         {activeTab === 'inactifs' && <TabInactivePDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleNom} />}
         {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleNom} />}
         {activeTab === 'progression' && <TabProgression annee={annee} criterion={criterion} />}
+        {activeTab === 'comparaison' && <TabComparaisonOMY />}
       </div>
     </div>
   );
