@@ -1452,8 +1452,16 @@ function TabComparaison() {
     .filter(p => !supF || p.superviseur === supF);
 
   const sorted = [...pdvs].sort((a, b) => {
-    const va = sort.col === 'variation' ? (a.variation ?? -9999) : (sort.col === 'nom' ? a.nom : (a[sort.col] ?? 0));
-    const vb = sort.col === 'variation' ? (b.variation ?? -9999) : (sort.col === 'nom' ? b.nom : (b[sort.col] ?? 0));
+    let va, vb;
+    if (sort.col === 'variation') { va = a.variation ?? -9999; vb = b.variation ?? -9999; }
+    else if (sort.col === 'nom') { va = a.nom || ''; vb = b.nom || ''; }
+    else if (sort.col.startsWith('comp_')) {
+      const mVal = sort.col.replace('comp_', '');
+      const mObj = MOIS_OPTIONS.find(m => m.val === mVal);
+      const hKey = mObj ? `${mObj.annee}-${mObj.mois.toString().padStart(2,'0')}` : mVal;
+      va = a.historique?.[hKey] ?? 0; vb = b.historique?.[hKey] ?? 0;
+    }
+    else { va = a[sort.col] ?? 0; vb = b[sort.col] ?? 0; }
     if (typeof va === 'string') return sort.asc ? va.localeCompare(vb) : vb.localeCompare(va);
     return sort.asc ? va - vb : vb - va;
   });
@@ -1537,35 +1545,41 @@ function TabComparaison() {
       {data && (
         <>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
-            {Object.entries(ALERTE_CFG).map(([key, cfg]) => (
+            {[
+              ['CRITIQUE',     'critiques',   ALERTE_CFG.CRITIQUE],
+              ['DISPARU',      'disparus',    ALERTE_CFG.DISPARU],
+              ['SURVEILLANCE', 'surveillance',ALERTE_CFG.SURVEILLANCE],
+              ['STABLE',       'stables',     ALERTE_CFG.STABLE],
+              ['PERFORMANT',   'performants', ALERTE_CFG.PERFORMANT],
+            ].map(([key, apiKey, cfg]) => (
               <div key={key} onClick={() => setFiltre(filtre===key?'TOUS':key)}
                 style={{ background: filtre===key ? cfg.bg : 'rgba(255,255,255,0.02)', border:`2px solid ${filtre===key ? cfg.color : 'rgba(255,255,255,0.07)'}`,
                   borderRadius:12, padding:'14px', textAlign:'center', cursor:'pointer', transition:'all 0.2s' }}>
-                <div style={{ fontSize:24, fontWeight:900, color: cfg.color }}>{data.stats?.[key.toLowerCase()] ?? data.stats?.[key] ?? 0}</div>
+                <div style={{ fontSize:24, fontWeight:900, color: cfg.color }}>{data.stats?.[apiKey] ?? 0}</div>
                 <div style={{ fontSize:11, color:'#64748b', marginTop:4 }}>{cfg.icon} {cfg.label}</div>
               </div>
             ))}
           </div>
 
-          {/* Filtres */}
-          <div style={{ display:'flex', gap:10, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
+          {/* Filtres — une seule ligne */}
+          <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center', flexWrap:'nowrap', overflowX:'auto' }}>
             <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
-              style={{ padding:'8px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:13, flex:1, minWidth:180 }} />
+              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:12, flex:'1 1 180px', minWidth:140 }} />
             <select value={zoneF} onChange={e=>setZoneF(e.target.value)}
-              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
-              <option value="">Toutes les zones</option>
+              style={{ padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12, flex:'0 0 auto', maxWidth:150 }}>
+              <option value="">Toutes zones</option>
               {zones.map(z => <option key={z} value={z}>{z}</option>)}
             </select>
             <select value={supF} onChange={e=>setSupF(e.target.value)}
-              style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
+              style={{ padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12, flex:'0 0 auto', maxWidth:160 }}>
               <option value="">Tous superviseurs</option>
               {sups.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+            <span style={{ fontSize:12, color:'#64748b', whiteSpace:'nowrap', flex:'0 0 auto' }}>{sorted.length} PDVs</span>
             <button onClick={exportExcel}
-              style={{ padding:'8px 16px', borderRadius:8, border:'1px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'#22c55e', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-              📥 Export Excel
+              style={{ padding:'8px 14px', borderRadius:8, border:'1px solid rgba(34,197,94,0.3)', background:'rgba(34,197,94,0.08)', color:'#22c55e', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', flex:'0 0 auto' }}>
+              📥 Excel
             </button>
-            <span style={{ fontSize:12, color:'#64748b' }}>{sorted.length} PDVs</span>
           </div>
 
           {/* Tableau */}
@@ -1577,15 +1591,21 @@ function TabComparaison() {
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'nom',asc:s.col==='nom'?!s.asc:true}))}>PDV</th>
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left' }}>Zone</th>
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left' }}>Superviseur</th>
-                  <th style={{ ...thS('ca_ref'), textAlign:'right' }} onClick={()=>setSort(s=>({col:'ca_ref',asc:s.col==='ca_ref'?!s.asc:false}))}>
-                    📌 {moisRefObj?.label || moisRef}
+                  <th style={{ ...thS('ca_ref'), textAlign:'right', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'ca_ref',asc:s.col==='ca_ref'?!s.asc:false}))}>
+                    📌 {moisRefObj?.label || moisRef} {sort.col==='ca_ref' ? (sort.asc ? '↑' : '↓') : '↕'}
                   </th>
-                  {moisCompObjs.map(m => (
-                    <th key={m.val} style={{ padding:'10px 12px', fontSize:11, color:'#3b82f6', fontWeight:700, textAlign:'right', whiteSpace:'nowrap', background:'rgba(255,255,255,0.03)' }}>
-                      {m.label}
-                    </th>
-                  ))}
-                  <th style={{ ...thS('variation') }} onClick={()=>setSort(s=>({col:'variation',asc:s.col==='variation'?!s.asc:false}))}>Variation</th>
+                  {moisCompObjs.map(m => {
+                    const key = `comp_${m.val}`;
+                    return (
+                      <th key={m.val} onClick={() => setSort(s => ({col: key, asc: s.col===key ? !s.asc : false}))}
+                        style={{ padding:'10px 12px', fontSize:11, color: sort.col===key ? '#60a5fa' : '#3b82f6', fontWeight:700, textAlign:'right', whiteSpace:'nowrap', background:'rgba(255,255,255,0.03)', cursor:'pointer' }}>
+                        {m.label} {sort.col===key ? (sort.asc ? '↑' : '↓') : '↕'}
+                      </th>
+                    );
+                  })}
+                  <th style={{ ...thS('variation'), cursor:'pointer' }} onClick={()=>setSort(s=>({col:'variation',asc:s.col==='variation'?!s.asc:false}))}>
+                    Variation {sort.col==='variation' ? (sort.asc ? '↑' : '↓') : '↕'}
+                  </th>
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'center' }}>Alerte</th>
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', minWidth:200 }}>Action suggérée</th>
                 </tr>
