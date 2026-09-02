@@ -678,7 +678,7 @@ export default function ChallengePage() {
             />}
             {activeSubTab === 'telco_croissance' && <TabIndicateurs filter="TELCO_ENERGIE" />}
             {activeSubTab === 'telco_evaluation' && <TabCarteAvecDetail
-              carte={{ id: 'note_dz', icon: '\u2B50', label: 'Note DZ', poids: 15, color: '#0ea5e9', objectif_desc: "Les DZ vont \u00e9valuer les partenaires sur la base du d\u00e9ploiement des supports de visibilit\u00e9 et animation du Partenaire dans son r\u00e9seau", taux: null, realise: null, objectif_val: null, unite: '' }}
+              carte={{ id: 'note_dz', icon: '⭐', label: 'Note DZ', poids: 15, color: '#0ea5e9', objectif_desc: "Les DZ évaluent les partenaires sur la base du déploiement des supports de visibilité et animation", taux: getIndTaux('NOTE_DZ'), realise: (dashboard?.['NOTE_DZ']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0]?.realisation ?? null, objectif_val: 20, unite: '/20' }}
               challengeLabel="PDG TELCO" challengeColor="#0ea5e9"
               detail={<div className="ch-card" style={{ borderTop: '3px solid #0ea5e9' }}><div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>{"Crit\u00e8re \u00e9valu\u00e9 directement par Orange Mali / DZ. Les notes seront communiqu\u00e9es en fin de p\u00e9riode."}</div></div>}
             />}
