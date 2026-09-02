@@ -212,24 +212,15 @@ function TabIndicateurs({ filter }) {
             const data = dashboard?.[ind] || {};
             const totaux = data.totaux || [];
             const semaines = data.semaines || [];
-            // Objectif GLOBAL du challenge (enregistrement mois=GLOBAL)
-            const globalEntry = totaux.find(t => t.mois === 'GLOBAL');
-            // Cumul des réalisations mensuelles (hors GLOBAL)
-            const totauxMensuels = totaux.filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
-            const cumulReal = totauxMensuels.reduce((acc, t) => acc + (t.realisation || 0), 0);
-            const cumulObjFarouk = globalEntry?.objectif_farouk || totauxMensuels.reduce((acc, t) => acc + (t.objectif_farouk || 0), 0);
-            const objOrangeGlobal = globalEntry?.objectif_orange || null;
-            const tauxOrangeCumul = objOrangeGlobal > 0 ? cumulReal / objOrangeGlobal : null;
-            const tauxFaroukCumul = cumulObjFarouk > 0 ? cumulReal / cumulObjFarouk : null;
-            const globalTotal = (globalEntry || totauxMensuels.length > 0) ? {
-              objectif_orange: objOrangeGlobal,
-              objectif_farouk: cumulObjFarouk,
-              realisation: cumulReal,
-              taux_orange: tauxOrangeCumul,
-              taux_farouk: tauxFaroukCumul,
+            // Dernier total mensuel avec données réelles
+            const lastTotal = totaux.filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0];
+            const globalTotal = lastTotal ? {
+              objectif_orange: lastTotal.objectif_orange,
+              objectif_farouk: lastTotal.objectif_farouk,
+              realisation: lastTotal.realisation,
+              taux_orange: lastTotal.taux_orange,
+              taux_farouk: lastTotal.taux_farouk,
             } : null;
-            // Dernier total mensuel disponible (pour référence)
-            const lastTotal = totauxMensuels.slice(-1)[0];
             // Toutes semaines avec données
             const semAvecData = semaines.filter(s => s.realisation !== null);
             const derniereSem = semAvecData.slice(-1)[0];
@@ -251,22 +242,22 @@ function TabIndicateurs({ filter }) {
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif Global Challenge</div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif {MOIS_COURANT.label}</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{fmtV(globalTotal.objectif_orange, cfg.unite)}</div>
                       </div>
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Réalisation Globale</div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Réalisation</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: cfg.color }}>{fmtV(globalTotal.realisation, cfg.unite)}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>Taux Orange Global</span>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>Taux Orange</span>
                       <TauxBadge taux={globalTotal.taux_orange} />
                     </div>
                     <BarreProg taux={globalTotal.taux_orange} color={cfg.color} />
                     {cfg.hasFarouk && globalTotal.taux_farouk !== null && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                        <span style={{ fontSize: 12, color: '#64748b' }}>Taux Farouk Global</span>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>Taux Farouk</span>
                         <TauxBadge taux={globalTotal.taux_farouk} />
                       </div>
                     )}
