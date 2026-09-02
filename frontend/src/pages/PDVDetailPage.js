@@ -108,6 +108,11 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
     { staleTime: 60000 }
   );
 
+  // Filtrer superviseurs selon la zone sélectionnée
+  const superviseursFiltres = form.zone
+    ? (equipe?.superviseurs || []).filter(s => !s.zone || s.zone === form.zone || s.zone === '')
+    : (equipe?.superviseurs || []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -195,7 +200,7 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
             <SectionTitle icon="📍" title="Zone et Territoire" />
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <FL label="Zone" required>
-                <select style={SS} value={form.zone} onChange={e => { set('zone', e.target.value); set('sous_zone', ''); }} required>
+                <select style={SS} value={form.zone} onChange={e => { set('zone', e.target.value); set('sous_zone', ''); set('superviseur', ''); }} required>
                   <option value="">Sélectionner une zone</option>
                   {zones.map(z => <option key={z} value={z}>{z}</option>)}
                 </select>
@@ -215,7 +220,7 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
               <FL label="Superviseur">
                 <select style={SS} value={form.superviseur} onChange={e => set('superviseur', e.target.value)}>
                   <option value="">Sélectionner un superviseur</option>
-                  {(equipe?.superviseurs || []).map(s => <option key={s.nom} value={s.nom}>{s.nom}</option>)}
+                  {superviseursFiltres.map(s => <option key={s.nom} value={s.nom}>{s.nom}</option>)}
                 </select>
               </FL>
               <FL label="Gestionnaire">
