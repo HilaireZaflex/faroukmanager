@@ -496,7 +496,8 @@ function TabPareto({ annee, mois }) {
   );
 
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
-  if (!data?.items?.length) return <EmptyTab />;
+  if (!data || !data.items || !data.items.length) return <EmptyTab />;
+  if (data.error) return <div style={{ textAlign:'center', padding:40, color:'#ff4757' }}>Erreur : {data.error}</div>;
 
   const allItems = data.items || [];
   const zoneList = [...new Set(allItems.map(p => p.zone).filter(z => z && z !== '—'))].sort();
