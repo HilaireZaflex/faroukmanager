@@ -1715,7 +1715,7 @@ function TabComparaisonOMY() {
 
   // Export Excel
   const exportExcel = () => {
-    const XLSX = window.XLSX || require('xlsx');
+    // XLSX imported at top of file
     const cols = [moisRefObj?.label || moisRef, ...moisCompObjs.map(m => m.label)];
     const rows = sorted.map((p, i) => {
       const base = {
