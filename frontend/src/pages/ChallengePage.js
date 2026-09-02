@@ -212,8 +212,22 @@ function TabIndicateurs({ filter }) {
             const data = dashboard?.[ind] || {};
             const totaux = data.totaux || [];
             const semaines = data.semaines || [];
-            // Dernier total disponible (données réelles)
-            const lastTotal = totaux.filter(t => t.realisation !== null).slice(-1)[0];
+            // Cumul global du challenge (tous les mois avec données réelles)
+            const totauxAvecData = totaux.filter(t => t.realisation !== null);
+            const cumulObjOrange = totauxAvecData.reduce((acc, t) => acc + (t.objectif_orange || 0), 0);
+            const cumulReal = totauxAvecData.reduce((acc, t) => acc + (t.realisation || 0), 0);
+            const cumulObjFarouk = totauxAvecData.reduce((acc, t) => acc + (t.objectif_farouk || 0), 0);
+            const tauxOrangeCumul = cumulObjOrange > 0 ? cumulReal / cumulObjOrange : null;
+            const tauxFaroukCumul = cumulObjFarouk > 0 ? cumulReal / cumulObjFarouk : null;
+            const globalTotal = totauxAvecData.length > 0 ? {
+              objectif_orange: cumulObjOrange,
+              objectif_farouk: cumulObjFarouk,
+              realisation: cumulReal,
+              taux_orange: tauxOrangeCumul,
+              taux_farouk: tauxFaroukCumul,
+            } : null;
+            // Dernier total disponible (pour référence mois courant)
+            const lastTotal = totauxAvecData.slice(-1)[0];
             // Toutes semaines avec données
             const semAvecData = semaines.filter(s => s.realisation !== null);
             const derniereSem = semAvecData.slice(-1)[0];
@@ -231,27 +245,27 @@ function TabIndicateurs({ filter }) {
                   <span style={{ marginLeft: 'auto', fontSize: 11, color: '#64748b' }}>Voir détail →</span>
                 </div>
 
-                {lastTotal ? (
+                {globalTotal ? (
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif {MOIS_COURANT.label}</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{fmtV(lastTotal.objectif_orange, cfg.unite)}</div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif Global Challenge</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{fmtV(globalTotal.objectif_orange, cfg.unite)}</div>
                       </div>
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Réalisation</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: cfg.color }}>{fmtV(lastTotal.realisation, cfg.unite)}</div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Réalisation Globale</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: cfg.color }}>{fmtV(globalTotal.realisation, cfg.unite)}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: '#64748b' }}>Taux Orange</span>
-                      <TauxBadge taux={lastTotal.taux_orange} />
+                      <span style={{ fontSize: 12, color: '#64748b' }}>Taux Orange Global</span>
+                      <TauxBadge taux={globalTotal.taux_orange} />
                     </div>
-                    <BarreProg taux={lastTotal.taux_orange} color={cfg.color} />
-                    {cfg.hasFarouk && lastTotal.taux_farouk !== null && (
+                    <BarreProg taux={globalTotal.taux_orange} color={cfg.color} />
+                    {cfg.hasFarouk && globalTotal.taux_farouk !== null && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                        <span style={{ fontSize: 12, color: '#64748b' }}>Taux Farouk</span>
-                        <TauxBadge taux={lastTotal.taux_farouk} />
+                        <span style={{ fontSize: 12, color: '#64748b' }}>Taux Farouk Global</span>
+                        <TauxBadge taux={globalTotal.taux_farouk} />
                       </div>
                     )}
                     {derniereSem && (
