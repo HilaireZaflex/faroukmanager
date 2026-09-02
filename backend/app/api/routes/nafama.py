@@ -128,6 +128,129 @@ def weekly_progression(
     return nafama_service.get_weekly_progression(db, annee)
 
 
+@router.get("/nafama/monthly/comparaison")
+def monthly_comparaison(
+    mois_ref: int = Query(..., description="Mois de référence (1-12)"),
+    annee_ref: int = Query(...),
+    mois_list: str = Query(..., description="Mois à comparer, ex: '2026-07,2026-08,2026-09'"),
+    db: Session = Depends(get_db),
+):
+    """Comparaison multi-mois des PDVs NAFAMA avec alertes et plan d'action."""
+    from app.models.nafama import NafamaTransaction
+    from app.models.pdv import PDV
+    from sqlalchemy import func
+
+    # Parser les mois à comparer
+    mois_comp = []
+    for m in mois_list.split(','):
+        m = m.strip()
+        if m:
+            parts = m.split('-')
+            if len(parts) == 2:
+                mois_comp.append((int(parts[0]), int(parts[1])))
+
+    # Tous les mois à charger = mois ref + mois comparaison
+    tous_mois = [(annee_ref, mois_ref)] + mois_comp
+
+    # Charger les CAs par PDV pour chaque mois
+    MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+    mois_data = {}
+    for (ann, mo) in tous_mois:
+        key = f"{ann}-{mo:02d}"
+        rows = db.query(
+            NafamaTransaction.numero_pdv,
+            func.sum(NafamaTransaction.montant).label("ca")
+        ).filter(
+            NafamaTransaction.annee == ann,
+            NafamaTransaction.mois == mo
+        ).group_by(NafamaTransaction.numero_pdv).all()
+        mois_data[key] = {row.numero_pdv: int(row.ca) for row in rows}
+
+    # Tous les PDVs présents dans au moins un mois
+    tous_pdvs = set()
+    for d in mois_data.values():
+        tous_pdvs.update(d.keys())
+
+    # Enrichir avec infos PDV
+    pdv_info = {}
+    if tous_pdvs:
+        pdv_rows = db.query(PDV).filter(PDV.numero_pdv.in_(tous_pdvs)).all()
+        pdv_info = {p.numero_pdv: p for p in pdv_rows}
+
+    key_ref = f"{annee_ref}-{mois_ref:02d}"
+    resultats = []
+    for num_pdv in tous_pdvs:
+        ca_ref = mois_data[key_ref].get(num_pdv, 0)
+        historique = {}
+        for (ann, mo) in tous_mois:
+            key = f"{ann}-{mo:02d}"
+            historique[key] = mois_data[key].get(num_pdv, 0)
+
+        # Dernier mois comparé
+        dernier_key = f"{mois_comp[-1][0]}-{mois_comp[-1][1]:02d}" if mois_comp else key_ref
+        ca_dernier = historique.get(dernier_key, 0)
+
+        # Variation vs référence
+        variation = round((ca_dernier - ca_ref) / ca_ref * 100, 1) if ca_ref > 0 else None
+
+        # Alerte
+        if ca_ref > 0 and ca_dernier == 0:
+            alerte = "DISPARU"
+        elif variation is not None and variation <= -50:
+            alerte = "CRITIQUE"
+        elif variation is not None and variation <= -20:
+            alerte = "SURVEILLANCE"
+        elif variation is not None and variation >= 20:
+            alerte = "PERFORMANT"
+        else:
+            alerte = "STABLE"
+
+        # Action suggérée
+        actions = {
+            "DISPARU":     "Investigation urgente + réactivation SIM",
+            "CRITIQUE":    "Appel TC urgent + visite superviseur",
+            "SURVEILLANCE":"Relance TC + vérification stock NAFAMA",
+            "PERFORMANT":  "Félicitations + maintien",
+            "STABLE":      "Suivi standard",
+        }
+
+        p = pdv_info.get(num_pdv)
+        resultats.append({
+            "numero_pdv":   num_pdv,
+            "nom":          p.nom if p else num_pdv,
+            "zone":         p.zone if p else "—",
+            "sous_zone":    p.sous_zone if p else "—",
+            "superviseur":  p.superviseur if p else "—",
+            "gestionnaire": p.gestionnaire if p else "—",
+            "ca_ref":       ca_ref,
+            "ca_dernier":   ca_dernier,
+            "variation":    variation,
+            "alerte":       alerte,
+            "action":       actions[alerte],
+            "historique":   historique,
+        })
+
+    # Trier : d'abord critiques, puis surveillance, puis disparus, etc.
+    ordre = {"CRITIQUE": 0, "DISPARU": 1, "SURVEILLANCE": 2, "STABLE": 3, "PERFORMANT": 4}
+    resultats.sort(key=lambda x: (ordre.get(x["alerte"], 5), -(x["ca_ref"] or 0)))
+
+    # Stats globales
+    stats = {
+        "total_pdvs":     len(resultats),
+        "critiques":      sum(1 for r in resultats if r["alerte"] == "CRITIQUE"),
+        "surveillance":   sum(1 for r in resultats if r["alerte"] == "SURVEILLANCE"),
+        "disparus":       sum(1 for r in resultats if r["alerte"] == "DISPARU"),
+        "performants":    sum(1 for r in resultats if r["alerte"] == "PERFORMANT"),
+        "stables":        sum(1 for r in resultats if r["alerte"] == "STABLE"),
+        "mois_ref":       f"{MOIS_NOMS[mois_ref]} {annee_ref}",
+        "mois_compares":  [f"{MOIS_NOMS[mo]} {ann}" for ann, mo in mois_comp],
+        "colonnes":       [f"{ann}-{mo:02d}" for ann, mo in tous_mois],
+        "colonnes_noms":  [f"{MOIS_NOMS[mo]} {ann}" for ann, mo in tous_mois],
+    }
+
+    return {"stats": stats, "pdvs": resultats}
+
+
 @router.get("/nafama/monthly/declining")
 def monthly_declining(
     annee: int = Query(...),
