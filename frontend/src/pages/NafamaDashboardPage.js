@@ -1322,6 +1322,9 @@ function TabProgression({ annee }) {
 
 // ─── Tab Comparaison Multi-Mois ───────────────────────────────────────────────
 const MOIS_OPTIONS = [
+  { val: '2026-04', label: 'Avril 2026',      annee: 2026, mois: 4 },
+  { val: '2026-05', label: 'Mai 2026',        annee: 2026, mois: 5 },
+  { val: '2026-06', label: 'Juin 2026',       annee: 2026, mois: 6 },
   { val: '2026-07', label: 'Juillet 2026',    annee: 2026, mois: 7 },
   { val: '2026-08', label: 'Août 2026',       annee: 2026, mois: 8 },
   { val: '2026-09', label: 'Septembre 2026',  annee: 2026, mois: 9 },
@@ -1433,39 +1436,45 @@ function TabComparaison() {
 
       {/* Sélecteur */}
       <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, padding:20, marginBottom:20 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr auto', gap:20, alignItems:'start' }}>
-          {/* Mois référence */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr auto', gap:20, alignItems:'end' }}>
+
+          {/* Mois référence — select */}
           <div>
             <div style={{ fontSize:11, color:'#FF6900', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>📌 Mois de référence</div>
-            {MOIS_OPTIONS.map(m => (
-              <label key={m.val} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, cursor:'pointer' }}>
-                <input type="radio" name="mois_ref" value={m.val} checked={moisRef===m.val}
-                  onChange={() => setMoisRef(m.val)} style={{ accentColor:'#FF6900' }} />
-                <span style={{ fontSize:13, color: moisRef===m.val ? '#FF6900' : '#aaa', fontWeight: moisRef===m.val ? 700 : 400 }}>{m.label}</span>
-              </label>
-            ))}
-          </div>
-          {/* Mois comparaison */}
-          <div>
-            <div style={{ fontSize:11, color:'#3b82f6', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>🔄 Mois de comparaison (multi-sélection)</div>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-              {MOIS_OPTIONS.filter(m => m.val !== moisRef).map(m => (
-                <button key={m.val} onClick={() => toggleMoisComp(m.val)}
-                  style={{ padding:'8px 16px', borderRadius:20, border:'none', fontSize:13, fontWeight:700, cursor:'pointer',
-                    background: moisComp.includes(m.val) ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-                    color: moisComp.includes(m.val) ? '#fff' : '#64748b',
-                    boxShadow: moisComp.includes(m.val) ? '0 3px 10px rgba(59,130,246,0.4)' : 'none' }}>
-                  {moisComp.includes(m.val) ? '✓ ' : ''}{m.label}
-                </button>
-              ))}
+            <div style={{ background:'rgba(255,105,0,0.06)', border:'1px solid rgba(255,105,0,0.25)', borderRadius:10, padding:12 }}>
+              <select value={moisRef} onChange={e => setMoisRef(e.target.value)}
+                style={{ width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#FF6900', fontSize:13, fontWeight:700, outline:'none' }}>
+                {MOIS_OPTIONS.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
+              </select>
             </div>
           </div>
+
+          {/* Mois comparaison — checkboxes dans bloc */}
+          <div>
+            <div style={{ fontSize:11, color:'#3b82f6', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>🔄 Mois à comparer (multi-sélection)</div>
+            <div style={{ background:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:10, padding:12 }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {MOIS_OPTIONS.filter(m => m.val !== moisRef).map(m => (
+                  <label key={m.val} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'4px 6px', borderRadius:6,
+                    background: moisComp.includes(m.val) ? 'rgba(59,130,246,0.15)' : 'transparent' }}>
+                    <input type="checkbox" checked={moisComp.includes(m.val)} onChange={() => toggleMoisComp(m.val)}
+                      style={{ width:15, height:15, accentColor:'#3b82f6', cursor:'pointer' }} />
+                    <span style={{ fontSize:13, color: moisComp.includes(m.val) ? '#60a5fa' : '#94a3b8', fontWeight: moisComp.includes(m.val) ? 700 : 400 }}>
+                      {m.label}
+                    </span>
+                    {moisComp.includes(m.val) && <span style={{ marginLeft:'auto', fontSize:10, color:'#3b82f6' }}>✓</span>}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Bouton */}
-          <div style={{ paddingTop:24 }}>
+          <div>
             <button onClick={fetchData} disabled={loading || !moisComp.length}
-              style={{ padding:'12px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)',
+              style={{ width:'100%', padding:'12px 24px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)',
                 color:'#fff', fontSize:14, fontWeight:800, cursor:'pointer', whiteSpace:'nowrap',
-                opacity: loading || !moisComp.length ? 0.6 : 1 }}>
+                opacity: loading || !moisComp.length ? 0.6 : 1, boxShadow:'0 4px 15px rgba(255,105,0,0.3)' }}>
               {loading ? '⏳ Analyse...' : '🔍 Comparer'}
             </button>
           </div>
