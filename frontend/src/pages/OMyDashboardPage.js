@@ -1624,6 +1624,7 @@ export default function OMyDashboardPage() {
     { id: 'inactifs',    label: '😴 PDV Inactifs',    icon: Battery },
     { id: 'declining',   label: '📉 PDV en Baisse',   icon: TrendingDown },
     { id: 'progression', label: '🎯 Progression',     icon: Target },
+    { id: 'comparaison', label: '📊 Comparaison',     icon: TrendingDown },
   ];
   const tabs = isTelec
     ? allTabs.filter(t => ['inactifs', 'declining'].includes(t.id))
