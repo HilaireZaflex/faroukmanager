@@ -1391,7 +1391,6 @@ function TabPDVActif() {
           </div>
         </div>
       </div>
-      <TablePDV title={"🏪 PDVs Actifs"} sems={pdvActifSems} total={totalActif} color="#22c55e" objLabel="Actifs" semsAfficher={semsAfficher} />
       <TablePDV title={"💰 PDVs avec CA ≥ 1000F"} sems={ca1000Sems} total={totalCA} color="#0ea5e9" objLabel="CA≥1000F" semsAfficher={semsAfficher} />
     </div>
   );
