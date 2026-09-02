@@ -671,6 +671,7 @@ def update_pdv(
     update_data = pdv_data.dict(exclude_unset=True)
     for k, v in update_data.items():
         setattr(pdv, k, v)
+    pdv.updated_at = datetime.utcnow()  # forcer la mise à jour de la date
     db.commit()
     db.refresh(pdv)
     return PDVOut.from_orm(pdv)

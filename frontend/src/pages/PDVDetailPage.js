@@ -378,8 +378,8 @@ function TabInformations({ pdv }) {
             <InfoRow label="Segment IA" value={pdv?.segment_ia} />
             <InfoRow label="Score risque" value={`${pdv?.score_risque || 0}/100`} />
             <InfoRow
-              label="🗓️ Date mise à jour"
-              value={pdv?.date_mise_a_jour || '—'}
+              label="🗓️ Dernière modification"
+              value={pdv?.updated_at ? new Date(pdv.updated_at).toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' }) : (pdv?.date_mise_a_jour || '—')}
               style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', fontWeight: 600, color: 'var(--primary)' }}
             />
           </div>
