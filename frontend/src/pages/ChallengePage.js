@@ -212,22 +212,24 @@ function TabIndicateurs({ filter }) {
             const data = dashboard?.[ind] || {};
             const totaux = data.totaux || [];
             const semaines = data.semaines || [];
-            // Cumul global du challenge (tous les mois avec données réelles)
-            const totauxAvecData = totaux.filter(t => t.realisation !== null);
-            const cumulObjOrange = totauxAvecData.reduce((acc, t) => acc + (t.objectif_orange || 0), 0);
-            const cumulReal = totauxAvecData.reduce((acc, t) => acc + (t.realisation || 0), 0);
-            const cumulObjFarouk = totauxAvecData.reduce((acc, t) => acc + (t.objectif_farouk || 0), 0);
-            const tauxOrangeCumul = cumulObjOrange > 0 ? cumulReal / cumulObjOrange : null;
+            // Objectif GLOBAL du challenge (enregistrement mois=GLOBAL)
+            const globalEntry = totaux.find(t => t.mois === 'GLOBAL');
+            // Cumul des réalisations mensuelles (hors GLOBAL)
+            const totauxMensuels = totaux.filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
+            const cumulReal = totauxMensuels.reduce((acc, t) => acc + (t.realisation || 0), 0);
+            const cumulObjFarouk = globalEntry?.objectif_farouk || totauxMensuels.reduce((acc, t) => acc + (t.objectif_farouk || 0), 0);
+            const objOrangeGlobal = globalEntry?.objectif_orange || null;
+            const tauxOrangeCumul = objOrangeGlobal > 0 ? cumulReal / objOrangeGlobal : null;
             const tauxFaroukCumul = cumulObjFarouk > 0 ? cumulReal / cumulObjFarouk : null;
-            const globalTotal = totauxAvecData.length > 0 ? {
-              objectif_orange: cumulObjOrange,
+            const globalTotal = (globalEntry || totauxMensuels.length > 0) ? {
+              objectif_orange: objOrangeGlobal,
               objectif_farouk: cumulObjFarouk,
               realisation: cumulReal,
               taux_orange: tauxOrangeCumul,
               taux_farouk: tauxFaroukCumul,
             } : null;
-            // Dernier total disponible (pour référence mois courant)
-            const lastTotal = totauxAvecData.slice(-1)[0];
+            // Dernier total mensuel disponible (pour référence)
+            const lastTotal = totauxMensuels.slice(-1)[0];
             // Toutes semaines avec données
             const semAvecData = semaines.filter(s => s.realisation !== null);
             const derniereSem = semAvecData.slice(-1)[0];
