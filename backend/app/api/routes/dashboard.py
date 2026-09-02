@@ -1049,6 +1049,122 @@ def monthly_declining(
     }
 
 
+@router.get("/dashboard/monthly-comparaison")
+def monthly_comparaison_omy(
+    mois_ref: int = Query(...),
+    annee_ref: int = Query(...),
+    mois_list: str = Query(..., description="Ex: '2026-8,2026-9'"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Comparaison multi-mois OMY avec alertes et plan d'action."""
+    MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+    f_user = get_pdv_filters(current_user)
+
+    # Parser les mois
+    mois_comp = []
+    for m in mois_list.split(','):
+        m = m.strip()
+        if m:
+            parts = m.split('-')
+            if len(parts) == 2:
+                mois_comp.append((int(parts[0]), int(parts[1])))
+
+    tous_mois = [(annee_ref, mois_ref)] + mois_comp
+
+    # Charger les montants par PDV pour chaque mois
+    mois_data = {}
+    for (ann, mo) in tous_mois:
+        key = f"{ann}-{mo:02d}"
+        perfs = db.query(MonthlyPerformance).filter(
+            MonthlyPerformance.annee == ann,
+            MonthlyPerformance.mois == mo
+        ).all()
+        mois_data[key] = {}
+        for p in perfs:
+            mt = getattr(p, 'montant_transaction', None) or p.ca or 0
+            if mt > 0:
+                mois_data[key][p.pdv_id] = int(mt)
+
+    # Tous les PDV IDs
+    tous_pdv_ids = set()
+    for d in mois_data.values():
+        tous_pdv_ids.update(d.keys())
+
+    pdv_map = _get_pdv_map(db)
+    key_ref = f"{annee_ref}-{mois_ref:02d}"
+
+    resultats = []
+    for pdv_id in tous_pdv_ids:
+        pdv = pdv_map.get(pdv_id)
+        if not pdv:
+            continue
+        # Filtres utilisateur
+        if f_user.get('superviseur') and pdv.superviseur != f_user['superviseur']:
+            continue
+        if f_user.get('zone') and pdv.zone != f_user['zone']:
+            continue
+
+        ca_ref = mois_data[key_ref].get(pdv_id, 0)
+        historique = {key: mois_data[key].get(pdv_id, 0) for key, _ in [(f"{a}-{m:02d}", None) for a, m in tous_mois]}
+        dernier_key = f"{mois_comp[-1][0]}-{mois_comp[-1][1]:02d}" if mois_comp else key_ref
+        ca_dernier = historique.get(dernier_key, 0)
+
+        variation = round((ca_dernier - ca_ref) / ca_ref * 100, 1) if ca_ref > 0 else None
+
+        if ca_ref > 0 and ca_dernier == 0:
+            alerte = "DISPARU"
+        elif variation is not None and variation <= -50:
+            alerte = "CRITIQUE"
+        elif variation is not None and variation <= -20:
+            alerte = "SURVEILLANCE"
+        elif variation is not None and variation >= 20:
+            alerte = "PERFORMANT"
+        else:
+            alerte = "STABLE"
+
+        actions = {
+            "DISPARU":     "Investigation urgente + réactivation",
+            "CRITIQUE":    "Appel TC urgent + visite superviseur",
+            "SURVEILLANCE":"Relance TC + vérification activité OMY",
+            "PERFORMANT":  "Félicitations + maintien",
+            "STABLE":      "Suivi standard",
+        }
+
+        resultats.append({
+            "pdv_id":      pdv_id,
+            "numero_pdv":  pdv.numero_pdv,
+            "nom":         pdv.nom,
+            "zone":        pdv.zone or "—",
+            "sous_zone":   pdv.sous_zone or "—",
+            "superviseur": pdv.superviseur or "—",
+            "gestionnaire":pdv.gestionnaire or "—",
+            "ca_ref":      ca_ref,
+            "ca_dernier":  ca_dernier,
+            "variation":   variation,
+            "alerte":      alerte,
+            "action":      actions[alerte],
+            "historique":  historique,
+        })
+
+    ordre = {"CRITIQUE": 0, "DISPARU": 1, "SURVEILLANCE": 2, "STABLE": 3, "PERFORMANT": 4}
+    resultats.sort(key=lambda x: (ordre.get(x["alerte"], 5), -(x["ca_ref"] or 0)))
+
+    stats = {
+        "total_pdvs":   len(resultats),
+        "critiques":    sum(1 for r in resultats if r["alerte"] == "CRITIQUE"),
+        "surveillance": sum(1 for r in resultats if r["alerte"] == "SURVEILLANCE"),
+        "disparus":     sum(1 for r in resultats if r["alerte"] == "DISPARU"),
+        "performants":  sum(1 for r in resultats if r["alerte"] == "PERFORMANT"),
+        "stables":      sum(1 for r in resultats if r["alerte"] == "STABLE"),
+        "mois_ref":     f"{MOIS_NOMS[mois_ref]} {annee_ref}",
+        "mois_compares":[f"{MOIS_NOMS[mo]} {ann}" for ann, mo in mois_comp],
+        "colonnes":     [f"{ann}-{mo:02d}" for ann, mo in tous_mois],
+        "colonnes_noms":[f"{MOIS_NOMS[mo]} {ann}" for ann, mo in tous_mois],
+    }
+    return {"stats": stats, "pdvs": resultats}
+
+
 @router.get("/dashboard/monthly-evolution")
 def monthly_evolution(
     db: Session = Depends(get_db),
