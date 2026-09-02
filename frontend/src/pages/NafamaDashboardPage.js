@@ -1320,8 +1320,6 @@ function TabProgression({ annee }) {
   );
 }
 
-// ─── Page Principale Mensuelle ─────────────────────────────────────────────
-export default 
 // ─── Tab Comparaison Multi-Mois ───────────────────────────────────────────────
 const MOIS_OPTIONS = [
   { val: '2026-07', label: 'Juillet 2026',    annee: 2026, mois: 7 },
@@ -1588,6 +1586,8 @@ function TabComparaison() {
   );
 }
 
+
+// ─── Page Principale Mensuelle ─────────────────────────────────────────────
 function NafamaDashboardPage() {
   const now = new Date();
   const [annee, setAnnee] = useState(now.getFullYear());
@@ -1701,3 +1701,5 @@ function NafamaDashboardPage() {
     </div>
   );
 }
+
+export default NafamaDashboardPage;
