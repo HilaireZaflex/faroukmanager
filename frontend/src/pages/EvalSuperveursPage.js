@@ -323,7 +323,11 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
 
   const mutation = useMutation(
     (data) => api.post(`/eval-superviseurs/${encodeURIComponent(superviseur)}/presentiel?annee=${annee}&mois=${mois}`, data).then(r => r.data),
-    { onSuccess: () => { qc.invalidateQueries(['eval-sup', superviseur, annee, mois]); onRefresh(); } }
+    { onSuccess: (res) => {
+      qc.invalidateQueries(['eval-sup', superviseur, annee, mois]);
+      onRefresh();
+      toast.success(`Notes présentiel enregistrées ! Score: ${Math.round(res?.score_presentiel ?? 0)}/100`);
+    }}
   );
 
   const regenMutation = useMutation(
@@ -1033,6 +1037,139 @@ function CommentairesTab({ superviseur, annee, mois }) {
 }
 
 // ── 🗺️ Par Zone ───────────────────────────────────────────────────────────────
+function ListeSupTab({ annee, mois }) {
+  const [indicateur, setIndicateur] = React.useState('score_final');
+  const { data, isLoading } = useQuery(
+    ['eval-classement-liste', annee, mois],
+    async () => {
+      const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
+      const valides = resp.data.classement || [];
+      const nonValides = resp.data.non_valides || [];
+      const valideSet = new Set(valides.map(v => v.superviseur));
+      return [...valides, ...nonValides].map(s => ({ ...s, isValide: valideSet.has(s.superviseur) }));
+    },
+    { staleTime: 60000 }
+  );
+
+  const INDICATEURS = [
+    { id: 'score_final',  label: '🎯 Score Final',    seuil: 55,  fmt: v => v != null ? Math.round(v)+'/100' : '—', color: '#6366f1' },
+    { id: 'nb_pdv',       label: '🏪 NB PDV',          seuil: 30,  fmt: v => v ?? '—', color: '#FF6900' },
+    { id: 'actif_omy',    label: '📶 Actif OMY %',     seuil: 90,  fmt: v => v != null ? v.toFixed(1)+'%' : '—', color: '#22c55e' },
+    { id: 'taux_km',      label: '📍 KM %',             seuil: 80,  fmt: v => v != null ? v.toFixed(1)+'%' : '—', color: '#3b82f6' },
+    { id: 'taux_nafama',  label: '💰 NAFAMA %',         seuil: 80,  fmt: v => v != null ? v.toFixed(1)+'%' : '—', color: '#00cec9' },
+    { id: 'ca_omy',       label: '💵 CA OMY',           seuil: null, fmt: v => v != null ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—', color: '#f59e0b' },
+    { id: 'commission',   label: '🏅 Commission',       seuil: null, fmt: v => v != null ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—', color: '#8b5cf6' },
+    { id: 'ca_nafama',    label: '💰 CA NAFAMA',        seuil: null, fmt: v => v != null ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—', color: '#00cec9' },
+  ];
+
+  const indInfo = INDICATEURS.find(i => i.id === indicateur) || INDICATEURS[0];
+  const sorted = [...(data || [])].sort((a, b) => (b[indicateur]||0) - (a[indicateur]||0));
+  const nbValides = sorted.filter(s => s.isValide).length;
+  const nbOk = indInfo.seuil != null ? sorted.filter(s => (s[indicateur]||0) >= indInfo.seuil).length : null;
+  const nbNok = indInfo.seuil != null ? sorted.filter(s => (s[indicateur]||0) < indInfo.seuil && s[indicateur] != null).length : null;
+
+  if (isLoading) return <div style={{ textAlign:'center', padding:40, color:'#8a8a9a' }}>Chargement...</div>;
+  if (!sorted.length) return <div style={{ textAlign:'center', padding:40, color:'#8a8a9a' }}>Aucun superviseur évalué.</div>;
+
+  return (
+    <div>
+      <div style={{ fontSize:15, fontWeight:800, color:'#fff', marginBottom:16 }}>
+        📋 Liste des superviseurs — {['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][mois]} {annee}
+      </div>
+
+      {/* Filtre indicateur */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:20 }}>
+        {INDICATEURS.map(ind => (
+          <button key={ind.id} onClick={() => setIndicateur(ind.id)}
+            style={{ padding:'6px 14px', borderRadius:20, border:'none', fontSize:12, fontWeight:700, cursor:'pointer',
+              background: indicateur === ind.id ? ind.color : 'rgba(255,255,255,0.05)',
+              color: indicateur === ind.id ? '#fff' : '#8a8a9a',
+              boxShadow: indicateur === ind.id ? `0 3px 10px ${ind.color}50` : 'none' }}>
+            {ind.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Bilan */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:12, marginBottom:20 }}>
+        <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'14px', textAlign:'center' }}>
+          <div style={{ fontSize:28, fontWeight:900, color:'#fff' }}>{sorted.length}</div>
+          <div style={{ fontSize:11, color:'#64748b' }}>Total évalués</div>
+        </div>
+        <div style={{ background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:12, padding:'14px', textAlign:'center' }}>
+          <div style={{ fontSize:28, fontWeight:900, color:'#22c55e' }}>{nbValides}</div>
+          <div style={{ fontSize:11, color:'#64748b' }}>✅ Validés</div>
+        </div>
+        <div style={{ background:'rgba(220,38,38,0.06)', border:'1px solid rgba(220,38,38,0.2)', borderRadius:12, padding:'14px', textAlign:'center' }}>
+          <div style={{ fontSize:28, fontWeight:900, color:'#dc2626' }}>{sorted.length - nbValides}</div>
+          <div style={{ fontSize:11, color:'#64748b' }}>❌ Non validés</div>
+        </div>
+        {nbOk != null && (
+          <div style={{ background:`rgba(99,102,241,0.06)`, border:`1px solid ${indInfo.color}30`, borderRadius:12, padding:'14px', textAlign:'center' }}>
+            <div style={{ fontSize:28, fontWeight:900, color:indInfo.color }}>{nbOk}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>✅ Objectif {indInfo.label} atteint</div>
+          </div>
+        )}
+        {nbNok != null && (
+          <div style={{ background:'rgba(255,71,87,0.06)', border:'1px solid rgba(255,71,87,0.2)', borderRadius:12, padding:'14px', textAlign:'center' }}>
+            <div style={{ fontSize:28, fontWeight:900, color:'#ff4757' }}>{nbNok}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>❌ Sous l'objectif {indInfo.seuil}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Tableau */}
+      <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'hidden' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr style={{ background:'rgba(255,255,255,0.04)' }}>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:'#64748b', fontWeight:700, width:40 }}>#</th>
+              <th style={{ padding:'10px 14px', textAlign:'left', fontSize:11, color:'#64748b', fontWeight:700 }}>Superviseur</th>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:'#64748b', fontWeight:700 }}>Statut</th>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:indInfo.color, fontWeight:700 }}>{indInfo.label}</th>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:'#64748b', fontWeight:700 }}>Score final</th>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:'#64748b', fontWeight:700 }}>NB PDV</th>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:'#64748b', fontWeight:700 }}>Actif OMY</th>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:'#64748b', fontWeight:700 }}>KM%</th>
+              <th style={{ padding:'10px 14px', textAlign:'center', fontSize:11, color:'#64748b', fontWeight:700 }}>NAFAMA%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((s, i) => {
+              const val = s[indicateur];
+              const ok = indInfo.seuil != null ? (val||0) >= indInfo.seuil : null;
+              const score = s.score_final ?? null;
+              const scoreColor = score >= 75 ? '#22c55e' : score >= 55 ? '#ffa502' : '#ff4757';
+              return (
+                <tr key={s.superviseur} style={{ borderTop:'1px solid rgba(255,255,255,0.05)', background: i%2===0?'transparent':'rgba(255,255,255,0.01)' }}>
+                  <td style={{ padding:'9px 14px', textAlign:'center', fontSize:12, color:'#64748b', fontWeight:700 }}>{i+1}</td>
+                  <td style={{ padding:'9px 14px', fontSize:13, fontWeight:700, color:'#e2e8f0' }}>{s.superviseur}</td>
+                  <td style={{ padding:'9px 14px', textAlign:'center' }}>
+                    {s.isValide
+                      ? <span style={{ background:'rgba(34,197,94,0.1)', color:'#22c55e', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700 }}>✅ Validé</span>
+                      : <span style={{ background:'rgba(220,38,38,0.1)', color:'#dc2626', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700 }}>❌ Non validé</span>}
+                  </td>
+                  <td style={{ padding:'9px 14px', textAlign:'center' }}>
+                    <span style={{ fontSize:14, fontWeight:900, color: ok === null ? indInfo.color : ok ? '#22c55e' : '#ff4757' }}>
+                      {indInfo.fmt(val)}
+                    </span>
+                    {ok === false && indInfo.seuil && <span style={{ fontSize:9, color:'#64748b', display:'block' }}>obj: {indInfo.seuil}</span>}
+                  </td>
+                  <td style={{ padding:'9px 14px', textAlign:'center', fontSize:13, fontWeight:900, color:scoreColor }}>{score != null ? Math.round(score)+'/100' : '—'}</td>
+                  <td style={{ padding:'9px 14px', textAlign:'center', fontSize:12, fontWeight:700, color:(s.nb_pdv||0)>=30?'#22c55e':'#ff4757' }}>{s.nb_pdv||'—'}</td>
+                  <td style={{ padding:'9px 14px', textAlign:'center', fontSize:12, fontWeight:700, color:(s.actif_omy||0)>=90?'#22c55e':'#ff4757' }}>{s.actif_omy!=null?s.actif_omy.toFixed(1)+'%':'—'}</td>
+                  <td style={{ padding:'9px 14px', textAlign:'center', fontSize:12, fontWeight:700, color:(s.taux_km||0)>=80?'#22c55e':'#ff4757' }}>{s.taux_km!=null?s.taux_km.toFixed(1)+'%':'—'}</td>
+                  <td style={{ padding:'9px 14px', textAlign:'center', fontSize:12, fontWeight:700, color:(s.taux_nafama||0)>=80?'#22c55e':'#ff4757' }}>{s.taux_nafama!=null?s.taux_nafama.toFixed(1)+'%':'—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ParZoneTab({ annee, mois }) {
   // Charger le classement global avec les zones depuis les KPIs
   const { data, isLoading } = useQuery(
@@ -1040,14 +1177,16 @@ function ParZoneTab({ annee, mois }) {
     async () => {
       // Charger le classement global
       const resp = await api.get('/eval-superviseurs/classement-global', { params: { annee, mois } });
-      const classement = resp.data.classement || [];
+      // Inclure TOUS les superviseurs (validés + non validés)
+      const classement = [...(resp.data.classement || []), ...(resp.data.non_valides || [])];
+      const valideSet = new Set((resp.data.classement || []).map(v => v.superviseur));
       // Pour chaque superviseur, récupérer sa zone depuis les KPIs
       const enriched = await Promise.all(classement.map(async (s) => {
         try {
           const kpiResp = await api.get(`/eval-superviseurs/${encodeURIComponent(s.superviseur)}`, { params: { annee, mois } });
           const zone = kpiResp.data?.kpis_data?.zone || kpiResp.data?.zone || 'Zone non définie';
-          return { ...s, zone };
-        } catch { return { ...s, zone: 'Zone non définie' }; }
+          return { ...s, zone, isValide: valideSet.has(s.superviseur) };
+        } catch { return { ...s, zone: 'Zone non définie', isValide: valideSet.has(s.superviseur) }; }
       }));
       return enriched;
     },
@@ -1664,6 +1803,7 @@ export default function EvalSuperveursPage() {
   const tabs = [
     { id: 'classement', label: '🏆 Classement' },
     { id: 'zone', label: '🗺️ Par Zone' },
+    { id: 'liste', label: '📋 Liste des superviseurs' },
     ...(selectedSup ? [
       { id: 'kpis', label: '📊 KPIs Auto' },
       { id: 'mystery', label: '📞 Appel des Téléconseillères' },
@@ -2026,6 +2166,10 @@ export default function EvalSuperveursPage() {
           {/* ── 🗺️ PAR ZONE ── */}
           {activeTab === 'zone' && (
             <ParZoneTab annee={annee} mois={mois} />
+          )}
+          {/* ── 📋 LISTE DES SUPERVISEURS ── */}
+          {activeTab === 'liste' && (
+            <ListeSupTab annee={annee} mois={mois} classement={classement} />
           )}
         </div>
       </div>
