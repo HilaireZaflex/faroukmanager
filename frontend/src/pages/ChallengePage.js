@@ -235,7 +235,7 @@ function TabIndicateurs({ filter }) {
                   <>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
-                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif {lastTotal.mois}</div>
+                        <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3, textTransform: 'uppercase' }}>Objectif {MOIS_COURANT.label}</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{fmtV(lastTotal.objectif_orange, cfg.unite)}</div>
                       </div>
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
