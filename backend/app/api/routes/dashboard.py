@@ -1054,6 +1054,7 @@ def monthly_comparaison_omy(
     mois_ref: int = Query(...),
     annee_ref: int = Query(...),
     mois_list: str = Query(..., description="Ex: '2026-8,2026-9'"),
+    criterion: str = Query('montant_transaction', description="montant_transaction | montant_ca | commission_pdg"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1072,7 +1073,15 @@ def monthly_comparaison_omy(
 
     tous_mois = [(annee_ref, mois_ref)] + mois_comp
 
-    # Charger les montants par PDV pour chaque mois
+    # Mapping criterion → champ MonthlyPerformance
+    CRITERION_FIELD = {
+        'montant_transaction': 'montant_transaction',
+        'montant_ca':          'ca',
+        'commission_pdg':      'commission',
+    }
+    field_name = CRITERION_FIELD.get(criterion, 'montant_transaction')
+
+    # Charger les montants par PDV pour chaque mois selon le critère
     mois_data = {}
     for (ann, mo) in tous_mois:
         key = f"{ann}-{mo:02d}"
@@ -1082,7 +1091,10 @@ def monthly_comparaison_omy(
         ).all()
         mois_data[key] = {}
         for p in perfs:
-            mt = getattr(p, 'montant_transaction', None) or p.ca or 0
+            mt = getattr(p, field_name, None) or 0
+            if not mt:
+                # fallback sur montant_transaction
+                mt = getattr(p, 'montant_transaction', None) or p.ca or 0
             if mt > 0:
                 mois_data[key][p.pdv_id] = int(mt)
 

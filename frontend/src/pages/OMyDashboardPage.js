@@ -1641,7 +1641,7 @@ const ALERTE_CFG = {
   PERFORMANT:   { color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   icon: '🟢', label: 'Performant' },
 };
 
-function TabComparaisonOMY() {
+function TabComparaisonOMY({ criterion = 'montant_transaction' }) {
   const [moisRef,  setMoisRef]  = React.useState('2026-07');
   const [moisComp, setMoisComp] = React.useState(['2026-08', '2026-09']);
   const [filtre,   setFiltre]   = React.useState('TOUS');
@@ -1667,7 +1667,7 @@ function TabComparaisonOMY() {
         return o ? `${o.annee}-${o.mois}` : null;
       }).filter(Boolean).join(',');
       const resp = await api.get('/dashboard/monthly-comparaison', {
-        params: { mois_ref: refObj.mois, annee_ref: refObj.annee, mois_list: compStr }
+        params: { mois_ref: refObj.mois, annee_ref: refObj.annee, mois_list: compStr, criterion }
       });
       setData(resp.data);
     } catch(e) { console.error(e); }
@@ -1841,9 +1841,7 @@ function TabComparaisonOMY() {
                       </th>
                     );
                   })}
-                  <th style={{ ...thS('variation'), cursor:'pointer' }} onClick={()=>setSort(s=>({col:'variation',asc:s.col==='variation'?!s.asc:false}))}>
-                    Variation {sort.col==='variation' ? (sort.asc ? '↑' : '↓') : '↕'}
-                  </th>
+
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'center' }}>Alerte</th>
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', minWidth:200 }}>Action suggérée</th>
                 </tr>
@@ -1876,9 +1874,7 @@ function TabComparaisonOMY() {
                           </td>
                         );
                       })}
-                      <td style={{ padding:'8px 12px', textAlign:'right', fontSize:13, fontWeight:900, color: varColor(p.variation) }}>
-                        {varTxt(p.variation)}
-                      </td>
+
                       <td style={{ padding:'8px 12px', textAlign:'center' }}>
                         <span style={{ background: cfg.bg, color: cfg.color, borderRadius:6, padding:'3px 8px', fontSize:10, fontWeight:700 }}>
                           {cfg.icon} {cfg.label}
@@ -2030,7 +2026,7 @@ export default function OMyDashboardPage() {
         {activeTab === 'inactifs' && <TabInactivePDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleNom} />}
         {activeTab === 'declining' && <TabDecliningPDVs annee={annee} mois={mois} criterion={criterion} teleFilter={teleNom} />}
         {activeTab === 'progression' && <TabProgression annee={annee} criterion={criterion} />}
-        {activeTab === 'comparaison' && <TabComparaisonOMY />}
+        {activeTab === 'comparaison' && <TabComparaisonOMY criterion={criterion} />}
       </div>
     </div>
   );
