@@ -641,7 +641,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   useEffect(() => { reloadEnergia(); }, [reloadEnergia]);
   // Charger les PUCE_ACTIVEE séparément pour alimenter les selects superviseur/zone
   useEffect(() => {
-    prospectService.list({ status: 'PUCE_ACTIVEE', limit: 500 })
+    prospectService.list({ status: 'PUCE_ACTIVEE', limit: 200, skip: 0 })
       .then(list => setActivatedProspects(Array.isArray(list) ? list : (list.items || [])))
       .catch(() => {});
   }, []);
