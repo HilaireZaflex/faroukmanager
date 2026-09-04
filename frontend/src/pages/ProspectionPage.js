@@ -713,12 +713,17 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       if (filterDebut && dateP < filterDebut) return false;
       if (filterFin && dateP > filterFin) return false;
     }
-    // Filtre Zone
-    if (filters.zone && p.zone !== filters.zone) return false;
-    // Filtre Superviseur
+    // Filtre Zone — uniquement sur les PDVs activés (données zone disponibles à l'activation)
+    if (filters.zone) {
+      if (!['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status)) return false;
+      const pdvZone = (p.activated_pdv?.zone || p.pdv_zone || p.zone || '').toLowerCase();
+      if (!pdvZone.includes(filters.zone.toLowerCase())) return false;
+    }
+    // Filtre Superviseur — depuis le PDV activé (données superviseur disponibles à l'activation)
     if (filters.superviseur) {
-      const supName = p.submitted_by ? `${p.submitted_by.nom||''} ${p.submitted_by.prenom||''}`.trim() : '';
-      if (supName !== filters.superviseur) return false;
+      if (!['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status)) return false;
+      const pdvSup = (p.activated_pdv?.superviseur || p.superviseur || '').toLowerCase();
+      if (!pdvSup.includes(filters.superviseur.toLowerCase())) return false;
     }
     // Filtre Développeur (si non-développeur connecté)
     if (!isDeveloppeur && filters.developpeur) {
