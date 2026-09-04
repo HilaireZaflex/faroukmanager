@@ -212,27 +212,36 @@ function ModalAppelUnifie({ pdv, onClose, onSuccess }) {
   );
 }
 
-function TabFileUnifiee({ annee, mois: moisInit }) {
-  const [mois, setMoisLocal] = React.useState(moisInit);
-  const [filtre, setFiltre]   = React.useState('TOUS');
-  const [search, setSearch]   = React.useState('');
-  const [zoneF, setZoneF]     = React.useState('');
-  const [supF, setSupF]       = React.useState('');
+function TabFileUnifiee() {
+  const now = new Date();
+  const defaultMois = now.getMonth() === 0 ? 12 : now.getMonth(); // mois précédent
+  const defaultAnnee = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
+
+  const [mois, setMoisLocal]   = React.useState(defaultMois);
+  const [annee, setAnnee]      = React.useState(defaultAnnee);
+  const [filtre, setFiltre]     = React.useState('TOUS');
+  const [search, setSearch]     = React.useState('');
+  const [zoneF, setZoneF]       = React.useState('');
+  const [supF, setSupF]         = React.useState('');
   const [modalPDV, setModalPDV] = React.useState(null);
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
-  const [data, setData] = React.useState(null);
+  const [data, setData]         = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError]       = React.useState(null);
 
-  const refetch = React.useCallback(async () => {
+  const charger = React.useCallback(async (a, m) => {
     setIsLoading(true);
+    setError(null);
     try {
-      const resp = await api.get('/tc/liste-unifiee', { params: { annee, mois } });
+      const resp = await api.get('/tc/liste-unifiee', { params: { annee: a, mois: m } });
       setData(resp.data);
-    } catch(e) { console.error('TC liste-unifiee error:', e); }
-    finally { setIsLoading(false); }
-  }, [annee, mois]);
+    } catch(e) {
+      console.error('TC liste-unifiee:', e);
+      setError(e?.response?.data?.detail || 'Erreur de chargement');
+    } finally { setIsLoading(false); }
+  }, []);
 
-  React.useEffect(() => { refetch(); }, [refetch]);
+  React.useEffect(() => { charger(defaultAnnee, defaultMois); }, [charger]);
 
   const fmtK = v => v ? new Intl.NumberFormat('fr-FR').format(v) : '0';
 
@@ -262,6 +271,13 @@ function TabFileUnifiee({ annee, mois: moisInit }) {
       <div>Chargement de la file d'appels...</div>
     </div>
   );
+  if (error) return (
+    <div style={{ textAlign:'center', padding:60, color:'#ff4757' }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>❌</div>
+      <div style={{ fontWeight:700, fontSize:16 }}>Erreur : {error}</div>
+      <button onClick={() => charger(annee, mois)} style={{ marginTop:16, padding:'8px 20px', borderRadius:8, border:'none', background:'#FF6900', color:'#fff', cursor:'pointer' }}>Réessayer</button>
+    </div>
+  );
 
   const stats = data?.stats || {};
 
@@ -278,14 +294,14 @@ function TabFileUnifiee({ annee, mois: moisInit }) {
           </div>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <select value={mois} onChange={e => setMoisLocal(parseInt(e.target.value))}
+          <select value={mois} onChange={e => { const m = parseInt(e.target.value); setMoisLocal(m); charger(annee, m); }}
             style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'#1a1a2e', color:'#fff', fontSize:13 }}>
             {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
               const noms = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
               return <option key={m} value={m}>{noms[m]}</option>;
             })}
           </select>
-          <button onClick={() => refetch()} style={{ padding:'8px 16px', borderRadius:8,
+          <button onClick={() => charger(annee, mois)} style={{ padding:'8px 16px', borderRadius:8,
             border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)',
             color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>🔄 Actualiser</button>
         </div>
@@ -570,7 +586,7 @@ export default function AccueilTCPage() {
       </div>
 
       {/* ── Tab: File d'appels unifiée ── */}
-      {activeTab === 'unifie' && <TabFileUnifiee annee={now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear()} mois={now.getMonth() === 0 ? 12 : now.getMonth()} />}
+      {activeTab === 'unifie' && <TabFileUnifiee />}
 
       {/* ── Tab: KPIs + Historique ── */}
       {activeTab !== 'unifie' && (
