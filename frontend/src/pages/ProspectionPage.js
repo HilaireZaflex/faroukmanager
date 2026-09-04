@@ -700,7 +700,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
     return true;
   });
 
-  // KPIs = depuis allProspects avec SEULEMENT filtre période + dev (PAS filtre statut)
+  // KPIs = depuis allProspects avec TOUS les filtres actifs (zone, superviseur, statut, période)
   const kpiBase = allProspects.filter(p => {
     if (isDeveloppeur) {
       const assignedName = p.visit_assigned_to ? `${p.visit_assigned_to.nom||''} ${p.visit_assigned_to.prenom||''}`.trim().toLowerCase() : '';
@@ -713,10 +713,23 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       if (filterDebut && dateP < filterDebut) return false;
       if (filterFin && dateP > filterFin) return false;
     }
+    // Filtre Zone
+    if (filters.zone && p.zone !== filters.zone) return false;
+    // Filtre Superviseur
+    if (filters.superviseur) {
+      const supName = p.submitted_by ? `${p.submitted_by.nom||''} ${p.submitted_by.prenom||''}`.trim() : '';
+      if (supName !== filters.superviseur) return false;
+    }
+    // Filtre Développeur (si non-développeur connecté)
+    if (!isDeveloppeur && filters.developpeur) {
+      const assignedName = p.visit_assigned_to ? `${p.visit_assigned_to.nom||''} ${p.visit_assigned_to.prenom||''}`.trim() : '';
+      const submittedName = p.submitted_by ? `${p.submitted_by.nom||''} ${p.submitted_by.prenom||''}`.trim() : '';
+      if (assignedName !== filters.developpeur && submittedName !== filters.developpeur) return false;
+    }
     return true;
   });
 
-  const periodeActive = periode !== 'tout' || filterDebut || filterFin;
+  const periodeActive = periode !== 'tout' || filterDebut || filterFin || filters.zone || filters.superviseur || filters.developpeur;
   const filteredStats = (periodeActive || isDeveloppeur) && kpiBase.length > 0 ? {
     ...(stats || {}),
     total: kpiBase.length,

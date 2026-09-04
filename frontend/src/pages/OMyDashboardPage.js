@@ -1652,6 +1652,13 @@ function TabComparaisonOMY({ criterion = 'montant_transaction' }) {
   const [loading,  setLoading]  = React.useState(false);
   const [sort,     setSort]     = React.useState({ col: 'ca_ref', asc: false });
 
+  // Auto-refetch quand criterion change (si données déjà chargées)
+  React.useEffect(() => {
+    if (data !== null) {
+      setData(null); // reset pour indiquer que les données ne correspondent plus au critère
+    }
+  }, [criterion]);
+
   const toggleMoisComp = (val) => {
     if (val === moisRef) return;
     setMoisComp(prev => prev.includes(val) ? prev.filter(m => m !== val) : [...prev, val]);
