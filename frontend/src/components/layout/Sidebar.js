@@ -75,6 +75,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
           <>
             {/* ── ACCUEIL — masqué pour commerciaux et téléconseillères ── */}
             {role !== 'commercial' && role !== 'teleconseillere' && nl('/accueil', Home, 'Accueil', true)}
+            {role === 'teleconseillere' && nl('/accueil-tc', Home, '📞 Accueil TC', true)}
 
             {/* ── DASHBOARDS ── */}
             {(canD('omy') || canD('nafama') || canD('kaabu')) && (
