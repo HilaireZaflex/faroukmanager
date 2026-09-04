@@ -281,6 +281,208 @@ def get_dashboard_admin(
     }
 
 
+@router.get("/tc/liste-unifiee")
+def get_liste_unifiee(
+    annee: int = Query(None),
+    mois: int = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Liste unifiée d'appels TC : chaque PDV n'apparaît qu'une seule fois
+    avec TOUTES ses alertes agrégées (OMY inactif, NAFAMA en baisse, KAABU inactif, etc.)
+    Trié par score de priorité (plus critique en premier).
+    """
+    from datetime import date, timedelta
+    from app.models.pdv import PDV
+    from app.models.performance import MonthlyPerformance
+    from app.models.nafama import NafamaTransaction
+    from app.models.kaabu import KaabuTransaction
+    from sqlalchemy import func
+
+    today = date.today()
+    if not annee:
+        annee = today.year
+    if not mois:
+        mois = today.month
+
+    # Mois précédent
+    if mois == 1:
+        mois_prec, annee_prec = 12, annee - 1
+    else:
+        mois_prec, annee_prec = mois - 1, annee
+
+    MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+
+    # ── Appels déjà faits dans les 48h (cooldown) ──────────────────────────
+    cooldown_limite = today - timedelta(hours=48)
+    appels_recents = db.query(AppelTC.numero_pdv).filter(
+        AppelTC.created_at >= cooldown_limite
+    ).distinct().all()
+    pdvs_en_cooldown = {r[0] for r in appels_recents}
+
+    # ── PDVs ACTIFS de base ─────────────────────────────────────────────────
+    pdv_query = db.query(PDV).filter(PDV.statut == 'ACTIF')
+    if current_user.role == 'SUPERVISEUR':
+        pdv_query = pdv_query.filter(PDV.superviseur == current_user.nom_complet)
+    elif current_user.role in ('TELECONSEILLERE', 'TC'):
+        pdv_query = pdv_query.filter(PDV.teleconseillere == current_user.nom_complet)
+    pdvs = pdv_query.all()
+    pdv_map = {p.numero_pdv: p for p in pdvs}
+
+    # ── OMY : performances mensuelles ──────────────────────────────────────
+    perfs_curr = {p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+        MonthlyPerformance.annee == annee, MonthlyPerformance.mois == mois).all()}
+    perfs_prec = {p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+        MonthlyPerformance.annee == annee_prec, MonthlyPerformance.mois == mois_prec).all()}
+    pdv_id_to_num = {p.id: p.numero_pdv for p in pdvs}
+
+    # ── NAFAMA : montants mensuels ──────────────────────────────────────────
+    nafama_curr = {r.numero_pdv: int(r.total) for r in db.query(
+        NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label('total')
+    ).filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois
+    ).group_by(NafamaTransaction.numero_pdv).all()}
+    nafama_prec = {r.numero_pdv: int(r.total) for r in db.query(
+        NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant).label('total')
+    ).filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec
+    ).group_by(NafamaTransaction.numero_pdv).all()}
+
+    # ── KAABU : transactions mensuelles ────────────────────────────────────
+    kaabu_curr = {r.numero_pdv: int(r.total) for r in db.query(
+        KaabuTransaction.numero_pdv, func.count(KaabuTransaction.id).label('total')
+    ).filter(KaabuTransaction.annee == annee, KaabuTransaction.mois == mois
+    ).group_by(KaabuTransaction.numero_pdv).all()}
+    kaabu_prec = {r.numero_pdv: int(r.total) for r in db.query(
+        KaabuTransaction.numero_pdv, func.count(KaabuTransaction.id).label('total')
+    ).filter(KaabuTransaction.annee == annee_prec, KaabuTransaction.mois == mois_prec
+    ).group_by(KaabuTransaction.numero_pdv).all()}
+
+    # ── Agréger les alertes par PDV ─────────────────────────────────────────
+    resultats = []
+    SEUIL_BAISSE = 0.20  # -20% = en baisse
+
+    for num_pdv, pdv in pdv_map.items():
+        if num_pdv in pdvs_en_cooldown:
+            continue
+
+        alertes = []
+        score = 0
+
+        # OMY
+        pdv_id = pdv.id
+        omy_curr = getattr(perfs_curr.get(pdv_id), 'montant_transaction', 0) or 0
+        omy_prec = getattr(perfs_prec.get(pdv_id), 'montant_transaction', 0) or 0
+        if omy_curr == 0 and omy_prec > 0:
+            alertes.append({"indicateur": "OMY", "type": "INACTIF", "details": "0 transaction OMY ce mois", "couleur": "rouge", "score": 40})
+            score += 40
+        elif omy_curr > 0 and omy_prec > 0:
+            var_omy = (omy_curr - omy_prec) / omy_prec
+            if var_omy <= -SEUIL_BAISSE:
+                alertes.append({"indicateur": "OMY", "type": "BAISSE", "details": f"Baisse OMY {round(var_omy*100)}% vs {MOIS_NOMS[mois_prec]}", "couleur": "orange", "score": 20})
+                score += 20
+
+        # NAFAMA
+        naf_curr = nafama_curr.get(num_pdv, 0)
+        naf_prec = nafama_prec.get(num_pdv, 0)
+        if naf_curr == 0 and naf_prec > 0:
+            alertes.append({"indicateur": "NAFAMA", "type": "INACTIF", "details": "0 transaction NAFAMA ce mois", "couleur": "rouge", "score": 35})
+            score += 35
+        elif naf_curr > 0 and naf_prec > 0:
+            var_naf = (naf_curr - naf_prec) / naf_prec
+            if var_naf <= -SEUIL_BAISSE:
+                alertes.append({"indicateur": "NAFAMA", "type": "BAISSE", "details": f"Baisse NAFAMA {round(var_naf*100)}% vs {MOIS_NOMS[mois_prec]}", "couleur": "orange", "score": 15})
+                score += 15
+
+        # KAABU
+        kaabu_c = kaabu_curr.get(num_pdv, 0)
+        kaabu_p = kaabu_prec.get(num_pdv, 0)
+        if kaabu_c == 0 and kaabu_p > 0:
+            alertes.append({"indicateur": "KAABU", "type": "INACTIF", "details": "0 transaction KAABU ce mois", "couleur": "rouge", "score": 25})
+            score += 25
+        elif kaabu_c > 0 and kaabu_p > 0:
+            var_kaabu = (kaabu_c - kaabu_p) / kaabu_p
+            if var_kaabu <= -SEUIL_BAISSE:
+                alertes.append({"indicateur": "KAABU", "type": "BAISSE", "details": f"Baisse KAABU {round(var_kaabu*100)}% vs {MOIS_NOMS[mois_prec]}", "couleur": "orange", "score": 10})
+                score += 10
+
+        if not alertes:
+            continue
+
+        # Dernier appel
+        dernier_appel = db.query(AppelTC).filter(
+            AppelTC.numero_pdv == num_pdv
+        ).order_by(AppelTC.created_at.desc()).first()
+
+        resultats.append({
+            "numero_pdv":    num_pdv,
+            "nom":           pdv.nom or num_pdv,
+            "zone":          pdv.zone or "—",
+            "sous_zone":     pdv.sous_zone or "—",
+            "superviseur":   pdv.superviseur or "—",
+            "teleconseillere": pdv.teleconseillere or "—",
+            "telephone":     pdv.telephone or "—",
+            "score":         score,
+            "nb_alertes":    len(alertes),
+            "alertes":       alertes,
+            "omy_curr":      omy_curr,
+            "omy_prec":      omy_prec,
+            "nafama_curr":   naf_curr,
+            "nafama_prec":   naf_prec,
+            "kaabu_curr":    kaabu_c,
+            "kaabu_prec":    kaabu_p,
+            "dernier_appel": dernier_appel.created_at.strftime('%Y-%m-%d') if dernier_appel else None,
+            "dernier_statut": dernier_appel.statut if dernier_appel else None,
+            "en_cooldown":   False,
+        })
+
+    resultats.sort(key=lambda x: -x['score'])
+
+    stats = {
+        "total_pdvs":       len(resultats),
+        "score_max":        max((r['score'] for r in resultats), default=0),
+        "multi_alertes":    sum(1 for r in resultats if r['nb_alertes'] >= 2),
+        "inactifs_omy":     sum(1 for r in resultats if any(a['indicateur']=='OMY' and a['type']=='INACTIF' for a in r['alertes'])),
+        "inactifs_nafama":  sum(1 for r in resultats if any(a['indicateur']=='NAFAMA' and a['type']=='INACTIF' for a in r['alertes'])),
+        "inactifs_kaabu":   sum(1 for r in resultats if any(a['indicateur']=='KAABU' and a['type']=='INACTIF' for a in r['alertes'])),
+        "en_cooldown":      len(pdvs_en_cooldown),
+        "mois":             MOIS_NOMS[mois],
+        "annee":            annee,
+    }
+
+    return {"pdvs": resultats, "stats": stats}
+
+
+@router.post("/tc/marquer-appele/{numero_pdv}")
+def marquer_appele(
+    numero_pdv: str,
+    statut: str = Query(...),
+    commentaire: str = Query(None),
+    indicateurs: str = Query(""),  # "OMY,NAFAMA,KAABU"
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Marquer un PDV comme appelé depuis la liste unifiée."""
+    from app.models.pdv import PDV
+    pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv).first()
+    nom_pdv = pdv.nom if pdv else numero_pdv
+
+    # Créer un appel TC par indicateur mentionné
+    inds = [i.strip() for i in indicateurs.split(',') if i.strip()] or ['UNIFIE']
+    for ind in inds:
+        appel = AppelTC(
+            numero_pdv=numero_pdv,
+            nom_pdv=nom_pdv,
+            indicateur=ind if ind in ('OMY','NAFAMA','KAABU','UNIFIE') else 'UNIFIE',
+            tc_user_id=current_user.id,
+            tc_nom=current_user.nom_complet or current_user.email,
+            statut=statut,
+            commentaire=commentaire,
+        )
+        db.add(appel)
+    db.commit()
+    return {"success": True, "message": f"Appel enregistré pour {numero_pdv}"}
+
+
 @router.delete("/appels-tc/{appel_id}")
 def delete_appel(
     appel_id: int,

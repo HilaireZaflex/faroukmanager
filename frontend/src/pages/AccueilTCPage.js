@@ -48,6 +48,359 @@ const STATUT_COLORS = {
   PDV_FERME: '#8a8a9a',
 };
 
+
+// ─── File d'appels unifiée TC ──────────────────────────────────────────────────
+const ALERTE_COLORS = { rouge: '#ff4757', orange: '#ffa502', vert: '#22c55e' };
+const IND_COLORS = { OMY: '#a29bfe', NAFAMA: '#00cec9', KAABU: '#fdcb6e', UNIFIE: '#74b9ff' };
+const STATUTS_APPEL = [
+  { val: 'JOIGNABLE_PROMESSE',         label: '✅ Joignable — Promesse de relance' },
+  { val: 'JOIGNABLE_PAS_INTERESSE',    label: '📞 Joignable — Pas intéressé' },
+  { val: 'JOIGNABLE_DEJA_ACTIF',       label: '🔄 Joignable — Déjà actif' },
+  { val: 'NON_JOIGNABLE_PAS_REPONSE',  label: '🔕 Pas de réponse' },
+  { val: 'NON_JOIGNABLE_HORS_ZONE',    label: '📵 Hors zone / Injoignable' },
+  { val: 'NUMERO_INCORRECT',           label: '❌ Numéro incorrect' },
+  { val: 'RAPPEL_PROGRAMME',           label: '📅 Rappel programmé' },
+  { val: 'PDV_FERME',                  label: '🏪 PDV fermé' },
+];
+
+function ScoreBadge({ score }) {
+  const color = score >= 60 ? '#ff4757' : score >= 30 ? '#ffa502' : '#22c55e';
+  const label = score >= 60 ? 'CRITIQUE' : score >= 30 ? 'URGENT' : 'MODÉRÉ';
+  return (
+    <span style={{ background: `${color}20`, color, border: `1px solid ${color}40`,
+      borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 800 }}>
+      {label} {score}pts
+    </span>
+  );
+}
+
+function AlerteBadge({ alerte }) {
+  const color = ALERTE_COLORS[alerte.couleur] || '#aaa';
+  const indColor = IND_COLORS[alerte.indicateur] || '#aaa';
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4,
+      background: `${indColor}15`, border: `1px solid ${indColor}40`,
+      borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 700, margin: '2px' }}>
+      <span style={{ color: indColor }}>{alerte.indicateur}</span>
+      <span style={{ color: alerte.type === 'INACTIF' ? '#ff4757' : '#ffa502', fontSize: 9 }}>
+        {alerte.type === 'INACTIF' ? '🔴 INACTIF' : '🟡 BAISSE'}
+      </span>
+    </span>
+  );
+}
+
+function ModalAppelUnifie({ pdv, onClose, onSuccess }) {
+  const [statut, setStatut] = React.useState('');
+  const [commentaire, setCommentaire] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const indicateurs = pdv.alertes.map(a => a.indicateur).join(',');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!statut) return alert('Sélectionnez un statut');
+    setLoading(true);
+    try {
+      await api.post(`/tc/marquer-appele/${pdv.numero_pdv}`, null, {
+        params: { statut, commentaire: commentaire || undefined, indicateurs }
+      });
+      onSuccess(pdv.numero_pdv);
+      onClose();
+    } catch { alert("Erreur lors de l'enregistrement"); }
+    finally { setLoading(false); }
+  };
+
+  // Générer le script suggéré
+  const motifs = pdv.alertes.map(a => a.details).join(', ');
+  const script = `"Bonjour ${pdv.nom}, nous avons remarqué : ${motifs}. Pouvez-vous nous dire ce qui se passe ?"`;
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999,
+      display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
+      onClick={onClose}>
+      <div style={{ background:'#0f0f1a', borderRadius:16, padding:28, maxWidth:520, width:'100%',
+        border:'1px solid rgba(255,255,255,0.1)', maxHeight:'90vh', overflowY:'auto' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:20 }}>
+          <div>
+            <div style={{ fontSize:18, fontWeight:900, color:'#fff' }}>{pdv.nom}</div>
+            <div style={{ fontSize:12, color:'#64748b' }}>{pdv.numero_pdv} · {pdv.zone} · 📞 {pdv.telephone || '—'}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#aaa', fontSize:20, cursor:'pointer' }}>×</button>
+        </div>
+
+        {/* Alertes */}
+        <div style={{ background:'rgba(255,71,87,0.06)', border:'1px solid rgba(255,71,87,0.2)',
+          borderRadius:10, padding:14, marginBottom:16 }}>
+          <div style={{ fontSize:11, color:'#ff4757', fontWeight:700, marginBottom:8, textTransform:'uppercase' }}>
+            🚨 {pdv.nb_alertes} alerte{pdv.nb_alertes > 1 ? 's' : ''} — 1 seul appel suffit
+          </div>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:10 }}>
+            {pdv.alertes.map((a, i) => <AlerteBadge key={i} alerte={a} />)}
+          </div>
+          {pdv.alertes.map((a, i) => (
+            <div key={i} style={{ fontSize:11, color:'#94a3b8', marginTop:3 }}>• {a.details}</div>
+          ))}
+        </div>
+
+        {/* Script suggéré */}
+        <div style={{ background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.2)',
+          borderRadius:10, padding:14, marginBottom:16 }}>
+          <div style={{ fontSize:11, color:'#818cf8', fontWeight:700, marginBottom:6 }}>💬 Script suggéré</div>
+          <div style={{ fontSize:12, color:'#c7d2fe', fontStyle:'italic', lineHeight:1.5 }}>{script}</div>
+        </div>
+
+        {/* Indicateurs chiffrés */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:16 }}>
+          {[
+            { label:'OMY', curr: pdv.omy_curr, prec: pdv.omy_prec, color: IND_COLORS.OMY },
+            { label:'NAFAMA', curr: pdv.nafama_curr, prec: pdv.nafama_prec, color: IND_COLORS.NAFAMA },
+            { label:'KAABU', curr: pdv.kaabu_curr, prec: pdv.kaabu_prec, color: IND_COLORS.KAABU },
+          ].map(({ label, curr, prec, color }) => (
+            <div key={label} style={{ background:'rgba(255,255,255,0.03)', borderRadius:8, padding:'10px', textAlign:'center' }}>
+              <div style={{ fontSize:10, color, fontWeight:700, marginBottom:4 }}>{label}</div>
+              <div style={{ fontSize:13, fontWeight:800, color: curr === 0 ? '#ff4757' : '#fff' }}>
+                {curr ? new Intl.NumberFormat('fr-FR').format(curr) : '0'}
+              </div>
+              <div style={{ fontSize:9, color:'#64748b' }}>vs {prec ? new Intl.NumberFormat('fr-FR').format(prec) : '0'}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Formulaire */}
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom:12 }}>
+            <label style={{ fontSize:11, color:'#FF6900', fontWeight:700, display:'block', marginBottom:6 }}>
+              RÉSULTAT DE L'APPEL *
+            </label>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {STATUTS_APPEL.map(s => (
+                <label key={s.val} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+                  padding:'8px 12px', borderRadius:8,
+                  background: statut === s.val ? 'rgba(255,105,0,0.12)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${statut === s.val ? '#FF6900' : 'rgba(255,255,255,0.08)'}` }}>
+                  <input type="radio" name="statut" value={s.val} checked={statut === s.val}
+                    onChange={() => setStatut(s.val)} style={{ accentColor:'#FF6900' }} />
+                  <span style={{ fontSize:13, color: statut === s.val ? '#FF6900' : '#94a3b8' }}>{s.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <label style={{ fontSize:11, color:'#FF6900', fontWeight:700, display:'block', marginBottom:6 }}>NOTES</label>
+            <textarea rows={3} value={commentaire} onChange={e => setCommentaire(e.target.value)}
+              placeholder="Observations, promesses du PDV, date de rappel..."
+              style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)',
+                background:'rgba(255,255,255,0.05)', color:'#fff', fontSize:13, resize:'vertical', boxSizing:'border-box' }} />
+          </div>
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+            <button type="button" onClick={onClose}
+              style={{ padding:'9px 20px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'transparent', color:'#aaa', cursor:'pointer', fontSize:13 }}>
+              Annuler
+            </button>
+            <button type="submit" disabled={loading || !statut}
+              style={{ padding:'9px 24px', borderRadius:8, border:'none',
+                background: loading || !statut ? 'rgba(255,105,0,0.3)' : 'linear-gradient(135deg,#FF6900,#ff9500)',
+                color:'#fff', fontWeight:800, cursor: loading || !statut ? 'not-allowed' : 'pointer', fontSize:13 }}>
+              {loading ? '⏳...' : "📞 Enregistrer l'appel"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TabFileUnifiee({ annee, mois }) {
+  const [filtre, setFiltre]   = React.useState('TOUS');
+  const [search, setSearch]   = React.useState('');
+  const [zoneF, setZoneF]     = React.useState('');
+  const [supF, setSupF]       = React.useState('');
+  const [modalPDV, setModalPDV] = React.useState(null);
+  const [appelsFaits, setAppelsFaits] = React.useState(new Set());
+  const { data, isLoading, refetch } = useQuery(
+    ['tc-liste-unifiee', annee, mois],
+    () => api.get('/tc/liste-unifiee', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const fmtK = v => v ? new Intl.NumberFormat('fr-FR').format(v) : '0';
+
+  const pdvs = (data?.pdvs || [])
+    .filter(p => filtre === 'TOUS' || (
+      filtre === 'CRITIQUE' ? p.score >= 60 :
+      filtre === 'URGENT'   ? p.score >= 30 && p.score < 60 :
+      filtre === 'MULTI'    ? p.nb_alertes >= 2 :
+      filtre === 'INACTIFS' ? p.alertes.some(a => a.type === 'INACTIF') : true
+    ))
+    .filter(p => !appelsFaits.has(p.numero_pdv))
+    .filter(p => !search || p.nom?.toLowerCase().includes(search.toLowerCase()) || p.numero_pdv?.includes(search))
+    .filter(p => !zoneF || p.zone === zoneF)
+    .filter(p => !supF || p.superviseur === supF);
+
+  const zones = [...new Set((data?.pdvs||[]).map(p => p.zone).filter(Boolean))].sort();
+  const sups  = [...new Set((data?.pdvs||[]).map(p => p.superviseur).filter(Boolean))].sort();
+
+  const handleAppelFait = (num_pdv) => {
+    setAppelsFaits(prev => new Set([...prev, num_pdv]));
+    refetch();
+  };
+
+  if (isLoading) return (
+    <div style={{ textAlign:'center', padding:60, color:'#64748b' }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>📞</div>
+      <div>Chargement de la file d'appels...</div>
+    </div>
+  );
+
+  const stats = data?.stats || {};
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+        <div>
+          <div style={{ fontSize:18, fontWeight:900, color:'#fff', marginBottom:4 }}>
+            📞 File d'appels unifiée — {stats.mois} {stats.annee}
+          </div>
+          <div style={{ fontSize:12, color:'#64748b' }}>
+            Chaque PDV n'apparaît qu'une fois · Toutes alertes agrégées · Cooldown 48h actif
+          </div>
+        </div>
+        <button onClick={() => refetch()} style={{ padding:'8px 16px', borderRadius:8,
+          border:'1px solid rgba(255,255,255,0.15)', background:'rgba(255,255,255,0.05)',
+          color:'#aaa', fontSize:12, cursor:'pointer' }}>🔄 Actualiser</button>
+      </div>
+
+      {/* KPI Cards */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:10, marginBottom:20 }}>
+        {[
+          { label:'À appeler', val: (data?.pdvs||[]).length - appelsFaits.size, color:'#FF6900', bg:'rgba(255,105,0,0.08)' },
+          { label:'Multi-alertes', val: stats.multi_alertes, color:'#ff4757', bg:'rgba(255,71,87,0.08)' },
+          { label:'Inactifs OMY', val: stats.inactifs_omy, color: IND_COLORS.OMY, bg:'rgba(162,155,254,0.08)' },
+          { label:'Inactifs NAFAMA', val: stats.inactifs_nafama, color: IND_COLORS.NAFAMA, bg:'rgba(0,206,201,0.08)' },
+          { label:'Inactifs KAABU', val: stats.inactifs_kaabu, color: IND_COLORS.KAABU, bg:'rgba(253,203,110,0.08)' },
+          { label:'En cooldown', val: stats.en_cooldown, color:'#64748b', bg:'rgba(100,116,139,0.08)' },
+        ].map(({ label, val, color, bg }) => (
+          <div key={label} style={{ background: bg, border:`1px solid ${color}30`, borderRadius:12, padding:'12px', textAlign:'center' }}>
+            <div style={{ fontSize:24, fontWeight:900, color }}>{val ?? 0}</div>
+            <div style={{ fontSize:10, color:'#64748b', marginTop:3 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filtres rapides */}
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
+        {[
+          { id:'TOUS',    label:'Tous' },
+          { id:'CRITIQUE',label:'🔴 Critique (60+pts)' },
+          { id:'URGENT',  label:'🟡 Urgent (30-59pts)' },
+          { id:'MULTI',   label:'⚡ Multi-alertes' },
+          { id:'INACTIFS',label:'💤 Inactifs uniquement' },
+        ].map(f => (
+          <button key={f.id} onClick={() => setFiltre(f.id)}
+            style={{ padding:'6px 14px', borderRadius:20, border:'none', fontSize:12, fontWeight:700, cursor:'pointer',
+              background: filtre === f.id ? '#FF6900' : 'rgba(255,255,255,0.05)',
+              color: filtre === f.id ? '#fff' : '#64748b' }}>
+            {f.label}
+          </button>
+        ))}
+        <div style={{ flex:1 }} />
+        <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
+          style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:12, width:180 }} />
+        <select value={zoneF} onChange={e=>setZoneF(e.target.value)}
+          style={{ padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
+          <option value="">Toutes zones</option>
+          {zones.map(z => <option key={z} value={z}>{z}</option>)}
+        </select>
+        <select value={supF} onChange={e=>setSupF(e.target.value)}
+          style={{ padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
+          <option value="">Tous superviseurs</option>
+          {sups.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <span style={{ fontSize:12, color:'#64748b' }}>{pdvs.length} PDVs</span>
+      </div>
+
+      {/* Progress bar */}
+      {(data?.pdvs||[]).length > 0 && (
+        <div style={{ marginBottom:16 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#64748b', marginBottom:4 }}>
+            <span>Progression : {appelsFaits.size}/{(data?.pdvs||[]).length} appelés</span>
+            <span>{Math.round(appelsFaits.size/(data?.pdvs||[]).length*100)}%</span>
+          </div>
+          <div style={{ height:6, background:'rgba(255,255,255,0.06)', borderRadius:3, overflow:'hidden' }}>
+            <div style={{ height:'100%', background:'linear-gradient(90deg,#FF6900,#22c55e)',
+              width: `${Math.round(appelsFaits.size/(data?.pdvs||[]).length*100)}%`, transition:'width 0.5s' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Liste des PDVs */}
+      {pdvs.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'60px 20px', color:'#64748b' }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>{appelsFaits.size > 0 ? '🎉' : '✅'}</div>
+          <div style={{ fontSize:16, color:'#94a3b8', fontWeight:700 }}>
+            {appelsFaits.size > 0 ? 'Tous les PDVs filtrés ont été appelés !' : 'Aucun PDV à appeler pour ce filtre'}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {pdvs.map((p, i) => (
+            <div key={p.numero_pdv}
+              style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
+                borderLeft:`4px solid ${p.score >= 60 ? '#ff4757' : p.score >= 30 ? '#ffa502' : '#22c55e'}`,
+                borderRadius:12, padding:'14px 18px', display:'flex', alignItems:'center', gap:16 }}>
+              {/* Rang */}
+              <div style={{ fontSize:14, fontWeight:900, color:'#64748b', minWidth:24 }}>{i+1}</div>
+              {/* Infos PDV */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
+                  <span style={{ fontSize:14, fontWeight:800, color:'#fff' }}>{p.nom}</span>
+                  <span style={{ fontSize:11, color:'#64748b' }}>{p.numero_pdv}</span>
+                  <ScoreBadge score={p.score} />
+                  {p.dernier_appel && (
+                    <span style={{ fontSize:10, color:'#64748b', background:'rgba(255,255,255,0.05)', borderRadius:4, padding:'1px 6px' }}>
+                      Dernier appel: {p.dernier_appel}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize:11, color:'#64748b', marginBottom:6 }}>
+                  📍 {p.zone} · {p.sous_zone} · 👤 {p.superviseur} · 📞 {p.telephone || '—'}
+                </div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:6 }}>
+                  {p.alertes.map((a, j) => <AlerteBadge key={j} alerte={a} />)}
+                </div>
+                <div style={{ display:'flex', gap:16, fontSize:11 }}>
+                  <span style={{ color: IND_COLORS.OMY }}>OMY: {fmtK(p.omy_curr)}F <span style={{ color:'#64748b' }}>/ {fmtK(p.omy_prec)}F</span></span>
+                  <span style={{ color: IND_COLORS.NAFAMA }}>NAFAMA: {fmtK(p.nafama_curr)}F <span style={{ color:'#64748b' }}>/ {fmtK(p.nafama_prec)}F</span></span>
+                  <span style={{ color: IND_COLORS.KAABU }}>KAABU: {fmtK(p.kaabu_curr)} tx <span style={{ color:'#64748b' }}>/ {fmtK(p.kaabu_prec)}</span></span>
+                </div>
+              </div>
+              {/* Bouton Appeler */}
+              <button onClick={() => setModalPDV(p)}
+                style={{ padding:'10px 20px', borderRadius:10, border:'none',
+                  background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff',
+                  fontWeight:800, fontSize:13, cursor:'pointer', whiteSpace:'nowrap',
+                  boxShadow:'0 4px 12px rgba(255,105,0,0.3)', flexShrink:0 }}>
+                📞 Appeler
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal appel */}
+      {modalPDV && (
+        <ModalAppelUnifie
+          pdv={modalPDV}
+          onClose={() => setModalPDV(null)}
+          onSuccess={handleAppelFait}
+        />
+      )}
+    </div>
+  );
+}
 export default function AccueilTCPage() {
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
@@ -154,6 +507,38 @@ export default function AccueilTCPage() {
         )}
       </div>
 
+      {/* ── Tabs Navigation ── */}
+      <div style={{ display:'flex', gap:6, marginBottom:20, flexWrap:'wrap', background:'rgba(255,255,255,0.02)', borderRadius:12, padding:6 }}>
+        {[
+          { id:'unifie',  icon:'📞', label:"File d'appels unifi\u00e9e", badge: totalAAppeler },
+          { id:'kpis',    icon:'📊', label:'Mes KPIs' },
+          { id:'rappels', icon:'📅', label:'Rappels', badge: rappelsAFaire.length || null },
+          { id:'historique', icon:'📋', label:'Historique' },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:9, border:'none',
+              background: activeTab === tab.id ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'transparent',
+              color: activeTab === tab.id ? '#fff' : '#64748b', fontWeight: activeTab === tab.id ? 800 : 500,
+              fontSize:13, cursor:'pointer', position:'relative', transition:'all 0.2s' }}>
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+            {tab.badge > 0 && (
+              <span style={{ background: activeTab === tab.id ? 'rgba(255,255,255,0.3)' : '#FF6900',
+                color:'#fff', borderRadius:10, padding:'1px 6px', fontSize:10, fontWeight:900 }}>
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: File d'appels unifiée ── */}
+      {activeTab === 'unifie' && <TabFileUnifiee annee={now.getFullYear()} mois={now.getMonth() + 1} />}
+
+      {/* ── Tab: KPIs + Historique ── */}
+      {activeTab !== 'unifie' && (
+
+      <div>
       {/* ── KPIs ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
@@ -312,6 +697,8 @@ export default function AccueilTCPage() {
           onSaved={() => setAppelPDV(null)}
         />
       )}
+      </div>
+      )} {/* fin tab non-unifie */}
     </div>
   );
 }
