@@ -535,7 +535,7 @@ export default function AccueilTCPage() {
   };
 
   return (
-    <div style={{ padding: '20px 20px 80px', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: '20px 24px 80px' }}>
 
       {/* ── Bienvenue ── */}
       <div style={{
