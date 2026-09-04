@@ -407,6 +407,7 @@ export default function AccueilTCPage() {
   const teleNom = (user?.nom || '').trim();
   const prenom = user?.prenom || user?.nom || 'Téléconseillère';
   const [appelPDV, setAppelPDV] = useState(null);
+  const [activeTab, setActiveTab] = useState('unifie');
 
   const now = new Date();
   const heures = now.getHours();
