@@ -323,8 +323,10 @@ def get_liste_unifiee(
 
     # ── PDVs ACTIFS de base ─────────────────────────────────────────────────
     pdv_query = db.query(PDV).filter(PDV.statut == 'ACTIF')
-    # Construire le nom complet depuis nom + prenom
-    nom_complet = f"{current_user.nom or ''} {current_user.prenom or ''}".strip()
+    # Construire le nom complet — essayer prénom+nom et nom+prénom
+    nom_prenom = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
+    prenom_nom = f"{current_user.nom or ''} {current_user.prenom or ''}".strip()
+    nom_complet = nom_prenom  # format standard: FATOUMATA DOUMBIA
     if current_user.role == 'SUPERVISEUR' and nom_complet:
         pdv_query = pdv_query.filter(PDV.superviseur == nom_complet)
     elif current_user.role in ('TELECONSEILLERE', 'TC') and nom_complet:
