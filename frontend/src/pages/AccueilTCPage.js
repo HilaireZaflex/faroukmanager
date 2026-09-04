@@ -212,7 +212,8 @@ function ModalAppelUnifie({ pdv, onClose, onSuccess }) {
   );
 }
 
-function TabFileUnifiee({ annee, mois }) {
+function TabFileUnifiee({ annee, mois: moisInit }) {
+  const [mois, setMoisLocal] = React.useState(moisInit);
   const [filtre, setFiltre]   = React.useState('TOUS');
   const [search, setSearch]   = React.useState('');
   const [zoneF, setZoneF]     = React.useState('');
@@ -222,7 +223,7 @@ function TabFileUnifiee({ annee, mois }) {
   const { data, isLoading, refetch } = useQuery(
     ['tc-liste-unifiee', annee, mois],
     () => api.get('/tc/liste-unifiee', { params: { annee, mois } }).then(r => r.data),
-    { staleTime: 60000 }
+    { staleTime: 60000, refetchOnMount: true }
   );
 
   const fmtK = v => v ? new Intl.NumberFormat('fr-FR').format(v) : '0';
@@ -259,18 +260,27 @@ function TabFileUnifiee({ annee, mois }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div>
           <div style={{ fontSize:18, fontWeight:900, color:'#fff', marginBottom:4 }}>
-            📞 File d'appels unifiée — {stats.mois} {stats.annee}
+            📞 File d'appels unifiée — {stats.mois || '...'} {stats.annee || ''}
           </div>
           <div style={{ fontSize:12, color:'#64748b' }}>
             Chaque PDV n'apparaît qu'une fois · Toutes alertes agrégées · Cooldown 48h actif
           </div>
         </div>
-        <button onClick={() => refetch()} style={{ padding:'8px 16px', borderRadius:8,
-          border:'1px solid rgba(255,255,255,0.15)', background:'rgba(255,255,255,0.05)',
-          color:'#aaa', fontSize:12, cursor:'pointer' }}>🔄 Actualiser</button>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <select value={mois} onChange={e => setMoisLocal(parseInt(e.target.value))}
+            style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'#1a1a2e', color:'#fff', fontSize:13 }}>
+            {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+              const noms = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+              return <option key={m} value={m}>{noms[m]}</option>;
+            })}
+          </select>
+          <button onClick={() => refetch()} style={{ padding:'8px 16px', borderRadius:8,
+            border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)',
+            color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>🔄 Actualiser</button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -552,7 +562,7 @@ export default function AccueilTCPage() {
       </div>
 
       {/* ── Tab: File d'appels unifiée ── */}
-      {activeTab === 'unifie' && <TabFileUnifiee annee={now.getFullYear()} mois={now.getMonth() + 1} />}
+      {activeTab === 'unifie' && <TabFileUnifiee annee={now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear()} mois={now.getMonth() === 0 ? 12 : now.getMonth()} />}
 
       {/* ── Tab: KPIs + Historique ── */}
       {activeTab !== 'unifie' && (
