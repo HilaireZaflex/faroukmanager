@@ -577,6 +577,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
   const [dateFin, setDateFin] = useState('');
   const [prospects, setProspects] = useState([]);
   const [allProspects, setAllProspects] = useState([]);
+  const [activatedProspects, setActivatedProspects] = useState([]); // PUCE_ACTIVEE pour filtres superviseur/zone
   const [energiaProspects, setEnergiaProspects] = useState([]);
   const [energiaLoading, setEnergiaLoading] = useState(false);
   const [energiaStats, setEnergiaStats] = useState(null);
@@ -638,6 +639,12 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { reloadEnergia(); }, [reloadEnergia]);
+  // Charger les PUCE_ACTIVEE séparément pour alimenter les selects superviseur/zone
+  useEffect(() => {
+    prospectService.list({ status: 'PUCE_ACTIVEE', limit: 500 })
+      .then(list => setActivatedProspects(Array.isArray(list) ? list : (list.items || [])))
+      .catch(() => {});
+  }, []);
 
   const deleteEnergia = async (id) => {
     if (!window.confirm('Supprimer ce prospect Energia ? Cette action est irréversible.')) return;
@@ -749,11 +756,10 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   const displayStats = filteredStats || stats;
 
-  // Superviseurs = depuis champ activation_superviseur (renseigné à l'activation)
-  const superviseurs = [...new Set(allProspects
-    .filter(p => p.activation_superviseur)
+  // Superviseurs = depuis les PUCE_ACTIVEE (champ activation_superviseur)
+  const superviseurs = [...new Set(activatedProspects
     .map(p => p.activation_superviseur)
-    .filter(Boolean)
+    .filter(s => s && s !== 'nan')
   )].sort();
   const developpeurs = [...new Set(allProspects
     .filter(p => p.visit_assigned_to?.nom)
