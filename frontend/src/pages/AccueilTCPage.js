@@ -233,11 +233,15 @@ function TabFileUnifiee() {
     setIsLoading(true);
     setError(null);
     try {
-      const resp = await api.get('/tc/liste-unifiee', { params: { annee: a, mois: m } });
+      const resp = await api.get('/tc/liste-unifiee', { params: { annee: a || 2026, mois: m || 8 } });
       setData(resp.data);
     } catch(e) {
-      console.error('TC liste-unifiee:', e);
-      setError(e?.response?.data?.detail || 'Erreur de chargement');
+      console.error('TC liste-unifiee error:', e?.response?.status, e?.message);
+      const detail = e?.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : 
+                  Array.isArray(detail) ? detail.map(d => d.msg).join(', ') :
+                  `Erreur ${e?.response?.status || e?.message || 'réseau'}`;
+      setError(msg);
     } finally { setIsLoading(false); }
   }, []);
 
