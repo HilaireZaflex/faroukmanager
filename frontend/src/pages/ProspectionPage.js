@@ -686,19 +686,17 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       if (filterDebut && dateP < filterDebut) return false;
       if (filterFin && dateP > filterFin) return false;
     }
-    // Filtre Superviseur — depuis PDV activé uniquement
+    // Filtre Superviseur — via activation_superviseur
     if (filters.superviseur) {
-      if (!['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status)) return false;
-      const pdvSup = (p.activated_pdv?.superviseur || p.superviseur || '').toLowerCase();
-      if (!pdvSup.includes(filters.superviseur.toLowerCase())) return false;
+      const sup = (p.activation_superviseur || '').toLowerCase();
+      if (!sup.includes(filters.superviseur.toLowerCase())) return false;
     }
     if (filters.developpeur && p.visit_assigned_to &&
         `${p.visit_assigned_to?.nom} ${p.visit_assigned_to?.prenom||''}`.toLowerCase() !== filters.developpeur.toLowerCase()) return false;
-    // Filtre par zone — seulement pour PUCE_ACTIVEE et PUCE_ATTRIBUEE
+    // Filtre par zone — via puce_zone ou pdv_zone renseigné à l'activation
     if (filters.zone) {
-      if (!['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status)) return false;
-      const pdvZone = (p.activated_pdv?.zone || p.pdv_zone || p.zone || '').toLowerCase();
-      if (!pdvZone.includes(filters.zone.toLowerCase())) return false;
+      const z = (p.puce_zone || p.pdv_zone || p.zone || '').toLowerCase();
+      if (!z.includes(filters.zone.toLowerCase())) return false;
     }
     return true;
   });
@@ -716,17 +714,15 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       if (filterDebut && dateP < filterDebut) return false;
       if (filterFin && dateP > filterFin) return false;
     }
-    // Filtre Zone — uniquement sur les PDVs activés (données zone disponibles à l'activation)
+    // Filtre Zone — via puce_zone ou pdv_zone
     if (filters.zone) {
-      if (!['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status)) return false;
-      const pdvZone = (p.activated_pdv?.zone || p.pdv_zone || p.zone || '').toLowerCase();
-      if (!pdvZone.includes(filters.zone.toLowerCase())) return false;
+      const z = (p.puce_zone || p.pdv_zone || p.zone || '').toLowerCase();
+      if (!z.includes(filters.zone.toLowerCase())) return false;
     }
-    // Filtre Superviseur — depuis le PDV activé (données superviseur disponibles à l'activation)
+    // Filtre Superviseur — via activation_superviseur
     if (filters.superviseur) {
-      if (!['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status)) return false;
-      const pdvSup = (p.activated_pdv?.superviseur || p.superviseur || '').toLowerCase();
-      if (!pdvSup.includes(filters.superviseur.toLowerCase())) return false;
+      const sup = (p.activation_superviseur || '').toLowerCase();
+      if (!sup.includes(filters.superviseur.toLowerCase())) return false;
     }
     // Filtre Développeur (si non-développeur connecté)
     if (!isDeveloppeur && filters.developpeur) {
@@ -753,10 +749,10 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
 
   const displayStats = filteredStats || stats;
 
-  // Superviseurs = depuis les PDVs activés uniquement (données fiables à l'activation)
+  // Superviseurs = depuis champ activation_superviseur (renseigné à l'activation)
   const superviseurs = [...new Set(allProspects
-    .filter(p => ['PUCE_ACTIVEE','PUCE_ATTRIBUEE'].includes(p.status) && (p.activated_pdv?.superviseur || p.superviseur))
-    .map(p => p.activated_pdv?.superviseur || p.superviseur || '')
+    .filter(p => p.activation_superviseur)
+    .map(p => p.activation_superviseur)
     .filter(Boolean)
   )].sort();
   const developpeurs = [...new Set(allProspects
