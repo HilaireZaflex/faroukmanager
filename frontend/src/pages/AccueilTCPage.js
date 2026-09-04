@@ -220,11 +220,19 @@ function TabFileUnifiee({ annee, mois: moisInit }) {
   const [supF, setSupF]       = React.useState('');
   const [modalPDV, setModalPDV] = React.useState(null);
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
-  const { data, isLoading, refetch } = useQuery(
-    ['tc-liste-unifiee', annee, mois],
-    () => api.get('/tc/liste-unifiee', { params: { annee, mois } }).then(r => r.data),
-    { staleTime: 60000, refetchOnMount: true }
-  );
+  const [data, setData] = React.useState(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const refetch = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const resp = await api.get('/tc/liste-unifiee', { params: { annee, mois } });
+      setData(resp.data);
+    } catch(e) { console.error('TC liste-unifiee error:', e); }
+    finally { setIsLoading(false); }
+  }, [annee, mois]);
+
+  React.useEffect(() => { refetch(); }, [refetch]);
 
   const fmtK = v => v ? new Intl.NumberFormat('fr-FR').format(v) : '0';
 
