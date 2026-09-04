@@ -323,10 +323,12 @@ def get_liste_unifiee(
 
     # ── PDVs ACTIFS de base ─────────────────────────────────────────────────
     pdv_query = db.query(PDV).filter(PDV.statut == 'ACTIF')
-    if current_user.role == 'SUPERVISEUR':
-        pdv_query = pdv_query.filter(PDV.superviseur == current_user.nom_complet)
-    elif current_user.role in ('TELECONSEILLERE', 'TC'):
-        pdv_query = pdv_query.filter(PDV.teleconseillere == current_user.nom_complet)
+    # Construire le nom complet depuis nom + prenom
+    nom_complet = f"{current_user.nom or ''} {current_user.prenom or ''}".strip()
+    if current_user.role == 'SUPERVISEUR' and nom_complet:
+        pdv_query = pdv_query.filter(PDV.superviseur == nom_complet)
+    elif current_user.role in ('TELECONSEILLERE', 'TC') and nom_complet:
+        pdv_query = pdv_query.filter(PDV.teleconseillere == nom_complet)
     pdvs = pdv_query.all()
     pdv_map = {p.numero_pdv: p for p in pdvs}
 
