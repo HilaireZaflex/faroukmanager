@@ -347,14 +347,27 @@ def get_liste_unifiee(
     ).filter(NafamaTransaction.annee == annee_prec, NafamaTransaction.mois == mois_prec
     ).group_by(NafamaTransaction.numero_pdv).all()}
 
-    # ── KAABU : transactions mensuelles ────────────────────────────────────
+    # ── KAABU : transactions mensuelles (via semaines ISO) ─────────────────
+    import calendar as cal_mod
+    from datetime import timedelta as td
+    def semaines_mois(an, mo):
+        premier = date(an, mo, 1)
+        dernier = date(an, mo, cal_mod.monthrange(an, mo)[1])
+        sems = set()
+        d = premier
+        while d <= dernier:
+            sems.add(f"S{d.isocalendar()[1]:02d}")
+            d += td(days=7)
+        return list(sems)
+    sems_curr = semaines_mois(annee, mois)
+    sems_prec = semaines_mois(annee_prec, mois_prec)
     kaabu_curr = {r.numero_pdv: int(r.total) for r in db.query(
-        KaabuTransaction.numero_pdv, func.count(KaabuTransaction.id).label('total')
-    ).filter(KaabuTransaction.annee == annee, KaabuTransaction.mois == mois
+        KaabuTransaction.numero_pdv, func.sum(KaabuTransaction.montant_cashout).label('total')
+    ).filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine.in_(sems_curr)
     ).group_by(KaabuTransaction.numero_pdv).all()}
     kaabu_prec = {r.numero_pdv: int(r.total) for r in db.query(
-        KaabuTransaction.numero_pdv, func.count(KaabuTransaction.id).label('total')
-    ).filter(KaabuTransaction.annee == annee_prec, KaabuTransaction.mois == mois_prec
+        KaabuTransaction.numero_pdv, func.sum(KaabuTransaction.montant_cashout).label('total')
+    ).filter(KaabuTransaction.annee == annee_prec, KaabuTransaction.semaine.in_(sems_prec)
     ).group_by(KaabuTransaction.numero_pdv).all()}
 
     # ── Agréger les alertes par PDV ─────────────────────────────────────────

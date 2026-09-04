@@ -274,52 +274,70 @@ function TabFileUnifiee({ annee, mois }) {
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:10, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:24 }}>
         {[
-          { label:'À appeler', val: (data?.pdvs||[]).length - appelsFaits.size, color:'#FF6900', bg:'rgba(255,105,0,0.08)' },
-          { label:'Multi-alertes', val: stats.multi_alertes, color:'#ff4757', bg:'rgba(255,71,87,0.08)' },
-          { label:'Inactifs OMY', val: stats.inactifs_omy, color: IND_COLORS.OMY, bg:'rgba(162,155,254,0.08)' },
-          { label:'Inactifs NAFAMA', val: stats.inactifs_nafama, color: IND_COLORS.NAFAMA, bg:'rgba(0,206,201,0.08)' },
-          { label:'Inactifs KAABU', val: stats.inactifs_kaabu, color: IND_COLORS.KAABU, bg:'rgba(253,203,110,0.08)' },
-          { label:'En cooldown', val: stats.en_cooldown, color:'#64748b', bg:'rgba(100,116,139,0.08)' },
-        ].map(({ label, val, color, bg }) => (
-          <div key={label} style={{ background: bg, border:`1px solid ${color}30`, borderRadius:12, padding:'12px', textAlign:'center' }}>
-            <div style={{ fontSize:24, fontWeight:900, color }}>{val ?? 0}</div>
-            <div style={{ fontSize:10, color:'#64748b', marginTop:3 }}>{label}</div>
+          { label:'PDVs à appeler', val: (data?.pdvs||[]).length - appelsFaits.size, color:'#FF6900', bg:'linear-gradient(135deg,rgba(255,105,0,0.12),rgba(255,105,0,0.04))', icon:'📞', desc:'Priorité aujourd'hui' },
+          { label:'Multi-alertes (2+)', val: stats.multi_alertes, color:'#ff4757', bg:'linear-gradient(135deg,rgba(255,71,87,0.12),rgba(255,71,87,0.04))', icon:'⚡', desc:'OMY + NAFAMA + KAABU' },
+          { label:'En cooldown 48h', val: stats.en_cooldown, color:'#64748b', bg:'linear-gradient(135deg,rgba(100,116,139,0.12),rgba(100,116,139,0.04))', icon:'⏳', desc:'Déjà appelés récemment' },
+        ].map(({ label, val, color, bg, icon, desc }) => (
+          <div key={label} style={{ background: bg, border:`1px solid ${color}30`, borderRadius:16, padding:'20px 24px', display:'flex', alignItems:'center', gap:16 }}>
+            <div style={{ fontSize:36 }}>{icon}</div>
+            <div>
+              <div style={{ fontSize:36, fontWeight:900, color, lineHeight:1 }}>{val ?? 0}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#fff', marginTop:4 }}>{label}</div>
+              <div style={{ fontSize:11, color:'#64748b' }}>{desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* KPI secondaires */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:20 }}>
+        {[
+          { label:'Inactifs OMY', val: stats.inactifs_omy, color: IND_COLORS.OMY },
+          { label:'Inactifs NAFAMA', val: stats.inactifs_nafama, color: IND_COLORS.NAFAMA },
+          { label:'Inactifs KAABU', val: stats.inactifs_kaabu, color: IND_COLORS.KAABU },
+        ].map(({ label, val, color }) => (
+          <div key={label} style={{ background:'rgba(255,255,255,0.02)', border:`1px solid ${color}25`, borderRadius:10, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize:13, color:'#94a3b8' }}>{label}</span>
+            <span style={{ fontSize:22, fontWeight:900, color }}>{val ?? 0}</span>
           </div>
         ))}
       </div>
 
-      {/* Filtres rapides */}
-      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
-        {[
-          { id:'TOUS',    label:'Tous' },
-          { id:'CRITIQUE',label:'🔴 Critique (60+pts)' },
-          { id:'URGENT',  label:'🟡 Urgent (30-59pts)' },
-          { id:'MULTI',   label:'⚡ Multi-alertes' },
-          { id:'INACTIFS',label:'💤 Inactifs uniquement' },
-        ].map(f => (
-          <button key={f.id} onClick={() => setFiltre(f.id)}
-            style={{ padding:'6px 14px', borderRadius:20, border:'none', fontSize:12, fontWeight:700, cursor:'pointer',
-              background: filtre === f.id ? '#FF6900' : 'rgba(255,255,255,0.05)',
-              color: filtre === f.id ? '#fff' : '#64748b' }}>
-            {f.label}
-          </button>
-        ))}
-        <div style={{ flex:1 }} />
-        <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
-          style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:12, width:180 }} />
-        <select value={zoneF} onChange={e=>setZoneF(e.target.value)}
-          style={{ padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
-          <option value="">Toutes zones</option>
-          {zones.map(z => <option key={z} value={z}>{z}</option>)}
-        </select>
-        <select value={supF} onChange={e=>setSupF(e.target.value)}
-          style={{ padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
-          <option value="">Tous superviseurs</option>
-          {sups.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <span style={{ fontSize:12, color:'#64748b' }}>{pdvs.length} PDVs</span>
+      {/* Filtres — 2 lignes : catégories + recherche/zone/sup */}
+      <div style={{ marginBottom:16 }}>
+        <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+          {[
+            { id:'TOUS',    label:'Tous' },
+            { id:'CRITIQUE',label:'🔴 Critique' },
+            { id:'URGENT',  label:'🟡 Urgent' },
+            { id:'MULTI',   label:'⚡ Multi-alertes' },
+            { id:'INACTIFS',label:'💤 Inactifs' },
+          ].map(f => (
+            <button key={f.id} onClick={() => setFiltre(f.id)}
+              style={{ padding:'7px 16px', borderRadius:20, border:'none', fontSize:12, fontWeight:700, cursor:'pointer',
+                background: filtre === f.id ? '#FF6900' : 'rgba(255,255,255,0.05)',
+                color: filtre === f.id ? '#fff' : '#64748b',
+                boxShadow: filtre === f.id ? '0 3px 10px rgba(255,105,0,0.3)' : 'none' }}>
+              {f.label}
+            </button>
+          ))}
+          <span style={{ marginLeft:'auto', fontSize:12, color:'#64748b', alignSelf:'center' }}>{pdvs.length} PDVs</span>
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
+            style={{ flex:1, padding:'9px 14px', borderRadius:9, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:13 }} />
+          <select value={zoneF} onChange={e=>setZoneF(e.target.value)}
+            style={{ padding:'9px 12px', borderRadius:9, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:13, flex:'0 0 auto' }}>
+            <option value="">📍 Toutes zones</option>
+            {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={supF} onChange={e=>setSupF(e.target.value)}
+            style={{ padding:'9px 12px', borderRadius:9, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:13, flex:'0 0 auto' }}>
+            <option value="">👤 Tous superviseurs</option>
+            {sups.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* Progress bar */}
