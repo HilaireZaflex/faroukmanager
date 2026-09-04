@@ -276,7 +276,7 @@ function TabFileUnifiee({ annee, mois }) {
       {/* KPI Cards */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:24 }}>
         {[
-          { label:'PDVs à appeler', val: (data?.pdvs||[]).length - appelsFaits.size, color:'#FF6900', bg:'linear-gradient(135deg,rgba(255,105,0,0.12),rgba(255,105,0,0.04))', icon:'📞', desc:'Priorité aujourd'hui' },
+          { label:'PDVs à appeler', val: (data?.pdvs||[]).length - appelsFaits.size, color:'#FF6900', bg:'linear-gradient(135deg,rgba(255,105,0,0.12),rgba(255,105,0,0.04))', icon:'📞', desc:"Priorité aujourd'hui" },
           { label:'Multi-alertes (2+)', val: stats.multi_alertes, color:'#ff4757', bg:'linear-gradient(135deg,rgba(255,71,87,0.12),rgba(255,71,87,0.04))', icon:'⚡', desc:'OMY + NAFAMA + KAABU' },
           { label:'En cooldown 48h', val: stats.en_cooldown, color:'#64748b', bg:'linear-gradient(135deg,rgba(100,116,139,0.12),rgba(100,116,139,0.04))', icon:'⏳', desc:'Déjà appelés récemment' },
         ].map(({ label, val, color, bg, icon, desc }) => (
