@@ -1285,10 +1285,10 @@ function VueTeleconseillere({ annee, mois }) {
   const [appelEnCours, setAppelEnCours] = useState(null);
   const [notes, setNotes] = useState({ note_connaissance:'', note_visite:'', note_superviseur:'', commentaire:'' });
 
-  const { data: maListe, refetch } = useQuery(
+  const { data: maListe, refetch, isLoading: loadingListe } = useQuery(
     ['ma-liste-mystery', annee, mois],
     () => api.get(`/eval-superviseurs/ma-liste-mystery?annee=${annee}&mois=${mois}`).then(r => r.data),
-    { staleTime: 30000 }
+    { staleTime: 0, refetchOnMount: true, refetchOnWindowFocus: false }
   );
 
   const mutation = useMutation(
@@ -1308,6 +1308,12 @@ function VueTeleconseillere({ annee, mois }) {
   const liste = maListe?.liste || [];
   const aFaire = liste.filter(i => !i.statut_appel);
   const faits = liste.filter(i => i.statut_appel);
+  if (loadingListe) return (
+    <div style={{ textAlign:'center', padding:60, color:'#64748b' }}>
+      <div style={{ fontSize:36, marginBottom:12 }}>⏳</div>
+      <div>Chargement de vos appels...</div>
+    </div>
+  );
   const [openSups, setOpenSups] = React.useState(
     // Seul le premier superviseur est ouvert par défaut
     {}
