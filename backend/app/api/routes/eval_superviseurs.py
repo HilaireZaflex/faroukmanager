@@ -62,6 +62,31 @@ def _fmt(e: EvalSuperviseur) -> dict:
 
 # ─── Liste superviseurs ────────────────────────────────────────────────────────
 
+@router.post("/eval-superviseurs/admin/reset-statuts")
+def reset_statuts_evals(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    ancien_statut: str = Query("TERMINEE"),
+    nouveau_statut: str = Query("SCORE_CALCULE"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Admin : remettre un statut en un autre pour un mois donné."""
+    if current_user.role not in ('ADMIN', 'MANAGER'):
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    evals = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+        EvalSuperviseur.statut == ancien_statut,
+    ).all()
+    count = 0
+    for e in evals:
+        e.statut = nouveau_statut
+        count += 1
+    db.commit()
+    return {"success": True, "count": count, "message": f"{count} évaluations passées de {ancien_statut} à {nouveau_statut}"}
+
+
 @router.post("/eval-superviseurs/calculer-tous")
 def calculer_tous_scores(
     annee: int = Query(...),
