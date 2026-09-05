@@ -1308,12 +1308,6 @@ function VueTeleconseillere({ annee, mois }) {
   const liste = maListe?.liste || [];
   const aFaire = liste.filter(i => !i.statut_appel);
   const faits = liste.filter(i => i.statut_appel);
-  if (loadingListe) return (
-    <div style={{ textAlign:'center', padding:60, color:'#64748b' }}>
-      <div style={{ fontSize:36, marginBottom:12 }}>⏳</div>
-      <div>Chargement de vos appels...</div>
-    </div>
-  );
   const [openSups, setOpenSups] = React.useState(
     // Seul le premier superviseur est ouvert par défaut
     {}
