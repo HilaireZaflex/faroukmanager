@@ -1,335 +1,501 @@
-/**
- * SuiviTCPage — Dashboard Admin pour évaluer les téléconseillères
- * Statistiques complètes des appels, classement TC, tendance, détail par TC
- */
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell, Legend, AreaChart, Area
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import api from '../services/api';
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+const MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const IND_COLORS = { OMY:'#a29bfe', NAFAMA:'#00cec9', KAABU:'#fdcb6e', UNIFIE:'#74b9ff', AUTRE:'#64748b' };
 const STATUT_ICONS = {
-  JOIGNABLE_PROMESSE: '✅', JOIGNABLE_PAS_INTERESSE: '📞',
-  JOIGNABLE_DEJA_ACTIF: '🔄', NON_JOIGNABLE_HORS_ZONE: '📵',
-  NON_JOIGNABLE_PAS_REPONSE: '🔕', NUMERO_INCORRECT: '❌',
-  PDV_FERME: '🏪', RAPPEL_PROGRAMME: '📅',
+  JOIGNABLE_PROMESSE:'✅', JOIGNABLE_PAS_INTERESSE:'📞', JOIGNABLE_DEJA_ACTIF:'🔄',
+  NON_JOIGNABLE_PAS_REPONSE:'🔕', NON_JOIGNABLE_HORS_ZONE:'📵',
+  NUMERO_INCORRECT:'❌', RAPPEL_PROGRAMME:'📅', PDV_FERME:'🏪',
 };
-const STATUT_COLORS_MAP = {
-  JOIGNABLE_PROMESSE: '#22c55e', JOIGNABLE_DEJA_ACTIF: '#00d68f',
-  JOIGNABLE_PAS_INTERESSE: '#ffa502', RAPPEL_PROGRAMME: '#a29bfe',
-  NON_JOIGNABLE_HORS_ZONE: '#ff4757', NON_JOIGNABLE_PAS_REPONSE: '#ef4444',
-  NUMERO_INCORRECT: '#ff4757', PDV_FERME: '#8a8a9a',
+const STATUT_COLORS = {
+  JOIGNABLE_PROMESSE:'#22c55e', JOIGNABLE_PAS_INTERESSE:'#64748b', JOIGNABLE_DEJA_ACTIF:'#3b82f6',
+  NON_JOIGNABLE_PAS_REPONSE:'#ff4757', NON_JOIGNABLE_HORS_ZONE:'#ff4757',
+  NUMERO_INCORRECT:'#ff4757', RAPPEL_PROGRAMME:'#ffa502', PDV_FERME:'#6b7280',
 };
-const CHART_COLORS = ['#3742fa','#FF6900','#22c55e','#ffa502','#a29bfe','#00d68f','#ff4757','#fd79a8'];
 
-function ScoreBadge({ taux }) {
-  const t = taux || 0;
-  const color = t >= 70 ? '#22c55e' : t >= 40 ? '#ffa502' : '#ff4757';
-  const label = t >= 70 ? '🌟 Excellent' : t >= 40 ? '⚡ Moyen' : '⚠️ À améliorer';
+function KPICard({ icon, label, value, sub, color }) {
   return (
-    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-      background: `rgba(${t>=70?'34,197,94':t>=40?'255,165,2':'255,71,87'},0.15)`, color }}>
-      {label} · {t}%
-    </span>
+    <div style={{ padding:'18px 20px', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderTop:`3px solid ${color}`, borderRadius:14 }}>
+      <div style={{ fontSize:26, marginBottom:10 }}>{icon}</div>
+      <div style={{ fontSize:28, fontWeight:900, color }}>{value}</div>
+      <div style={{ fontSize:13, color:'#aaa', marginTop:4 }}>{label}</div>
+      {sub && <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>{sub}</div>}
+    </div>
   );
 }
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
+function TauxBar({ taux, color }) {
+  const c = color || '#22c55e';
   return (
-    <div style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '10px 14px', fontSize: 12 }}>
-      <p style={{ color: '#aaa', marginBottom: 4 }}>{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color || '#fff', fontWeight: 700 }}>{p.name}: {p.value}</p>
-      ))}
+    <div style={{ height:6, background:'rgba(255,255,255,0.06)', borderRadius:3, overflow:'hidden', marginTop:4 }}>
+      <div style={{ height:'100%', background:c, width:`${Math.min(100,taux||0)}%`, transition:'width 0.5s', borderRadius:3 }}/>
     </div>
   );
-};
+}
 
-// ─── Composant principal ──────────────────────────────────────────────────────
-export default function SuiviTCPage() {
-  const [selectedTC, setSelectedTC] = useState(null);
-  const [searchAppels, setSearchAppels] = useState('');
-
-  const { data: dashboard, isLoading } = useQuery(
-    'suivi-tc-dashboard',
-    () => api.get('/appels-tc/dashboard-admin').then(r => r.data),
-    { staleTime: 60000, refetchInterval: 120000 }
-  );
-
-  const { data: appelsRecents } = useQuery(
-    ['suivi-tc-appels', selectedTC],
-    () => api.get('/appels-tc', {
-      params: selectedTC ? { tc_user_id: selectedTC, limit: 100 } : { limit: 50 }
-    }).then(r => r.data),
-    { staleTime: 30000 }
-  );
-
-  if (isLoading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: 16 }}>
-      <div className="loading-spinner" />
-      <p style={{ color: '#8a8a9a' }}>Chargement du tableau de bord TC...</p>
-    </div>
-  );
-
+// ─── Tab 1 : Vue d'ensemble ──────────────────────────────────────────────────
+function TabVueEnsemble({ dashboard }) {
   const g = dashboard?.global || {};
-  const parTC = dashboard?.par_tc || [];
   const parStatut = dashboard?.par_statut || [];
   const tendance = dashboard?.tendance_7j || [];
   const parIndicateur = dashboard?.par_indicateur || {};
-  const appels = appelsRecents?.items || [];
 
-  const filteredAppels = appels.filter(a =>
-    !searchAppels ||
-    (a.nom_pdv || '').toLowerCase().includes(searchAppels.toLowerCase()) ||
-    (a.numero_pdv || '').toLowerCase().includes(searchAppels.toLowerCase()) ||
-    (a.tc_nom || '').toLowerCase().includes(searchAppels.toLowerCase())
-  );
-
-  // Données pour graphique par statut
   const statData = parStatut.map(s => ({
-    name: STATUT_ICONS[s.statut] + ' ' + (s.label?.split(' — ')[1] || s.label || s.statut).slice(0, 15),
-    value: s.count,
-    color: STATUT_COLORS_MAP[s.statut] || '#8a8a9a',
+    name: (STATUT_ICONS[s.statut]||'') + ' ' + (s.label||s.statut||'').slice(0,18),
+    value: s.count, color: STATUT_COLORS[s.statut]||'#64748b',
+  }));
+  const indicData = Object.entries(parIndicateur).map(([ind, cnt]) => ({
+    name: ind, value: cnt, color: IND_COLORS[ind]||'#64748b'
   }));
 
-  // Données indicateur
-  const indicData = Object.entries(parIndicateur).map(([ind, cnt]) => ({ name: ind, value: cnt }));
-
   return (
-    <div className="page">
-      <div className="page-header" style={{ marginBottom: 24 }}>
-        <div>
-          <h1 className="page-title">📞 Suivi Téléconseillères</h1>
-          <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
-            Évaluation et statistiques des appels — {g.total || 0} appels enregistrés au total
-          </p>
-        </div>
+    <div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24 }}>
+        <KPICard icon="📞" label="Total Appels" value={g.total||0} sub={`${g.ce_mois||0} ce mois`} color="#3742fa"/>
+        <KPICard icon="☀️" label="Aujourd'hui" value={g.aujourd_hui||0} sub={`${g.cette_semaine||0} cette semaine`} color="#ffa502"/>
+        <KPICard icon="✅" label="Taux Joignabilité" value={`${g.taux_joignabilite||0}%`} sub={`${g.positifs||0} joignables`} color={g.taux_joignabilite>=50?'#22c55e':'#ff4757'}/>
+        <KPICard icon="📅" label="Rappels en Attente" value={g.rappels_en_attente||0} sub="À effectuer" color="#a29bfe"/>
       </div>
-
-      {/* ══ KPIs GLOBAUX ══════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
-        {[
-          { icon: '📞', label: 'Total Appels', value: g.total || 0, sub: `${g.ce_mois || 0} ce mois`, color: '#3742fa' },
-          { icon: '☀️', label: "Aujourd'hui", value: g.aujourd_hui || 0, sub: `${g.cette_semaine || 0} cette semaine`, color: '#ffa502' },
-          { icon: '✅', label: 'Taux Joignabilité', value: `${g.taux_joignabilite || 0}%`, sub: `${g.positifs || 0} joignables`, color: g.taux_joignabilite >= 50 ? '#22c55e' : '#ff4757' },
-          { icon: '📅', label: 'Rappels en Attente', value: g.rappels_en_attente || 0, sub: 'À effectuer', color: '#a29bfe' },
-        ].map((k, i) => (
-          <div key={i} style={{ padding: '18px 20px', background: 'rgba(255,255,255,0.02)', border: `1px solid rgba(255,255,255,0.07)`, borderTop: `3px solid ${k.color}`, borderRadius: 14 }}>
-            <div style={{ fontSize: 26, marginBottom: 10 }}>{k.icon}</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: k.color }}>{k.value}</div>
-            <div style={{ fontSize: 13, color: '#aaa', marginTop: 4 }}>{k.label}</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ══ GRAPHIQUES ════════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 24 }}>
-
-        {/* Tendance 7 jours */}
-        <div style={{ background: 'linear-gradient(135deg, rgba(55,66,250,0.06) 0%, rgba(0,0,0,0) 60%)', border: '1px solid rgba(55,66,250,0.15)', borderRadius: 14, padding: '18px 20px' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>📈 Appels — 7 derniers jours</h3>
+      <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr', gap:16, marginBottom:24 }}>
+        <div style={{ background:'rgba(55,66,250,0.04)', border:'1px solid rgba(55,66,250,0.15)', borderRadius:14, padding:'18px 20px' }}>
+          <h3 style={{ fontSize:14, fontWeight:800, marginBottom:16 }}>📈 Appels — 7 derniers jours</h3>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={tendance}>
-              <defs>
-                <linearGradient id="tcTendGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3742fa" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#3742fa" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: '#8a8a9a', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#8a8a9a', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
-              <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="count" name="Appels" stroke="#3742fa" fill="url(#tcTendGrad)" strokeWidth={2.5} dot={{ r: 4, fill: '#3742fa', stroke: '#0a0a1a', strokeWidth: 2 }} activeDot={{ r: 6 }} />
+              <defs><linearGradient id="tcGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3742fa" stopOpacity={0.25}/>
+                <stop offset="95%" stopColor="#3742fa" stopOpacity={0}/>
+              </linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false}/>
+              <XAxis dataKey="label" tick={{fill:'#8a8a9a',fontSize:11}} axisLine={false} tickLine={false}/>
+              <YAxis tick={{fill:'#8a8a9a',fontSize:10}} axisLine={false} tickLine={false} width={30}/>
+              <Tooltip contentStyle={{background:'#1a1a2e',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8}}/>
+              <Area type="monotone" dataKey="count" name="Appels" stroke="#3742fa" fill="url(#tcGrad)" strokeWidth={2.5} dot={{r:4,fill:'#3742fa'}}/>
             </AreaChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Répartition par statut */}
-        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '18px 20px' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 16 }}>🎯 Résultats des appels</h3>
-          {statData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie data={statData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
-                  {statData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <Tooltip formatter={(v, n) => [v, n]} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#8a8a9a', fontSize: 13 }}>Aucun appel enregistré</div>
-          )}
+        <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, padding:'18px 20px' }}>
+          <h3 style={{ fontSize:13, fontWeight:800, marginBottom:16 }}>📊 Par statut</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={statData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70}
+                label={({percent}) => `${(percent*100).toFixed(0)}%`} labelLine={false}>
+                {statData.map((d,i) => <Cell key={i} fill={d.color}/>)}
+              </Pie>
+              <Tooltip contentStyle={{background:'#1a1a2e',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8}}/>
+            </PieChart>
+          </ResponsiveContainer>
         </div>
-      </div>
-
-      {/* ══ CLASSEMENT TC ═════════════════════════════════════════════════════ */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-          🏆 Classement Téléconseillères
-          <span style={{ fontSize: 12, fontWeight: 400, color: '#8a8a9a' }}>— par nombre d'appels</span>
-        </h2>
-        {parTC.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, color: '#8a8a9a' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📵</div>
-            <p>Aucun appel enregistré pour le moment.</p>
-            <p style={{ fontSize: 12, marginTop: 8 }}>Les TC doivent commencer à enregistrer des appels depuis les dashboards OMY et NAFAMA.</p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {parTC.map((tc, i) => {
-              const isSelected = selectedTC === tc.tc_user_id;
-              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
-              const maxTotal = parTC[0]?.total || 1;
-              const barPct = Math.round(tc.total / maxTotal * 100);
-
+        <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, padding:'18px 20px' }}>
+          <h3 style={{ fontSize:13, fontWeight:800, marginBottom:16 }}>🎯 Par indicateur</h3>
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {indicData.map(d => {
+              const max = Math.max(...indicData.map(x => x.value), 1);
               return (
-                <div key={i}
-                  onClick={() => setSelectedTC(isSelected ? null : tc.tc_user_id)}
-                  style={{
-                    padding: '16px 20px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s',
-                    background: isSelected ? 'rgba(55,66,250,0.1)' : 'rgba(255,255,255,0.02)',
-                    border: `1px solid ${isSelected ? 'rgba(55,66,250,0.4)' : 'rgba(255,255,255,0.07)'}`,
-                    boxShadow: isSelected ? '0 4px 24px rgba(55,66,250,0.15)' : 'none',
-                  }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-                    {/* Rang */}
-                    <div style={{ fontSize: medal ? 28 : 16, minWidth: 36, textAlign: 'center', fontWeight: 700, color: '#8a8a9a' }}>
-                      {medal || `${i + 1}`}
-                    </div>
-                    {/* Avatar */}
-                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#3742fa,#5f6cf5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
-                      {(tc.tc_nom || 'T').charAt(0).toUpperCase()}
-                    </div>
-                    {/* Info */}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                        <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{tc.tc_nom || 'Téléconseillère'}</span>
-                        <ScoreBadge taux={tc.taux_joignabilite} />
-                      </div>
-                      <div style={{ fontSize: 12, color: '#8a8a9a' }}>
-                        {tc.total} appels · {tc.positifs} joignables · {tc.aujourd_hui} aujourd'hui
-                        {tc.dernier_appel && ` · Dernier: ${new Date(tc.dernier_appel).toLocaleDateString('fr-FR')}`}
-                      </div>
-                    </div>
-                    {/* KPIs droite */}
-                    <div style={{ display: 'flex', gap: 20, textAlign: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 22, fontWeight: 900, color: '#3742fa' }}>{tc.total}</div>
-                        <div style={{ fontSize: 10, color: '#8a8a9a' }}>Appels</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 22, fontWeight: 900, color: '#22c55e' }}>{tc.taux_joignabilite}%</div>
-                        <div style={{ fontSize: 10, color: '#8a8a9a' }}>Joignabilité</div>
-                      </div>
-                    </div>
+                <div key={d.name}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:4 }}>
+                    <span style={{ color:d.color, fontWeight:700 }}>{d.name}</span>
+                    <span style={{ color:'#fff', fontWeight:800 }}>{d.value}</span>
                   </div>
-
-                  {/* Barre de progression */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 50 }}>
-                    <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${barPct}%`, background: 'linear-gradient(90deg,#3742fa,#5f6cf5)', borderRadius: 4, transition: 'width 0.6s ease' }} />
-                    </div>
-                    <span style={{ fontSize: 10, color: '#64748b', minWidth: 30 }}>{barPct}%</span>
-                  </div>
-
-                  {/* Détail par statut */}
-                  <div style={{ display: 'flex', gap: 6, marginLeft: 50, marginTop: 8, flexWrap: 'wrap' }}>
-                    {Object.entries(tc.par_statut || {}).map(([statut, count]) => (
-                      <span key={statut} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6,
-                        background: `rgba(${STATUT_COLORS_MAP[statut] === '#22c55e' ? '34,197,94' : STATUT_COLORS_MAP[statut] === '#ff4757' ? '255,71,87' : '255,165,2'},0.1)`,
-                        color: STATUT_COLORS_MAP[statut] || '#aaa', fontWeight: 600 }}>
-                        {STATUT_ICONS[statut]} {count}
-                      </span>
-                    ))}
-                  </div>
+                  <TauxBar taux={d.value/max*100} color={d.color}/>
                 </div>
               );
             })}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab 2 : Par TC ───────────────────────────────────────────────────────────
+function TabParTC({ annee, mois }) {
+  const { data, isLoading } = useQuery(
+    ['suivi-par-tc', annee, mois],
+    () => api.get('/appels-tc/suivi/par-tc', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+  const tcs = data?.par_tc || [];
+
+  if (isLoading) return <div style={{ textAlign:'center', padding:40, color:'#64748b' }}>Chargement...</div>;
+
+  return (
+    <div>
+      <div style={{ fontSize:15, fontWeight:800, color:'#fff', marginBottom:16 }}>
+        👥 Suivi par TC — {MOIS_NOMS[mois]} {annee}
+        <span style={{ fontSize:12, color:'#64748b', fontWeight:400, marginLeft:10 }}>{tcs.length} TCs actives</span>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))', gap:14 }}>
+        {tcs.map(tc => {
+          const taux = tc.taux_joignabilite;
+          const color = taux >= 60 ? '#22c55e' : taux >= 40 ? '#ffa502' : '#ff4757';
+          const prog = tc.pdvs_assignes > 0 ? Math.round(tc.pdvs_appeles_mois/tc.pdvs_assignes*100) : 0;
+          return (
+            <div key={tc.tc_nom} style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, padding:'18px 20px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+                <div>
+                  <div style={{ fontSize:15, fontWeight:800, color:'#fff' }}>{tc.tc_nom}</div>
+                  <div style={{ fontSize:11, color:'#64748b', marginTop:3 }}>
+                    Dernière activité : {tc.derniere_activite ? tc.derniere_activite.slice(0,10) : '—'}
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:22, fontWeight:900, color }}>{taux}%</div>
+                  <div style={{ fontSize:10, color:'#64748b' }}>joignabilité</div>
+                </div>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:12 }}>
+                {[
+                  { label:'Appels', value:tc.total_appels, color:'#3742fa' },
+                  { label:'Joignables', value:tc.joignables, color:'#22c55e' },
+                  { label:'Promesses', value:tc.promesses, color:'#ffa502' },
+                ].map(s => (
+                  <div key={s.label} style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'8px', textAlign:'center' }}>
+                    <div style={{ fontSize:18, fontWeight:900, color:s.color }}>{s.value}</div>
+                    <div style={{ fontSize:10, color:'#64748b' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginBottom:8 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#64748b', marginBottom:3 }}>
+                  <span>PDVs appelés ce mois</span>
+                  <span style={{ color:'#fff', fontWeight:700 }}>{tc.pdvs_appeles_mois}/{tc.pdvs_assignes}</span>
+                </div>
+                <TauxBar taux={prog} color="#FF6900"/>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {Object.entries(tc.par_indicateur).map(([ind, cnt]) => (
+                  <span key={ind} style={{ fontSize:10, padding:'2px 8px', borderRadius:10, fontWeight:700,
+                    background:`${IND_COLORS[ind]||'#64748b'}20`, color:IND_COLORS[ind]||'#64748b' }}>
+                    {ind}: {cnt}
+                  </span>
+                ))}
+              </div>
+              {tc.rappels > 0 && <div style={{ marginTop:8, fontSize:11, color:'#ffa502' }}>📅 {tc.rappels} rappel(s) programmé(s)</div>}
+            </div>
+          );
+        })}
+        {tcs.length === 0 && (
+          <div style={{ gridColumn:'1/-1', textAlign:'center', padding:60, color:'#64748b' }}>
+            <div style={{ fontSize:48 }}>📊</div>
+            <div style={{ marginTop:12 }}>Aucune activité TC ce mois</div>
+          </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* ══ LISTE DES APPELS ══════════════════════════════════════════════════ */}
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
-            📋 {selectedTC ? `Appels de ${parTC.find(t => t.tc_user_id === selectedTC)?.tc_nom || 'TC sélectionnée'}` : '50 derniers appels'}
-            {selectedTC && <button onClick={() => setSelectedTC(null)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.1)', color: '#ff4757', cursor: 'pointer' }}>✕ Voir tous</button>}
-          </h2>
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#8a8a9a', fontSize: 13 }}>🔍</span>
-            <input type="text" placeholder="PDV, numéro, TC..." value={searchAppels} onChange={e => setSearchAppels(e.target.value)}
-              style={{ padding: '8px 12px 8px 32px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(55,66,250,0.2)', borderRadius: 8, color: '#fff', fontSize: 13, width: 220 }} />
-          </div>
+// ─── Tab 3 : Historique Appels ────────────────────────────────────────────────
+function TabHistorique({ dashboard }) {
+  const [search, setSearch] = useState('');
+  const [selTC, setSelTC] = useState('');
+  const [selInd, setSelInd] = useState('');
+
+  const { data: appelsData } = useQuery(
+    ['suivi-tc-appels-hist', selTC],
+    () => api.get('/appels-tc', { params: selTC ? { tc_user_id: selTC, limit:200 } : { limit:100 } }).then(r => r.data),
+    { staleTime: 30000 }
+  );
+  const appels = (appelsData?.items || []).filter(a =>
+    (!search || (a.nom_pdv||'').toLowerCase().includes(search.toLowerCase()) || (a.numero_pdv||'').includes(search)) &&
+    (!selInd || a.indicateur === selInd)
+  );
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:8, marginBottom:16, alignItems:'center' }}>
+        <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
+          style={{ flex:1, padding:'8px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:13 }}/>
+        <select value={selTC} onChange={e=>setSelTC(e.target.value)}
+          style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
+          <option value="">Toutes TCs</option>
+          {(dashboard?.par_tc||[]).map(tc => <option key={tc.tc_nom} value={tc.tc_nom}>{tc.tc_nom}</option>)}
+        </select>
+        <select value={selInd} onChange={e=>setSelInd(e.target.value)}
+          style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
+          <option value="">Tous indicateurs</option>
+          {['OMY','NAFAMA','KAABU','UNIFIE'].map(i => <option key={i} value={i}>{i}</option>)}
+        </select>
+        <span style={{ fontSize:12, color:'#64748b' }}>{appels.length} appels</span>
+      </div>
+      <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr style={{ background:'rgba(255,255,255,0.04)' }}>
+              {['Date','TC','PDV','Indicateur','Statut','Commentaire'].map(h => (
+                <th key={h} style={{ padding:'10px 14px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {appels.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Aucun appel trouvé</td></tr>
+            ) : appels.map((a,i) => (
+              <tr key={a.id} style={{ borderTop:'1px solid rgba(255,255,255,0.04)', background:i%2===0?'transparent':'rgba(255,255,255,0.01)' }}>
+                <td style={{ padding:'8px 14px', fontSize:11, color:'#64748b', whiteSpace:'nowrap' }}>{a.created_at?.slice(0,16)||'—'}</td>
+                <td style={{ padding:'8px 14px', fontSize:12, fontWeight:700, color:'#FF6900' }}>{a.tc_nom}</td>
+                <td style={{ padding:'8px 14px' }}>
+                  <div style={{ fontSize:12, color:'#fff', fontWeight:600 }}>{a.nom_pdv||a.numero_pdv}</div>
+                  <div style={{ fontSize:10, color:'#64748b' }}>{a.numero_pdv}</div>
+                </td>
+                <td style={{ padding:'8px 14px' }}>
+                  <span style={{ fontSize:10, padding:'2px 8px', borderRadius:10, fontWeight:700,
+                    background:`${IND_COLORS[a.indicateur]||'#64748b'}20`, color:IND_COLORS[a.indicateur]||'#64748b' }}>
+                    {a.indicateur}
+                  </span>
+                </td>
+                <td style={{ padding:'8px 14px', fontSize:11, color:STATUT_COLORS[a.statut]||'#64748b', whiteSpace:'nowrap' }}>
+                  {STATUT_ICONS[a.statut]||''} {(a.statut||'').replace(/_/g,' ')}
+                </td>
+                <td style={{ padding:'8px 14px', fontSize:11, color:'#8a8a9a', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {a.commentaire||'—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab 4 : File unifiée Admin ───────────────────────────────────────────────
+function TabFileAdmin() {
+  const now = new Date();
+  const defMois = now.getMonth() === 0 ? 12 : now.getMonth();
+  const defAnnee = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
+  const [mois, setMois] = useState(defMois);
+  const [annee] = useState(defAnnee);
+  const [filtreTCAdmin, setFiltreTCAdmin] = useState('');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const charger = React.useCallback(async (a, m) => {
+    setLoading(true);
+    try {
+      const resp = await api.get('/tc/liste-unifiee', { params: { annee: a||2026, mois: m||8 } });
+      setData(resp.data);
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  }, []);
+
+  React.useEffect(() => { charger(defAnnee, defMois); }, [charger]);
+
+  const pdvs = (data?.pdvs||[]).filter(p => !filtreTCAdmin || p.teleconseillere === filtreTCAdmin);
+  const tcs = [...new Set((data?.pdvs||[]).map(p => p.teleconseillere).filter(Boolean))].sort();
+  const stats = data?.stats || {};
+
+  return (
+    <div>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+        <div style={{ fontSize:15, fontWeight:800, color:'#fff' }}>📞 File unifiée — Vue Admin</div>
+        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <select value={mois} onChange={e => { const m=parseInt(e.target.value); setMois(m); charger(annee,m); }}
+            style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'#1a1a2e', color:'#fff', fontSize:13 }}>
+            {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{MOIS_NOMS[m]}</option>)}
+          </select>
+          <select value={filtreTCAdmin} onChange={e => setFiltreTCAdmin(e.target.value)}
+            style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'#1a1a2e', color:'#fff', fontSize:13 }}>
+            <option value="">Toutes TCs</option>
+            {tcs.map(tc => <option key={tc} value={tc}>{tc}</option>)}
+          </select>
+          <button onClick={() => charger(annee, mois)} style={{ padding:'7px 16px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer' }}>🔄</button>
         </div>
-
-        {filteredAppels.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, color: '#8a8a9a' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>📭</div>
-            <p>Aucun appel trouvé</p>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:16 }}>
+        {[
+          { label:'Total PDVs', val:stats.total_pdvs, color:'#FF6900' },
+          { label:'Critiques', val:stats.critiques, color:'#ff4757' },
+          { label:'Surveillance', val:stats.surveillance, color:'#ffa502' },
+          { label:'En cooldown', val:stats.en_cooldown, color:'#64748b' },
+        ].map(({label,val,color}) => (
+          <div key={label} style={{ background:`${color}10`, border:`1px solid ${color}30`, borderRadius:10, padding:'12px 16px', textAlign:'center' }}>
+            <div style={{ fontSize:24, fontWeight:900, color }}>{val||0}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>{label}</div>
           </div>
-        ) : (
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    {['PDV', 'Indicateur', 'Téléconseillère', 'Résultat', 'Commentaire', 'Date', 'Rappel'].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAppels.map((a, i) => {
-                    const color = STATUT_COLORS_MAP[a.statut] || '#8a8a9a';
+        ))}
+      </div>
+      {loading ? <div style={{ textAlign:'center', padding:40, color:'#64748b' }}>⏳ Chargement...</div> : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {pdvs.slice(0,50).map((p,i) => (
+            <div key={p.numero_pdv} style={{ background:'rgba(255,255,255,0.02)',
+              border:'1px solid rgba(255,255,255,0.07)',
+              borderLeft:`4px solid ${p.score>=60?'#ff4757':p.score>=30?'#ffa502':'#22c55e'}`,
+              borderRadius:10, padding:'12px 16px', display:'flex', alignItems:'center', gap:16 }}>
+              <div style={{ fontSize:13, color:'#64748b', minWidth:24, fontWeight:700 }}>{i+1}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:800, color:'#fff', marginBottom:4 }}>
+                  {p.nom} <span style={{ fontSize:11, color:'#64748b' }}>{p.numero_pdv}</span>
+                </div>
+                <div style={{ fontSize:11, color:'#64748b' }}>
+                  📍 {p.zone} · 👤 {p.superviseur} · 🧑 TC: {p.teleconseillere||'—'}
+                </div>
+                <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginTop:4 }}>
+                  {(p.alertes||[]).map((a,j) => (
+                    <span key={j} style={{ fontSize:9, padding:'1px 6px', borderRadius:6, fontWeight:700,
+                      background:`${IND_COLORS[a.indicateur]||'#64748b'}15`, color:IND_COLORS[a.indicateur]||'#64748b' }}>
+                      {a.indicateur} {a.type==='INACTIF'?'🔴':'🟡'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ textAlign:'right', flexShrink:0 }}>
+                <div style={{ fontSize:18, fontWeight:900, color:p.score>=60?'#ff4757':p.score>=30?'#ffa502':'#22c55e' }}>{p.score}pts</div>
+                <div style={{ fontSize:10, color:'#64748b' }}>{p.nb_alertes} alerte(s)</div>
+              </div>
+            </div>
+          ))}
+          {pdvs.length === 0 && (
+            <div style={{ textAlign:'center', padding:60, color:'#64748b' }}>
+              <div style={{ fontSize:48 }}>✅</div>
+              <div>Aucun PDV à alerter pour ce filtre</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab 5 : Performance mensuelle ───────────────────────────────────────────
+function TabPerformance() {
+  const { data, isLoading } = useQuery(
+    'suivi-tc-performance',
+    () => api.get('/appels-tc/suivi/performance-mensuelle', { params: { nb_mois: 6 } }).then(r => r.data),
+    { staleTime: 120000 }
+  );
+  const historique = data?.historique || [];
+  const allTCs = [...new Set(historique.flatMap(h => Object.keys(h.par_tc||{})))].sort();
+  const COLORS = ['#3742fa','#FF6900','#22c55e','#ffa502','#a29bfe','#00cec9','#ff4757'];
+
+  const chartData = historique.map(h => {
+    const entry = { mois: (h.mois||'').split(' ')[0].slice(0,4) };
+    allTCs.forEach(tc => { entry[tc] = h.par_tc?.[tc]?.total||0; });
+    return entry;
+  });
+
+  if (isLoading) return <div style={{ textAlign:'center', padding:40, color:'#64748b' }}>Chargement...</div>;
+
+  return (
+    <div>
+      <div style={{ fontSize:15, fontWeight:800, color:'#fff', marginBottom:16 }}>📈 Performance mensuelle — 6 derniers mois</div>
+      <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, padding:'20px', marginBottom:20 }}>
+        <h3 style={{ fontSize:13, fontWeight:800, marginBottom:16 }}>Évolution des appels par TC</h3>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false}/>
+            <XAxis dataKey="mois" tick={{fill:'#8a8a9a',fontSize:11}} axisLine={false} tickLine={false}/>
+            <YAxis tick={{fill:'#8a8a9a',fontSize:10}} axisLine={false} tickLine={false} width={30}/>
+            <Tooltip contentStyle={{background:'#1a1a2e',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8}}/>
+            <Legend wrapperStyle={{fontSize:11,color:'#8a8a9a'}}/>
+            {allTCs.slice(0,7).map((tc,i) => (
+              <Bar key={tc} dataKey={tc} fill={COLORS[i%COLORS.length]} radius={[3,3,0,0]} stackId="a" name={(tc||'').split(' ')[0]}/>
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <thead>
+            <tr style={{ background:'rgba(255,255,255,0.04)' }}>
+              <th style={{ padding:'10px 14px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left' }}>TC</th>
+              {historique.map(h => (
+                <th key={h.mois} style={{ padding:'10px 10px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'center', whiteSpace:'nowrap' }}>
+                  {(h.mois||'').split(' ')[0].slice(0,4)}
+                </th>
+              ))}
+              <th style={{ padding:'10px 14px', fontSize:11, color:'#FF6900', fontWeight:700, textAlign:'center' }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allTCs.map((tc,i) => {
+              const total = historique.reduce((acc,h) => acc + (h.par_tc?.[tc]?.total||0), 0);
+              return (
+                <tr key={tc} style={{ borderTop:'1px solid rgba(255,255,255,0.04)', background:i%2===0?'transparent':'rgba(255,255,255,0.01)' }}>
+                  <td style={{ padding:'9px 14px', fontSize:12, fontWeight:700, color:'#FF6900' }}>{tc}</td>
+                  {historique.map(h => {
+                    const v = h.par_tc?.[tc]?.total||0;
+                    const p = h.par_tc?.[tc]?.promesses||0;
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '10px 14px' }}>
-                          <div style={{ fontWeight: 700 }}>{a.numero_pdv}</div>
-                          <div style={{ fontSize: 10, color: '#8a8a9a' }}>{a.nom_pdv}</div>
-                        </td>
-                        <td style={{ padding: '10px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
-                            background: a.indicateur === 'OMY' ? 'rgba(255,105,0,0.2)' : a.indicateur === 'NAFAMA' ? 'rgba(0,214,143,0.2)' : 'rgba(162,155,254,0.2)',
-                            color: a.indicateur === 'OMY' ? '#FF6900' : a.indicateur === 'NAFAMA' ? '#00d68f' : '#a29bfe' }}>
-                            {a.indicateur}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 14px', color: '#a29bfe', fontWeight: 600 }}>{a.tc_nom}</td>
-                        <td style={{ padding: '10px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                            background: `${color}15`, color }}>
-                            {STATUT_ICONS[a.statut]} {a.statut_label?.split(' — ')[1] || a.statut_label || a.statut}
-                          </span>
-                        </td>
-                        <td style={{ padding: '10px 14px', color: '#94a3b8', maxWidth: 200 }}>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
-                            {a.commentaire || '—'}
-                          </div>
-                        </td>
-                        <td style={{ padding: '10px 14px', color: '#8a8a9a', whiteSpace: 'nowrap' }}>
-                          {new Date(a.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                          {' '}
-                          {new Date(a.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td style={{ padding: '10px 14px', color: '#a29bfe' }}>
-                          {a.date_rappel ? new Date(a.date_rappel).toLocaleDateString('fr-FR') : '—'}
-                        </td>
-                      </tr>
+                      <td key={h.mois} style={{ padding:'9px 10px', textAlign:'center' }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:v>0?'#fff':'#64748b' }}>{v}</div>
+                        {p > 0 && <div style={{ fontSize:9, color:'#22c55e' }}>{p} prom.</div>}
+                      </td>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+                  <td style={{ padding:'9px 14px', textAlign:'center', fontSize:16, fontWeight:900, color:'#FF6900' }}>{total}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
+    </div>
+  );
+}
+
+// ─── Page Principale ──────────────────────────────────────────────────────────
+export default function SuiviTCPage() {
+  const now = new Date();
+  const moisP = now.getMonth() === 0 ? 12 : now.getMonth();
+  const anneeP = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
+  const [activeTab, setActiveTab] = useState('ensemble');
+
+  const { data: dashboard, isLoading } = useQuery(
+    'suivi-tc-dashboard',
+    () => api.get('/appels-tc/dashboard-admin').then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const TABS = [
+    { id:'ensemble',    icon:'📊', label:"Vue d'ensemble" },
+    { id:'par-tc',      icon:'👤', label:'Par TC' },
+    { id:'historique',  icon:'📋', label:'Historique appels' },
+    { id:'file-admin',  icon:'📞', label:'File unifiée (Admin)' },
+    { id:'performance', icon:'📈', label:'Performance' },
+  ];
+
+  if (isLoading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'60vh', flexDirection:'column', gap:16 }}>
+      <div className="loading-spinner"/>
+      <p style={{ color:'#8a8a9a' }}>Chargement du tableau de bord TC...</p>
+    </div>
+  );
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{ marginBottom:20 }}>
+        <div>
+          <h1 className="page-title">📞 Suivi Téléconseillères</h1>
+          <p style={{ color:'#8a8a9a', fontSize:13, marginTop:4 }}>
+            Gestion et suivi des appels TC — {dashboard?.global?.total||0} appels enregistrés
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display:'flex', gap:6, marginBottom:24, flexWrap:'wrap', background:'rgba(255,255,255,0.02)', borderRadius:12, padding:6 }}>
+        {TABS.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 18px', borderRadius:9, border:'none',
+              background: activeTab===tab.id ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'transparent',
+              color: activeTab===tab.id ? '#fff' : '#64748b', fontWeight: activeTab===tab.id ? 800 : 500,
+              fontSize:13, cursor:'pointer', transition:'all 0.2s' }}>
+            <span>{tab.icon}</span><span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'ensemble'    && <TabVueEnsemble dashboard={dashboard}/>}
+      {activeTab === 'par-tc'      && <TabParTC annee={anneeP} mois={moisP}/>}
+      {activeTab === 'historique'  && <TabHistorique dashboard={dashboard}/>}
+      {activeTab === 'file-admin'  && <TabFileAdmin/>}
+      {activeTab === 'performance' && <TabPerformance/>}
     </div>
   );
 }

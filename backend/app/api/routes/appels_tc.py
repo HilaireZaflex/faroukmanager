@@ -500,6 +500,127 @@ def marquer_appele(
     return {"success": True, "message": f"Appel enregistré pour {numero_pdv}"}
 
 
+@router.get("/appels-tc/suivi/par-tc")
+def suivi_par_tc(
+    annee: int = Query(None),
+    mois: int = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Suivi détaillé par TC : appels effectués, file unifiée, taux joignabilité."""
+    from datetime import date
+    from app.models.pdv import PDV
+    from sqlalchemy import func
+
+    today = date.today()
+    if not annee: annee = today.year
+    if not mois:  mois = today.month
+
+    # Tous les appels du mois
+    appels_mois = db.query(AppelTC).filter(
+        func.extract('year', AppelTC.created_at) == annee,
+        func.extract('month', AppelTC.created_at) == mois,
+    ).all()
+
+    # Grouper par TC
+    from collections import defaultdict
+    tc_stats = defaultdict(lambda: {
+        'tc_nom': '', 'total': 0, 'joignables': 0, 'injoignables': 0,
+        'promesses': 0, 'rappels': 0, 'par_indicateur': defaultdict(int),
+        'derniere_activite': None, 'pdvs_appeles': set()
+    })
+
+    for a in appels_mois:
+        nom = a.tc_nom or 'Inconnu'
+        tc_stats[nom]['tc_nom'] = nom
+        tc_stats[nom]['total'] += 1
+        tc_stats[nom]['par_indicateur'][a.indicateur or 'AUTRE'] += 1
+        tc_stats[nom]['pdvs_appeles'].add(a.numero_pdv)
+        if a.statut in ('JOIGNABLE_PROMESSE', 'JOIGNABLE_PAS_INTERESSE', 'JOIGNABLE_DEJA_ACTIF'):
+            tc_stats[nom]['joignables'] += 1
+        elif 'NON_JOIGNABLE' in (a.statut or ''):
+            tc_stats[nom]['injoignables'] += 1
+        if a.statut == 'JOIGNABLE_PROMESSE':
+            tc_stats[nom]['promesses'] += 1
+        if a.statut == 'RAPPEL_PROGRAMME':
+            tc_stats[nom]['rappels'] += 1
+        if not tc_stats[nom]['derniere_activite'] or a.created_at > tc_stats[nom]['derniere_activite']:
+            tc_stats[nom]['derniere_activite'] = a.created_at
+
+    # Ajouter PDVs assignés par TC (depuis table PDVs)
+    pdvs_par_tc = db.query(PDV.teleconseillere, func.count(PDV.id).label('nb')).filter(
+        PDV.statut == 'ACTIF', PDV.teleconseillere.isnot(None)
+    ).group_by(PDV.teleconseillere).all()
+    pdvs_map = {r.teleconseillere: r.nb for r in pdvs_par_tc}
+
+    result = []
+    for nom, stats in tc_stats.items():
+        nb_pdvs = pdvs_map.get(nom, 0)
+        nb_appeles = len(stats['pdvs_appeles'])
+        taux = round(stats['joignables'] / stats['total'] * 100) if stats['total'] > 0 else 0
+        result.append({
+            'tc_nom': nom,
+            'pdvs_assignes': nb_pdvs,
+            'pdvs_appeles_mois': nb_appeles,
+            'pdvs_restants': max(0, nb_pdvs - nb_appeles),
+            'total_appels': stats['total'],
+            'joignables': stats['joignables'],
+            'injoignables': stats['injoignables'],
+            'promesses': stats['promesses'],
+            'rappels': stats['rappels'],
+            'taux_joignabilite': taux,
+            'par_indicateur': dict(stats['par_indicateur']),
+            'derniere_activite': stats['derniere_activite'].strftime('%Y-%m-%d %H:%M') if stats['derniere_activite'] else None,
+        })
+
+    result.sort(key=lambda x: -x['total_appels'])
+    return {'par_tc': result, 'annee': annee, 'mois': mois}
+
+
+@router.get("/appels-tc/suivi/performance-mensuelle")
+def performance_mensuelle(
+    nb_mois: int = Query(6),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Performance mensuelle des TCs sur les N derniers mois."""
+    from datetime import date
+    from sqlalchemy import func
+    from collections import defaultdict
+
+    today = date.today()
+    mois_list = []
+    for i in range(nb_mois - 1, -1, -1):
+        mo = (today.month - 1 - i) % 12 + 1
+        an = today.year + ((today.month - 1 - i) // 12)
+        if mo <= 0: mo += 12
+        mois_list.append((an, mo))
+
+    MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+    result = []
+    for ann, mo in mois_list:
+        appels = db.query(AppelTC).filter(
+            func.extract('year', AppelTC.created_at) == ann,
+            func.extract('month', AppelTC.created_at) == mo,
+        ).all()
+        tc_data = defaultdict(lambda: {'total': 0, 'joignables': 0, 'promesses': 0})
+        for a in appels:
+            nom = a.tc_nom or 'Inconnu'
+            tc_data[nom]['total'] += 1
+            if a.statut and 'JOIGNABLE' in a.statut and 'NON' not in a.statut:
+                tc_data[nom]['joignables'] += 1
+            if a.statut == 'JOIGNABLE_PROMESSE':
+                tc_data[nom]['promesses'] += 1
+        result.append({
+            'mois': f"{MOIS_NOMS[mo]} {ann}",
+            'annee': ann, 'mois_num': mo,
+            'total': len(appels),
+            'par_tc': {nom: d for nom, d in tc_data.items()},
+        })
+
+    return {'historique': result}
+
+
 @router.delete("/appels-tc/{appel_id}")
 def delete_appel(
     appel_id: int,
