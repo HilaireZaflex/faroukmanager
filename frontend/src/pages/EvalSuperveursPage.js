@@ -1147,6 +1147,8 @@ function ListeSupTab({ annee, mois }) {
                   <td style={{ padding:'9px 14px', textAlign:'center' }}>
                     {s.isValide
                       ? <span style={{ background:'rgba(34,197,94,0.1)', color:'#22c55e', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700 }}>✅ Validé</span>
+                      : s.statut === 'SCORE_CALCULE'
+                      ? <span style={{ background:'rgba(255,165,2,0.1)', color:'#ffa502', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700 }}>⚡ Score calculé</span>
                       : <span style={{ background:'rgba(220,38,38,0.1)', color:'#dc2626', borderRadius:6, padding:'2px 8px', fontSize:10, fontWeight:700 }}>❌ Non validé</span>}
                   </td>
                   <td style={{ padding:'9px 14px', textAlign:'center' }}>
@@ -1793,6 +1795,12 @@ export default function EvalSuperveursPage() {
     { onSuccess: () => { qc.invalidateQueries(['eval-sup', selectedSup]); qc.invalidateQueries(['eval-classement']); refetchEval(); setActiveTab('resultats'); } }
   );
 
+  // Valider l'évaluation (marquer comme TERMINEE)
+  const validateMutation = useMutation(
+    () => api.patch(`/eval-superviseurs/${encodeURIComponent(selectedSup)}/valider?annee=${annee}&mois=${mois}`).then(r => r.data),
+    { onSuccess: () => { qc.invalidateQueries(['eval-sup', selectedSup]); qc.invalidateQueries(['eval-classement']); refetchEval(); } }
+  );
+
   // Détection rôle TC — APRÈS tous les hooks
   const userAuth = useAuthStore(s => s.user);
   const roleUser = (userAuth?.role || '').toLowerCase().replace('userrole.', '');
@@ -2128,6 +2136,15 @@ export default function EvalSuperveursPage() {
                       {calcMutation.isLoading ? '⏳ Calcul en cours...' : '🎯 Calculer / Recalculer le Score Final'}
                     </button>
                     {evaluation.score_final && (<>
+                      {evaluation.statut !== 'TERMINEE' && (
+                        <button onClick={() => validateMutation.mutate()} disabled={validateMutation.isLoading}
+                          style={{ padding: '12px 32px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(34,197,94,0.35)' }}>
+                          {validateMutation.isLoading ? '⏳ Validation en cours...' : '✅ Valider l\'évaluation'}
+                        </button>
+                      )}
+                      {evaluation.statut === 'TERMINEE' && (
+                        <span style={{ padding: '12px 32px', borderRadius: 12, background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontWeight: 800, fontSize: 15 }}>✅ Validée</span>
+                      )}
                       <button onClick={() => exportPDF(evaluation, selectedSup, mois, annee)}
                         style={{ padding: '12px 32px', borderRadius: 12, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.1)', color: '#6366f1', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
                         📄 Exporter en PDF

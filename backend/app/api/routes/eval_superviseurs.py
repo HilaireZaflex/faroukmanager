@@ -92,7 +92,7 @@ def calculer_tous_scores(
             e.score_presentiel = result['score_presentiel']
             e.score_final = result['score_final']
             e.mention = result['mention']
-            e.statut = 'TERMINEE'
+            e.statut = 'SCORE_CALCULE'
             db.add(e)
             resultats.append({"superviseur": e.superviseur, "score": result['score_final'], "mention": result['mention']})
         except Exception as ex:
@@ -401,7 +401,7 @@ def ma_liste_mystery_early(
     evals = db.query(EvalSuperviseur).filter(
         EvalSuperviseur.annee == annee,
         EvalSuperviseur.mois == mois,
-        EvalSuperviseur.statut == 'EN_COURS',
+        EvalSuperviseur.statut.in_(['EN_COURS', 'SCORE_CALCULE']),
     ).all()
 
     ma_liste = []
@@ -705,10 +705,36 @@ def calculer_score(
     e.score_presentiel = result['score_presentiel']
     e.score_final = result['score_final']
     e.mention = result['mention']
-    e.statut = 'TERMINEE'
+    e.statut = 'SCORE_CALCULE'
     db.commit()
     db.refresh(e)
     return {**_fmt(e), "detail_calcul": result['detail']}
+
+
+@router.patch("/eval-superviseurs/{superviseur}/valider")
+def valider_evaluation(
+    superviseur: str,
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Valide l'évaluation et marque le superviseur comme TERMINEE."""
+    e = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.superviseur == superviseur,
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+    ).first()
+    if not e:
+        raise HTTPException(404, "Évaluation non trouvée.")
+    
+    if e.score_final is None:
+        raise HTTPException(400, "Impossible de valider : le score n'a pas encore été calculé.")
+    
+    e.statut = 'TERMINEE'
+    db.commit()
+    db.refresh(e)
+    return {**_fmt(e)}
 
 
 # ─── Classement tous superviseurs ─────────────────────────────────────────────
@@ -809,7 +835,7 @@ def ma_liste_mystery(
     evals = db.query(EvalSuperviseur).filter(
         EvalSuperviseur.annee == annee,
         EvalSuperviseur.mois == mois,
-        EvalSuperviseur.statut == 'EN_COURS',
+        EvalSuperviseur.statut.in_(['EN_COURS', 'SCORE_CALCULE']),
     ).all()
 
     ma_liste = []
