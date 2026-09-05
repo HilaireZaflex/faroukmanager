@@ -1397,14 +1397,20 @@ function VueTeleconseillere({ annee, mois }) {
                               <span>📍 {pdv.quartier || pdv.localite || '—'}</span>
                             </div>
                           </div>
-                          <div style={{ flexShrink:0 }}>
+                          <div style={{ flexShrink:0, display:'flex', alignItems:'center', gap:8 }}>
                             {statut === 'JOIGNABLE' && <span style={{ fontSize:11, fontWeight:700, color:'#22c55e' }}>✅ Noté</span>}
                             {statut === 'INJOIGNABLE' && <span style={{ fontSize:11, fontWeight:700, color:'#ff4757' }}>📵 Injoignable</span>}
+                            {statut && (
+                              <button onClick={() => setAppelEnCours(isActive ? null : callKey)}
+                                style={{ fontSize:10, padding:'3px 10px', borderRadius:6, border:'1px solid rgba(255,165,2,0.4)', background:'rgba(255,165,2,0.08)', color:'#ffa502', cursor:'pointer', fontWeight:700 }}>
+                                ✏️ Modifier
+                              </button>
+                            )}
                           </div>
                         </div>
 
-                        {/* 3 questions toujours visibles si pas encore noté */}
-                        {statut !== 'JOIGNABLE' && (
+                        {/* 3 questions : affichées si pas encore noté OU si en cours de modification */}
+                        {(statut !== 'JOIGNABLE' || isActive) && (
                           <div style={{ marginTop:10, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'12px 14px' }}>
                             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:10 }}>
                               {[
