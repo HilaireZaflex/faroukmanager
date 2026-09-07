@@ -906,7 +906,11 @@ function OngletInactifs({ annee, semaine, teleFilter }) {
                         {p.alerte}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>{(() => { const appel = appelsMap[p.numero_pdv]; return <button onClick={() => setAppelPDV(p)} title={appel ? `Dernier: ${(appel.statut||'').replace(/_/g,' ')}` : 'Appeler'} style={{ background: appel ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appel ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appel ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>{appel ? '✏️' : '📞'}</button>; })()}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
+                          title={appelsMap[p.numero_pdv] ? 'Modifier - Déjà appelé' : 'Appeler ce PDV'}
+                          style={{ background: appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsMap[p.numero_pdv] ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          {appelsMap[p.numero_pdv] ? '✏️' : '📞'}
+                        </button></td>
                   </tr>
                 );
               })}
@@ -1073,7 +1077,11 @@ function OngletBaisse({ annee, semaine, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#8a8a9a' }}>{p.action}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>{(() => { const appel = appelsMap[p.numero_pdv]; return <button onClick={() => setAppelPDV(p)} title={appel ? `Dernier: ${(appel.statut||'').replace(/_/g,' ')}` : 'Appeler'} style={{ background: appel ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appel ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appel ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>{appel ? '✏️' : '📞'}</button>; })()}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
+                          title={appelsMap[p.numero_pdv] ? 'Modifier - Déjà appelé' : 'Appeler ce PDV'}
+                          style={{ background: appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsMap[p.numero_pdv] ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          {appelsMap[p.numero_pdv] ? '✏️' : '📞'}
+                        </button></td>
                   </tr>
                 );
               })}
