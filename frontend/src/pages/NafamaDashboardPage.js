@@ -1138,6 +1138,14 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV && (
+        <AppelTCModal
+          pdv={appelPDV}
+          indicateur="NAFAMA"
+          onClose={() => setAppelPDV(null)}
+          onSaved={() => setAppelPDV(null)}
+        />
+      )}
     </div>
   );
 }

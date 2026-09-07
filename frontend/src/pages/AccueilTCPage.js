@@ -228,6 +228,7 @@ function TabFileUnifiee() {
   const [data, setData]         = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError]       = React.useState(null);
+  const [showCalled, setShowCalled] = React.useState(false);
 
   const charger = React.useCallback(async (a, m) => {
     setIsLoading(true);
@@ -256,7 +257,7 @@ function TabFileUnifiee() {
       filtre === 'MULTI'    ? p.nb_alertes >= 2 :
       filtre === 'INACTIFS' ? p.alertes.some(a => a.type === 'INACTIF') : true
     ))
-    .filter(p => !appelsFaits.has(p.numero_pdv))
+    .filter(p => showCalled || !appelsFaits.has(p.numero_pdv))
     .filter(p => !search || p.nom?.toLowerCase().includes(search.toLowerCase()) || p.numero_pdv?.includes(search))
     .filter(p => !zoneF || p.zone === zoneF)
     .filter(p => !supF || p.superviseur === supF);
@@ -344,7 +345,7 @@ function TabFileUnifiee() {
 
       {/* Filtres — 2 lignes : catégories + recherche/zone/sup */}
       <div style={{ marginBottom:16 }}>
-        <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:8, marginBottom:10, flexWrap:'wrap', alignItems:'center' }}>
           {[
             { id:'TOUS',    label:'Tous' },
             { id:'CRITIQUE',label:'🔴 Critique' },
@@ -360,7 +361,14 @@ function TabFileUnifiee() {
               {f.label}
             </button>
           ))}
-          <span style={{ marginLeft:'auto', fontSize:12, color:'#64748b', alignSelf:'center' }}>{pdvs.length} PDVs</span>
+          <span style={{ marginLeft:'auto', fontSize:12, color:'#64748b', marginRight:16 }}>{pdvs.length} PDVs</span>
+          <button onClick={() => setShowCalled(!showCalled)}
+            style={{ padding:'7px 16px', borderRadius:20, border:'none', fontSize:12, fontWeight:700, cursor:'pointer',
+              background: showCalled ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.05)',
+              color: showCalled ? '#22c55e' : '#64748b',
+              border: showCalled ? '1px solid #22c55e' : '1px solid transparent' }}>
+            {showCalled ? '✅ Déjà appelés visibles' : '👁️ Afficher déjà appelés'}
+          </button>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
           <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
@@ -402,47 +410,61 @@ function TabFileUnifiee() {
         </div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {pdvs.map((p, i) => (
+          {pdvs.map((p, i) => {
+            const isCalled = appelsFaits.has(p.numero_pdv);
+            return (
             <div key={p.numero_pdv}
-              style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)',
-                borderLeft:`4px solid ${p.score >= 60 ? '#ff4757' : p.score >= 30 ? '#ffa502' : '#22c55e'}`,
-                borderRadius:12, padding:'14px 18px', display:'flex', alignItems:'center', gap:16 }}>
+              style={{ background: isCalled ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.02)', 
+                border: isCalled ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(255,255,255,0.07)',
+                borderLeft:`4px solid ${isCalled ? '#22c55e' : p.score >= 60 ? '#ff4757' : p.score >= 30 ? '#ffa502' : '#22c55e'}`,
+                borderRadius:12, padding:'14px 18px', display:'flex', alignItems:'center', gap:16, opacity: isCalled ? 0.7 : 1 }}>
               {/* Rang */}
               <div style={{ fontSize:14, fontWeight:900, color:'#64748b', minWidth:24 }}>{i+1}</div>
               {/* Infos PDV */}
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
-                  <span style={{ fontSize:14, fontWeight:800, color:'#fff' }}>{p.nom}</span>
+                  <span style={{ fontSize:14, fontWeight:800, color: isCalled ? '#94a3b8' : '#fff' }}>{p.nom}</span>
                   <span style={{ fontSize:11, color:'#64748b' }}>{p.numero_pdv}</span>
-                  <ScoreBadge score={p.score} />
+                  {isCalled && (
+                    <span style={{ fontSize:10, background:'rgba(34,197,94,0.2)', color:'#22c55e', borderRadius:4, padding:'2px 8px', fontWeight:700 }}>
+                      ✅ Déjà appelé
+                    </span>
+                  )}
+                  {!isCalled && <ScoreBadge score={p.score} />}
                   {p.dernier_appel && (
                     <span style={{ fontSize:10, color:'#64748b', background:'rgba(255,255,255,0.05)', borderRadius:4, padding:'1px 6px' }}>
                       Dernier appel: {p.dernier_appel}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize:11, color:'#64748b', marginBottom:6 }}>
+                <div style={{ fontSize:11, color: isCalled ? '#4a5568' : '#64748b', marginBottom:6 }}>
                   📍 {p.zone} · {p.sous_zone} · 👤 {p.superviseur} · 📞 {p.telephone || '—'}
                 </div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:6 }}>
-                  {p.alertes.map((a, j) => <AlerteBadge key={j} alerte={a} />)}
-                </div>
-                <div style={{ display:'flex', gap:16, fontSize:11 }}>
-                  <span style={{ color: IND_COLORS.OMY }}>OMY: {fmtK(p.omy_curr)}F <span style={{ color:'#64748b' }}>/ {fmtK(p.omy_prec)}F</span></span>
-                  <span style={{ color: IND_COLORS.NAFAMA }}>NAFAMA: {fmtK(p.nafama_curr)}F <span style={{ color:'#64748b' }}>/ {fmtK(p.nafama_prec)}F</span></span>
-                  <span style={{ color: IND_COLORS.KAABU }}>KAABU: {fmtK(p.kaabu_curr)} tx <span style={{ color:'#64748b' }}>/ {fmtK(p.kaabu_prec)}</span></span>
-                </div>
+                {!isCalled && (
+                  <>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:6 }}>
+                      {p.alertes.map((a, j) => <AlerteBadge key={j} alerte={a} />)}
+                    </div>
+                    <div style={{ display:'flex', gap:16, fontSize:11 }}>
+                      <span style={{ color: IND_COLORS.OMY }}>OMY: {fmtK(p.omy_curr)}F <span style={{ color:'#64748b' }}>/ {fmtK(p.omy_prec)}F</span></span>
+                      <span style={{ color: IND_COLORS.NAFAMA }}>NAFAMA: {fmtK(p.nafama_curr)}F <span style={{ color:'#64748b' }}>/ {fmtK(p.nafama_prec)}F</span></span>
+                      <span style={{ color: IND_COLORS.KAABU }}>KAABU: {fmtK(p.kaabu_curr)} tx <span style={{ color:'#64748b' }}>/ {fmtK(p.kaabu_prec)}</span></span>
+                    </div>
+                  </>
+                )}
               </div>
               {/* Bouton Appeler */}
               <button onClick={() => setModalPDV(p)}
                 style={{ padding:'10px 20px', borderRadius:10, border:'none',
-                  background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff',
+                  background: isCalled ? 'rgba(255,255,255,0.1)' : 'linear-gradient(135deg,#FF6900,#ff9500)', 
+                  color: isCalled ? '#64748b' : '#fff',
                   fontWeight:800, fontSize:13, cursor:'pointer', whiteSpace:'nowrap',
-                  boxShadow:'0 4px 12px rgba(255,105,0,0.3)', flexShrink:0 }}>
-                📞 Appeler
+                  boxShadow: isCalled ? 'none' : '0 4px 12px rgba(255,105,0,0.3)', flexShrink:0 }}>
+                {isCalled ? '✏️ Modifier' : '📞 Appeler'}
               </button>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 

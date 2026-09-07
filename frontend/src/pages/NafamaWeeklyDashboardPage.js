@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
+import AppelTCModal from '../components/common/AppelTCModal';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Cell, ComposedChart, AreaChart, Area
@@ -1080,6 +1081,14 @@ function OngletBaisse({ annee, semaine, teleFilter }) {
           </table>
         </div>
       </div>
+      {appelPDV && (
+        <AppelTCModal
+          pdv={appelPDV}
+          indicateur="NAFAMA"
+          onClose={() => setAppelPDV(null)}
+          onSaved={() => setAppelPDV(null)}
+        />
+      )}
     </div>
   );
 }
