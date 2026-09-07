@@ -828,17 +828,13 @@ function TabEvolution({ annee, mois }) {
 
 // ─── Inactifs mensuel ──────────────────────────────────────────────────────
 function TabInactivePDVs({
-  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-inac',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap = appelsMapRaw || {};
  annee, mois, teleFilter }) {
   const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-inac',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
       const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
     }), { staleTime: 60000 });
   const appelsMap = appelsMapRaw || {};
+
 
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');

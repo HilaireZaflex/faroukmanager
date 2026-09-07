@@ -784,17 +784,8 @@ function OngletEvolution({ annee, semaine }) {
 
 // ─── Inactifs hebdo ────────────────────────────────────────────────────────
 function OngletInactifs({
-  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-inac',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap = appelsMapRaw || {};
  annee, semaine, teleFilter }) {
-  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-inac',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap = appelsMapRaw || {};
+
 
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
@@ -937,17 +928,13 @@ function OngletInactifs({
 
 // ─── En Baisse hebdo ───────────────────────────────────────────────────────
 function OngletBaisse({
-  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-bai',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap = appelsMapRaw || {};
  annee, semaine, teleFilter }) {
   const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-bai',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
       const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
     }), { staleTime: 60000 });
   const appelsMap = appelsMapRaw || {};
+
 
   const [seuil, setSeuil] = useState(10);
   const [appelPDV, setAppelPDV] = useState(null);
