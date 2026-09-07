@@ -374,8 +374,13 @@ def get_repartition_agents(
         s = p.status.value if hasattr(p.status, 'value') else str(p.status)
         statuts[s] = statuts.get(s, 0) + 1
 
+    # Total visitées global = tous prospects dont la visite est terminée (avec ou sans agent assigné)
+    STATUTS_POST_VISITE = {"VALIDEE_DEV", "APPROUVEE_RC", "PUCE_ATTRIBUEE", "PUCE_ACTIVEE", "REFUSEE_DEV", "REFUSEE_RC"}
+    total_visitees_global = sum(1 for p in prospects if (p.status.value if hasattr(p.status, 'value') else str(p.status)) in STATUTS_POST_VISITE)
+
     return {
         "total_prospects": len(prospects),
+        "total_visitees": total_visitees_global,
         "par_statut": statuts,
         "prospections": fmt_list(prospections_par_agent),
         "visites": fmt_list(visites_par_agent),

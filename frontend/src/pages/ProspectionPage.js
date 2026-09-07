@@ -3068,7 +3068,7 @@ function TabRepartition() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {[
           { icon: '📋', label: 'Visites Attribuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.total || 0) : visites.reduce((acc, a) => acc + (a.total||0), 0), color: '#3742fa', legende: 'Total prospects assignés à ce développeur pour visite' },
-          { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0) : visites.reduce((acc, a) => acc + (a.effectuees||0), 0), color: '#ffa502', legende: "Prospects visités ET validés à étape 3" },
+          { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0) : (data?.total_visitees || visites.reduce((acc, a) => acc + (a.effectuees||0), 0)), color: '#ffa502', legende: "Prospects dont la visite est terminée (validées par le développeur)" },
           { icon: '📋', label: 'Visites Restantes', value: filtreDevRep ? ((visites.find(a => a.agent === filtreDevRep)?.total || 0) - (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0)) : visites.reduce((acc, a) => acc + ((a.total||0) - (a.effectuees||0)), 0), color: '#ff4757', legende: "Visites attribuées non encore effectuées (toutes périodes)" },
           { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
         ].map((k, i) => (
