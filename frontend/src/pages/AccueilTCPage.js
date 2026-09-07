@@ -492,15 +492,6 @@ export default function AccueilTCPage() {
   const salutation = heures < 12 ? 'Bonjour' : heures < 18 ? 'Bon après-midi' : 'Bonsoir';
 
   // Mes appels du jour
-  // Map des appels par numéro PDV pour indicateurs visuels
-  const appelsParPDV = React.useMemo(() => {
-    const map = {};
-    (mesAppels?.items || []).forEach(a => {
-      if (!map[a.numero_pdv]) map[a.numero_pdv] = a; // garder le plus récent
-    });
-    return map;
-  }, [mesAppels]);
-
   const { data: mesAppels } = useQuery(
     'tc-appels-recents',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 10 } }).then(r => r.data),
@@ -513,6 +504,15 @@ export default function AccueilTCPage() {
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 50 } }).then(r => r.data),
     { staleTime: 30000 }
   );
+
+  // Map des appels par numéro PDV pour indicateurs visuels — défini APRÈS mesAppels
+  const appelsParPDV = React.useMemo(() => {
+    const map = {};
+    (mesAppels?.items || []).forEach(a => {
+      if (!map[a.numero_pdv]) map[a.numero_pdv] = a; // garder le plus récent
+    });
+    return map;
+  }, [mesAppels]);
 
   // Stats inactifs OMY (mes PDVs)
   const { data: inactifsOMY } = useQuery(
