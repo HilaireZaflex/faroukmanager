@@ -3050,10 +3050,10 @@ function TabRepartition() {
 
       {/* ── Filtre par développeur ── */}
       <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>👤 Développeur :</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>👤 Agent :</span>
         <select value={filtreDevRep || ''} onChange={e => setFiltreDevRep(e.target.value)}
           style={{ padding: '8px 14px', borderRadius: 9, border: `1px solid ${filtreDevRep ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`, background: filtreDevRep ? 'rgba(255,105,0,0.1)' : '#1a1a2e', color: filtreDevRep ? '#FF6900' : '#94a3b8', fontSize: 13, fontWeight: filtreDevRep ? 700 : 400 }}>
-          <option value="">Tous les développeurs</option>
+          <option value="">Tous les agents</option>
           {[...new Set([...prospections, ...visites, ...activations].map(a => a.agent).filter(Boolean))].sort().map(dev => (
             <option key={dev} value={dev}>{dev}</option>
           ))}
@@ -3065,11 +3065,16 @@ function TabRepartition() {
       </div>
 
       {/* ── KPIs principaux ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {[
           { icon: '📋', label: 'Total Demandes', value: filtreDevRep ? ([...prospections, ...visites].filter(a => a.agent === filtreDevRep).reduce((acc, a) => acc + (a.total || 0), 0) || data?.total_by_dev?.[filtreDevRep] || total) : total, color: '#3742fa', legende: 'Toutes les demandes soumises sur la période' },
           { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.total || 0) : visites.reduce((acc, a) => acc + (a.total||0), 0), color: '#ffa502', legende: 'Nombre de visites terrain réalisées' },
           { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
+          { icon: '📋', label: 'Visites Restantes', value: (() => {
+              const visitesF = filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.total || 0) : visites.reduce((acc, a) => acc + (a.total||0), 0);
+              const demandesF = filtreDevRep ? (data?.total_by_dev?.[filtreDevRep] || 0) : total;
+              return Math.max(0, demandesF - visitesF);
+            })(), color: '#ff4757', legende: 'Demandes non encore visitées' },
         ].map((k, i) => (
           <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderTop: '3px solid '+k.color, borderRadius: 14, padding: '18px 20px', textAlign: 'center' }}>
             <div style={{ fontSize: 28, marginBottom: 10 }}>{k.icon}</div>

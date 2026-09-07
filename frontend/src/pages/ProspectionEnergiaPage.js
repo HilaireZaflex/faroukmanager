@@ -48,11 +48,12 @@ export default function ProspectionEnergiaPage() {
   const [filtreKit, setFiltreKit] = useState('');
 
   // Données ENERGIA
-  const { data: energiaProspects = [], isLoading, refetch } = useQuery(
+  const { data: energiaData, isLoading, refetch } = useQuery(
     'energia-prospects',
     () => api.get('/energia/prospects?limit=500').then(r => r.data),
     { staleTime: 30000 }
   );
+  const energiaProspects = energiaData?.items || [];
   const { data: energiaStats } = useQuery(
     'energia-stats',
     () => api.get('/energia/stats').then(r => r.data),
@@ -216,7 +217,7 @@ function EnergiaFormModal({ prospect, onClose, onSuccess }) {
     setLoading(true);
     try {
       if (isEdit) {
-        await api.patch(`/energia/prospects/${prospect.id}`, data);
+        await api.put(`/energia/prospects/${prospect.id}`, data);
         toast.success('Prospect mis à jour !');
       } else {
         await api.post('/energia/prospects', data);
