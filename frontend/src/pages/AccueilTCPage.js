@@ -492,6 +492,15 @@ export default function AccueilTCPage() {
   const salutation = heures < 12 ? 'Bonjour' : heures < 18 ? 'Bon après-midi' : 'Bonsoir';
 
   // Mes appels du jour
+  // Map des appels par numéro PDV pour indicateurs visuels
+  const appelsParPDV = React.useMemo(() => {
+    const map = {};
+    (mesAppels?.items || []).forEach(a => {
+      if (!map[a.numero_pdv]) map[a.numero_pdv] = a; // garder le plus récent
+    });
+    return map;
+  }, [mesAppels]);
+
   const { data: mesAppels } = useQuery(
     'tc-appels-recents',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 10 } }).then(r => r.data),
@@ -664,7 +673,7 @@ export default function AccueilTCPage() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
 
-        {/* ── PDVs inactifs prioritaires ── */}
+        {/* ── PDVs inactifs OMY ── */}
         <div style={{ ...cardStyle, borderLeft: '4px solid #ff4757' }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: '#ff4757', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>😴 PDVs Inactifs OMY ({myInactifsOMY.length})</span>
@@ -674,16 +683,32 @@ export default function AccueilTCPage() {
             <div style={{ textAlign: 'center', padding: '20px 0', color: '#22c55e', fontSize: 13 }}>✅ Aucun PDV inactif !</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {myInactifsOMY.slice(0, 5).map((p, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'rgba(255,71,87,0.05)', borderRadius: 8, border: '1px solid rgba(255,71,87,0.15)' }}>
+              {myInactifsOMY.slice(0, 5).map((p, i) => {
+                const dernierAppel = appelsParPDV[p.numero_pdv];
+                const deja = !!dernierAppel;
+                return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                  background: deja ? 'rgba(34,197,94,0.06)' : 'rgba(255,71,87,0.05)',
+                  borderRadius: 8, border: `1px solid ${deja ? 'rgba(34,197,94,0.3)' : 'rgba(255,71,87,0.15)'}` }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 12 }}>{p.numero_pdv}</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, display:'flex', alignItems:'center', gap:6 }}>
+                      {p.numero_pdv}
+                      {deja && <span style={{ fontSize:9, background:'rgba(34,197,94,0.15)', color:'#22c55e', borderRadius:4, padding:'1px 5px', fontWeight:700 }}>
+                        {STATUT_ICONS[dernierAppel.statut]||'✅'} Appelé
+                      </span>}
+                    </div>
                     <div style={{ fontSize: 10, color: '#64748b' }}>{p.nb_mois_consecutifs_inactif} mois inactif · {p.zone}</div>
+                    {deja && dernierAppel.commentaire && <div style={{ fontSize:10, color:'#94a3b8', fontStyle:'italic', marginTop:2 }}>"{dernierAppel.commentaire.slice(0,40)}{dernierAppel.commentaire.length>40?'...':''}"</div>}
                   </div>
                   <button onClick={() => setAppelPDV({ ...p, indicateur: 'OMY' })}
-                    style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 6, color: COLOR, padding: '4px 8px', cursor: 'pointer', fontSize: 13 }}>📞</button>
+                    style={{ background: deja ? 'rgba(162,155,254,0.1)' : 'rgba(0,214,143,0.1)',
+                      border: `1px solid ${deja ? 'rgba(162,155,254,0.3)' : 'rgba(0,214,143,0.3)'}`,
+                      borderRadius: 6, color: deja ? '#a29bfe' : COLOR, padding: '4px 8px', cursor: 'pointer', fontSize: 13, whiteSpace:'nowrap' }}>
+                    {deja ? '✏️' : '📞'}
+                  </button>
                 </div>
-              ))}
+                );
+              })}
               {myInactifsOMY.length > 5 && <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', paddingTop: 4 }}>+{myInactifsOMY.length - 5} autres</div>}
             </div>
           )}
@@ -699,21 +724,75 @@ export default function AccueilTCPage() {
             <div style={{ textAlign: 'center', padding: '20px 0', color: '#22c55e', fontSize: 13 }}>✅ Aucun PDV en baisse !</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {myBaisseOMY.slice(0, 5).map((p, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'rgba(255,165,2,0.05)', borderRadius: 8, border: '1px solid rgba(255,165,2,0.15)' }}>
+              {myBaisseOMY.slice(0, 5).map((p, i) => {
+                const dernierAppel = appelsParPDV[p.numero_pdv];
+                const deja = !!dernierAppel;
+                return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                  background: deja ? 'rgba(34,197,94,0.06)' : 'rgba(255,165,2,0.05)',
+                  borderRadius: 8, border: `1px solid ${deja ? 'rgba(34,197,94,0.3)' : 'rgba(255,165,2,0.15)'}` }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 12 }}>{p.numero_pdv}</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, display:'flex', alignItems:'center', gap:6 }}>
+                      {p.numero_pdv}
+                      {deja && <span style={{ fontSize:9, background:'rgba(34,197,94,0.15)', color:'#22c55e', borderRadius:4, padding:'1px 5px', fontWeight:700 }}>
+                        {STATUT_ICONS[dernierAppel.statut]||'✅'} Appelé
+                      </span>}
+                    </div>
                     <div style={{ fontSize: 10, color: '#64748b' }}>↓ {Math.abs(p.taux_baisse || 0).toFixed(1)}% · {p.zone}</div>
+                    {deja && dernierAppel.commentaire && <div style={{ fontSize:10, color:'#94a3b8', fontStyle:'italic', marginTop:2 }}>"{dernierAppel.commentaire.slice(0,40)}{dernierAppel.commentaire.length>40?'...':''}"</div>}
                   </div>
                   <button onClick={() => setAppelPDV({ ...p, indicateur: 'OMY' })}
-                    style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 6, color: COLOR, padding: '4px 8px', cursor: 'pointer', fontSize: 13 }}>📞</button>
+                    style={{ background: deja ? 'rgba(162,155,254,0.1)' : 'rgba(0,214,143,0.1)',
+                      border: `1px solid ${deja ? 'rgba(162,155,254,0.3)' : 'rgba(0,214,143,0.3)'}`,
+                      borderRadius: 6, color: deja ? '#a29bfe' : COLOR, padding: '4px 8px', cursor: 'pointer', fontSize: 13, whiteSpace:'nowrap' }}>
+                    {deja ? '✏️' : '📞'}
+                  </button>
                 </div>
-              ))}
+                );
+              })}
               {myBaisseOMY.length > 5 && <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', paddingTop: 4 }}>+{myBaisseOMY.length - 5} autres</div>}
             </div>
           )}
         </div>
       </div>
+
+      {/* ── PDVs Inactifs NAFAMA ── */}
+      {myInactifsNAFAMA.length > 0 && (
+        <div style={{ ...cardStyle, borderLeft: '4px solid #00cec9', marginBottom: 20 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: '#00cec9', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>🟢 PDVs Inactifs NAFAMA ({myInactifsNAFAMA.length})</span>
+            <button onClick={() => navigate('/nafama/dashboard')} style={{ fontSize: 11, background: 'none', border: '1px solid rgba(0,206,201,0.3)', borderRadius: 6, color: '#00cec9', cursor: 'pointer', padding: '3px 8px' }}>Voir tout →</button>
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {myInactifsNAFAMA.slice(0, 6).map((p, i) => {
+              const dernierAppel = appelsParPDV[p.numero_pdv];
+              const deja = !!dernierAppel;
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                  background: deja ? 'rgba(34,197,94,0.06)' : 'rgba(0,206,201,0.05)',
+                  borderRadius: 8, border: `1px solid ${deja ? 'rgba(34,197,94,0.3)' : 'rgba(0,206,201,0.15)'}` }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 12, display:'flex', alignItems:'center', gap:6 }}>
+                      {p.numero_pdv}
+                      {deja && <span style={{ fontSize:9, background:'rgba(34,197,94,0.15)', color:'#22c55e', borderRadius:4, padding:'1px 5px', fontWeight:700 }}>
+                        {STATUT_ICONS[dernierAppel.statut]||'✅'} Appelé
+                      </span>}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>{p.zone}</div>
+                    {deja && dernierAppel.commentaire && <div style={{ fontSize:10, color:'#94a3b8', fontStyle:'italic', marginTop:2 }}>"{dernierAppel.commentaire.slice(0,35)}..."</div>}
+                  </div>
+                  <button onClick={() => setAppelPDV({ ...p, indicateur: 'NAFAMA' })}
+                    style={{ background: deja ? 'rgba(162,155,254,0.1)' : 'rgba(0,206,201,0.1)',
+                      border: `1px solid ${deja ? 'rgba(162,155,254,0.3)' : 'rgba(0,206,201,0.3)'}`,
+                      borderRadius: 6, color: deja ? '#a29bfe' : '#00cec9', padding: '4px 8px', cursor: 'pointer', fontSize: 13 }}>
+                    {deja ? '✏️' : '📞'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Historique de mes appels ── */}
       <div style={{ ...cardStyle }}>
