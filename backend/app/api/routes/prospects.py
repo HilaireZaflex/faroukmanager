@@ -323,10 +323,24 @@ def get_repartition_agents(
             va = p.visit_assigned_to
         nom_visit = get_user_name(va)
         if nom_visit:
-            visites_par_agent[nom_visit] = visites_par_agent.get(nom_visit, {"total": 0, "validees": 0, "refusees": 0})
+            visites_par_agent[nom_visit] = visites_par_agent.get(nom_visit, {"total": 0, "validees": 0, "refusees": 0, "effectuees": 0, "restantes": 0})
             visites_par_agent[nom_visit]["total"] += 1
-            if p.status in (ProspectStatus.VALIDEE_DEV, ProspectStatus.APPROUVEE_RC, ProspectStatus.PUCE_ATTRIBUEE, ProspectStatus.PUCE_ACTIVEE, "VALIDEE_DEV", "APPROUVEE_RC", "PUCE_ATTRIBUEE", "PUCE_ACTIVEE"):
+            # Visite EFFECTUÉE = le dev a visité ET validé/refusé (étape 3 complétée)
+            STATUTS_VISITE_EFFECTUEE = (
+                ProspectStatus.VALIDEE_DEV, ProspectStatus.APPROUVEE_RC,
+                ProspectStatus.PUCE_ATTRIBUEE, ProspectStatus.PUCE_ACTIVEE,
+                ProspectStatus.REFUSEE_DEV,
+                "VALIDEE_DEV", "APPROUVEE_RC", "PUCE_ATTRIBUEE", "PUCE_ACTIVEE", "REFUSEE_DEV"
+            )
+            # Visite RESTANTE = assignée mais pas encore validée (EN_VISITE)
+            STATUTS_VISITE_RESTANTE = (
+                ProspectStatus.EN_VISITE, "EN_VISITE"
+            )
+            if p.status in STATUTS_VISITE_EFFECTUEE:
+                visites_par_agent[nom_visit]["effectuees"] += 1
                 visites_par_agent[nom_visit]["validees"] += 1
+            elif p.status in STATUTS_VISITE_RESTANTE:
+                visites_par_agent[nom_visit]["restantes"] += 1
             if p.status in (ProspectStatus.REFUSEE_DEV, "REFUSEE_DEV"):
                 visites_par_agent[nom_visit]["refusees"] += 1
 
