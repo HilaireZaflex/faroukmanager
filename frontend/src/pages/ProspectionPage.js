@@ -2975,6 +2975,15 @@ function TabRepartition() {
   ];
 
   const [filtreDevRep, setFiltreDevRep] = React.useState('');
+
+  // Données GLOBALES (sans filtre période) pour Visites Attribuées — ne varie pas
+  const { data: dataGlobal } = useQuery(
+    'repartition-agents-global',
+    () => api.get('/prospects/stats/repartition-agents', { params: { periode: 'tout' } }).then(r => r.data),
+    { staleTime: 300000 }
+  );
+  const visitesGlobal = dataGlobal?.visites || [];
+
   const buildParams = () => {
     if (periode === 'custom') {
       const p = {};
@@ -3067,9 +3076,21 @@ function TabRepartition() {
       {/* ── KPIs principaux ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {[
-          { icon: '📋', label: 'Visites Attribuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.total || 0) : visites.reduce((acc, a) => acc + (a.total||0), 0), color: '#3742fa', legende: 'Total prospects assignés à ce développeur pour visite' },
-          { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0) : (data?.total_visitees || visites.reduce((acc, a) => acc + (a.effectuees||0), 0)), color: '#ffa502', legende: "Prospects dont la visite est terminée (validées par le développeur)" },
-          { icon: '📋', label: 'Visites Restantes', value: filtreDevRep ? ((visites.find(a => a.agent === filtreDevRep)?.total || 0) - (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0)) : visites.reduce((acc, a) => acc + ((a.total||0) - (a.effectuees||0)), 0), color: '#ff4757', legende: "Visites attribuées non encore effectuées (toutes périodes)" },
+          { icon: '📋', label: 'Visites Attribuées', 
+            value: filtreDevRep 
+              ? (visitesGlobal.find(a => a.agent === filtreDevRep)?.total || 0) 
+              : visitesGlobal.reduce((acc, a) => acc + (a.total||0), 0), 
+            color: '#3742fa', legende: 'Total global des prospects assignés (toutes périodes, ne varie pas)' },
+          { icon: '🔍', label: 'Visites Effectuées', 
+            value: filtreDevRep 
+              ? (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0) 
+              : (data?.total_visitees || visites.reduce((acc, a) => acc + (a.effectuees||0), 0)), 
+            color: '#ffa502', legende: "Visites validées sur la période sélectionnée" },
+          { icon: '📋', label: 'Visites Restantes', 
+            value: filtreDevRep 
+              ? Math.max(0, (visitesGlobal.find(a => a.agent === filtreDevRep)?.total || 0) - (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0))
+              : Math.max(0, visitesGlobal.reduce((acc, a) => acc + (a.total||0), 0) - (data?.total_visitees || visites.reduce((acc, a) => acc + (a.effectuees||0), 0))),
+            color: '#ff4757', legende: "Attribuées (global) − Effectuées (période) = encore à faire" },
           { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
         ].map((k, i) => (
           <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderTop: '3px solid '+k.color, borderRadius: 14, padding: '18px 20px', textAlign: 'center' }}>
