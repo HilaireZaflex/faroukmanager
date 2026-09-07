@@ -269,13 +269,22 @@ def get_repartition_agents(
         try: dt_fin = datetime.strptime(date_fin, "%Y-%m-%d").date()
         except: pass
 
+    # Prospects filtrés par période (date de soumission) — pour prospections et activations
     query = db.query(ProspectModel)
     if dt_debut:
         query = query.filter(func.date(ProspectModel.submitted_at) >= dt_debut)
     if dt_fin:
         query = query.filter(func.date(ProspectModel.submitted_at) <= dt_fin)
-
     prospects = query.all()
+
+    # Tous les prospects avec visit_assigned_to (pour visites) — filtrés par updated_at (date de validation)
+    visites_query = db.query(ProspectModel).filter(ProspectModel.visit_assigned_to_id.isnot(None))
+    if dt_debut:
+        visites_query = visites_query.filter(func.date(ProspectModel.updated_at) >= dt_debut)
+    if dt_fin:
+        visites_query = visites_query.filter(func.date(ProspectModel.updated_at) <= dt_fin)
+    # Pour "tout" — utiliser tous les prospects avec agent assigné sans filtre date
+    all_visites_prospects = db.query(ProspectModel).filter(ProspectModel.visit_assigned_to_id.isnot(None)).all() if not (dt_debut or dt_fin) else visites_query.all()
 
     periode_label = {
         "aujourd_hui": f"Aujourd'hui ({today.strftime('%d/%m/%Y')})",
@@ -317,6 +326,8 @@ def get_repartition_agents(
             if p.status in (ProspectStatus.REFUSEE_RC, ProspectStatus.REFUSEE_DEV, "REFUSEE_RC", "REFUSEE_DEV"):
                 prospections_par_agent[nom_sub]["refusees"] += 1
 
+    # Visites terrain — utiliser all_visites_prospects (filtré par updated_at)
+    for p in all_visites_prospects:
         # Visites terrain
         va = load_user(p.visit_assigned_to_id) if hasattr(p, 'visit_assigned_to_id') else None
         if not va and hasattr(p, 'visit_assigned_to'):
