@@ -3069,12 +3069,12 @@ function TabRepartition() {
         {[
           { icon: '📋', label: 'Total Demandes', value: filtreDevRep ? ([...prospections, ...visites].filter(a => a.agent === filtreDevRep).reduce((acc, a) => acc + (a.total || 0), 0) || data?.total_by_dev?.[filtreDevRep] || total) : total, color: '#3742fa', legende: 'Toutes les demandes soumises sur la période' },
           { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.total || 0) : visites.reduce((acc, a) => acc + (a.total||0), 0), color: '#ffa502', legende: 'Nombre de visites terrain réalisées' },
-          { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
           { icon: '📋', label: 'Visites Restantes', value: (() => {
               const visitesF = filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.total || 0) : visites.reduce((acc, a) => acc + (a.total||0), 0);
               const demandesF = filtreDevRep ? (data?.total_by_dev?.[filtreDevRep] || 0) : total;
               return Math.max(0, demandesF - visitesF);
             })(), color: '#ff4757', legende: 'Demandes non encore visitées' },
+          { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
         ].map((k, i) => (
           <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderTop: '3px solid '+k.color, borderRadius: 14, padding: '18px 20px', textAlign: 'center' }}>
             <div style={{ fontSize: 28, marginBottom: 10 }}>{k.icon}</div>
