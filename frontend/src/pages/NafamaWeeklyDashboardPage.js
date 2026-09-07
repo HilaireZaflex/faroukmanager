@@ -783,7 +783,13 @@ function OngletEvolution({ annee, semaine }) {
 }
 
 // ─── Inactifs hebdo ────────────────────────────────────────────────────────
-function OngletInactifs({ annee, semaine, teleFilter }) {
+function OngletInactifs({
+  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-inac',
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
+      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
+    }), { staleTime: 60000 });
+  const appelsMap = appelsMapRaw || {};
+ annee, semaine, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
   const [search, setSearch] = useState('');
@@ -924,7 +930,13 @@ function OngletInactifs({ annee, semaine, teleFilter }) {
 }
 
 // ─── En Baisse hebdo ───────────────────────────────────────────────────────
-function OngletBaisse({ annee, semaine, teleFilter }) {
+function OngletBaisse({
+  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-bai',
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
+      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
+    }), { staleTime: 60000 });
+  const appelsMap = appelsMapRaw || {};
+ annee, semaine, teleFilter }) {
   const [seuil, setSeuil] = useState(10);
   const [appelPDV, setAppelPDV] = useState(null);
   const [activeFilter, setActiveFilter] = useState(null);
