@@ -3068,8 +3068,8 @@ function TabRepartition() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {[
           { icon: '📋', label: 'Total Demandes', value: filtreDevRep ? ([...prospections, ...visites].filter(a => a.agent === filtreDevRep).reduce((acc, a) => acc + (a.total || 0), 0) || data?.total_by_dev?.[filtreDevRep] || total) : total, color: '#3742fa', legende: 'Toutes les demandes soumises sur la période' },
-          { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0) : visites.reduce((acc, a) => acc + (a.effectuees||0), 0), color: '#ffa502', legende: 'Prospects visités ET validés à l'étape 3' },
-          { icon: '📋', label: 'Visites Restantes', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.restantes || 0) : visites.reduce((acc, a) => acc + (a.restantes||0), 0), color: '#ff4757', legende: 'Assignées mais pas encore validées (EN_VISITE)' },
+          { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0) : visites.reduce((acc, a) => acc + (a.effectuees||0), 0), color: '#ffa502', legende: "Prospects visités ET validés à étape 3" },
+          { icon: '📋', label: 'Visites Restantes', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.restantes || 0) : visites.reduce((acc, a) => acc + (a.restantes||0), 0), color: '#ff4757', legende: "Assignées mais pas encore validées (EN_VISITE)" },
           { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
         ].map((k, i) => (
           <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderTop: '3px solid '+k.color, borderRadius: 14, padding: '18px 20px', textAlign: 'center' }}>
