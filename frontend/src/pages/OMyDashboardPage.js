@@ -1081,11 +1081,13 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
 
   const [appelPDV2, setAppelPDV2] = useState(null);
-  const { data: appelsMap2Data } = useQuery('tc-appels-map2',
+  const { data: appelsMap2 = {} } = useQuery('tc-appels-map2',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || r.data || []).forEach(a => { if (!map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap2 = appelsMap2Data || {}; // TC: PDV sélectionné pour appel
+      const map = {};
+      const items = r.data?.items || [];
+      items.forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; });
+      return map;
+    }), { staleTime: 60000, onError: () => ({}) }); // TC: PDV sélectionné pour appel
   const { data, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
     () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),

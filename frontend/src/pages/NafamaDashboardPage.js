@@ -488,11 +488,7 @@ function TabPareto({ annee, mois }) {
   const [supFilter, setSupFilter] = useState('');
   const [quarFilter, setQuarFilter] = useState('');
   const [appelPDV, setAppelPDV] = useState(null);
-  const { data: appelsData } = useQuery('tc-appels-map',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || []).forEach(a => { if (!map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap = appelsData || {};
+
   const { thSort: thSortP, sortFn: sortFnP } = useSortable('ca');
 
   const { data, isLoading } = useQuery(
