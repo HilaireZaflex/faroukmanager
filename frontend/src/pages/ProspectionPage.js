@@ -906,21 +906,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
         color="#0ea5e9"
       />
 
-      {/* ── Sélecteur de type de vue ── */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, background: 'rgba(255,255,255,0.03)', borderRadius: 12, padding: 5 }}>
-        <button onClick={() => setTypeVue('OM')}
-          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-            background: typeVue === 'OM' ? 'linear-gradient(135deg,#FF6900,#ff9500)' : 'transparent',
-            color: typeVue === 'OM' ? '#fff' : '#8a8a9a', transition: 'all 0.2s' }}>
-          📱 Puce Orange Money {displayStats ? `(${displayStats.total || 0})` : ''}
-        </button>
-        <button onClick={() => setTypeVue('ENERGIA')}
-          style={{ flex: 1, padding: '10px 16px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-            background: typeVue === 'ENERGIA' ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'transparent',
-            color: typeVue === 'ENERGIA' ? '#fff' : '#8a8a9a', transition: 'all 0.2s' }}>
-          ☀️ Vente ENERGIA {energiaStats ? `(${energiaStats.total || 0})` : ''}
-        </button>
-      </div>
+      {/* Prospection OM uniquement — Vente ENERGIA déplacée dans son propre menu */}
 
       {/* ══ VUE ENERGIA ══════════════════════════════════════════════════════ */}
       {typeVue === 'ENERGIA' && (
@@ -1091,18 +1077,18 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
       {displayStats && (
         <div className="stats-grid" style={{ marginBottom: 16 }}>
           {[
-            { key: 'total',           label: isDeveloppeur ? 'Mes Demandes' : 'Total', value: displayStats.total, variant: null },
-            { key: 'nouvelles',       label: '🆕 Nouvelles',     value: displayStats.nouvelles,              variant: null },
-            { key: 'en_visite',       label: '🔍 En visite',     value: displayStats.en_visite,              variant: null },
-            { key: 'en_attente_rc',   label: '✅ Validées Dev',  value: displayStats.en_attente_rc,          variant: null },
-            { key: 'puce_attribuees', label: '🟢 Approuvées RC', value: displayStats.puce_attribuees,        variant: null },
-            { key: 'activees',        label: '⚡ Activées',      value: displayStats.activees,               variant: 'ok' },
-            { key: 'refusees',        label: '🚫 Refusées',      value: displayStats.refusees,               variant: null },
+            { key: 'total',           label: isDeveloppeur ? 'Mes Demandes' : 'Total Demandes', value: displayStats.total, variant: null, legende: 'Toutes les demandes de la période' },
+            { key: 'nouvelles',       label: '🆕 Nouvelles',     value: displayStats.nouvelles,    variant: null, legende: 'Demandes en attente de visite' },
+            { key: 'en_visite',       label: '🔍 En visite',     value: displayStats.en_visite,    variant: null, legende: 'Agent en cours de visite terrain' },
+            { key: 'en_attente_rc',   label: '✅ Validées Dev',  value: displayStats.en_attente_rc, variant: null, legende: 'Validées par le développeur, en attente RC' },
+            { key: 'puce_attribuees', label: '🟢 Approuvées RC', value: displayStats.puce_attribuees, variant: null, legende: 'Approuvées par le RC, puce attribuée' },
+            { key: 'activees',        label: '⚡ Activées',      value: displayStats.activees,     variant: 'ok', legende: 'Puces activées avec succès' },
+            { key: 'refusees',        label: '🚫 Refusées',      value: displayStats.refusees,     variant: null, legende: 'Demandes refusées ou non éligibles' },
             ...(!isDeveloppeur ? [
-              { key: 'sla_en_retard',   label: '⏰ Délais dépassés',   value: displayStats.sla_en_retard, variant: 'warn' },
-              { key: 'taux_activation', label: 'Taux activation',  value: `${displayStats.taux_activation||0}%`, variant: 'ok' },
+              { key: 'sla_en_retard',   label: '⏰ En retard',   value: displayStats.sla_en_retard, variant: 'warn', legende: 'Demandes dépassant le délai de traitement' },
+              { key: 'taux_activation', label: '📈 Taux Activation', value: `${displayStats.taux_activation||0}%`, variant: 'ok', legende: `Activées / Total demandes` },
             ] : []),
-          ].map(({ key, label, value, variant }) => {
+          ].map(({ key, label, value, variant, legende }) => {
             const mapped = KPI_STATUS_MAP[key];
             const isClickable = !!mapped && mapped !== '__NONE__';
             const isActive = mapped === '__ALL__' ? !filters.status :
@@ -1117,6 +1103,7 @@ function TabDemandes({ onOpen, currentUser, onRefresh }) {
                   transform: isActive ? 'scale(1.03)' : 'scale(1)' }}
                 onClick={() => isClickable && handleKpiClick(key)}>
                 <Stat label={label} value={value} variant={isActive ? 'ok' : variant}/>
+                {legende && <div style={{ fontSize:10, color:'#64748b', textAlign:'center', marginTop:4, padding:'0 6px', lineHeight:1.3 }}>{legende}</div>}
                 {/* Bouton export Excel */}
                 {isClickable && exportCount > 0 && (
                   <button
@@ -2987,6 +2974,7 @@ function TabRepartition() {
     { key: 'custom',        label: '🔧 Dates personnalisées' },
   ];
 
+  const [filtreDevRep, setFiltreDevRep] = React.useState('');
   const buildParams = () => {
     if (periode === 'custom') {
       const p = {};
@@ -3060,17 +3048,34 @@ function TabRepartition() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      {/* ── Filtre par développeur ── */}
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>👤 Développeur :</span>
+        <select value={filtreDevRep || ''} onChange={e => setFiltreDevRep(e.target.value)}
+          style={{ padding: '8px 14px', borderRadius: 9, border: `1px solid ${filtreDevRep ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`, background: filtreDevRep ? 'rgba(255,105,0,0.1)' : '#1a1a2e', color: filtreDevRep ? '#FF6900' : '#94a3b8', fontSize: 13, fontWeight: filtreDevRep ? 700 : 400 }}>
+          <option value="">Tous les développeurs</option>
+          {[...new Set([...prospections, ...visites, ...activations].map(a => a.agent).filter(Boolean))].sort().map(dev => (
+            <option key={dev} value={dev}>{dev}</option>
+          ))}
+        </select>
+        {filtreDevRep && (
+          <button onClick={() => setFiltreDevRep('')} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.1)', color: '#ff4757', cursor: 'pointer', fontSize: 12 }}>✕ Effacer</button>
+        )}
+        {filtreDevRep && <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 700 }}>Objectif journalier : 10 visites/jour</span>}
+      </div>
+
+      {/* ── KPIs principaux ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
         {[
-          { icon: '📋', label: 'Total Demandes', value: total, color: '#3742fa' },
-          { icon: '👥', label: 'Agents Prospecteurs', value: prospections.length, color: '#FF6900' },
-          { icon: '🔍', label: 'Agents Visiteurs', value: visites.length, color: '#ffa502' },
-          { icon: '✅', label: 'Agents Activateurs', value: activations.length, color: '#22c55e' },
+          { icon: '📋', label: 'Total Demandes', value: filtreDevRep ? ([...prospections, ...visites].filter(a => a.agent === filtreDevRep).reduce((acc, a) => acc + (a.total || 0), 0) || data?.total_by_dev?.[filtreDevRep] || total) : total, color: '#3742fa', legende: 'Toutes les demandes soumises sur la période' },
+          { icon: '🔍', label: 'Visites Effectuées', value: filtreDevRep ? (visites.find(a => a.agent === filtreDevRep)?.total || 0) : visites.reduce((acc, a) => acc + (a.total||0), 0), color: '#ffa502', legende: 'Nombre de visites terrain réalisées' },
+          { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
         ].map((k, i) => (
-          <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderTop: '3px solid '+k.color, borderRadius: 14, padding: '16px', textAlign: 'center' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>{k.icon}</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: k.color }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 4 }}>{k.label}</div>
+          <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderTop: '3px solid '+k.color, borderRadius: 14, padding: '18px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>{k.icon}</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 13, color: '#aaa', marginTop: 5, fontWeight: 600 }}>{k.label}</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{k.legende}</div>
           </div>
         ))}
       </div>
