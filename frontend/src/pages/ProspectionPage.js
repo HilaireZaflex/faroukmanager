@@ -3087,10 +3087,26 @@ function TabRepartition() {
               : (data?.total_visitees || visites.reduce((acc, a) => acc + (a.effectuees||0), 0)), 
             color: '#ffa502', legende: "Visites validées sur la période sélectionnée" },
           { icon: '📋', label: 'Visites Restantes', 
-            value: filtreDevRep 
-              ? Math.max(0, (visitesGlobal.find(a => a.agent === filtreDevRep)?.total || 0) - (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0))
-              : Math.max(0, visitesGlobal.reduce((acc, a) => acc + (a.total||0), 0) - (data?.total_visitees || visites.reduce((acc, a) => acc + (a.effectuees||0), 0))),
-            color: '#ff4757', legende: "Attribuées (global) − Effectuées (période) = encore à faire" },
+            value: (() => {
+              // Restantes globales = Attribuées - Effectuées TOTAL
+              const attribueesG = filtreDevRep 
+                ? (visitesGlobal.find(a => a.agent === filtreDevRep)?.total || 0)
+                : visitesGlobal.reduce((acc, a) => acc + (a.total||0), 0);
+              const effectueesG = filtreDevRep
+                ? (visitesGlobal.find(a => a.agent === filtreDevRep)?.effectuees || 0)
+                : (dataGlobal?.total_visitees || visitesGlobal.reduce((acc, a) => acc + (a.effectuees||0), 0));
+              const restantesGlobal = Math.max(0, attribueesG - effectueesG);
+              // Si période = "tout", on affiche restantes globales
+              // Sinon : restantes globales − effectuées sur la période
+              const effectueesPeriode = filtreDevRep
+                ? (visites.find(a => a.agent === filtreDevRep)?.effectuees || 0)
+                : (data?.total_visitees || visites.reduce((acc, a) => acc + (a.effectuees||0), 0));
+              if (periode === 'tout') return restantesGlobal;
+              return Math.max(0, restantesGlobal - effectueesPeriode);
+            })(),
+            color: '#ff4757', legende: periode === 'tout' 
+              ? "Attribuées − Effectuées total = encore à faire" 
+              : "Restantes globales − Effectuées sur la période" },
           { icon: '⚡', label: "Nombre d'Activations", value: filtreDevRep ? (activations.find(a => a.agent === filtreDevRep)?.activees || 0) : activations.reduce((acc, a) => acc + (a.activees||0), 0), color: '#22c55e', legende: 'Puces activées avec succès' },
         ].map((k, i) => (
           <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderTop: '3px solid '+k.color, borderRadius: 14, padding: '18px 20px', textAlign: 'center' }}>
