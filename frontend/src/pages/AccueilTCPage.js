@@ -514,24 +514,28 @@ export default function AccueilTCPage() {
     return map;
   }, [mesAppels]);
 
+  // Mois précédent (données disponibles) au lieu du mois courant qui n'est pas encore importé
+  const dataMois = now.getMonth() === 0 ? 12 : now.getMonth();
+  const dataAnnee = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+
   // Stats inactifs OMY (mes PDVs)
   const { data: inactifsOMY } = useQuery(
-    ['tc-inactifs-omy', teleNom],
-    () => api.get('/dashboard/monthly-inactive', { params: { annee: now.getFullYear(), mois: now.getMonth() + 1 } }).then(r => r.data),
+    ['tc-inactifs-omy', teleNom, dataMois],
+    () => api.get('/dashboard/monthly-inactive', { params: { annee: dataAnnee, mois: dataMois } }).then(r => r.data),
     { staleTime: 300000, enabled: !!teleNom }
   );
 
   // Stats inactifs NAFAMA (mes PDVs)
   const { data: inactifsNAFAMA } = useQuery(
-    ['tc-inactifs-nafama', teleNom],
-    () => api.get('/nafama/monthly/inactive', { params: { annee: now.getFullYear(), mois: now.getMonth() + 1 } }).then(r => r.data),
+    ['tc-inactifs-nafama', teleNom, dataMois],
+    () => api.get('/nafama/monthly/inactive', { params: { annee: dataAnnee, mois: dataMois } }).then(r => r.data),
     { staleTime: 300000, enabled: !!teleNom }
   );
 
   // Mes PDVs en baisse OMY
   const { data: baisseOMY } = useQuery(
-    ['tc-baisse-omy', teleNom],
-    () => api.get('/dashboard/monthly-declining', { params: { annee: now.getFullYear(), mois: now.getMonth() + 1, seuil: -10 } }).then(r => r.data),
+    ['tc-baisse-omy', teleNom, dataMois],
+    () => api.get('/dashboard/monthly-declining', { params: { annee: dataAnnee, mois: dataMois, seuil: -10 } }).then(r => r.data),
     { staleTime: 300000, enabled: !!teleNom }
   );
 
