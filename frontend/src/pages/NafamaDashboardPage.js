@@ -488,6 +488,11 @@ function TabPareto({ annee, mois }) {
   const [supFilter, setSupFilter] = useState('');
   const [quarFilter, setQuarFilter] = useState('');
   const [appelPDV, setAppelPDV] = useState(null);
+  const { data: appelsData } = useQuery('appels-tc-map-' + Math.random().toString(36).slice(2,6),
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
+      const map = {}; (r.data?.items || []).forEach(a => { if (!map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
+    }), { staleTime: 60000 });
+  const appelsMap = appelsData || {};
   const { thSort: thSortP, sortFn: sortFnP } = useSortable('ca');
 
   const { data, isLoading } = useQuery(
@@ -949,10 +954,7 @@ function TabInactivePDVs({ annee, mois, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <button onClick={() => setAppelPDV(p)}
-                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                        📞
-                      </button>
+                      {(() => { const appel = appelsMap[p.numero_pdv]; return <button onClick={() => setAppelPDV(p)} title={appel ? `Dernier: ${(appel.statut||'').replace(/_/g,' ')}` : 'Appeler'} style={{ background: appel ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appel ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appel ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>{appel ? '✏️' : '📞'}</button>; })()}
                     </td>
                   </tr>
                 );

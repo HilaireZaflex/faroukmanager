@@ -1057,7 +1057,7 @@ function TabInactivePDVs({ annee, mois, criterion, teleFilter }) {
                     <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: alert.color }}>
                       {p.nb_mois_consecutifs_inactif || 1}
                     </td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)} style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>📞</button></td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>{(() => { const appel = appelsMap[p.numero_pdv]; return <button onClick={() => setAppelPDV(p)} title={appel ? `Dernier: ${(appel.statut||'').replace(/_/g,' ')}` : 'Appeler'} style={{ background: appel ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appel ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appel ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>{appel ? '✏️' : '📞'}</button>; })()}</td>
                   </tr>
                 );
               })}
@@ -1076,7 +1076,12 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
 
-  const [appelPDV2, setAppelPDV2] = useState(null); // TC: PDV sélectionné pour appel
+  const [appelPDV2, setAppelPDV2] = useState(null);
+  const { data: appelsMap2Data } = useQuery('tc-appels-map2',
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
+      const map = {}; (r.data?.items || r.data || []).forEach(a => { if (!map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
+    }), { staleTime: 60000 });
+  const appelsMap2 = appelsMap2Data || {}; // TC: PDV sélectionné pour appel
   const { data, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
     () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),
@@ -1256,7 +1261,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: '#aaa' }}>{getAction(p.taux_baisse)}</td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><button onClick={() => setAppelPDV2(p)} style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>📞</button></td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>{(() => { const appel = appelsMap2[p.numero_pdv]; return <button onClick={() => setAppelPDV2(p)} title={appel ? `Dernier: ${(appel.statut||'').replace(/_/g,' ')}` : 'Appeler'} style={{ background: appel ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appel ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appel ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>{appel ? '✏️' : '📞'}</button>; })()}</td>
                   </tr>
                 );
               })}
