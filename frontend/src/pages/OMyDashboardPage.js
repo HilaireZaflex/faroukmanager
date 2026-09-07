@@ -923,6 +923,12 @@ function TabInactivePDVs({
     }), { staleTime: 60000 });
   const appelsMap = appelsMapRaw || {};
  annee, mois, criterion, teleFilter }) {
+  const { data: appelsMapRaw } = useQuery('tc-appels-map-omy-inac',
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
+      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
+    }), { staleTime: 60000 });
+  const appelsMap = appelsMapRaw || {};
+
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null); // TC: PDV sélectionné pour appel

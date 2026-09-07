@@ -790,6 +790,12 @@ function OngletInactifs({
     }), { staleTime: 60000 });
   const appelsMap = appelsMapRaw || {};
  annee, semaine, teleFilter }) {
+  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-inac',
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
+      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
+    }), { staleTime: 60000 });
+  const appelsMap = appelsMapRaw || {};
+
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
   const [search, setSearch] = useState('');
@@ -937,6 +943,12 @@ function OngletBaisse({
     }), { staleTime: 60000 });
   const appelsMap = appelsMapRaw || {};
  annee, semaine, teleFilter }) {
+  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-bai',
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
+      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
+    }), { staleTime: 60000 });
+  const appelsMap = appelsMapRaw || {};
+
   const [seuil, setSeuil] = useState(10);
   const [appelPDV, setAppelPDV] = useState(null);
   const [activeFilter, setActiveFilter] = useState(null);
