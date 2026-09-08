@@ -926,8 +926,8 @@ function TabInactivePDVs({
   // Charger les appels déjà effectués depuis l'API (persistance + anciens appels)
   const { data: appelsHistoriqueArr = [] } = useQuery(
     'omy-inactifs-appels-hist',
-    () => api.get('/appels-tc', { params: { indicateur: 'OMY', mes_appels_seulement: true, limit: 500 } })
-           .then(r => (r.data?.items || []).map(a => a.numero_pdv)),
+    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 500 } })
+           .then(r => (r.data?.items || []).filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv)),
     { staleTime: 30000, refetchOnMount: true }
   );
   const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
