@@ -744,6 +744,19 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
   const [appelPDV, setAppelPDV] = useState(null);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
+  const { data: appelsHistArrB2 = [] } = useQuery(
+    'omy-w-baisse-appels-hist-b',
+    () => api.get('/appels-tc').then(r => {
+      const items = r.data?.items || r.data || [];
+      return items.filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv);
+    }),
+    { staleTime: 30000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalB, setAppelsFaitsLocalB] = React.useState(new Set());
+  const appelsFaitsB = React.useMemo(() =>
+    new Set([...appelsHistArrB2, ...appelsFaitsLocalB]),
+    [appelsHistArrB2, appelsFaitsLocalB]
+  );
 
   const { data, isLoading } = useQuery(
     ['weekly-declining', annee, semaine, seuil],
