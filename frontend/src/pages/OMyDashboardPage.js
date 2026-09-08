@@ -1125,7 +1125,6 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
     new Set([...appelsArr2, ...appelsFaitsLocal2]),
     [appelsArr2, appelsFaitsLocal2]
   );
-  const [appelsFaits2, setAppelsFaits2] = React.useState(new Set());
   const { data: appelsMap2 = {} } = useQuery('tc-appels-map2',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
       const map = {};
