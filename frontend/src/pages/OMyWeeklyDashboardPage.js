@@ -573,7 +573,7 @@ function OngletEvolution({ annee, semaine, criterion }) {
 function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
-  const { data: appelsHistArr = [] } = useQuery(
+  const { data: appelsHistArrB = [] } = useQuery(
     'omy-w-baisse-appels-hist',
     () => api.get('/appels-tc').then(r => {
       const items = r.data?.items || r.data || [];
@@ -583,8 +583,8 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   );
   const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
   const appelsFaits = React.useMemo(() =>
-    new Set([...appelsHistArr, ...appelsFaitsLocal]),
-    [appelsHistArr, appelsFaitsLocal]
+    new Set([...appelsHistArrB, ...appelsFaitsLocal]),
+    [appelsHistArrB, appelsFaitsLocal]
   );
   const { data: appelsHistArr = [] } = useQuery(
     'omy-w-appels-hist',
