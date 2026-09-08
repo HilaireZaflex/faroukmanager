@@ -652,7 +652,7 @@ function TabPareto({ annee, mois }) {
         </div>
       </div>
       {appelPDV && (
-        <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />
+        <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocalNI(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />
       )}
     </div>
   );
@@ -968,10 +968,11 @@ function TabInactivePDVs({
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <button onClick={() => setAppelPDV(p)}
-                          style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                          📞
-                        </button>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox" checked={appelsFaitsNI.has(p.numero_pdv)} onChange={() => setAppelPDV(p)} style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer' }}/>
+                        {appelsFaitsNI.has(p.numero_pdv) && <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>}
+                        <button onClick={() => setAppelPDV(p)} style={{ background: appelsFaitsNI.has(p.numero_pdv)?'rgba(34,197,94,0.15)':'rgba(0,214,143,0.1)', border:'1px solid '+(appelsFaitsNI.has(p.numero_pdv)?'rgba(34,197,94,0.4)':'rgba(0,214,143,0.3)'), borderRadius:8, color:appelsFaitsNI.has(p.numero_pdv)?'#22c55e':'#00d68f', padding:'5px 10px', cursor:'pointer', fontSize:15 }}>📞</button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -981,7 +982,7 @@ function TabInactivePDVs({
         </div>
       </div>
       {appelPDV && (
-        <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />
+        <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocalND(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />
       )}
     </div>
   );
@@ -1159,10 +1160,11 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#8a8a9a' }}>{p.action}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <button onClick={() => setAppelPDV(p)}
-                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>
-                        📞
-                      </button>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox" checked={appelsFaitsND.has(p.numero_pdv)} onChange={() => setAppelPDV(p)} style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer' }}/>
+                        {appelsFaitsND.has(p.numero_pdv) && <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>}
+                        <button onClick={() => setAppelPDV(p)} style={{ background:appelsFaitsND.has(p.numero_pdv)?'rgba(34,197,94,0.15)':'rgba(0,214,143,0.1)', border:'1px solid '+(appelsFaitsND.has(p.numero_pdv)?'rgba(34,197,94,0.4)':'rgba(0,214,143,0.3)'), borderRadius:8, color:appelsFaitsND.has(p.numero_pdv)?'#22c55e':'#00d68f', padding:'5px 10px', cursor:'pointer', fontSize:15 }}>📞</button>
+                      </div>
                     </td>
                   </tr>
                 );
