@@ -923,7 +923,19 @@ function TabInactivePDVs({
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
-  const [appelsFaits, setAppelsFaits] = React.useState(new Set()); // TC: PDV sélectionné pour appel
+  // Charger les appels déjà effectués depuis l'API (persistance + anciens appels)
+  const { data: appelsHistorique } = useQuery(
+    'omy-inactifs-appels-hist',
+    () => api.get('/appels-tc', { params: { indicateur: 'OMY', mes_appels_seulement: true, limit: 500 } })
+           .then(r => new Set((r.data?.items || []).map(a => a.numero_pdv))),
+    { staleTime: 30000 }
+  );
+  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
+  // Combiner appels API + appels locaux de la session
+  const appelsFaits = React.useMemo(() =>
+    new Set([...(appelsHistorique || []), ...appelsFaitsLocal]),
+    [appelsHistorique, appelsFaitsLocal]
+  ); // TC: PDV sélectionné pour appel
   const { data: inactifs, isLoading } = useQuery(
     ['inactifs', annee, mois],
     () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
@@ -1062,12 +1074,16 @@ function TabInactivePDVs({
                       {p.nb_mois_consecutifs_inactif || 1}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                        <input type="checkbox" readOnly
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox"
                           checked={appelsFaits.has(p.numero_pdv)}
-                          style={{ width:18, height:18, accentColor:'#22c55e', cursor:'default', flexShrink:0 }}
-                          title={appelsFaits.has(p.numero_pdv) ? '✅ Déjà appelé' : '☐ Pas encore appelé'}
+                          onChange={() => setAppelPDV(p)}
+                          style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer', flexShrink:0 }}
+                          title={appelsFaits.has(p.numero_pdv) ? 'Cliquer pour modifier l\'appel' : 'Pas encore appelé'}
                         />
+                        {appelsFaits.has(p.numero_pdv) && (
+                          <span style={{ fontSize:10, color:'#22c55e', fontWeight:700, whiteSpace:'nowrap' }}>Appelé</span>
+                        )}
                         <button onClick={() => setAppelPDV(p)}
                           style={{ background: appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsFaits.has(p.numero_pdv) ? '#22c55e' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
                           📞
@@ -1081,7 +1097,7 @@ function TabInactivePDVs({
           </table>
         </div>
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocal(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
