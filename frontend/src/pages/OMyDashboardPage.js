@@ -1125,13 +1125,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
     new Set([...appelsArr2, ...appelsFaitsLocal2]),
     [appelsArr2, appelsFaitsLocal2]
   );
-  const { data: appelsMap2 = {} } = useQuery('tc-appels-map2',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {};
-      const items = r.data?.items || [];
-      items.forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; });
-      return map;
-    }), { staleTime: 60000, onError: () => ({}) }); // TC: PDV sélectionné pour appel
+  // hook appelsMap2 supprimé
   const { data, isLoading } = useQuery(
     ['declining', annee, mois, seuil],
     () => api.get(`/dashboard/monthly-declining?annee=${annee}&mois=${mois}&seuil=${seuil}`).then(r => r.data),
@@ -1311,11 +1305,22 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: '#aaa' }}>{getAction(p.taux_baisse)}</td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><button onClick={() => setAppelPDV2(p)}
-                          title={appelsMap2[p.numero_pdv] ? 'Modifier - Déjà appelé' : 'Appeler ce PDV'}
-                          style={{ background: appelsMap2[p.numero_pdv] ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsMap2[p.numero_pdv] ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsMap2[p.numero_pdv] ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                          {appelsMap2[p.numero_pdv] ? '✏️' : '📞'}
-                        </button></td>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox"
+                          checked={appelsFaits2.has(p.numero_pdv)}
+                          onChange={() => setAppelPDV2(p)}
+                          style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer', flexShrink:0 }}
+                        />
+                        {appelsFaits2.has(p.numero_pdv) && (
+                          <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>
+                        )}
+                        <button onClick={() => setAppelPDV2(p)}
+                          style={{ background: appelsFaits2.has(p.numero_pdv) ? 'rgba(34,197,94,0.15)' : 'rgba(0,214,143,0.1)', border: '1px solid ' + (appelsFaits2.has(p.numero_pdv) ? 'rgba(34,197,94,0.4)' : 'rgba(0,214,143,0.3)'), borderRadius: 8, color: appelsFaits2.has(p.numero_pdv) ? '#22c55e' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          📞
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -1323,7 +1328,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
           </table>
         </div>
       </div>
-      {appelPDV2 && <AppelTCModal pdv={appelPDV2} indicateur="OMY" onClose={() => setAppelPDV2(null)} onSaved={() => { if (appelPDV2) setAppelsFaits(prev => new Set([...prev, appelPDV2.numero_pdv])); setAppelPDV2(null); }} />}
+      {appelPDV2 && <AppelTCModal pdv={appelPDV2} indicateur="OMY" onClose={() => setAppelPDV2(null)} onSaved={() => { if (appelPDV2) setAppelsFaitsLocal2(prev => new Set([...prev, appelPDV2.numero_pdv])); setAppelPDV2(null); }} />}
     </div>
   );
 }
