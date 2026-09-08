@@ -789,6 +789,19 @@ function OngletInactifs({
 
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
+  const { data: appelsArrNWI = [] } = useQuery(
+    'appels-hist-nwi',
+    () => api.get('/appels-tc').then(r => {
+      const items = r.data?.items || r.data || [];
+      return items.filter(a => a.indicateur === 'NAFAMA').map(a => a.numero_pdv);
+    }),
+    { staleTime: 30000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalNWI, setAppelsFaitsLocalNWI] = React.useState(new Set());
+  const appelsFaitsNWI = React.useMemo(() =>
+    new Set([...appelsArrNWI, ...appelsFaitsLocalNWI]),
+    [appelsArrNWI, appelsFaitsLocalNWI]
+  );
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
@@ -933,6 +946,19 @@ function OngletBaisse({
 
   const [seuil, setSeuil] = useState(10);
   const [appelPDV, setAppelPDV] = useState(null);
+  const { data: appelsArrNWD = [] } = useQuery(
+    'appels-hist-nwd',
+    () => api.get('/appels-tc').then(r => {
+      const items = r.data?.items || r.data || [];
+      return items.filter(a => a.indicateur === 'NAFAMA').map(a => a.numero_pdv);
+    }),
+    { staleTime: 30000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalNWD, setAppelsFaitsLocalNWD] = React.useState(new Set());
+  const appelsFaitsNWD = React.useMemo(() =>
+    new Set([...appelsArrNWD, ...appelsFaitsLocalNWD]),
+    [appelsArrNWD, appelsFaitsLocalNWD]
+  );
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');

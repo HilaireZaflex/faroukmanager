@@ -1112,6 +1112,19 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
 
   const [appelPDV2, setAppelPDV2] = useState(null);
+  const { data: appelsArr2 = [] } = useQuery(
+    'appels-hist-2',
+    () => api.get('/appels-tc').then(r => {
+      const items = r.data?.items || r.data || [];
+      return items.filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv);
+    }),
+    { staleTime: 30000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocal2, setAppelsFaitsLocal2] = React.useState(new Set());
+  const appelsFaits2 = React.useMemo(() =>
+    new Set([...appelsArr2, ...appelsFaitsLocal2]),
+    [appelsArr2, appelsFaitsLocal2]
+  );
   const [appelsFaits2, setAppelsFaits2] = React.useState(new Set());
   const { data: appelsMap2 = {} } = useQuery('tc-appels-map2',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
