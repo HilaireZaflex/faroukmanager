@@ -586,19 +586,6 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
     new Set([...appelsHistArrB, ...appelsFaitsLocal]),
     [appelsHistArrB, appelsFaitsLocal]
   );
-  const { data: appelsHistArr = [] } = useQuery(
-    'omy-w-appels-hist',
-    () => api.get('/appels-tc').then(r => {
-      const items = r.data?.items || r.data || [];
-      return items.filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv);
-    }),
-    { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
-  const appelsFaits = React.useMemo(() =>
-    new Set([...appelsHistArr, ...appelsFaitsLocal]),
-    [appelsHistArr, appelsFaitsLocal]
-  );
   const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery(
     ['weekly-inactive', annee, semaine],
