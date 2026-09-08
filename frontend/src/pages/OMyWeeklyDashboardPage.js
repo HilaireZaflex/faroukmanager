@@ -927,15 +927,15 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
                         <input type="checkbox"
-                          checked={appelsFaits.has(p.numero_pdv)}
+                          checked={appelsFaitsB.has(p.numero_pdv)}
                           onChange={() => setAppelPDV(p)}
                           style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer', flexShrink:0 }}
                         />
-                        {appelsFaits.has(p.numero_pdv) && (
+                        {appelsFaitsB.has(p.numero_pdv) && (
                           <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>
                         )}
                         <button onClick={() => setAppelPDV(p)}
-                          style={{ background: appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.15)' : 'rgba(0,214,143,0.1)', border: '1px solid ' + (appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.4)' : 'rgba(0,214,143,0.3)'), borderRadius: 8, color: appelsFaits.has(p.numero_pdv) ? '#22c55e' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          style={{ background: appelsFaitsB.has(p.numero_pdv) ? 'rgba(34,197,94,0.15)' : 'rgba(0,214,143,0.1)', border: '1px solid ' + (appelsFaitsB.has(p.numero_pdv) ? 'rgba(34,197,94,0.4)' : 'rgba(0,214,143,0.3)'), borderRadius: 8, color: appelsFaitsB.has(p.numero_pdv) ? '#22c55e' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
                           📞
                         </button>
                       </div>
@@ -947,7 +947,7 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
           </table>
         </div>
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocal(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocalB(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
