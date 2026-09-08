@@ -924,10 +924,13 @@ function TabInactivePDVs({
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
   // Charger les appels déjà effectués depuis l'API (persistance + anciens appels)
+  // Utiliser le nom de la TC connectée pour filtrer (depuis authStore ou user)
   const { data: appelsHistoriqueArr = [] } = useQuery(
     'omy-inactifs-appels-hist',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 500 } })
-           .then(r => (r.data?.items || []).filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv)),
+    () => api.get('/appels-tc').then(r => {
+      const items = r.data?.items || r.data || [];
+      return items.filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv);
+    }),
     { staleTime: 30000, refetchOnMount: true }
   );
   const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
