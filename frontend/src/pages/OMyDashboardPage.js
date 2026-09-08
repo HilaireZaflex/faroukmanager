@@ -1061,10 +1061,19 @@ function TabInactivePDVs({
                     <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, color: alert.color }}>
                       {p.nb_mois_consecutifs_inactif || 1}
                     </td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
-                          style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                        <input type="checkbox" readOnly
+                          checked={appelsFaits.has(p.numero_pdv)}
+                          style={{ width:18, height:18, accentColor:'#22c55e', cursor:'default', flexShrink:0 }}
+                          title={appelsFaits.has(p.numero_pdv) ? '✅ Déjà appelé' : '☐ Pas encore appelé'}
+                        />
+                        <button onClick={() => setAppelPDV(p)}
+                          style={{ background: appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsFaits.has(p.numero_pdv) ? '#22c55e' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
                           📞
-                        </button></td>
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
