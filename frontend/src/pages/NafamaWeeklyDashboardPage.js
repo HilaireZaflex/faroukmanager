@@ -789,6 +789,7 @@ function OngletInactifs({
 
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
+  const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
@@ -910,9 +911,8 @@ function OngletInactifs({
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
-                          title={appelsMap[p.numero_pdv] ? 'Modifier - Déjà appelé' : 'Appeler ce PDV'}
-                          style={{ background: appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsMap[p.numero_pdv] ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                          {appelsMap[p.numero_pdv] ? '✏️' : '📞'}
+                          style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          📞
                         </button></td>
                   </tr>
                 );
@@ -921,7 +921,7 @@ function OngletInactifs({
           </table>
         </div>
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
@@ -929,15 +929,11 @@ function OngletInactifs({
 // ─── En Baisse hebdo ───────────────────────────────────────────────────────
 function OngletBaisse({
  annee, semaine, teleFilter }) {
-  const { data: appelsMapRaw } = useQuery('tc-appels-map-nafama-w-bai',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap = appelsMapRaw || {};
 
 
   const [seuil, setSeuil] = useState(10);
   const [appelPDV, setAppelPDV] = useState(null);
+  const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
@@ -1089,9 +1085,8 @@ function OngletBaisse({
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#8a8a9a' }}>{p.action}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
-                          title={appelsMap[p.numero_pdv] ? 'Modifier - Déjà appelé' : 'Appeler ce PDV'}
-                          style={{ background: appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsMap[p.numero_pdv] ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                          {appelsMap[p.numero_pdv] ? '✏️' : '📞'}
+                          style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          📞
                         </button></td>
                   </tr>
                 );
@@ -1105,7 +1100,7 @@ function OngletBaisse({
           pdv={appelPDV}
           indicateur="NAFAMA"
           onClose={() => setAppelPDV(null)}
-          onSaved={() => setAppelPDV(null)}
+          onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }}
         />
       )}
     </div>
@@ -1279,7 +1274,7 @@ function OngletProgression({ annee }) {
           </div>
         )}
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }

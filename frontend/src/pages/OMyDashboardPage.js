@@ -918,16 +918,12 @@ function TabEvolution({ annee, mois, criterion }) {
 // ============ TAB 5: PDV Inactifs ============
 function TabInactivePDVs({
  annee, mois, criterion, teleFilter }) {
-  const { data: appelsMapRaw } = useQuery('tc-appels-map-omy-inac',
-    () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
-      const map = {}; (r.data?.items || []).forEach(a => { if (a?.numero_pdv && !map[a.numero_pdv]) map[a.numero_pdv] = a; }); return map;
-    }), { staleTime: 60000 });
-  const appelsMap = appelsMapRaw || {};
 
 
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
-  const [appelPDV, setAppelPDV] = useState(null); // TC: PDV sélectionné pour appel
+  const [appelPDV, setAppelPDV] = useState(null);
+  const [appelsFaits, setAppelsFaits] = React.useState(new Set()); // TC: PDV sélectionné pour appel
   const { data: inactifs, isLoading } = useQuery(
     ['inactifs', annee, mois],
     () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
@@ -1066,9 +1062,8 @@ function TabInactivePDVs({
                       {p.nb_mois_consecutifs_inactif || 1}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
-                          title={appelsMap[p.numero_pdv] ? 'Modifier - Déjà appelé' : 'Appeler ce PDV'}
-                          style={{ background: appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.15)' : 'rgba(0,214,143,0.1)', border: `1px solid ${appelsMap[p.numero_pdv] ? 'rgba(162,155,254,0.4)' : 'rgba(0,214,143,0.3)'}`, borderRadius: 8, color: appelsMap[p.numero_pdv] ? '#a29bfe' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                          {appelsMap[p.numero_pdv] ? '✏️' : '📞'}
+                          style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          📞
                         </button></td>
                   </tr>
                 );
@@ -1077,7 +1072,7 @@ function TabInactivePDVs({
           </table>
         </div>
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
@@ -1089,6 +1084,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
 
   const [appelPDV2, setAppelPDV2] = useState(null);
+  const [appelsFaits2, setAppelsFaits2] = React.useState(new Set());
   const { data: appelsMap2 = {} } = useQuery('tc-appels-map2',
     () => api.get('/appels-tc', { params: { mes_appels_seulement: true, limit: 200 } }).then(r => {
       const map = {};
@@ -1287,7 +1283,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
           </table>
         </div>
       </div>
-      {appelPDV2 && <AppelTCModal pdv={appelPDV2} indicateur="OMY" onClose={() => setAppelPDV2(null)} onSaved={() => setAppelPDV2(null)} />}
+      {appelPDV2 && <AppelTCModal pdv={appelPDV2} indicateur="OMY" onClose={() => setAppelPDV2(null)} onSaved={() => { if (appelPDV2) setAppelsFaits(prev => new Set([...prev, appelPDV2.numero_pdv])); setAppelPDV2(null); }} />}
     </div>
   );
 }
