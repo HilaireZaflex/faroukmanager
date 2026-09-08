@@ -573,6 +573,32 @@ function OngletEvolution({ annee, semaine, criterion }) {
 function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
+  const { data: appelsHistArr = [] } = useQuery(
+    'omy-w-baisse-appels-hist',
+    () => api.get('/appels-tc').then(r => {
+      const items = r.data?.items || r.data || [];
+      return items.filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv);
+    }),
+    { staleTime: 30000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
+  const appelsFaits = React.useMemo(() =>
+    new Set([...appelsHistArr, ...appelsFaitsLocal]),
+    [appelsHistArr, appelsFaitsLocal]
+  );
+  const { data: appelsHistArr = [] } = useQuery(
+    'omy-w-appels-hist',
+    () => api.get('/appels-tc').then(r => {
+      const items = r.data?.items || r.data || [];
+      return items.filter(a => a.indicateur === 'OMY').map(a => a.numero_pdv);
+    }),
+    { staleTime: 30000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
+  const appelsFaits = React.useMemo(() =>
+    new Set([...appelsHistArr, ...appelsFaitsLocal]),
+    [appelsHistArr, appelsFaitsLocal]
+  );
   const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery(
     ['weekly-inactive', annee, semaine],
@@ -698,10 +724,20 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
                       {p.nb_semaines_consecutives_inactif || 1}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                      <button onClick={() => setAppelPDV(p)}
-                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                        📞
-                      </button>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox"
+                          checked={appelsFaits.has(p.numero_pdv)}
+                          onChange={() => setAppelPDV(p)}
+                          style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer', flexShrink:0 }}
+                        />
+                        {appelsFaits.has(p.numero_pdv) && (
+                          <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>
+                        )}
+                        <button onClick={() => setAppelPDV(p)}
+                          style={{ background: appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.15)' : 'rgba(0,214,143,0.1)', border: '1px solid ' + (appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.4)' : 'rgba(0,214,143,0.3)'), borderRadius: 8, color: appelsFaits.has(p.numero_pdv) ? '#22c55e' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          📞
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -710,7 +746,7 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
           </table>
         </div>
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocal(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
@@ -889,10 +925,20 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: '#aaa' }}>{getAction(p.taux_baisse)}</td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                      <button onClick={() => setAppelPDV(p)}
-                        style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                        📞
-                      </button>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox"
+                          checked={appelsFaits.has(p.numero_pdv)}
+                          onChange={() => setAppelPDV(p)}
+                          style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer', flexShrink:0 }}
+                        />
+                        {appelsFaits.has(p.numero_pdv) && (
+                          <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>
+                        )}
+                        <button onClick={() => setAppelPDV(p)}
+                          style={{ background: appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.15)' : 'rgba(0,214,143,0.1)', border: '1px solid ' + (appelsFaits.has(p.numero_pdv) ? 'rgba(34,197,94,0.4)' : 'rgba(0,214,143,0.3)'), borderRadius: 8, color: appelsFaits.has(p.numero_pdv) ? '#22c55e' : '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
+                          📞
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -901,7 +947,7 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
           </table>
         </div>
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => setAppelPDV(null)} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="OMY" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocal(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
