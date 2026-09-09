@@ -39,12 +39,25 @@ const useNotifStore = create((set, get) => ({
   // Récupère les notifications non lues du serveur
   fetchNotifications: async () => {
     try {
-      const res = await api.get('/notifications/pending');
-      const data = Array.isArray(res.data) ? res.data : [];
+      const [res, resRec] = await Promise.all([
+        api.get('/notifications/pending').catch(() => ({ data: [] })),
+        api.get('/reclamations-notifications', { params: { non_lues_seulement: false } }).catch(() => ({ data: { notifications: [] } })),
+      ]);
+      const prospNotifs = Array.isArray(res.data) ? res.data : [];
+      const recNotifs = (resRec.data?.notifications || [])
+        .filter(n => !n.lue)
+        .map(n => ({
+          id: 'rec_' + n.id,
+          message: n.message,
+          type: 'RECLAMATION',
+          reclamation_id: n.reclamation_id,
+          lu: n.lue,
+          created_at: n.created_at,
+          type_notif: n.type_notif,
+        }));
+      const data = [...prospNotifs, ...recNotifs];
       const { _seenIds, lastFetch } = get();
 
-      // Détecter les nouvelles notifications (IDs pas encore vus)
-      // On ne joue pas le son au premier fetch (chargement initial)
       if (lastFetch !== null) {
         const newOnes = data.filter(n => !_seenIds.has(n.id));
         if (newOnes.length > 0) {
@@ -52,7 +65,6 @@ const useNotifStore = create((set, get) => ({
         }
       }
 
-      // Mettre à jour les IDs vus
       const newSeenIds = new Set(data.map(n => n.id));
       set({ notifications: data, lastFetch: Date.now(), _seenIds: newSeenIds });
     } catch (e) {
@@ -63,7 +75,13 @@ const useNotifStore = create((set, get) => ({
   // Marque une notification comme lue
   markRead: async (id) => {
     try {
-      await api.post(`/notifications/${id}/read`);
+      // Notifications réclamations (id commence par 'rec_')
+      if (String(id).startsWith('rec_')) {
+        const recId = String(id).replace('rec_', '');
+        await api.post('/reclamations-notifications/marquer-lues', { ids: [parseInt(recId)] });
+      } else {
+        await api.post(`/notifications/${id}/read`);
+      }
       set(state => ({
         notifications: state.notifications.map(n =>
           n.id === id ? { ...n, lu: true } : n

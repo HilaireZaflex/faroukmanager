@@ -80,9 +80,27 @@ function FormulaireReclamation({ onClose, onSuccess }) {
       else delete payload.responsable_id;
       if (!payload.date_limite) delete payload.date_limite;
       await api.post('/reclamations', payload);
-      toast.success('Réclamation soumise avec succès !');
-      onSuccess();
       onClose();
+      // Popup de confirmation élégant
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML = `<div style="background:#0f0f1a;border:2px solid #22c55e;border-radius:20px;padding:40px;max-width:480px;width:90%;text-align:center;animation:fadeIn 0.3s ease;">
+        <div style="font-size:64px;margin-bottom:16px;">✅</div>
+        <div style="font-size:22px;font-weight:900;color:#22c55e;margin-bottom:12px;">Réclamation reçue !</div>
+        <div style="font-size:14px;color:#94a3b8;line-height:1.6;margin-bottom:20px;">
+          Votre réclamation <strong style="color:#fff">"${payload.titre}"</strong> a bien été soumise.<br/>
+          Le responsable assigné sera notifié et traitera votre demande dans les meilleurs délais.<br/>
+          <em style="color:#64748b;">Délai de traitement : 72h maximum</em>
+        </div>
+        <button onclick="this.closest('.rec-overlay').remove()" style="padding:12px 32px;border-radius:10px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:14px;cursor:pointer;">
+          Compris, merci ! 🙏
+        </button>
+      </div>`;
+      overlay.className = 'rec-overlay';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 8000);
+      onSuccess();
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Erreur lors de la soumission');
     } finally { setLoading(false); }
