@@ -958,11 +958,7 @@ function TabInactivePDVs({
     },
     { staleTime: 30000, refetchOnMount: true }
   );
-  // Combiner appels API (array) + appels locaux de la session
-  const appelsFaits = React.useMemo(() =>
-    new Set([...Array.from(appelsHistoriqueArr || []), ...Array.from(appelsFaitsLocal || [])]),
-    [appelsHistoriqueArr, appelsFaitsLocal]
-  ); // TC: PDV sélectionné pour appel
+  // TC: PDV sélectionné pour appel
   const { data: inactifs, isLoading } = useQuery(
     ['inactifs', annee, mois],
     () => api.get(`/dashboard/monthly-inactive?annee=${annee}&mois=${mois}`).then(r => r.data),
