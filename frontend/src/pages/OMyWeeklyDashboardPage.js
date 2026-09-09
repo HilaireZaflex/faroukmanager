@@ -589,7 +589,7 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   );
   const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
   const appelsFaits = React.useMemo(() =>
-    new Set([...(appelsHistArrB || []), ...(appelsFaitsLocal || [])]),
+    new Set([...Array.from(appelsHistArrB || []), ...Array.from(appelsFaitsLocal || [])]),
     [appelsHistArrB, appelsFaitsLocal]
   );
   const [search, setSearch] = useState('');
@@ -766,7 +766,7 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
   );
   const [appelsFaitsLocalB, setAppelsFaitsLocalB] = React.useState(new Set());
   const appelsFaitsB = React.useMemo(() =>
-    new Set([...(appelsHistArrB2 || []), ...(appelsFaitsLocalB || [])]),
+    new Set([...Array.from(appelsHistArrB2 || []), ...Array.from(appelsFaitsLocalB || [])]),
     [appelsHistArrB2, appelsFaitsLocalB]
   );
 

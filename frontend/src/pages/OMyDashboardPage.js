@@ -942,7 +942,7 @@ function TabInactivePDVs({
   const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
   // Combiner appels API (array) + appels locaux de la session
   const appelsFaits = React.useMemo(() =>
-    new Set([...(appelsHistoriqueArr || []), ...(appelsFaitsLocal || [])]),
+    new Set([...Array.from(appelsHistoriqueArr || []), ...Array.from(appelsFaitsLocal || [])]),
     [appelsHistoriqueArr, appelsFaitsLocal]
   ); // TC: PDV sélectionné pour appel
   const { data: inactifs, isLoading } = useQuery(
@@ -1134,7 +1134,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   );
   const [appelsFaitsLocal2, setAppelsFaitsLocal2] = React.useState(new Set());
   const appelsFaits2 = React.useMemo(() =>
-    new Set([...(appelsArr2 || []), ...(appelsFaitsLocal2 || [])]),
+    new Set([...Array.from(appelsArr2 || []), ...Array.from(appelsFaitsLocal2 || [])]),
     [appelsArr2, appelsFaitsLocal2]
   );
   // hook appelsMap2 supprimé

@@ -805,7 +805,7 @@ function OngletInactifs({
   );
   const [appelsFaitsLocalNWI, setAppelsFaitsLocalNWI] = React.useState(new Set());
   const appelsFaitsNWI = React.useMemo(() =>
-    new Set([...(appelsArrNWI || []), ...(appelsFaitsLocalNWI || [])]),
+    new Set([...Array.from(appelsArrNWI || []), ...Array.from(appelsFaitsLocalNWI || [])]),
     [appelsArrNWI, appelsFaitsLocalNWI]
   );
   const [search, setSearch] = useState('');
@@ -970,7 +970,7 @@ function OngletBaisse({
   );
   const [appelsFaitsLocalNWD, setAppelsFaitsLocalNWD] = React.useState(new Set());
   const appelsFaitsNWD = React.useMemo(() =>
-    new Set([...(appelsArrNWD || []), ...(appelsFaitsLocalNWD || [])]),
+    new Set([...Array.from(appelsArrNWD || []), ...Array.from(appelsFaitsLocalNWD || [])]),
     [appelsArrNWD, appelsFaitsLocalNWD]
   );
   const [activeFilter, setActiveFilter] = useState(null);
