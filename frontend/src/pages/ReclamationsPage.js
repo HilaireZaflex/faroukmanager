@@ -50,8 +50,22 @@ function FormulaireReclamation({ onClose, onSuccess }) {
     api.get('/auth/users').then(r => Array.isArray(r.data) ? r.data : (r.data?.items || [])).catch(() => []),
     { staleTime: 300000 }
   );
-  const responsables = allUsers.filter(u => ['ADMIN','MANAGER'].includes(u.role?.toUpperCase()))
-    .map(u => ({ id: u.id, nom: `${u.prenom || ''} ${u.nom || ''}`.trim(), role: u.role }));
+  // Responsables habilités : ADMIN, RC, responsable_produit, conformite
+  const ROLES_RESPONSABLES = ['ADMIN', 'MANAGER', 'RC', 'conformite', 'responsable_produit_et_qualit_oprationnelle_'];
+  const ROLE_LABELS = {
+    'ADMIN': 'Admin',
+    'MANAGER': 'Manager',
+    'RC': 'Responsable Commercial',
+    'conformite': 'Resp. Conformité',
+    'responsable_produit_et_qualit_oprationnelle_': 'Resp. Produit & Qualité Opérationnelle',
+  };
+  const responsables = allUsers
+    .filter(u => ROLES_RESPONSABLES.includes(u.role))
+    .map(u => ({
+      id: String(u.id),
+      nom: `${u.prenom || ''} ${u.nom || ''}`.trim(),
+      role: ROLE_LABELS[u.role] || u.role,
+    }));
 
   const IS = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' };
   const SS = { ...IS, background: '#1a1a2e' };
