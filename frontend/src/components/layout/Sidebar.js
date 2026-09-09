@@ -171,6 +171,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {can('pdvs')        && nl('/pdvs',         Store,       'Points de Vente')}
             {can('prospection') && nl('/prospection',  UserPlus,    'Prospection OM')}
             {can('prospection_energia') && nl('/prospection-energia', Activity, '☀️ Prospection ENERGIA')}
+            {nl('/reclamations', AlertTriangle, '📣 Réclamations')}
             {(role === 'admin' || role === 'rc' || role === 'manager') && nl('/suivi-tc', Bell, '📞 Suivi TC')}
             {can('indicateurs') && nl('/indicateurs',  Activity,    'Indicateurs')}
             {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}

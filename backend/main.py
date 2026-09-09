@@ -63,6 +63,7 @@ from app.api.routes.nafama import router as nafama_router
 from app.api.routes.energia import router as energia_router
 from app.api.routes.indicateurs_award import router as award_router
 from app.api.routes.appels_tc import router as appels_tc_router
+from app.api.routes.reclamations import router as reclamations_router
 from app.api.routes.eval_superviseurs import router as eval_sup_router
 from app.api.routes.kaabu import router as kaabu_router
 app.include_router(challenge_router, prefix="/api", tags=["Challenge Orange Awards"])
@@ -70,6 +71,7 @@ app.include_router(nafama_router, prefix="/api", tags=["NAFAMA"])
 app.include_router(energia_router, prefix="/api", tags=["Vente Energia"])
 app.include_router(award_router, prefix="/api", tags=["Indicateurs Award"])
 app.include_router(appels_tc_router, prefix="/api", tags=["Appels TC"])
+app.include_router(reclamations_router, prefix="/api", tags=["Reclamations"])
 app.include_router(eval_sup_router, prefix="/api", tags=["Evaluation Superviseurs"])
 app.include_router(kaabu_router, prefix="/api", tags=["KAABU Mobile"])
 app.include_router(auth.router, prefix="/api", tags=["Authentification"])
@@ -196,6 +198,30 @@ async def auto_migrate():
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS adresse VARCHAR(300)",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS developpeur VARCHAR(200)",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS gestionnaire VARCHAR(200)",
+        # Tables réclamations
+        """CREATE TABLE IF NOT EXISTS reclamations (
+            id SERIAL PRIMARY KEY, titre VARCHAR(200) NOT NULL, description TEXT NOT NULL,
+            categorie VARCHAR(50) DEFAULT 'AUTRE', priorite VARCHAR(20) DEFAULT 'NORMAL',
+            statut VARCHAR(30) DEFAULT 'OUVERTE',
+            soumetteur_id INTEGER REFERENCES users(id), soumetteur_nom VARCHAR(200),
+            responsable_id INTEGER REFERENCES users(id), responsable_nom VARCHAR(200),
+            numero_pdv VARCHAR(20), nom_pdv VARCHAR(200), reponse TEXT,
+            date_limite TIMESTAMP, date_prise_en_charge TIMESTAMP, date_resolution TIMESTAMP,
+            note_satisfaction INTEGER, escaladee BOOLEAN DEFAULT FALSE,
+            escalade_raison TEXT, nb_relances INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS reclamation_commentaires (
+            id SERIAL PRIMARY KEY, reclamation_id INTEGER REFERENCES reclamations(id),
+            auteur_id INTEGER REFERENCES users(id), auteur_nom VARCHAR(200),
+            auteur_role VARCHAR(50), contenu TEXT NOT NULL,
+            est_interne BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS reclamation_notifications (
+            id SERIAL PRIMARY KEY, reclamation_id INTEGER REFERENCES reclamations(id),
+            destinataire_id INTEGER REFERENCES users(id), message TEXT NOT NULL,
+            type_notif VARCHAR(50), lue BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
+        )""",
         # S'assurer que status est VARCHAR (supporte EN_ATTENTE_CONFORMITE)
         "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
         # Colonne role utilisateur en VARCHAR (supporte rôles personnalisés)
