@@ -1120,6 +1120,7 @@ function OngletBaisse({
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 {thSortD('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>📞 N° Personnel</th>
                 {thSortD('zone', 'Zone', '#8a8a9a', 'left')}
                 {thSortD('superviseur', 'Superviseur', '#8a8a9a', 'left')}
                 {thSortD('ca_actuel', 'CA Actuel', COLOR_PRIMARY, 'right')}
@@ -1144,6 +1145,7 @@ function OngletBaisse({
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{p.numero_pdv}</div>
                       <div style={{ fontSize: 10, color: '#8a8a9a' }}>{p.nom !== p.numero_pdv ? p.nom : ''}</div>
                     </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#74b9ff', fontWeight: 600 }}>{p.telephone || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.zone}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.superviseur}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(p.ca_actuel)}</td>
