@@ -1182,7 +1182,7 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
               ) : displayed.length === 0 ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV avec ces filtres</td></tr>
               ) : [...displayed].sort(sortFnD).map((p, i) => {
@@ -1194,6 +1194,7 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{p.numero_pdv}</div>
                       <div style={{ fontSize: 10, color: '#8a8a9a' }}>{p.nom !== p.numero_pdv ? p.nom : ''}</div>
                     </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#74b9ff', fontWeight: 600 }}>{p.telephone || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.zone}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.superviseur}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(p.ca_actuel)}</td>
