@@ -45,13 +45,13 @@ function FormulaireReclamation({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // Liste fixe des responsables habilités à traiter les réclamations
-  const RESPONSABLES_FIXES = [
-    { id: 'admin', nom: 'Admin', role: 'Administrateur' },
-    { id: 'resp_commercial', nom: 'Responsable Commercial', role: 'Responsable commercial' },
-    { id: 'resp_produit', nom: 'Responsable Produit et Qualité Opérationnelle', role: 'Resp. Produit & Qualité' },
-    { id: 'resp_conformite', nom: 'Resp. Conformité', role: 'Responsable Conformité' },
-  ];
+  // Charger les vrais admins/managers depuis le logiciel
+  const { data: allUsers = [] } = useQuery('auth-users-rec', () =>
+    api.get('/auth/users').then(r => Array.isArray(r.data) ? r.data : (r.data?.items || [])).catch(() => []),
+    { staleTime: 300000 }
+  );
+  const responsables = allUsers.filter(u => ['ADMIN','MANAGER'].includes(u.role?.toUpperCase()))
+    .map(u => ({ id: u.id, nom: `${u.prenom || ''} ${u.nom || ''}`.trim(), role: u.role }));
 
   const IS = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' };
   const SS = { ...IS, background: '#1a1a2e' };
@@ -106,11 +106,14 @@ function FormulaireReclamation({ onClose, onSuccess }) {
               <label style={{ fontSize: 10, color: '#FF6900', fontWeight: 700, display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Responsable assigné</label>
               <select style={SS} value={form.responsable_id} onChange={e => set('responsable_id', e.target.value)}>
                 <option value="">Sélectionner un responsable</option>
-                {RESPONSABLES_FIXES.map(resp => (
+                {responsables.map(resp => (
                   <option key={resp.id} value={resp.id}>
-                    {resp.nom} — {resp.role}
+                    {resp.role} — {resp.nom}
                   </option>
                 ))}
+                {responsables.length === 0 && (
+                  <option disabled>Chargement...</option>
+                )}
               </select>
             </div>
             <div>
