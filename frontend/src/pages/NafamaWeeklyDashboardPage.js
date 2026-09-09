@@ -417,6 +417,7 @@ function OngletTop({ annee, semaine }) {
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{pdv.numero_pdv}</div>
                       <div style={{ fontSize: 11, color: '#8a8a9a' }}>{pdv.nom !== pdv.numero_pdv ? pdv.nom : ''}</div>
                     </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#74b9ff', fontWeight: 600 }}>{pdv.telephone || '—'}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(pdv.ca)}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc' }}>{pdv.zone}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc' }}>{pdv.superviseur}</td>
@@ -934,6 +935,7 @@ function OngletInactifs({
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{p.numero_pdv}</div>
                       <div style={{ fontSize: 10, color: '#8a8a9a' }}>{p.nom !== p.numero_pdv ? p.nom : ''}</div>
                     </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#74b9ff', fontWeight: 600 }}>{p.telephone || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.zone}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.superviseur}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.gestionnaire}</td>
