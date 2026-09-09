@@ -730,11 +730,11 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
             db.query(
                 NafamaTransaction.numero_pdv,
                 func.sum(NafamaTransaction.montant).label("ca"),
-                PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.telephone,
+                PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.numero_personnel,
             )
             .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
             .filter(NafamaTransaction.annee == a, NafamaTransaction.mois == m)
-            .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.telephone)
+            .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.numero_personnel)
             .all()
         )
         for r in rows:
@@ -748,7 +748,7 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
                     "superviseur": r.superviseur or "—",
                     "gestionnaire": r.gestionnaire or "—",
                     "teleconseillere": r.teleconseillere or "",
-                    "telephone": r.telephone or "—",
+                    "telephone": r.numero_personnel or "—",
                 }
 
     pdvs = []
