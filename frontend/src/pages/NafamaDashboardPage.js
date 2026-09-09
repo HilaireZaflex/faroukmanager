@@ -431,6 +431,7 @@ function TabTopPDVs({ annee, mois }) {
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>#</th>
                 {thSort('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>📞 N° Personnel</th>
                 {thSort('ca', 'CA', COLOR_PRIMARY, 'right')}
                 {thSort('zone', 'Zone', '#8a8a9a', 'left')}
                 {thSort('superviseur', 'Superviseur', '#8a8a9a', 'left')}
@@ -452,6 +453,7 @@ function TabTopPDVs({ annee, mois }) {
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{pdv.numero_pdv}</div>
                       <div style={{ fontSize: 11, color: '#8a8a9a' }}>{pdv.nom !== pdv.numero_pdv ? pdv.nom : ''}</div>
                     </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#94a3b8' }}>{pdv.telephone || '—'}</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(pdv.ca)}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc' }}>{pdv.zone}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc' }}>{pdv.superviseur}</td>

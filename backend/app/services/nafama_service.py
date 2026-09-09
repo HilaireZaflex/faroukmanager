@@ -730,11 +730,11 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
             db.query(
                 NafamaTransaction.numero_pdv,
                 func.sum(NafamaTransaction.montant).label("ca"),
-                PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere,
+                PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.telephone,
             )
             .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
             .filter(NafamaTransaction.annee == a, NafamaTransaction.mois == m)
-            .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere)
+            .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.telephone)
             .all()
         )
         for r in rows:
@@ -748,6 +748,7 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
                     "superviseur": r.superviseur or "—",
                     "gestionnaire": r.gestionnaire or "—",
                     "teleconseillere": r.teleconseillere or "",
+                    "telephone": r.telephone or "—",
                 }
 
     pdvs = []
@@ -762,6 +763,7 @@ def get_monthly_inactive_pdv(db: Session, annee: int, mois: int) -> Dict[str, An
             "superviseur": info["superviseur"],
             "gestionnaire": info["gestionnaire"],
             "teleconseillere": info.get("teleconseillere", ""),
+            "telephone": info.get("telephone", "—"),
             "ca_dernier_mois": info["ca_dernier_mois"],
             "nb_mois_consecutifs_inactif": nb,
             "alerte": alerte,
