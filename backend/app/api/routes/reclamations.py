@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timedelta
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.api.routes.auth import get_current_user
 from app.models.user import User
 from app.models.reclamation import Reclamation, ReclamationCommentaire, ReclamationNotification
 
