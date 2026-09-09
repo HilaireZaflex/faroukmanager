@@ -958,6 +958,7 @@ function TabInactivePDVs({
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 {thSortI('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>📞 N° Personnel</th>
                 {thSortI('zone', 'Zone', '#8a8a9a', 'left')}
                 {thSortI('superviseur', 'Superviseur', '#8a8a9a', 'left')}
                 {thSortI('gestionnaire', 'Gestionnaire', '#8a8a9a', 'left')}
@@ -969,7 +970,7 @@ function TabInactivePDVs({
             </thead>
             <tbody>
               {displayed.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif avec ces filtres</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif avec ces filtres</td></tr>
               ) : [...displayed].sort(sortFnI).map((p, i) => {
                 const nbMois = p.nb_mois_consecutifs_inactif;
                 const alertColor = nbMois >= 3 ? '#ff4757' : nbMois === 2 ? '#ffa502' : '#8a8a9a';
@@ -979,6 +980,7 @@ function TabInactivePDVs({
                       <div style={{ fontWeight: 700, fontSize: 13 }}>{p.numero_pdv}</div>
                       <div style={{ fontSize: 10, color: '#8a8a9a' }}>{p.nom !== p.numero_pdv ? p.nom : ''}</div>
                     </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#74b9ff', fontWeight: 600 }}>{p.telephone || '—'}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.zone}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.superviseur}</td>
                     <td style={{ padding: '10px 12px', color: '#ccc', fontSize: 11 }}>{p.gestionnaire}</td>
