@@ -793,7 +793,8 @@ function OngletInactifs({
     'appels-hist-nwi',
     () => api.get('/appels-tc').then(r => {
       const items = r.data?.items || r.data || [];
-      const tcNom = ((user?.prenom || '') + ' ' + (user?.nom || '')).trim();
+      const u = useAuthStore.getState().user;
+      const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
       return items.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     }),
     { staleTime: 30000, refetchOnMount: true }
@@ -953,7 +954,8 @@ function OngletBaisse({
     'appels-hist-nwd',
     () => api.get('/appels-tc').then(r => {
       const items = r.data?.items || r.data || [];
-      const tcNom = ((user?.prenom || '') + ' ' + (user?.nom || '')).trim();
+      const u = useAuthStore.getState().user;
+      const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
       return items.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     }),
     { staleTime: 30000, refetchOnMount: true }
