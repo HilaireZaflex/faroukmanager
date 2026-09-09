@@ -210,6 +210,17 @@ def list_developers(
 
     return results
 
+@router.get("/auth/responsables")
+def list_responsables(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retourne la liste des responsables habilités à traiter les réclamations - accessible à tous."""
+    ROLES_RESP = ['ADMIN', 'MANAGER', 'RC', 'conformite', 'responsable_produit_et_qualit_oprationnelle_']
+    responsables = db.query(User).filter(User.role.in_(ROLES_RESP)).all()
+    return [{"id": u.id, "nom": f"{u.prenom or ''} {u.nom or ''}".strip(), "role": u.role, "email": u.email} for u in responsables]
+
+
 @router.get("/auth/users", response_model=List[UserOut])
 def list_users(
     db: Session = Depends(get_db),

@@ -46,8 +46,8 @@ function FormulaireReclamation({ onClose, onSuccess }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   // Charger les vrais admins/managers depuis le logiciel
-  const { data: allUsers = [] } = useQuery('auth-users-rec', () =>
-    api.get('/auth/users').then(r => Array.isArray(r.data) ? r.data : (r.data?.items || [])).catch(() => []),
+  const { data: allUsers = [] } = useQuery('auth-responsables-rec', () =>
+    api.get('/auth/responsables').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
     { staleTime: 300000 }
   );
   // Responsables habilités : ADMIN, RC, responsable_produit, conformite
