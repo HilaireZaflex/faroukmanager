@@ -853,7 +853,7 @@ function TabInactivePDVs({
   );
   const [appelsFaitsLocalNI, setAppelsFaitsLocalNI] = React.useState(new Set());
   const appelsFaitsNI = React.useMemo(() =>
-    new Set([...appelsArrNI, ...appelsFaitsLocalNI]),
+    new Set([...(appelsArrNI || []), ...(appelsFaitsLocalNI || [])]),
     [appelsArrNI, appelsFaitsLocalNI]
   );
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
@@ -1014,7 +1014,7 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
   );
   const [appelsFaitsLocalND, setAppelsFaitsLocalND] = React.useState(new Set());
   const appelsFaitsND = React.useMemo(() =>
-    new Set([...appelsArrND, ...appelsFaitsLocalND]),
+    new Set([...(appelsArrND || []), ...(appelsFaitsLocalND || [])]),
     [appelsArrND, appelsFaitsLocalND]
   );
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
