@@ -198,30 +198,10 @@ async def auto_migrate():
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS adresse VARCHAR(300)",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS developpeur VARCHAR(200)",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS gestionnaire VARCHAR(200)",
-        # Tables réclamations
-        """CREATE TABLE IF NOT EXISTS reclamations (
-            id SERIAL PRIMARY KEY, titre VARCHAR(200) NOT NULL, description TEXT NOT NULL,
-            categorie VARCHAR(50) DEFAULT 'AUTRE', priorite VARCHAR(20) DEFAULT 'NORMAL',
-            statut VARCHAR(30) DEFAULT 'OUVERTE',
-            soumetteur_id INTEGER REFERENCES users(id), soumetteur_nom VARCHAR(200),
-            responsable_id INTEGER REFERENCES users(id), responsable_nom VARCHAR(200),
-            numero_pdv VARCHAR(20), nom_pdv VARCHAR(200), reponse TEXT,
-            date_limite TIMESTAMP, date_prise_en_charge TIMESTAMP, date_resolution TIMESTAMP,
-            note_satisfaction INTEGER, escaladee BOOLEAN DEFAULT FALSE,
-            escalade_raison TEXT, nb_relances INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW()
-        )""",
-        """CREATE TABLE IF NOT EXISTS reclamation_commentaires (
-            id SERIAL PRIMARY KEY, reclamation_id INTEGER REFERENCES reclamations(id),
-            auteur_id INTEGER REFERENCES users(id), auteur_nom VARCHAR(200),
-            auteur_role VARCHAR(50), contenu TEXT NOT NULL,
-            est_interne BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
-        )""",
-        """CREATE TABLE IF NOT EXISTS reclamation_notifications (
-            id SERIAL PRIMARY KEY, reclamation_id INTEGER REFERENCES reclamations(id),
-            destinataire_id INTEGER REFERENCES users(id), message TEXT NOT NULL,
-            type_notif VARCHAR(50), lue BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW()
-        )""",
+        # Tables réclamations (sans FK pour éviter les erreurs de migration)
+        "CREATE TABLE IF NOT EXISTS reclamations (id SERIAL PRIMARY KEY, titre VARCHAR(200), description TEXT, categorie VARCHAR(50) DEFAULT 'AUTRE', priorite VARCHAR(20) DEFAULT 'NORMAL', statut VARCHAR(30) DEFAULT 'OUVERTE', soumetteur_id INTEGER, soumetteur_nom VARCHAR(200), responsable_id INTEGER, responsable_nom VARCHAR(200), numero_pdv VARCHAR(20), nom_pdv VARCHAR(200), reponse TEXT, date_limite TIMESTAMP, date_prise_en_charge TIMESTAMP, date_resolution TIMESTAMP, note_satisfaction INTEGER, escaladee BOOLEAN DEFAULT FALSE, escalade_raison TEXT, nb_relances INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())",
+        "CREATE TABLE IF NOT EXISTS reclamation_commentaires (id SERIAL PRIMARY KEY, reclamation_id INTEGER, auteur_id INTEGER, auteur_nom VARCHAR(200), auteur_role VARCHAR(50), contenu TEXT, est_interne BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())",
+        "CREATE TABLE IF NOT EXISTS reclamation_notifications (id SERIAL PRIMARY KEY, reclamation_id INTEGER, destinataire_id INTEGER, message TEXT, type_notif VARCHAR(50), lue BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT NOW())",
         # S'assurer que status est VARCHAR (supporte EN_ATTENTE_CONFORMITE)
         "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
         # Colonne role utilisateur en VARCHAR (supporte rôles personnalisés)
