@@ -802,7 +802,6 @@ function OngletInactifs({
     new Set([...appelsArrNWI, ...appelsFaitsLocalNWI]),
     [appelsArrNWI, appelsFaitsLocalNWI]
   );
-  const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
@@ -898,7 +897,7 @@ function OngletInactifs({
                 {thSortI('ca_semaine_precedente', 'CA Sem. Préc.', '#ffa502', 'right')}
                 {thSortI('nb_semaines_consecutives_inactif', 'Sem. Inactif', '#8a8a9a', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
-              <th style={{ padding: '10px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
+              <th style={{ padding: '10px 8px', textAlign: 'center', color: '#00d68f' }}>📞 Appel</th>
               </tr>
             </thead>
             <tbody>
@@ -923,10 +922,13 @@ function OngletInactifs({
                         {p.alerte}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
-                          style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                          📞
-                        </button></td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox" checked={appelsFaitsNWI.has(p.numero_pdv)} onChange={() => setAppelPDV(p)} style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer' }}/>
+                        {appelsFaitsNWI.has(p.numero_pdv) && <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>}
+                        <button onClick={() => setAppelPDV(p)} style={{ background:appelsFaitsNWI.has(p.numero_pdv)?'rgba(34,197,94,0.15)':'rgba(0,214,143,0.1)', border:'1px solid '+(appelsFaitsNWI.has(p.numero_pdv)?'rgba(34,197,94,0.4)':'rgba(0,214,143,0.3)'), borderRadius:8, color:appelsFaitsNWI.has(p.numero_pdv)?'#22c55e':'#00d68f', padding:'5px 10px', cursor:'pointer', fontSize:15 }}>📞</button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -934,7 +936,7 @@ function OngletInactifs({
           </table>
         </div>
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocalNWI(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
@@ -959,7 +961,6 @@ function OngletBaisse({
     new Set([...appelsArrNWD, ...appelsFaitsLocalNWD]),
     [appelsArrNWD, appelsFaitsLocalNWD]
   );
-  const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
@@ -1081,7 +1082,7 @@ function OngletBaisse({
                 {thSortD('ca_precedent', 'CA S-1', '#ffa502', 'right')}
                 {thSortD('variation_pct', 'Baisse', '#ff4757', 'center')}
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
-              <th style={{ padding: '10px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
+              <th style={{ padding: '10px 8px', textAlign: 'center', color: '#00d68f' }}>📞 Appel</th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Action recommandée</th>
               </tr>
             </thead>
@@ -1110,10 +1111,13 @@ function OngletBaisse({
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#8a8a9a' }}>{p.action}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center' }}><button onClick={() => setAppelPDV(p)}
-                          style={{ background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.3)', borderRadius: 8, color: '#00d68f', padding: '5px 10px', cursor: 'pointer', fontSize: 15 }}>
-                          📞
-                        </button></td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                        <input type="checkbox" checked={appelsFaitsNWD.has(p.numero_pdv)} onChange={() => setAppelPDV(p)} style={{ width:18, height:18, accentColor:'#22c55e', cursor:'pointer' }}/>
+                        {appelsFaitsNWD.has(p.numero_pdv) && <span style={{ fontSize:10, color:'#22c55e', fontWeight:700 }}>Appelé</span>}
+                        <button onClick={() => setAppelPDV(p)} style={{ background:appelsFaitsNWD.has(p.numero_pdv)?'rgba(34,197,94,0.15)':'rgba(0,214,143,0.1)', border:'1px solid '+(appelsFaitsNWD.has(p.numero_pdv)?'rgba(34,197,94,0.4)':'rgba(0,214,143,0.3)'), borderRadius:8, color:appelsFaitsNWD.has(p.numero_pdv)?'#22c55e':'#00d68f', padding:'5px 10px', cursor:'pointer', fontSize:15 }}>📞</button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -1126,7 +1130,7 @@ function OngletBaisse({
           pdv={appelPDV}
           indicateur="NAFAMA"
           onClose={() => setAppelPDV(null)}
-          onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }}
+          onSaved={() => { if (appelPDV) setAppelsFaitsLocalNWD(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }}
         />
       )}
     </div>
@@ -1300,7 +1304,7 @@ function OngletProgression({ annee }) {
           </div>
         )}
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaits(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
+      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocalNWD(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
