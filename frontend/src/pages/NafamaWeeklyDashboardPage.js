@@ -395,6 +395,7 @@ function OngletTop({ annee, semaine }) {
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a', fontWeight: 600 }}>#</th>
                 {thSort('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>📞 N° Personnel</th>
                 {thSort('ca', 'CA', COLOR_PRIMARY, 'right')}
                 {thSort('zone', 'Zone', '#8a8a9a', 'left')}
                 {thSort('superviseur', 'Superviseur', '#8a8a9a', 'left')}
@@ -911,6 +912,7 @@ function OngletInactifs({
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 {thSortI('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>📞 N° Personnel</th>
                 {thSortI('zone', 'Zone', '#8a8a9a', 'left')}
                 {thSortI('superviseur', 'Superviseur', '#8a8a9a', 'left')}
                 {thSortI('gestionnaire', 'Gestionnaire', '#8a8a9a', 'left')}

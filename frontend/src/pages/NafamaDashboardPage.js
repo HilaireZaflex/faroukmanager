@@ -635,6 +635,7 @@ function TabPareto({ annee, mois }) {
                     <div style={{ fontWeight: 700, fontSize: 12 }}>{pdv.numero_pdv}</div>
                     <div style={{ fontSize: 10, color: '#8a8a9a' }}>{pdv.nom !== pdv.numero_pdv ? pdv.nom : ''}</div>
                   </td>
+                  <td style={{ padding: '9px 12px', fontSize: 12, color: '#74b9ff', fontWeight: 600 }}>{pdv.telephone || '—'}</td>
                   <td style={{ padding: '9px 12px', color: '#ccc', fontSize: 11 }}>{pdv.zone}</td>
                   <td style={{ padding: '9px 12px', color: '#ccc', fontSize: 11 }}>{pdv.superviseur}</td>
                   <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: COLOR_PRIMARY }}>{formatCA(pdv.ca)}</td>
@@ -1168,6 +1169,7 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
                 {thSortD('numero_pdv', 'PDV', '#8a8a9a', 'left')}
+                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600 }}>📞 N° Personnel</th>
                 {thSortD('zone', 'Zone', '#8a8a9a', 'left')}
                 {thSortD('superviseur', 'Superviseur', '#8a8a9a', 'left')}
                 {thSortD('ca_actuel', 'CA Actuel', COLOR_PRIMARY, 'right')}
