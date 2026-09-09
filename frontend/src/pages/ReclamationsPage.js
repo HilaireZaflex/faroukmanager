@@ -45,22 +45,13 @@ function FormulaireReclamation({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const { data: equipe } = useQuery('equipe-rec', () =>
-    api.get('/reseau/equipe').then(r => r.data).catch(() => ({})),
-    { staleTime: 300000 }
-  );
-
-  const membres = [
-    ...(equipe?.superviseurs || []),
-    ...(equipe?.gestionnaires || []),
-    ...(equipe?.developpeurs || []),
+  // Liste fixe des responsables habilités à traiter les réclamations
+  const RESPONSABLES_FIXES = [
+    { id: 'admin', nom: 'Admin', role: 'Administrateur' },
+    { id: 'resp_commercial', nom: 'Responsable Commercial', role: 'Responsable commercial' },
+    { id: 'resp_produit', nom: 'Responsable Produit et Qualité Opérationnelle', role: 'Resp. Produit & Qualité' },
+    { id: 'resp_conformite', nom: 'Resp. Conformité', role: 'Responsable Conformité' },
   ];
-
-  const { data: usersData } = useQuery('users-rec', () =>
-    api.get('/users').then(r => r.data).catch(() => []),
-    { staleTime: 300000 }
-  );
-  const users = Array.isArray(usersData) ? usersData : (usersData?.items || []);
 
   const IS = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' };
   const SS = { ...IS, background: '#1a1a2e' };
@@ -115,9 +106,9 @@ function FormulaireReclamation({ onClose, onSuccess }) {
               <label style={{ fontSize: 10, color: '#FF6900', fontWeight: 700, display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Responsable assigné</label>
               <select style={SS} value={form.responsable_id} onChange={e => set('responsable_id', e.target.value)}>
                 <option value="">Sélectionner un responsable</option>
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.prenom || ''} {u.nom || ''} ({u.role})
+                {RESPONSABLES_FIXES.map(resp => (
+                  <option key={resp.id} value={resp.id}>
+                    {resp.nom} — {resp.role}
                   </option>
                 ))}
               </select>

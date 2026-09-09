@@ -113,13 +113,29 @@ def create_reclamation(
     """Soumettre une nouvelle réclamation."""
     nom_complet = f"{current_user.prenom or ''} {current_user.nom or ''}".strip() or current_user.email
 
+    # Mapping responsables fixes → noms affichables
+    RESPONSABLES_MAP = {
+        'admin': 'Admin',
+        'resp_commercial': 'Responsable Commercial',
+        'resp_produit': 'Responsable Produit et Qualité Opérationnelle',
+        'resp_conformite': 'Resp. Conformité',
+    }
+
     # Trouver le responsable
     responsable = None
     responsable_nom = None
-    if data.get("responsable_id"):
-        responsable = db.query(User).filter(User.id == data["responsable_id"]).first()
-        if responsable:
-            responsable_nom = f"{responsable.prenom or ''} {responsable.nom or ''}".strip()
+    resp_id_raw = data.get("responsable_id")
+    if resp_id_raw:
+        # Responsable fixe (string) ou utilisateur (int)
+        if str(resp_id_raw) in RESPONSABLES_MAP:
+            responsable_nom = RESPONSABLES_MAP[str(resp_id_raw)]
+        else:
+            try:
+                responsable = db.query(User).filter(User.id == int(resp_id_raw)).first()
+                if responsable:
+                    responsable_nom = f"{responsable.prenom or ''} {responsable.nom or ''}".strip()
+            except (ValueError, TypeError):
+                responsable_nom = str(resp_id_raw)
 
     r = Reclamation(
         titre=data["titre"],
