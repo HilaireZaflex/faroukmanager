@@ -839,12 +839,16 @@ function TabInactivePDVs({
   const [appelPDV, setAppelPDV] = useState(null);
   const { data: appelsArrNI = [] } = useQuery(
     'appels-hist-ni',
-    () => api.get('/appels-tc').then(r => {
-      const items = r.data?.items || r.data || [];
+    () =>     async () => {
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
-      return items.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
-    }),
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      const all = [...p1, ...p2];
+      return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
+    },
     { staleTime: 30000, refetchOnMount: true }
   );
   const [appelsFaitsLocalNI, setAppelsFaitsLocalNI] = React.useState(new Set());
@@ -996,12 +1000,16 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
   const [appelPDV, setAppelPDV] = useState(null);
   const { data: appelsArrND = [] } = useQuery(
     'appels-hist-nd',
-    () => api.get('/appels-tc').then(r => {
-      const items = r.data?.items || r.data || [];
+    () =>     async () => {
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
-      return items.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
-    }),
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      const all = [...p1, ...p2];
+      return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
+    },
     { staleTime: 30000, refetchOnMount: true }
   );
   const [appelsFaitsLocalND, setAppelsFaitsLocalND] = React.useState(new Set());

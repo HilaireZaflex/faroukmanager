@@ -575,12 +575,16 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   const [appelPDV, setAppelPDV] = useState(null);
   const { data: appelsHistArrB = [] } = useQuery(
     'omy-w-baisse-appels-hist',
-    () => api.get('/appels-tc').then(r => {
-      const items = r.data?.items || r.data || [];
+    () =>     async () => {
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
-      return items.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
-    }),
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      const all = [...p1, ...p2];
+      return all.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
+    },
     { staleTime: 30000, refetchOnMount: true }
   );
   const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
@@ -748,12 +752,16 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
   const [search, setSearch] = useState('');
   const { data: appelsHistArrB2 = [] } = useQuery(
     'omy-w-baisse-appels-hist-b',
-    () => api.get('/appels-tc').then(r => {
-      const items = r.data?.items || r.data || [];
+    () =>     async () => {
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
-      return items.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
-    }),
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      const all = [...p1, ...p2];
+      return all.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
+    },
     { staleTime: 30000, refetchOnMount: true }
   );
   const [appelsFaitsLocalB, setAppelsFaitsLocalB] = React.useState(new Set());
