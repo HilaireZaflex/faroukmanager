@@ -573,6 +573,25 @@ function OngletEvolution({ annee, semaine, criterion }) {
 function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
+  const tcUser = useAuthStore(s => s.user);
+  const tcNom = ((tcUser?.prenom || '') + ' ' + (tcUser?.nom || '')).trim();
+  const { data: rawAppels = [] } = useQuery(
+    ['tc-appels-omy', tcNom],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
+  const appelsFaits = React.useMemo(() => {
+    return new Set([...(rawAppels || []), ...Array.from(appelsFaitsLocal)]);
+  }, [rawAppels, appelsFaitsLocal]);
   const { data: appelsHistArrB = [] } = useQuery(
     'omy-w-baisse-appels-hist',
     () =>     async () => {
@@ -586,11 +605,6 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
       return all.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     },
     { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
-  const appelsFaits = React.useMemo(() =>
-    new Set([...Array.from(appelsHistArrB || []), ...Array.from(appelsFaitsLocal || [])]),
-    [appelsHistArrB, appelsFaitsLocal]
   );
   const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery(
@@ -748,6 +762,25 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
 function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
   const [seuil, setSeuil] = useState(-10);
   const [appelPDV, setAppelPDV] = useState(null);
+  const tcUserB = useAuthStore(s => s.user);
+  const tcNomB = ((tcUserB?.prenom || '') + ' ' + (tcUserB?.nom || '')).trim();
+  const { data: rawAppelsB = [] } = useQuery(
+    ['tc-appels-omyb', tcNomB],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'OMY' && (!tcNomB || a.tc_nom === tcNomB))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalB, setAppelsFaitsLocalB] = React.useState(new Set());
+  const appelsFaitsB = React.useMemo(() => {
+    return new Set([...(rawAppelsB || []), ...Array.from(appelsFaitsLocalB)]);
+  }, [rawAppelsB, appelsFaitsLocalB]);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
   const { data: appelsHistArrB2 = [] } = useQuery(
@@ -763,11 +796,6 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
       return all.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     },
     { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocalB, setAppelsFaitsLocalB] = React.useState(new Set());
-  const appelsFaitsB = React.useMemo(() =>
-    new Set([...Array.from(appelsHistArrB2 || []), ...Array.from(appelsFaitsLocalB || [])]),
-    [appelsHistArrB2, appelsFaitsLocalB]
   );
 
   const { data, isLoading } = useQuery(

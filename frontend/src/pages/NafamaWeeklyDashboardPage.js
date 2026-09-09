@@ -789,6 +789,25 @@ function OngletInactifs({
 
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
+  const tcUserNWI = useAuthStore(s => s.user);
+  const tcNomNWI = ((tcUserNWI?.prenom || '') + ' ' + (tcUserNWI?.nom || '')).trim();
+  const { data: rawAppelsNWI = [] } = useQuery(
+    ['tc-appels-nafamanwi', tcNomNWI],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'NAFAMA' && (!tcNomNWI || a.tc_nom === tcNomNWI))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalNWI, setAppelsFaitsLocalNWI] = React.useState(new Set());
+  const appelsFaitsNWI = React.useMemo(() => {
+    return new Set([...(rawAppelsNWI || []), ...Array.from(appelsFaitsLocalNWI)]);
+  }, [rawAppelsNWI, appelsFaitsLocalNWI]);
   const { data: appelsArrNWI = [] } = useQuery(
     'appels-hist-nwi',
     () =>     async () => {
@@ -802,11 +821,6 @@ function OngletInactifs({
       return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     },
     { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocalNWI, setAppelsFaitsLocalNWI] = React.useState(new Set());
-  const appelsFaitsNWI = React.useMemo(() =>
-    new Set([...Array.from(appelsArrNWI || []), ...Array.from(appelsFaitsLocalNWI || [])]),
-    [appelsArrNWI, appelsFaitsLocalNWI]
   );
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
@@ -954,6 +968,25 @@ function OngletBaisse({
 
   const [seuil, setSeuil] = useState(10);
   const [appelPDV, setAppelPDV] = useState(null);
+  const tcUserNWD = useAuthStore(s => s.user);
+  const tcNomNWD = ((tcUserNWD?.prenom || '') + ' ' + (tcUserNWD?.nom || '')).trim();
+  const { data: rawAppelsNWD = [] } = useQuery(
+    ['tc-appels-nafamanwd', tcNomNWD],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'NAFAMA' && (!tcNomNWD || a.tc_nom === tcNomNWD))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalNWD, setAppelsFaitsLocalNWD] = React.useState(new Set());
+  const appelsFaitsNWD = React.useMemo(() => {
+    return new Set([...(rawAppelsNWD || []), ...Array.from(appelsFaitsLocalNWD)]);
+  }, [rawAppelsNWD, appelsFaitsLocalNWD]);
   const { data: appelsArrNWD = [] } = useQuery(
     'appels-hist-nwd',
     () =>     async () => {
@@ -967,11 +1000,6 @@ function OngletBaisse({
       return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     },
     { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocalNWD, setAppelsFaitsLocalNWD] = React.useState(new Set());
-  const appelsFaitsNWD = React.useMemo(() =>
-    new Set([...Array.from(appelsArrNWD || []), ...Array.from(appelsFaitsLocalNWD || [])]),
-    [appelsArrNWD, appelsFaitsLocalNWD]
   );
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');

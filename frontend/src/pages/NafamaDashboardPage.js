@@ -837,6 +837,25 @@ function TabInactivePDVs({
   const [zoneFilter, setZoneFilter] = useState('');
   const [supFilter, setSupFilter] = useState('');
   const [appelPDV, setAppelPDV] = useState(null);
+  const tcUserNI = useAuthStore(s => s.user);
+  const tcNomNI = ((tcUserNI?.prenom || '') + ' ' + (tcUserNI?.nom || '')).trim();
+  const { data: rawAppelsNI = [] } = useQuery(
+    ['tc-appels-nafamani', tcNomNI],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'NAFAMA' && (!tcNomNI || a.tc_nom === tcNomNI))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalNI, setAppelsFaitsLocalNI] = React.useState(new Set());
+  const appelsFaitsNI = React.useMemo(() => {
+    return new Set([...(rawAppelsNI || []), ...Array.from(appelsFaitsLocalNI)]);
+  }, [rawAppelsNI, appelsFaitsLocalNI]);
   const { data: appelsArrNI = [] } = useQuery(
     'appels-hist-ni',
     () =>     async () => {
@@ -850,11 +869,6 @@ function TabInactivePDVs({
       return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     },
     { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocalNI, setAppelsFaitsLocalNI] = React.useState(new Set());
-  const appelsFaitsNI = React.useMemo(() =>
-    new Set([...Array.from(appelsArrNI || []), ...Array.from(appelsFaitsLocalNI || [])]),
-    [appelsArrNI, appelsFaitsLocalNI]
   );
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const { thSort: thSortI, sortFn: sortFnI } = useSortable('ca_dernier_mois');
@@ -998,6 +1012,25 @@ function TabInactivePDVs({
 function TabDecliningPDVs({ annee, mois, teleFilter }) {
   const [seuil, setSeuil] = useState(10);
   const [appelPDV, setAppelPDV] = useState(null);
+  const tcUserND = useAuthStore(s => s.user);
+  const tcNomND = ((tcUserND?.prenom || '') + ' ' + (tcUserND?.nom || '')).trim();
+  const { data: rawAppelsND = [] } = useQuery(
+    ['tc-appels-nafamand', tcNomND],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'NAFAMA' && (!tcNomND || a.tc_nom === tcNomND))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocalND, setAppelsFaitsLocalND] = React.useState(new Set());
+  const appelsFaitsND = React.useMemo(() => {
+    return new Set([...(rawAppelsND || []), ...Array.from(appelsFaitsLocalND)]);
+  }, [rawAppelsND, appelsFaitsLocalND]);
   const { data: appelsArrND = [] } = useQuery(
     'appels-hist-nd',
     () =>     async () => {
@@ -1011,11 +1044,6 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
       return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     },
     { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocalND, setAppelsFaitsLocalND] = React.useState(new Set());
-  const appelsFaitsND = React.useMemo(() =>
-    new Set([...Array.from(appelsArrND || []), ...Array.from(appelsFaitsLocalND || [])]),
-    [appelsArrND, appelsFaitsLocalND]
   );
   const [appelsFaits, setAppelsFaits] = React.useState(new Set());
   const [activeFilter, setActiveFilter] = useState(null);

@@ -923,6 +923,25 @@ function TabInactivePDVs({
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
+  const tcUser = useAuthStore(s => s.user);
+  const tcNom = ((tcUser?.prenom || '') + ' ' + (tcUser?.nom || '')).trim();
+  const { data: rawAppels = [] } = useQuery(
+    ['tc-appels-omy', tcNom],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
+  const appelsFaits = React.useMemo(() => {
+    return new Set([...(rawAppels || []), ...Array.from(appelsFaitsLocal)]);
+  }, [rawAppels, appelsFaitsLocal]);
   // Charger les appels déjà effectués depuis l'API (persistance + anciens appels)
   // Utiliser le nom de la TC connectée pour filtrer (depuis authStore ou user)
   const { data: appelsHistoriqueArr = [] } = useQuery(
@@ -939,7 +958,6 @@ function TabInactivePDVs({
     },
     { staleTime: 30000, refetchOnMount: true }
   );
-  const [appelsFaitsLocal, setAppelsFaitsLocal] = React.useState(new Set());
   // Combiner appels API (array) + appels locaux de la session
   const appelsFaits = React.useMemo(() =>
     new Set([...Array.from(appelsHistoriqueArr || []), ...Array.from(appelsFaitsLocal || [])]),
@@ -1118,6 +1136,25 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
 
   const [appelPDV2, setAppelPDV2] = useState(null);
+  const tcUser2 = useAuthStore(s => s.user);
+  const tcNom2 = ((tcUser2?.prenom || '') + ' ' + (tcUser2?.nom || '')).trim();
+  const { data: rawAppels2 = [] } = useQuery(
+    ['tc-appels-omy2', tcNom2],
+    async () => {
+      const [p1, p2] = await Promise.all([
+        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+      ]);
+      return [...p1, ...p2]
+        .filter(a => a.indicateur === 'OMY' && (!tcNom2 || a.tc_nom === tcNom2))
+        .map(a => a.numero_pdv);
+    },
+    { staleTime: 60000, refetchOnMount: true }
+  );
+  const [appelsFaitsLocal2, setAppelsFaitsLocal2] = React.useState(new Set());
+  const appelsFaits2 = React.useMemo(() => {
+    return new Set([...(rawAppels2 || []), ...Array.from(appelsFaitsLocal2)]);
+  }, [rawAppels2, appelsFaitsLocal2]);
   const { data: appelsArr2 = [] } = useQuery(
     'appels-hist-2',
     () =>     async () => {
@@ -1131,11 +1168,6 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
       return all.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
     },
     { staleTime: 30000, refetchOnMount: true }
-  );
-  const [appelsFaitsLocal2, setAppelsFaitsLocal2] = React.useState(new Set());
-  const appelsFaits2 = React.useMemo(() =>
-    new Set([...Array.from(appelsArr2 || []), ...Array.from(appelsFaitsLocal2 || [])]),
-    [appelsArr2, appelsFaitsLocal2]
   );
   // hook appelsMap2 supprimé
   const { data, isLoading } = useQuery(
