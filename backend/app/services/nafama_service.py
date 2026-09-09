@@ -803,11 +803,11 @@ def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: flo
         db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca"),
-            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere,
+            PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.numero_personnel,
         )
         .outerjoin(PDV, NafamaTransaction.numero_pdv == PDV.numero_pdv)
         .filter(NafamaTransaction.annee == annee, NafamaTransaction.mois == mois)
-        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere)
+        .group_by(NafamaTransaction.numero_pdv, PDV.nom, PDV.zone, PDV.quartier, PDV.superviseur, PDV.gestionnaire, PDV.teleconseillere, PDV.numero_personnel)
         .all()
     )
     ca_prec_map = {
@@ -834,7 +834,8 @@ def get_monthly_declining_pdv(db: Session, annee: int, mois: int, seuil_pct: flo
                     "superviseur": r.superviseur or "—",
                     "gestionnaire": r.gestionnaire or "—",
                     "teleconseillere": r.teleconseillere or "",
-                    "ca_actuel": ca_curr,
+                                        "telephone": r.numero_personnel or "—",
+"ca_actuel": ca_curr,
                     "ca_precedent": ca_p,
                     "variation_pct": round(pct, 1),
                     "alerte": alerte,
