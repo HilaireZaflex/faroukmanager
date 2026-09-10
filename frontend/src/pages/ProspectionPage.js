@@ -2258,6 +2258,42 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
   const [gpsLoading, setGpsLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const hasGps = p.latitude && p.longitude; // Prospect a déjà une géoloc
+  const cameraInputRef = useRef(null);
+  const documentInputRef = useRef(null);
+  const maxAttachmentSize = 10 * 1024 * 1024;
+
+  const addAttachmentFiles = (fileList) => {
+    const candidates = Array.from(fileList || []);
+    const allowedExtensions = /\.(jpe?g|png|heic|heif|pdf)$/i;
+    const valid = [];
+    const errors = [];
+
+    candidates.forEach(file => {
+      const supportedType = file.type?.startsWith('image/') || file.type === 'application/pdf';
+      if (!supportedType && !allowedExtensions.test(file.name || '')) {
+        errors.push(`${file.name || 'Fichier'} : format non accepté`);
+      } else if (file.size > maxAttachmentSize) {
+        errors.push(`${file.name || 'Fichier'} : taille supérieure à 10 Mo`);
+      } else {
+        valid.push(file);
+      }
+    });
+
+    if (valid.length) {
+      setForm(current => {
+        const existing = current.pieces_fichiers || [];
+        const keys = new Set(existing.map(file => `${file.name}-${file.size}-${file.lastModified}`));
+        const unique = valid.filter(file => {
+          const key = `${file.name}-${file.size}-${file.lastModified}`;
+          if (keys.has(key)) return false;
+          keys.add(key);
+          return true;
+        });
+        return { ...current, pieces_fichiers: [...existing, ...unique] };
+      });
+    }
+    if (errors.length) alert(`Certains fichiers n'ont pas été ajoutés :\n${errors.join('\n')}`);
+  };
 
   const captureGPSActivation = () => {
     if (!navigator.geolocation) { alert('Géolocalisation non disponible sur cet appareil'); return; }
@@ -2331,12 +2367,13 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         try {
           const fd = new FormData();
           fd.append('file', file);
-          fd.append('kind', file.type?.startsWith('image/') ? 'PHOTO_LOCAL_FACADE' : 'PIECE_IDENTITE');
-          await api.post(`/prospects/${p.id}/attachments`, fd, { headers: {'Content-Type':'multipart/form-data'} });
+          const isImage = file.type?.startsWith('image/') || /\.(jpe?g|png|heic|heif)$/i.test(file.name || '');
+          fd.append('kind', isImage ? 'PHOTO_LOCAL_FACADE' : 'PIECE_IDENTITE');
+          await api.post(`/prospects/${p.id}/attachments`, fd);
         } catch(err) { uploadFailures++; console.warn('Upload pièce erreur:', file.name, err); }
       }
       if (uploadFailures === form.pieces_fichiers.length) {
-        throw new Error("Échec de l'envoi des pièces jointes. Vérifiez le format (JPG, PNG, PDF · max 5 Mo) et réessayez.");
+        throw new Error("Échec de l'envoi des pièces jointes. Vérifiez le format (JPG, PNG, HEIC, PDF · max 10 Mo) et réessayez.");
       }
       // 2) Puis soumettre pour validation RC/Admin (avec les infos équipe)
       await api.post(`/prospects/${p.id}/soumettre-conformite`, {
@@ -2399,56 +2436,70 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
             <AFL label="Numéro de pièce"><AFI placeholder="N° pièce d'identité" value={form.numero_piece} onChange={e=>set('numero_piece',e.target.value)} /></AFL>
             <AFL label="Date de délivrance"><AFI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></AFL>
             <AFL label="Domicile"><AFI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></AFL>
-            {/* Upload pièce d'identité */}
+            {/* Upload de documents optimisé pour téléphone et ordinateur */}
             <AFL label="📎 Documents & Pièces d'identité (plusieurs fichiers) *" required>
               <div
-                onClick={() => document.getElementById('pieces-multi-upload').click()}
                 onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='rgba(255,105,0,0.8)'; }}
                 onDragLeave={e => { e.currentTarget.style.borderColor='rgba(255,105,0,0.3)'; }}
                 onDrop={e => {
                   e.preventDefault();
                   e.currentTarget.style.borderColor='rgba(255,105,0,0.3)';
-                  const files = Array.from(e.dataTransfer.files);
-                  setForm(f => ({ ...f, pieces_fichiers: [...(f.pieces_fichiers||[]), ...files] }));
+                  addAttachmentFiles(e.dataTransfer.files);
                 }}
                 style={{
                   border: `2px dashed ${form.pieces_fichiers?.length ? 'rgba(34,197,94,0.6)' : 'rgba(255,105,0,0.4)'}`,
-                  borderRadius: 10, padding: '14px 16px', cursor: 'pointer', textAlign: 'center',
+                  borderRadius: 10, padding: '14px 16px', textAlign: 'center',
                   background: form.pieces_fichiers?.length ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.02)',
                   transition: 'all 0.2s',
                 }}>
                 <input
-                  id="pieces-multi-upload"
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{ position: 'fixed', left: '-10000px', width: 1, height: 1, opacity: 0 }}
+                  onChange={e => { addAttachmentFiles(e.target.files); e.target.value = ''; }}
+                />
+                <input
+                  ref={documentInputRef}
                   type="file"
                   multiple
-                  accept="image/*,.pdf"
-                  style={{ display: 'none' }}
-                  onChange={e => {
-                    const files = Array.from(e.target.files);
-                    setForm(f => ({ ...f, pieces_fichiers: [...(f.pieces_fichiers||[]), ...files] }));
-                    e.target.value = '';
-                  }}
+                  accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.jpg,.jpeg,.png,.heic,.heif,.pdf"
+                  style={{ position: 'fixed', left: '-10000px', width: 1, height: 1, opacity: 0 }}
+                  onChange={e => { addAttachmentFiles(e.target.files); e.target.value = ''; }}
                 />
-                {(!form.pieces_fichiers || form.pieces_fichiers.length === 0) ? (
-                  <div>
-                    <div style={{ fontSize: 28, marginBottom: 6 }}>📎</div>
-                    <div style={{ fontSize: 13, color: '#ffa502', fontWeight: 700 }}>Cliquer ou glisser les fichiers ici</div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>CNI, RCCM, reçus · JPG, PNG, PDF · <strong style={{ color: '#ff4757' }}>Obligatoire</strong></div>
-                  </div>
-                ) : (
-                  <div>
+
+                <div style={{ fontSize: 28, marginBottom: 6 }}>📎</div>
+                <div style={{ fontSize: 13, color: '#ffa502', fontWeight: 700 }}>
+                  Ajoutez les photos et documents du point de vente
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+                  <button type="button" onClick={() => cameraInputRef.current?.click()}
+                    style={{ minHeight: 46, padding: '10px 16px', borderRadius: 9, border: '1px solid rgba(255,105,0,0.6)', background: 'rgba(255,105,0,0.15)', color: '#ffa502', fontSize: 13, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>
+                    📷 Prendre une photo
+                  </button>
+                  <button type="button" onClick={() => documentInputRef.current?.click()}
+                    style={{ minHeight: 46, padding: '10px 16px', borderRadius: 9, border: '1px solid rgba(14,165,233,0.6)', background: 'rgba(14,165,233,0.12)', color: '#38bdf8', fontSize: 13, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>
+                    📁 Choisir des fichiers
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
+                  JPG, PNG, HEIC ou PDF · 10 Mo maximum par fichier · sélection multiple autorisée
+                </div>
+
+                {form.pieces_fichiers?.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
                     <div style={{ fontSize: 13, color: '#22c55e', fontWeight: 700, marginBottom: 8 }}>✅ {form.pieces_fichiers.length} fichier{form.pieces_fichiers.length > 1 ? 's' : ''} sélectionné{form.pieces_fichiers.length > 1 ? 's' : ''}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                      {form.pieces_fichiers.map((f, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 7, padding: '3px 8px', fontSize: 11 }}>
-                          <span>{f.type?.startsWith('image/') ? '🖼️' : '📄'}</span>
-                          <span style={{ color: '#22c55e', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                          <button type="button" onClick={ev => { ev.stopPropagation(); setForm(fm => ({ ...fm, pieces_fichiers: fm.pieces_fichiers.filter((_,j)=>j!==i) })); }}
-                            style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', fontSize: 14, padding: 0 }}>✕</button>
+                      {form.pieces_fichiers.map((file, i) => (
+                        <div key={`${file.name}-${file.size}-${file.lastModified}`} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 7, padding: '5px 8px', fontSize: 11 }}>
+                          <span>{file.type?.startsWith('image/') || /\.(heic|heif)$/i.test(file.name) ? '🖼️' : '📄'}</span>
+                          <span style={{ color: '#22c55e', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                          <button type="button" aria-label={`Retirer ${file.name}`} onClick={() => setForm(current => ({ ...current, pieces_fichiers: current.pieces_fichiers.filter((_, index) => index !== i) }))}
+                            style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', fontSize: 16, padding: '2px 4px' }}>✕</button>
                         </div>
                       ))}
                     </div>
-                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>Cliquer pour ajouter d'autres fichiers</div>
                   </div>
                 )}
               </div>

@@ -90,7 +90,7 @@ export const prospectService = {
   attList:       (id) => api.get(`${base}/${id}/attachments`).then(r => r.data),
   attUpload:     (id, kind, file) => {
     const fd = new FormData(); fd.append('kind', kind); fd.append('file', file);
-    return api.post(`${base}/${id}/attachments`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+    return api.post(`${base}/${id}/attachments`, fd).then(r => r.data);
   },
   attDelete:     (aid) => api.delete(`${base}/attachments/${aid}`).then(r => r.data),
   attCheck:      (id) => api.get(`${base}/${id}/attachments/check`).then(r => r.data),

@@ -20,12 +20,18 @@ UPLOAD_DIR = os.environ.get("PROSPECT_UPLOADS", "uploads/prospects")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_TYPES = {
-    "PIECE_IDENTITE": {"image/jpeg", "image/png", "application/pdf"},
-    "PHOTO_LOCAL_FACADE": {"image/jpeg", "image/png"},
-    "PHOTO_LOCAL_INTERIEUR": {"image/jpeg", "image/png"},
-    "AUTRE": {"image/jpeg", "image/png", "application/pdf"},
+    "PIECE_IDENTITE": {"image/jpeg", "image/png", "image/heic", "image/heif", "application/pdf"},
+    "PHOTO_LOCAL_FACADE": {"image/jpeg", "image/png", "image/heic", "image/heif"},
+    "PHOTO_LOCAL_INTERIEUR": {"image/jpeg", "image/png", "image/heic", "image/heif"},
+    "AUTRE": {"image/jpeg", "image/png", "image/heic", "image/heif", "application/pdf"},
 }
-MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+ALLOWED_EXTENSIONS = {
+    "PIECE_IDENTITE": {".jpg", ".jpeg", ".png", ".heic", ".heif", ".pdf"},
+    "PHOTO_LOCAL_FACADE": {".jpg", ".jpeg", ".png", ".heic", ".heif"},
+    "PHOTO_LOCAL_INTERIEUR": {".jpg", ".jpeg", ".png", ".heic", ".heif"},
+    "AUTRE": {".jpg", ".jpeg", ".png", ".heic", ".heif", ".pdf"},
+}
+MAX_SIZE = 10 * 1024 * 1024  # 10 MB, adapté aux photos de smartphones
 
 
 def list_attachments(db: Session, prospect_id: int) -> List[Dict[str, Any]]:
@@ -48,22 +54,31 @@ def list_attachments(db: Session, prospect_id: int) -> List[Dict[str, Any]]:
 def upload(db: Session, prospect_id: int, kind: str, file: UploadFile, user_id: int) -> ProspectAttachment:
     if kind not in ALLOWED_TYPES:
         raise HTTPException(400, f"Type invalide. Attendus: {list(ALLOWED_TYPES.keys())}")
-    if file.content_type not in ALLOWED_TYPES[kind]:
-        raise HTTPException(400, f"Format non autorisé pour {kind} : {file.content_type}")
+
+    content_type = (file.content_type or "").lower()
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    # Certains navigateurs mobiles n'envoient pas le MIME (ou utilisent
+    # application/octet-stream). Dans ce cas, une extension autorisée sert
+    # de repli sans élargir la liste des formats acceptés.
+    valid_mime = content_type in ALLOWED_TYPES[kind]
+    valid_extension = ext in ALLOWED_EXTENSIONS[kind]
+    if not valid_mime and not valid_extension:
+        raise HTTPException(400, f"Format non autorisé pour {kind} : {content_type or ext or 'inconnu'}")
 
     p = db.query(Prospect).get(prospect_id)
     if not p: raise HTTPException(404, "Prospect introuvable")
 
     folder = os.path.join(UPLOAD_DIR, str(prospect_id))
     os.makedirs(folder, exist_ok=True)
-    ext = os.path.splitext(file.filename or "")[1] or ".bin"
     safe_name = f"{kind.lower()}_{uuid.uuid4().hex[:8]}{ext}"
     full_path = os.path.join(folder, safe_name)
 
+    content = file.file.read(MAX_SIZE + 1)
+    if len(content) > MAX_SIZE:
+        raise HTTPException(400, f"Fichier trop volumineux (max {MAX_SIZE//1024//1024} Mo)")
+    if not content:
+        raise HTTPException(400, "Le fichier envoyé est vide")
     with open(full_path, "wb") as out:
-        content = file.file.read()
-        if len(content) > MAX_SIZE:
-            raise HTTPException(400, f"Fichier trop volumineux (max {MAX_SIZE//1024//1024} Mo)")
         out.write(content)
 
     # Enum kind
