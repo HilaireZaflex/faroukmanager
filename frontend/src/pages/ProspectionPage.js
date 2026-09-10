@@ -2813,6 +2813,26 @@ function TabConformite({ currentUser, onRefresh }) {
     setReviews(current => ({ ...current, [p.id]:approved }));
   };
 
+  const deletePendingRequest = async p => {
+    const data = dataFor(p);
+    const name = `${data.prenom || p.prenom || ''} ${data.nom || p.nom || ''}`.trim();
+    const confirmed = window.confirm(
+      `Supprimer définitivement la demande ${p.reference}${name ? ` — ${name}` : ''} ?\n\n` +
+      `La demande, son historique de prospection et ses pièces jointes seront supprimés. ` +
+      `La SIM réservée sera remise en stock. Un PDV déjà activé ne peut pas être supprimé ici.`
+    );
+    if (!confirmed) return;
+    setBusyId(p.id);
+    try {
+      await api.delete(`/prospects/${p.id}`, { params:{ conformity_only:true } });
+      setOpenId(null);
+      await reload();
+      onRefresh?.();
+      alert('🗑️ Demande supprimée et SIM remise en stock.');
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusyId(null); }
+  };
+
   const validate = async p => {
     const data = dataFor(p);
     const current = reviews[p.id] || {};
@@ -2897,6 +2917,10 @@ function TabConformite({ currentUser, onRefresh }) {
                   <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:14 }}>
                     <div style={{ flex:1, height:6, borderRadius:5, background:'rgba(255,255,255,.08)', overflow:'hidden' }}><div style={{ width:`${progress}%`, height:'100%', background:rejected ? '#ff4757' : '#22c55e' }} /></div>
                     <span style={{ color:'#94a3b8', fontSize:11 }}>{reviewed}/{fields.length} contrôlés</span>
+                    <button type="button" disabled={busyId === p.id} onClick={() => deletePendingRequest(p)} title="Supprimer cette demande en attente"
+                      style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,71,87,.45)', background:'rgba(255,71,87,.1)', color:'#ff6b7a', cursor:busyId === p.id ? 'wait' : 'pointer', fontWeight:700, opacity:busyId === p.id ? .55 : 1 }}>
+                      🗑️ Supprimer
+                    </button>
                     <button type="button" onClick={() => open(p)} style={{ padding:'7px 13px', borderRadius:8, border:'1px solid rgba(255,105,0,.4)', background:'rgba(255,105,0,.1)', color:'#ffa502', cursor:'pointer', fontWeight:700 }}>
                       {isOpen ? 'Masquer' : 'Contrôler la demande'}
                     </button>

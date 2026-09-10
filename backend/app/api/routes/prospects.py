@@ -709,54 +709,61 @@ def cancel_prospect(
 @router.delete("/{prospect_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_prospect(
     prospect_id: int,
+    conformity_only: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Suppression forcée d'un prospect (admin, manager et RC) — même si en cours de workflow."""
-    from app.models.user import UserRole
+    """Supprime une demande et ses données liées, avec garde renforcée depuis Conformité."""
     from app.models.prospect import Prospect, ProspectHistory, ProspectAttachment
-    _role = str(current_user.role).lower().replace('userrole.', '')
-    if _role not in ['admin', 'manager', 'rc']:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seuls les admins, managers et RC peuvent supprimer un prospect."
-        )
+    role = str(current_user.role).lower().replace('userrole.', '')
+    force_delete_roles = {'admin', 'manager', 'rc'}
+    conformity_delete_roles = REVIEWER_ROLES
+    if role not in force_delete_roles | conformity_delete_roles:
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas autorisé à supprimer cette demande")
+
     prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect introuvable")
 
-    # 1. Supprimer les notifications liées (disparaît chez tous les utilisateurs)
+    current_status = str(prospect.status).lower().replace('prospectstatus.', '')
+    if conformity_only and current_status != 'en_attente_conformite':
+        raise HTTPException(status_code=409, detail="Suppression refusée : la demande n'est plus en attente de conformité")
+    if role not in force_delete_roles and current_status != 'en_attente_conformite':
+        raise HTTPException(status_code=403, detail="La Conformité peut uniquement supprimer une demande encore en attente")
+    if conformity_only and prospect.activated_pdv_id:
+        raise HTTPException(status_code=409, detail="Suppression refusée : un PDV actif est déjà lié à cette demande")
+
+    attachment_paths = [item.file_path for item in prospect.attachments if item.file_path]
+
     try:
-        from app.models.prospect_extras import Notification
-        db.query(Notification).filter(Notification.related_prospect_id == prospect_id).delete()
-    except Exception:
-        pass
+        from app.models.prospect_extras import Notification, PuceStock, PuceStockStatus, PostActivationKPI
 
-    # 2. Supprimer l'historique
-    db.query(ProspectHistory).filter(ProspectHistory.prospect_id == prospect_id).delete()
+        # Les notifications ne doivent plus pointer vers une demande supprimée.
+        db.query(Notification).filter(Notification.related_prospect_id == prospect_id).delete(synchronize_session=False)
 
-    # 3. Supprimer les pièces jointes
-    try:
-        db.query(ProspectAttachment).filter(ProspectAttachment.prospect_id == prospect_id).delete()
-    except Exception:
-        pass
+        # La SIM redevient immédiatement disponible dans le stock.
+        reserved_sims = db.query(PuceStock).filter(PuceStock.reserved_for_prospect_id == prospect_id).all()
+        for sim in reserved_sims:
+            sim.status = PuceStockStatus.DISPONIBLE
+            sim.reserved_for_prospect_id = None
+            sim.reserved_at = None
 
-    # 4. Supprimer les extras prospect (stock, gamification, geo, etc.)
-    try:
-        from app.models.prospect_extras import (
-            ProspectStock, ProspectGamification, ProspectGeo,
-            ProspectPostAction, ProspectReporting
-        )
-        for Model in [ProspectStock, ProspectGamification, ProspectGeo,
-                      ProspectPostAction, ProspectReporting]:
-            try:
-                db.query(Model).filter(Model.prospect_id == prospect_id).delete()
-            except Exception:
-                pass
-    except Exception:
-        pass
+        # Supprimer les données qui n'ont pas de cascade déclarée.
+        db.query(PostActivationKPI).filter(PostActivationKPI.prospect_id == prospect_id).delete(synchronize_session=False)
+        db.query(ProspectHistory).filter(ProspectHistory.prospect_id == prospect_id).delete(synchronize_session=False)
+        db.query(ProspectAttachment).filter(ProspectAttachment.prospect_id == prospect_id).delete(synchronize_session=False)
+        db.delete(prospect)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(500, f"Impossible de supprimer complètement la demande: {exc}")
 
-    # 5. Supprimer le prospect lui-même
-    db.delete(prospect)
-    db.commit()
+    # Nettoyage disque après validation de la transaction DB.
+    import os
+    for file_path in attachment_paths:
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        except OSError:
+            pass
     return
