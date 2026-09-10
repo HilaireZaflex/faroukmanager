@@ -609,22 +609,32 @@ def rejeter_conformite(
     p.conformity_reviewed_at = datetime.utcnow()
     p.conformity_reviewed_by_id = current_user.id
     p.status = "PUCE_ATTRIBUEE"
-    db.commit()
+    try:
+        db.commit()
+        db.refresh(p)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(500, f"Impossible d'enregistrer le retour de conformité: {exc}")
 
+    # Capturer une réponse indépendante de la session avant la notification.
+    # Une panne du sous-système de notifications ne doit jamais annuler le renvoi.
+    response = {"success": True, "status": "PUCE_ATTRIBUEE", "id": p.id, "corrections": p.conformity_corrections}
+    developer_id = p.puce_assigned_to_id
+    prospect_reference = p.reference
     try:
         from app.services.notification_service import create_notif
-        if p.puce_assigned_to_id:
+        if developer_id:
             field_names = ", ".join(item["label"] for item in correction_map.values())
             create_notif(
-                db, user_id=p.puce_assigned_to_id,
-                title=f"↩️ Activation à corriger — {p.reference}",
+                db, user_id=developer_id,
+                title=f"↩️ Activation à corriger — {prospect_reference}",
                 message=f"La conformité a renvoyé votre demande. Champs à modifier : {field_names}. Motif général : {motif}",
-                prospect_id=p.id,
-                payload={"type": "CONFORMITE_CORRECTION", "action": "Corriger et soumettre à nouveau", "fields": list(correction_map.values()), "prospect_reference": p.reference},
+                prospect_id=prospect_id,
+                payload={"type": "CONFORMITE_CORRECTION", "action": "Corriger et soumettre à nouveau", "fields": list(correction_map.values()), "prospect_reference": prospect_reference},
             )
     except Exception:
-        pass
-    return {"success": True, "status": "PUCE_ATTRIBUEE", "id": p.id, "corrections": p.conformity_corrections}
+        db.rollback()
+    return response
 
 
 @router.post("/{prospect_id}/confirm-refus-dev")

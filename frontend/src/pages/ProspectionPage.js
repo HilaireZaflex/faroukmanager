@@ -2834,11 +2834,10 @@ function TabConformite({ currentUser, onRefresh }) {
     const current = reviews[p.id] || {};
     const rejected = Object.entries(current).filter(([, review]) => review.status === 'rejected');
     if (!rejected.length) return alert('Refusez au moins un champ à corriger.');
-    const withoutComment = rejected.filter(([, review]) => !(review.comment || '').trim());
-    if (withoutComment.length) return alert('Ajoutez une consigne pour chaque champ refusé.');
+    // Les consignes et le motif sont facultatifs. Le backend ajoutera une
+    // indication générique lorsqu'aucun texte n'est saisi.
     const motif = (motifs[p.id] || '').trim();
-    if (!motif) return alert('Ajoutez un motif général pour le développeur.');
-    const correction_fields = rejected.map(([field, review]) => ({ field, label:CONFORMITY_LABELS[field] || field, comment:review.comment.trim() }));
+    const correction_fields = rejected.map(([field, review]) => ({ field, label:CONFORMITY_LABELS[field] || field, comment:(review.comment || '').trim() }));
     setBusyId(p.id);
     try {
       await api.post(`/prospects/${p.id}/rejeter-conformite`, { motif, field_reviews:current, correction_fields });
@@ -2926,7 +2925,7 @@ function TabConformite({ currentUser, onRefresh }) {
                                   <button type="button" onClick={() => setReview(p,field,'approved')} style={{ flex:1, padding:'6px 8px', borderRadius:7, border:'1px solid rgba(34,197,94,.45)', background:review.status === 'approved' ? '#16a34a' : 'rgba(34,197,94,.08)', color:review.status === 'approved' ? '#fff' : '#22c55e', cursor:'pointer', fontSize:11, fontWeight:750 }}>✓ Valider</button>
                                   <button type="button" onClick={() => setReview(p,field,'rejected')} style={{ flex:1, padding:'6px 8px', borderRadius:7, border:'1px solid rgba(255,71,87,.45)', background:review.status === 'rejected' ? '#dc2626' : 'rgba(255,71,87,.08)', color:review.status === 'rejected' ? '#fff' : '#ff6b7a', cursor:'pointer', fontSize:11, fontWeight:750 }}>✕ Refuser</button>
                                 </div>
-                                {review.status === 'rejected' && <textarea value={review.comment || ''} onChange={e => setReviewComment(p,field,e.target.value)} placeholder="Indiquez précisément la modification attendue…" rows={2} style={{ width:'100%', marginTop:8, padding:'8px 9px', borderRadius:7, border:'1px solid rgba(255,71,87,.35)', background:'rgba(0,0,0,.2)', color:'#fff', resize:'vertical', boxSizing:'border-box', fontSize:11 }} />}
+                                {review.status === 'rejected' && <textarea value={review.comment || ''} onChange={e => setReviewComment(p,field,e.target.value)} placeholder="Consigne de modification (facultatif)…" rows={2} style={{ width:'100%', marginTop:8, padding:'8px 9px', borderRadius:7, border:'1px solid rgba(255,71,87,.35)', background:'rgba(0,0,0,.2)', color:'#fff', resize:'vertical', boxSizing:'border-box', fontSize:11 }} />}
                               </div>
                             );
                           })}
@@ -2934,7 +2933,7 @@ function TabConformite({ currentUser, onRefresh }) {
                       </div>
                     ))}
 
-                    {rejected > 0 && <textarea value={motifs[p.id] || ''} onChange={e => setMotifs(currentMotifs => ({ ...currentMotifs, [p.id]:e.target.value }))} placeholder="Motif général du renvoi au développeur…" rows={3} style={{ width:'100%', padding:11, borderRadius:9, border:'1px solid rgba(255,71,87,.4)', background:'rgba(255,71,87,.05)', color:'#fff', boxSizing:'border-box', marginBottom:12 }} />}
+                    {rejected > 0 && <textarea value={motifs[p.id] || ''} onChange={e => setMotifs(currentMotifs => ({ ...currentMotifs, [p.id]:e.target.value }))} placeholder="Motif général du renvoi (facultatif)…" rows={3} style={{ width:'100%', padding:11, borderRadius:9, border:'1px solid rgba(255,71,87,.4)', background:'rgba(255,71,87,.05)', color:'#fff', boxSizing:'border-box', marginBottom:12 }} />}
                     <div style={{ display:'flex', justifyContent:'flex-end', flexWrap:'wrap', gap:9 }}>
                       <button type="button" disabled={busyId === p.id || !rejected} onClick={() => returnForCorrection(p)} style={{ padding:'10px 17px', borderRadius:9, border:'1px solid rgba(255,71,87,.45)', background:'rgba(255,71,87,.1)', color:'#ff6b7a', cursor:rejected ? 'pointer' : 'not-allowed', opacity:rejected ? 1 : .45, fontWeight:750 }}>↩️ Renvoyer {rejected || ''} champ(s)</button>
                       <button type="button" disabled={busyId === p.id || reviewed !== fields.length || rejected > 0} onClick={() => validate(p)} style={{ padding:'10px 19px', borderRadius:9, border:'none', background:'#16a34a', color:'#fff', cursor:reviewed === fields.length && !rejected ? 'pointer' : 'not-allowed', opacity:reviewed === fields.length && !rejected ? 1 : .45, fontWeight:800 }}>✅ Confirmer et créer le PDV</button>
