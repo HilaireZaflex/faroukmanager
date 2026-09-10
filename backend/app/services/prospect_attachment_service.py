@@ -43,7 +43,7 @@ def list_attachments(db: Session, prospect_id: int) -> List[Dict[str, Any]]:
         "prospect_id": a.prospect_id,
         "kind": a.kind.value if hasattr(a.kind, "value") else str(a.kind),
         "filename": a.file_name,
-        "url": f"/static/{a.file_path}" if a.file_path else None,
+        "url": f"/{a.file_path.lstrip('/')}" if a.file_path else None,
         "uploaded_at": a.uploaded_at.isoformat() if a.uploaded_at else None,
         "uploaded_by_id": a.uploaded_by_id,
         "size_bytes": a.size_bytes,

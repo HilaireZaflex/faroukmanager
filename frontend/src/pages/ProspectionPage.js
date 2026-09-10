@@ -2348,19 +2348,8 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.numero_pdv || !form.zone) {
-      alert('Numéro de puce (Flotte) et Zone sont obligatoires.');
-      return;
-    }
-    const documentsNeedCorrection = p.conformity_corrections?.fields?.some(item => item.field === 'document_count');
-    const hasExistingDocuments = Number(p.activation_data?.document_count || 0) > 0;
-    if ((!form.pieces_fichiers || form.pieces_fichiers.length === 0) && (!hasExistingDocuments || documentsNeedCorrection)) {
-      return alert('Les documents / pièces d\'identité sont obligatoires. Ajoutez au moins un fichier.');
-    }
-    // Vérification géolocalisation obligatoire
-    if (!form.gps_lat || !form.gps_lng) {
-      return alert('⚠️ La géolocalisation est obligatoire. Appuyez sur "📍 Capturer ma position" pour enregistrer les coordonnées GPS du local.');
-    }
+    // Tous les champs sont facultatifs : une demande incomplète peut être
+    // soumise puis contrôlée et, si nécessaire, renvoyée par la conformité.
     setBusy(true);
     try {
       // 0) Mettre à jour la géolocalisation du prospect si elle manquait
@@ -2422,7 +2411,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
           </div>
         </div>
 
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
 
           {p.conformity_corrections?.fields?.length > 0 && (
             <div style={{ margin:'16px 20px 0', padding:16, borderRadius:12, background:'rgba(255,71,87,0.08)', border:'1px solid rgba(255,71,87,0.35)' }}>
@@ -2459,7 +2448,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
             <AFL label="Date de délivrance"><AFI type="date" value={form.date_delivrance} onChange={e=>set('date_delivrance',e.target.value)} /></AFL>
             <AFL label="Domicile"><AFI placeholder="Adresse domicile" value={form.domicile} onChange={e=>set('domicile',e.target.value)} /></AFL>
             {/* Upload de documents optimisé pour téléphone et ordinateur */}
-            <AFL label="📎 Documents & Pièces d'identité (plusieurs fichiers) *" required>
+            <AFL label="📎 Documents & Pièces d'identité (facultatif)">
               <div
                 onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='rgba(255,105,0,0.8)'; }}
                 onDragLeave={e => { e.currentTarget.style.borderColor='rgba(255,105,0,0.3)'; }}
@@ -2530,7 +2519,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 
           {/* SECTION 2 — Informations PDV */}
           <ASection title="Informations du PDV" icon="🏪" cols={3}>
-            <AFL label="Numéro Flotte (PDV) *" required>
+            <AFL label="Numéro Flotte (PDV)">
               <PDVSearchInput
                 value={form.numero_pdv}
                 onChange={(num, pdv) => {
@@ -2562,8 +2551,8 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
               </AFS>
             </AFL>
             <AFL label="Type d'activité"><AFI placeholder="Ex: Commerce, Boutique..." value={form.type_activite} onChange={e=>set('type_activite',e.target.value)} /></AFL>
-            <AFL label="Zone *" required>
-              <AFS value={form.zone} onChange={e=>{ set('zone',e.target.value); set('sous_zone',''); }} required>
+            <AFL label="Zone">
+              <AFS value={form.zone} onChange={e=>{ set('zone',e.target.value); set('sous_zone',''); }}>
                 <option value="">Sélectionner une zone</option>
                 {zones.map(z => <option key={z} value={z}>{z}</option>)}
               </AFS>
@@ -2596,7 +2585,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
                 <span style={{ fontSize: 24 }}>📍</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 800, color: form.gps_lat && form.gps_lng ? '#22c55e' : '#ff4757' }}>
-                    {form.gps_lat && form.gps_lng ? '✅ Position GPS capturée' : '⚠️ Géolocalisation obligatoire — non enregistrée'}
+                    {form.gps_lat && form.gps_lng ? '✅ Position GPS capturée' : '📍 Géolocalisation non renseignée (facultatif)'}
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
                     {form.gps_lat && form.gps_lng
@@ -2607,7 +2596,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
               </div>
               <button type="button" onClick={captureGPSActivation} disabled={gpsLoading}
                 style={{ width: '100%', padding: '13px', background: gpsLoading ? 'rgba(255,255,255,0.05)' : form.gps_lat && form.gps_lng ? 'rgba(34,197,94,0.15)' : 'linear-gradient(135deg, #FF6900, #ff9500)', border: `1px solid ${form.gps_lat && form.gps_lng ? 'rgba(34,197,94,0.4)' : 'transparent'}`, borderRadius: 10, color: gpsLoading ? '#64748b' : form.gps_lat && form.gps_lng ? '#22c55e' : '#fff', fontSize: 14, fontWeight: 800, cursor: gpsLoading ? 'not-allowed' : 'pointer' }}>
-                {gpsLoading ? '⏳ Localisation en cours...' : form.gps_lat && form.gps_lng ? '🔄 Re-capturer la position GPS' : '📍 Capturer ma position GPS (obligatoire)'}
+                {gpsLoading ? '⏳ Localisation en cours...' : form.gps_lat && form.gps_lng ? '🔄 Re-capturer la position GPS' : '📍 Capturer ma position GPS (facultatif)'}
               </button>
             </div>
           )}
@@ -2717,8 +2706,9 @@ function AttachmentGallery({ prospectId }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
       {items.map(a => {
-        const href = a.url ? `${FILE_BASE}${a.url.replace('/static/', '/')}` : null;
-        const isImg = (a.mime_type || '').startsWith('image/');
+        const relativeUrl = a.url?.replace(/^\/static\//, '/');
+        const href = relativeUrl ? `${FILE_BASE}${relativeUrl}` : null;
+        const isImg = (a.mime_type || '').startsWith('image/') || /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(a.filename || '');
         return (
           <a key={a.id} href={href || '#'} target="_blank" rel="noopener noreferrer"
             style={{ display: 'block', textDecoration: 'none', width: 120 }}>
@@ -2785,12 +2775,21 @@ function TabConformite({ currentUser, onRefresh }) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  const dataFor = p => p.activation_data || {
-    prenom:p.prenom, nom:p.nom, telephone:p.telephone_principal, numero_personnel:p.telephone_secondaire,
-    numero_pdv:p.puce_numero, type_pdv:p.activation_type_pdv, adresse_pdv:p.pdv_adresse || p.adresse,
-    zone:p.zone, quartier:p.quartier, gps_lat:p.latitude, gps_lng:p.longitude,
-    superviseur:p.activation_superviseur, gestionnaire:p.activation_gestionnaire,
-    teleconseillere:p.activation_teleconseillere, developpeur:p.activation_developpeur,
+  const dataFor = p => {
+    const emptyFields = Object.fromEntries(CONFORMITY_SECTIONS.flatMap(section => section.fields).map(([field]) => [field, '']));
+    const legacyData = {
+      prenom:p.prenom, nom:p.nom, telephone:p.telephone_principal, numero_personnel:p.telephone_secondaire,
+      numero_pdv:p.puce_numero, type_pdv:p.activation_type_pdv, adresse_pdv:p.pdv_adresse || p.adresse,
+      zone:p.zone, quartier:p.quartier, gps_lat:p.latitude, gps_lng:p.longitude,
+      superviseur:p.activation_superviseur, gestionnaire:p.activation_gestionnaire,
+      teleconseillere:p.activation_teleconseillere, developpeur:p.activation_developpeur,
+    };
+    return {
+      ...emptyFields,
+      ...legacyData,
+      ...(p.activation_data || {}),
+      document_count:p.activation_data?.document_count ?? p.attachments?.length ?? 0,
+    };
   };
 
   const open = p => {

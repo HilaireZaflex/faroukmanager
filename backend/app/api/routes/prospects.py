@@ -417,6 +417,28 @@ def _ensure_conformity_reviewer(user: User):
         raise HTTPException(403, "Seul un responsable autorisé peut contrôler la conformité")
 
 
+def _activation_data_for(prospect):
+    """Retourne toutes les clés, y compris pour une demande antérieure au stockage JSON."""
+    saved = prospect.activation_data or {}
+    fallback = {
+        "prenom": prospect.prenom, "nom": prospect.nom,
+        "telephone": prospect.telephone_principal,
+        "numero_personnel": prospect.telephone_secondaire,
+        "numero_pdv": prospect.puce_numero,
+        "type_pdv": prospect.activation_type_pdv,
+        "adresse_pdv": prospect.pdv_adresse or prospect.adresse,
+        "zone": prospect.zone, "quartier": prospect.quartier,
+        "gps_lat": prospect.latitude, "gps_lng": prospect.longitude,
+        "superviseur": prospect.activation_superviseur,
+        "gestionnaire": prospect.activation_gestionnaire,
+        "teleconseillere": prospect.activation_teleconseillere,
+        "developpeur": prospect.activation_developpeur,
+    }
+    result = {key: saved[key] if key in saved else fallback.get(key) for key in ACTIVATION_FORM_FIELDS}
+    result["document_count"] = saved.get("document_count", len(prospect.attachments or []))
+    return result
+
+
 @router.post("/{prospect_id}/soumettre-conformite")
 def soumettre_conformite(
     prospect_id: int,
@@ -435,12 +457,7 @@ def soumettre_conformite(
 
     activation_payload = payload.get("activation_data") or payload
     activation_data = {key: activation_payload.get(key) for key in ACTIVATION_FORM_FIELDS}
-    missing = [key for key in ("numero_pdv", "zone", "gps_lat", "gps_lng") if not activation_data.get(key)]
-    if missing:
-        raise HTTPException(400, f"Champs obligatoires manquants: {', '.join(missing)}")
-    if not p.attachments:
-        raise HTTPException(400, "Au moins une pièce jointe est obligatoire")
-    activation_data["document_count"] = len(p.attachments)
+    activation_data["document_count"] = len(p.attachments or [])
 
     role = str(current_user.role).lower().replace("userrole.", "")
     if role not in REVIEWER_ROLES and p.puce_assigned_to_id != current_user.id:
@@ -453,8 +470,10 @@ def soumettre_conformite(
     p.activation_developpeur = activation_data.get("developpeur") or None
     p.activation_type_pdv = activation_data.get("type_pdv") or None
     p.puce_numero = activation_data.get("numero_pdv") or p.puce_numero
-    p.latitude = float(activation_data["gps_lat"])
-    p.longitude = float(activation_data["gps_lng"])
+    if activation_data.get("gps_lat") not in (None, ""):
+        p.latitude = float(activation_data["gps_lat"])
+    if activation_data.get("gps_lng") not in (None, ""):
+        p.longitude = float(activation_data["gps_lng"])
     p.status = "EN_ATTENTE_CONFORMITE"
     p.conformity_review = None
     p.conformity_corrections = None
@@ -495,7 +514,7 @@ def valider_conformite(
     if str(p.status).lower().replace("prospectstatus.", "") != "en_attente_conformite":
         raise HTTPException(400, f"Statut actuel: '{p.status}'. Attendu: 'EN_ATTENTE_CONFORMITE'")
 
-    activation_data = p.activation_data or {}
+    activation_data = _activation_data_for(p)
     field_reviews = payload.get("field_reviews") or {}
     missing_reviews = [key for key in activation_data if field_reviews.get(key, {}).get("status") not in ("approved", "rejected")]
     rejected_fields = [key for key in activation_data if field_reviews.get(key, {}).get("status") == "rejected"]
@@ -518,8 +537,10 @@ def valider_conformite(
     p.adresse = activation_data.get("domicile") or p.adresse
     p.pdv_adresse = activation_data.get("adresse_pdv") or p.pdv_adresse
     p.puce_numero = activation_data.get("numero_pdv") or p.puce_numero
-    p.latitude = float(activation_data.get("gps_lat") or p.latitude)
-    p.longitude = float(activation_data.get("gps_lng") or p.longitude)
+    if activation_data.get("gps_lat") not in (None, ""):
+        p.latitude = float(activation_data["gps_lat"])
+    if activation_data.get("gps_lng") not in (None, ""):
+        p.longitude = float(activation_data["gps_lng"])
     db.flush()
 
     req = PuceActivateRequest(
@@ -560,7 +581,7 @@ def rejeter_conformite(
     if str(p.status).lower().replace("prospectstatus.", "") != "en_attente_conformite":
         raise HTTPException(400, "Cette demande n'est plus en attente de conformité")
 
-    activation_data = p.activation_data or {}
+    activation_data = _activation_data_for(p)
     field_reviews = payload.get("field_reviews") or {}
     corrections = payload.get("correction_fields") or []
     correction_map = {
