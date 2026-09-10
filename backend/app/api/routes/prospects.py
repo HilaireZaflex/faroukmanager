@@ -421,21 +421,27 @@ def _activation_data_for(prospect):
     """Retourne toutes les clés, y compris pour une demande antérieure au stockage JSON."""
     saved = prospect.activation_data or {}
     fallback = {
-        "prenom": prospect.prenom, "nom": prospect.nom,
-        "telephone": prospect.telephone_principal,
-        "numero_personnel": prospect.telephone_secondaire,
-        "numero_pdv": prospect.puce_numero,
-        "type_pdv": prospect.activation_type_pdv,
-        "adresse_pdv": prospect.pdv_adresse or prospect.adresse,
-        "zone": prospect.zone, "quartier": prospect.quartier,
-        "gps_lat": prospect.latitude, "gps_lng": prospect.longitude,
-        "superviseur": prospect.activation_superviseur,
-        "gestionnaire": prospect.activation_gestionnaire,
-        "teleconseillere": prospect.activation_teleconseillere,
-        "developpeur": prospect.activation_developpeur,
+        "prenom": getattr(prospect, "prenom", None),
+        "nom": getattr(prospect, "nom", None),
+        "telephone": getattr(prospect, "telephone_principal", None),
+        "numero_personnel": getattr(prospect, "telephone_secondaire", None),
+        "numero_pdv": getattr(prospect, "puce_numero", None),
+        "type_pdv": getattr(prospect, "activation_type_pdv", None),
+        "adresse_pdv": getattr(prospect, "pdv_adresse", None) or getattr(prospect, "adresse", None),
+        # La zone et la sous-zone n'existent pas comme colonnes Prospect :
+        # elles sont disponibles uniquement dans activation_data.
+        "zone": None,
+        "sous_zone": None,
+        "quartier": getattr(prospect, "quartier", None),
+        "gps_lat": getattr(prospect, "latitude", None),
+        "gps_lng": getattr(prospect, "longitude", None),
+        "superviseur": getattr(prospect, "activation_superviseur", None),
+        "gestionnaire": getattr(prospect, "activation_gestionnaire", None),
+        "teleconseillere": getattr(prospect, "activation_teleconseillere", None),
+        "developpeur": getattr(prospect, "activation_developpeur", None),
     }
     result = {key: saved[key] if key in saved else fallback.get(key) for key in ACTIVATION_FORM_FIELDS}
-    result["document_count"] = saved.get("document_count", len(prospect.attachments or []))
+    result["document_count"] = saved.get("document_count", len(getattr(prospect, "attachments", None) or []))
     return result
 
 
