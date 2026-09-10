@@ -715,7 +715,8 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             detail="Seul le développeur attribué peut activer cette puce.",
         )
 
-    _ensure_geoloc(p)
+    # La conformité peut finaliser une demande même sans coordonnées GPS.
+    # Les coordonnées présentes restent reportées sur le PDV.
     _ensure_transition(p.status, ProspectStatus.PUCE_ACTIVEE)
 
     from_status = p.status
@@ -788,13 +789,13 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
                 ancien_statut=existing_pdv.statut.value if existing_pdv.statut else None,
                 ancien_type_pdv=existing_pdv.type_pdv.value if existing_pdv.type_pdv else None,
                 ancien_date_activation=existing_pdv.date_activation,
-                # Nouveau gérant
-                nouveau_nom_gerant=f"{p.prenom} {p.nom}".strip(),
-                nouveau_telephone=p.telephone_principal,
-                nouveau_superviseur=payload.superviseur,
-                nouveau_gestionnaire=payload.gestionnaire,
-                nouveau_teleconseillere=payload.teleconseillere,
-                nouveau_developpeur=activated_by,
+                # Nouveau gérant — exactement les valeurs qui seront appliquées au PDV
+                nouveau_nom_gerant=payload.nom_gerant or f"{p.prenom} {p.nom}".strip(),
+                nouveau_telephone=payload.telephone or p.telephone_principal,
+                nouveau_superviseur=payload.superviseur or existing_pdv.superviseur,
+                nouveau_gestionnaire=payload.gestionnaire or existing_pdv.gestionnaire,
+                nouveau_teleconseillere=payload.teleconseillere or existing_pdv.teleconseillere,
+                nouveau_developpeur=payload.developpeur or existing_pdv.developpeur,
                 nouveau_zone=payload.zone or existing_pdv.zone,
                 nouveau_sous_zone=payload.sous_zone or existing_pdv.sous_zone,
                 nouveau_quartier=payload.quartier_pdv or p.quartier or existing_pdv.quartier,
