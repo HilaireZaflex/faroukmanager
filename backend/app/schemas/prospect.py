@@ -258,6 +258,12 @@ class ProspectOut(BaseModel):
     activation_teleconseillere: Optional[str] = None
     activation_developpeur: Optional[str] = None
     activation_type_pdv: Optional[str] = None
+    activation_data: Optional[dict] = None
+    conformity_review: Optional[dict] = None
+    conformity_corrections: Optional[dict] = None
+    conformity_submitted_at: Optional[datetime] = None
+    conformity_reviewed_at: Optional[datetime] = None
+    conformity_reviewed_by: Optional[UserMini] = None
     activated_at: Optional[datetime] = None
     activated_pdv_id: Optional[int] = None
 

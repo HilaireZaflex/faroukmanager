@@ -157,6 +157,14 @@ class Prospect(Base):
     activation_teleconseillere = Column(String, nullable=True)
     activation_developpeur = Column(String, nullable=True)
     activation_type_pdv = Column(String, nullable=True)
+    # Copie complète du formulaire soumis et décisions de conformité par champ.
+    # JSON permet d'ajouter de nouveaux champs sans perdre les demandes existantes.
+    activation_data = Column(JSON, nullable=True)
+    conformity_review = Column(JSON, nullable=True)
+    conformity_corrections = Column(JSON, nullable=True)
+    conformity_submitted_at = Column(DateTime, nullable=True)
+    conformity_reviewed_at = Column(DateTime, nullable=True)
+    conformity_reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     activated_at = Column(DateTime, nullable=True)
     activated_pdv_id = Column(Integer, ForeignKey("pdvs.id"), nullable=True)
 
@@ -177,6 +185,7 @@ class Prospect(Base):
     visit_assigned_to = relationship("User", foreign_keys=[visit_assigned_to_id])
     rc_decision_by = relationship("User", foreign_keys=[rc_decision_by_id])
     puce_assigned_to = relationship("User", foreign_keys=[puce_assigned_to_id])
+    conformity_reviewed_by = relationship("User", foreign_keys=[conformity_reviewed_by_id])
 
     history = relationship(
         "ProspectHistory",

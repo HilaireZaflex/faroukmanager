@@ -2256,6 +2256,13 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+
+  // Lors d'un retour conformité, reprendre exactement la dernière demande.
+  useEffect(() => {
+    if (p.activation_data) {
+      setForm(current => ({ ...current, ...p.activation_data, pieces_fichiers: [] }));
+    }
+  }, [p.id]);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const hasGps = p.latitude && p.longitude; // Prospect a déjà une géoloc
   const cameraInputRef = useRef(null);
@@ -2345,7 +2352,9 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
       alert('Numéro de puce (Flotte) et Zone sont obligatoires.');
       return;
     }
-    if (!form.pieces_fichiers || form.pieces_fichiers.length === 0) {
+    const documentsNeedCorrection = p.conformity_corrections?.fields?.some(item => item.field === 'document_count');
+    const hasExistingDocuments = Number(p.activation_data?.document_count || 0) > 0;
+    if ((!form.pieces_fichiers || form.pieces_fichiers.length === 0) && (!hasExistingDocuments || documentsNeedCorrection)) {
       return alert('Les documents / pièces d\'identité sont obligatoires. Ajoutez au moins un fichier.');
     }
     // Vérification géolocalisation obligatoire
@@ -2372,16 +2381,13 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
           await api.post(`/prospects/${p.id}/attachments`, fd);
         } catch(err) { uploadFailures++; console.warn('Upload pièce erreur:', file.name, err); }
       }
-      if (uploadFailures === form.pieces_fichiers.length) {
+      if (form.pieces_fichiers.length > 0 && uploadFailures === form.pieces_fichiers.length) {
         throw new Error("Échec de l'envoi des pièces jointes. Vérifiez le format (JPG, PNG, HEIC, PDF · max 10 Mo) et réessayez.");
       }
-      // 2) Puis soumettre pour validation RC/Admin (avec les infos équipe)
+      // 2) Soumettre la copie complète du formulaire pour contrôle champ par champ.
+      const { pieces_fichiers, ...activationData } = form;
       await api.post(`/prospects/${p.id}/soumettre-conformite`, {
-        activation_superviseur: form.superviseur || '',
-        activation_gestionnaire: form.gestionnaire || '',
-        activation_teleconseillere: form.teleconseillere || '',
-        activation_developpeur: form.developpeur || '',
-        activation_type_pdv: form.type_pdv || '',
+        activation_data: activationData,
       });
       setSuccess(true);
     } catch (e) { alert('Erreur : ' + (errMsg(e))); }
@@ -2417,6 +2423,22 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
         </div>
 
         <form onSubmit={submit}>
+
+          {p.conformity_corrections?.fields?.length > 0 && (
+            <div style={{ margin:'16px 20px 0', padding:16, borderRadius:12, background:'rgba(255,71,87,0.08)', border:'1px solid rgba(255,71,87,0.35)' }}>
+              <div style={{ color:'#ff6b7a', fontWeight:800, fontSize:14, marginBottom:6 }}>↩️ Corrections demandées par la conformité</div>
+              <div style={{ color:'#cbd5e1', fontSize:12, marginBottom:10 }}>{p.conformity_corrections.motif}</div>
+              <div style={{ display:'grid', gap:7 }}>
+                {p.conformity_corrections.fields.map(item => (
+                  <div key={item.field} style={{ padding:'8px 10px', borderRadius:8, background:'rgba(255,255,255,0.04)', fontSize:12 }}>
+                    <strong style={{ color:'#ffa502' }}>{item.label}</strong>
+                    <span style={{ color:'#cbd5e1' }}> — {item.comment}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ color:'#64748b', fontSize:11, marginTop:10 }}>Modifiez les champs indiqués puis soumettez à nouveau le formulaire.</div>
+            </div>
+          )}
 
           {/* SECTION 1 — Informations Gérant */}
           <ASection title="Informations du Gérant" icon="👤" cols={3}>
@@ -2713,7 +2735,223 @@ function AttachmentGallery({ prospectId }) {
   );
 }
 
+const CONFORMITY_SECTIONS = [
+  { title:'Informations du Gérant', icon:'👤', fields:[
+    ['prenom','Prénom'], ['nom','Nom'], ['nationalite','Nationalité'], ['date_naissance','Date de naissance'],
+    ['type_piece','Type de pièce'], ['numero_piece','Numéro de pièce'], ['date_delivrance','Date de délivrance'],
+    ['domicile','Domicile'], ['telephone','Téléphone principal'], ['numero_personnel','Numéro personnel'], ['document_count','Documents soumis'],
+  ]},
+  { title:'Informations du Point de Vente', icon:'🏪', fields:[
+    ['numero_pdv','N° Puce / Flotte'], ['type_pdv','Type PDV'], ['type_activite','Type d’activité'],
+    ['adresse_pdv','Adresse du PDV'], ['date_activation','Date d’activation'], ['montant_activation','Montant d’activation'],
+  ]},
+  { title:'Localisation', icon:'📍', fields:[
+    ['zone','Zone'], ['sous_zone','Sous-zone'], ['quartier','Quartier'], ['gps_lat','Latitude GPS'], ['gps_lng','Longitude GPS'],
+  ]},
+  { title:'Garant', icon:'🤝', fields:[['nom_garant','Nom du garant'], ['tel_garant','Téléphone du garant']]},
+  { title:'Équipe Réseau', icon:'👥', fields:[
+    ['developpeur','Développeur'], ['tel_developpeur','Tél. développeur'], ['gestionnaire','Gestionnaire'],
+    ['tel_gestionnaire','Tél. gestionnaire'], ['superviseur','Superviseur'], ['tel_superviseur','Tél. superviseur'],
+    ['teleconseillere','Téléconseillère'], ['tel_teleconseillere','Tél. téléconseillère'],
+  ]},
+  { title:'Formations & Observation', icon:'🎓', fields:[
+    ['kaabu','Formation Kaabu'], ['nafama','Formation Nafama'], ['omy','Formation OMY'], ['lbft','Formation LBC/FT'], ['comment','Observation'],
+  ]},
+];
+
+const CONFORMITY_LABELS = Object.fromEntries(CONFORMITY_SECTIONS.flatMap(section => section.fields));
+const conformityValue = value => {
+  if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
+  if (value === null || value === undefined || value === '') return 'Non renseigné';
+  return String(value);
+};
+
 function TabConformite({ currentUser, onRefresh }) {
+  const [prospects, setProspects] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [openId, setOpenId] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [reviews, setReviews] = useState({});
+  const [motifs, setMotifs] = useState({});
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await prospectService.list({ status:'EN_ATTENTE_CONFORMITE', limit:200 });
+      setProspects(list);
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const dataFor = p => p.activation_data || {
+    prenom:p.prenom, nom:p.nom, telephone:p.telephone_principal, numero_personnel:p.telephone_secondaire,
+    numero_pdv:p.puce_numero, type_pdv:p.activation_type_pdv, adresse_pdv:p.pdv_adresse || p.adresse,
+    zone:p.zone, quartier:p.quartier, gps_lat:p.latitude, gps_lng:p.longitude,
+    superviseur:p.activation_superviseur, gestionnaire:p.activation_gestionnaire,
+    teleconseillere:p.activation_teleconseillere, developpeur:p.activation_developpeur,
+  };
+
+  const open = p => {
+    setOpenId(current => current === p.id ? null : p.id);
+    setReviews(current => current[p.id] ? current : { ...current, [p.id]: p.conformity_review || {} });
+  };
+
+  const setReview = (p, field, status) => setReviews(current => ({
+    ...current,
+    [p.id]: { ...(current[p.id] || {}), [field]: { ...((current[p.id] || {})[field] || {}), status } },
+  }));
+
+  const setReviewComment = (p, field, comment) => setReviews(current => ({
+    ...current,
+    [p.id]: { ...(current[p.id] || {}), [field]: { ...((current[p.id] || {})[field] || {}), status:'rejected', comment } },
+  }));
+
+  const approveAll = p => {
+    const approved = {};
+    Object.keys(dataFor(p)).forEach(field => { approved[field] = { status:'approved', comment:'' }; });
+    setReviews(current => ({ ...current, [p.id]:approved }));
+  };
+
+  const validate = async p => {
+    const data = dataFor(p);
+    const current = reviews[p.id] || {};
+    const pending = Object.keys(data).filter(field => !current[field]?.status);
+    const rejected = Object.keys(data).filter(field => current[field]?.status === 'rejected');
+    if (pending.length) return alert(`Contrôlez encore ${pending.length} champ(s) avant de valider.`);
+    if (rejected.length) return alert('Certains champs sont refusés. Renvoyez plutôt la demande pour correction.');
+    if (!window.confirm(`Confirmer l’activation définitive de ${data.prenom || p.prenom} ${data.nom || p.nom} ?`)) return;
+    setBusyId(p.id);
+    try {
+      await api.post(`/prospects/${p.id}/valider-conformite`, { field_reviews:current });
+      setOpenId(null); await reload(); onRefresh?.();
+      alert('✅ Tous les champs sont conformes. Le PDV a été créé.');
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusyId(null); }
+  };
+
+  const returnForCorrection = async p => {
+    const current = reviews[p.id] || {};
+    const rejected = Object.entries(current).filter(([, review]) => review.status === 'rejected');
+    if (!rejected.length) return alert('Refusez au moins un champ à corriger.');
+    const withoutComment = rejected.filter(([, review]) => !(review.comment || '').trim());
+    if (withoutComment.length) return alert('Ajoutez une consigne pour chaque champ refusé.');
+    const motif = (motifs[p.id] || '').trim();
+    if (!motif) return alert('Ajoutez un motif général pour le développeur.');
+    const correction_fields = rejected.map(([field, review]) => ({ field, label:CONFORMITY_LABELS[field] || field, comment:review.comment.trim() }));
+    setBusyId(p.id);
+    try {
+      await api.post(`/prospects/${p.id}/rejeter-conformite`, { motif, field_reviews:current, correction_fields });
+      setOpenId(null); await reload(); onRefresh?.();
+      alert('↩️ Les champs à modifier ont été envoyés et le développeur a été notifié.');
+    } catch (e) { alert('Erreur : ' + errMsg(e)); }
+    finally { setBusyId(null); }
+  };
+
+  return (
+    <div>
+      <StepLegend step={6} title="Conformité & Validation Finale"
+        desc="Contrôlez toutes les informations saisies lors de l’activation. Chaque champ doit être validé ou refusé avant la décision finale."
+        next="✅ Validation : création du PDV. ↩️ Refus : seuls les champs concernés sont renvoyés au développeur."
+        color="#22c55e" />
+
+      {loading ? <div className="loading-state">Chargement…</div> : prospects.length === 0 ? (
+        <div className="empty-state">✅ Aucun formulaire en attente de validation.</div>
+      ) : (
+        <div style={{ display:'grid', gap:16 }}>
+          {prospects.map(p => {
+            const data = dataFor(p);
+            const current = reviews[p.id] || p.conformity_review || {};
+            const fields = Object.keys(data);
+            const reviewed = fields.filter(field => current[field]?.status).length;
+            const rejected = fields.filter(field => current[field]?.status === 'rejected').length;
+            const progress = fields.length ? Math.round(reviewed / fields.length * 100) : 0;
+            const isOpen = openId === p.id;
+            return (
+              <div key={p.id} style={{ background:'linear-gradient(145deg,rgba(20,25,38,.98),rgba(12,16,26,.98))', border:`1px solid ${rejected ? 'rgba(255,71,87,.45)' : 'rgba(34,197,94,.28)'}`, borderRadius:16, overflow:'hidden', boxShadow:'0 10px 30px rgba(0,0,0,.2)' }}>
+                <div style={{ padding:'18px 20px', borderBottom:isOpen ? '1px solid rgba(255,255,255,.08)' : 'none' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', gap:14, alignItems:'flex-start', flexWrap:'wrap' }}>
+                    <div>
+                      <div style={{ color:'#FF6900', fontSize:11, fontWeight:800, letterSpacing:1 }}>{p.reference}</div>
+                      <div style={{ color:'#fff', fontSize:17, fontWeight:850, marginTop:3 }}>{data.prenom || p.prenom} {data.nom || p.nom}</div>
+                      <div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>📞 {data.telephone || p.telephone_principal || '—'} · 📍 {data.quartier || data.zone || '—'}</div>
+                    </div>
+                    <div style={{ textAlign:'right' }}>
+                      <span style={{ display:'inline-block', padding:'5px 10px', borderRadius:7, color:'#22c55e', background:'rgba(34,197,94,.12)', fontSize:11, fontWeight:800 }}>📋 En attente</span>
+                      <div style={{ color:'#64748b', fontSize:10, marginTop:6 }}>{p.conformity_submitted_at ? new Date(p.conformity_submitted_at).toLocaleString('fr-FR') : ''}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))', gap:8, marginTop:14 }}>
+                    {[
+                      ['N° Puce',data.numero_pdv,'#22c55e'], ['Type PDV',data.type_pdv,'#ffa502'], ['Zone / Sous-zone',[data.zone,data.sous_zone].filter(Boolean).join(' / '),'#5f6cf5'],
+                      ['Adresse',data.adresse_pdv,'#38bdf8'], ['Gestionnaire',data.gestionnaire,'#FF6900'], ['Superviseur',data.superviseur,'#a29bfe'],
+                      ['Développeur',data.developpeur,'#00d68f'], ['Documents',data.document_count ? `${data.document_count} fichier(s)` : 'À vérifier','#f59e0b'],
+                    ].map(([label,value,color]) => (
+                      <div key={label} style={{ padding:'9px 10px', borderRadius:9, background:'rgba(255,255,255,.035)', borderLeft:`3px solid ${color}` }}>
+                        <div style={{ color:'#64748b', fontSize:9, textTransform:'uppercase' }}>{label}</div>
+                        <div style={{ color:value ? '#e2e8f0' : '#64748b', fontSize:12, fontWeight:750, marginTop:2, overflow:'hidden', textOverflow:'ellipsis' }}>{value || 'Non renseigné'}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:14 }}>
+                    <div style={{ flex:1, height:6, borderRadius:5, background:'rgba(255,255,255,.08)', overflow:'hidden' }}><div style={{ width:`${progress}%`, height:'100%', background:rejected ? '#ff4757' : '#22c55e' }} /></div>
+                    <span style={{ color:'#94a3b8', fontSize:11 }}>{reviewed}/{fields.length} contrôlés</span>
+                    <button type="button" onClick={() => open(p)} style={{ padding:'7px 13px', borderRadius:8, border:'1px solid rgba(255,105,0,.4)', background:'rgba(255,105,0,.1)', color:'#ffa502', cursor:'pointer', fontWeight:700 }}>
+                      {isOpen ? 'Masquer' : 'Contrôler la demande'}
+                    </button>
+                  </div>
+                </div>
+
+                {isOpen && (
+                  <div style={{ padding:'18px 20px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:8 }}>
+                      <div style={{ color:'#fff', fontWeight:800 }}>Contrôle champ par champ</div>
+                      <button type="button" onClick={() => approveAll(p)} style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(34,197,94,.4)', background:'rgba(34,197,94,.1)', color:'#22c55e', cursor:'pointer', fontWeight:700 }}>✓ Tout valider</button>
+                    </div>
+
+                    {CONFORMITY_SECTIONS.map(section => (
+                      <div key={section.title} style={{ marginBottom:15, border:'1px solid rgba(255,255,255,.08)', borderRadius:12, overflow:'hidden' }}>
+                        <div style={{ padding:'11px 14px', background:'linear-gradient(90deg,rgba(255,105,0,.14),rgba(255,105,0,.02))', color:'#fff', fontSize:13, fontWeight:800 }}>{section.icon} {section.title}</div>
+                        <div style={{ padding:12, display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:10 }}>
+                          {section.fields.filter(([field]) => Object.prototype.hasOwnProperty.call(data, field)).map(([field,label]) => {
+                            const review = current[field] || {};
+                            return (
+                              <div key={field} style={{ padding:11, borderRadius:10, background:review.status === 'approved' ? 'rgba(34,197,94,.06)' : review.status === 'rejected' ? 'rgba(255,71,87,.07)' : 'rgba(255,255,255,.025)', border:`1px solid ${review.status === 'approved' ? 'rgba(34,197,94,.35)' : review.status === 'rejected' ? 'rgba(255,71,87,.4)' : 'rgba(255,255,255,.08)'}` }}>
+                                <div style={{ color:'#64748b', fontSize:10, textTransform:'uppercase', letterSpacing:.4 }}>{label}</div>
+                                <div style={{ color:data[field] === '' || data[field] == null ? '#64748b' : '#f1f5f9', fontSize:13, fontWeight:700, margin:'5px 0 9px', minHeight:18, wordBreak:'break-word' }}>{field === 'document_count' ? `${data[field] || 0} fichier(s)` : conformityValue(data[field])}</div>
+                                {field === 'document_count' && <div style={{ marginBottom:9 }}><AttachmentGallery prospectId={p.id} /></div>}
+                                <div style={{ display:'flex', gap:6 }}>
+                                  <button type="button" onClick={() => setReview(p,field,'approved')} style={{ flex:1, padding:'6px 8px', borderRadius:7, border:'1px solid rgba(34,197,94,.45)', background:review.status === 'approved' ? '#16a34a' : 'rgba(34,197,94,.08)', color:review.status === 'approved' ? '#fff' : '#22c55e', cursor:'pointer', fontSize:11, fontWeight:750 }}>✓ Valider</button>
+                                  <button type="button" onClick={() => setReview(p,field,'rejected')} style={{ flex:1, padding:'6px 8px', borderRadius:7, border:'1px solid rgba(255,71,87,.45)', background:review.status === 'rejected' ? '#dc2626' : 'rgba(255,71,87,.08)', color:review.status === 'rejected' ? '#fff' : '#ff6b7a', cursor:'pointer', fontSize:11, fontWeight:750 }}>✕ Refuser</button>
+                                </div>
+                                {review.status === 'rejected' && <textarea value={review.comment || ''} onChange={e => setReviewComment(p,field,e.target.value)} placeholder="Indiquez précisément la modification attendue…" rows={2} style={{ width:'100%', marginTop:8, padding:'8px 9px', borderRadius:7, border:'1px solid rgba(255,71,87,.35)', background:'rgba(0,0,0,.2)', color:'#fff', resize:'vertical', boxSizing:'border-box', fontSize:11 }} />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    {rejected > 0 && <textarea value={motifs[p.id] || ''} onChange={e => setMotifs(currentMotifs => ({ ...currentMotifs, [p.id]:e.target.value }))} placeholder="Motif général du renvoi au développeur…" rows={3} style={{ width:'100%', padding:11, borderRadius:9, border:'1px solid rgba(255,71,87,.4)', background:'rgba(255,71,87,.05)', color:'#fff', boxSizing:'border-box', marginBottom:12 }} />}
+                    <div style={{ display:'flex', justifyContent:'flex-end', flexWrap:'wrap', gap:9 }}>
+                      <button type="button" disabled={busyId === p.id || !rejected} onClick={() => returnForCorrection(p)} style={{ padding:'10px 17px', borderRadius:9, border:'1px solid rgba(255,71,87,.45)', background:'rgba(255,71,87,.1)', color:'#ff6b7a', cursor:rejected ? 'pointer' : 'not-allowed', opacity:rejected ? 1 : .45, fontWeight:750 }}>↩️ Renvoyer {rejected || ''} champ(s)</button>
+                      <button type="button" disabled={busyId === p.id || reviewed !== fields.length || rejected > 0} onClick={() => validate(p)} style={{ padding:'10px 19px', borderRadius:9, border:'none', background:'#16a34a', color:'#fff', cursor:reviewed === fields.length && !rejected ? 'pointer' : 'not-allowed', opacity:reviewed === fields.length && !rejected ? 1 : .45, fontWeight:800 }}>✅ Confirmer et créer le PDV</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabConformiteLegacy({ currentUser, onRefresh }) {
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [viewProspect, setViewProspect] = useState(null);

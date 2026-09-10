@@ -192,6 +192,12 @@ async def auto_migrate():
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_teleconseillere VARCHAR(200)",
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_developpeur VARCHAR(200)",
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_type_pdv VARCHAR(200)",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS activation_data JSONB",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS conformity_review JSONB",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS conformity_corrections JSONB",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS conformity_submitted_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS conformity_reviewed_at TIMESTAMP",
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS conformity_reviewed_by_id INTEGER REFERENCES users(id)",
         # Colonnes PDVs manquantes
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
@@ -219,6 +225,21 @@ async def auto_migrate():
                     conn.commit()
                 except Exception:
                     pass  # colonne existe déjà ou type déjà VARCHAR
+            if engine.dialect.name == "sqlite":
+                sqlite_conformity_columns = [
+                    "ALTER TABLE prospects ADD COLUMN activation_data JSON",
+                    "ALTER TABLE prospects ADD COLUMN conformity_review JSON",
+                    "ALTER TABLE prospects ADD COLUMN conformity_corrections JSON",
+                    "ALTER TABLE prospects ADD COLUMN conformity_submitted_at TIMESTAMP",
+                    "ALTER TABLE prospects ADD COLUMN conformity_reviewed_at TIMESTAMP",
+                    "ALTER TABLE prospects ADD COLUMN conformity_reviewed_by_id INTEGER REFERENCES users(id)",
+                ]
+                for sql in sqlite_conformity_columns:
+                    try:
+                        conn.execute(text(sql))
+                        conn.commit()
+                    except Exception:
+                        pass  # colonne déjà présente
         print("✅ Auto-migration prospects OK")
     except Exception as e:
         print(f"⚠️ Auto-migration prospects: {e}")

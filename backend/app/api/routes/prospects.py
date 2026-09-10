@@ -11,6 +11,7 @@ Endpoints couvrant le cycle de vie complet d'une demande de puce :
   - statistiques globales
 """
 from typing import List, Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, status, Body, HTTPException
 from sqlalchemy.orm import Session
@@ -393,6 +394,29 @@ def get_repartition_agents(
     }
 
 
+ACTIVATION_FORM_FIELDS = (
+    "prenom", "nom", "nationalite", "date_naissance", "type_piece",
+    "numero_piece", "date_delivrance", "domicile", "telephone",
+    "numero_personnel", "numero_pdv", "type_pdv", "type_activite",
+    "adresse_pdv", "date_activation", "montant_activation", "zone",
+    "sous_zone", "quartier", "nom_garant", "tel_garant", "developpeur",
+    "tel_developpeur", "gestionnaire", "tel_gestionnaire", "superviseur",
+    "tel_superviseur", "teleconseillere", "tel_teleconseillere", "kaabu",
+    "nafama", "omy", "lbft", "comment", "gps_lat", "gps_lng",
+)
+
+REVIEWER_ROLES = {
+    "admin", "manager", "rc", "conformite",
+    "responsable_produit_et_qualit_oprationnelle_",
+}
+
+
+def _ensure_conformity_reviewer(user: User):
+    role = str(user.role).lower().replace("userrole.", "")
+    if role not in REVIEWER_ROLES:
+        raise HTTPException(403, "Seul un responsable autorisé peut contrôler la conformité")
+
+
 @router.post("/{prospect_id}/soumettre-conformite")
 def soumettre_conformite(
     prospect_id: int,
@@ -400,90 +424,186 @@ def soumettre_conformite(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Développeur soumet le formulaire d'activation → EN_ATTENTE_CONFORMITE (attend RC/Admin)."""
-    from app.models.prospect import Prospect as ProspectModel, ProspectStatus
-    from sqlalchemy import text
+    """Enregistre le formulaire complet et le soumet au contrôle de conformité."""
+    from app.models.prospect import Prospect as ProspectModel
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
-    _status = str(p.status).lower().replace('prospectstatus.', '').replace('userrole.', '')
-    if _status not in ("puce_attribuee",):
+    current_status = str(p.status).lower().replace("prospectstatus.", "")
+    if current_status != "puce_attribuee":
         raise HTTPException(400, f"Statut actuel: '{p.status}'. Attendu: 'PUCE_ATTRIBUEE'")
-    # Stocker les infos équipe renseignées par le développeur
-    updates = "status = 'EN_ATTENTE_CONFORMITE'"
-    params = {"id": prospect_id}
-    for col in ("activation_superviseur", "activation_gestionnaire", "activation_teleconseillere", "activation_developpeur", "activation_type_pdv"):
-        val = payload.get(col)
-        if val:
-            updates += f", {col} = :{col}"
-            params[col] = str(val)
-    # Sauvegarder les infos avant commit pour les notifs
-    prenom_nom = f"{p.prenom} {p.nom}"
-    reference = p.reference
-    pid = p.id
-    db.execute(text(f"UPDATE prospects SET {updates} WHERE id = :id"), params)
+
+    activation_payload = payload.get("activation_data") or payload
+    activation_data = {key: activation_payload.get(key) for key in ACTIVATION_FORM_FIELDS}
+    missing = [key for key in ("numero_pdv", "zone", "gps_lat", "gps_lng") if not activation_data.get(key)]
+    if missing:
+        raise HTTPException(400, f"Champs obligatoires manquants: {', '.join(missing)}")
+    if not p.attachments:
+        raise HTTPException(400, "Au moins une pièce jointe est obligatoire")
+    activation_data["document_count"] = len(p.attachments)
+
+    role = str(current_user.role).lower().replace("userrole.", "")
+    if role not in REVIEWER_ROLES and p.puce_assigned_to_id != current_user.id:
+        raise HTTPException(403, "Seul le développeur chargé de l'activation peut soumettre ce formulaire")
+
+    p.activation_data = activation_data
+    p.activation_superviseur = activation_data.get("superviseur") or None
+    p.activation_gestionnaire = activation_data.get("gestionnaire") or None
+    p.activation_teleconseillere = activation_data.get("teleconseillere") or None
+    p.activation_developpeur = activation_data.get("developpeur") or None
+    p.activation_type_pdv = activation_data.get("type_pdv") or None
+    p.puce_numero = activation_data.get("numero_pdv") or p.puce_numero
+    p.latitude = float(activation_data["gps_lat"])
+    p.longitude = float(activation_data["gps_lng"])
+    p.status = "EN_ATTENTE_CONFORMITE"
+    p.conformity_review = None
+    p.conformity_corrections = None
+    p.conformity_submitted_at = datetime.utcnow()
+    p.conformity_reviewed_at = None
+    p.conformity_reviewed_by_id = None
     db.commit()
-    # Notifier RC et Admin (sans db.refresh pour éviter erreur Enum)
+
     try:
         from app.services.notification_service import get_rc_user_ids, create_notif
-        rc_ids = get_rc_user_ids(db)
-        for rid in rc_ids:
-            create_notif(db, rid, "📋 Formulaire d'activation à valider",
-                f"Le formulaire d'activation pour {prenom_nom} ({reference}) est prêt pour validation.",
-                "CONFORMITE_EN_ATTENTE", str(prospect_id))
+        prospect_name = f"{activation_data.get('prenom') or p.prenom} {activation_data.get('nom') or p.nom}".strip()
+        for reviewer_id in get_rc_user_ids(db):
+            create_notif(
+                db, user_id=reviewer_id,
+                title=f"📋 Formulaire d'activation à valider — {p.reference}",
+                message=f"{prospect_name} a une demande complète en attente de contrôle champ par champ.",
+                prospect_id=p.id,
+                payload={"type": "CONFORMITE_EN_ATTENTE", "action": "Contrôler la demande", "prospect_reference": p.reference},
+            )
     except Exception:
         pass
-    return {"success": True, "status": "EN_ATTENTE_CONFORMITE", "id": pid}
+    return {"success": True, "status": "EN_ATTENTE_CONFORMITE", "id": p.id}
 
 
 @router.post("/{prospect_id}/valider-conformite")
 def valider_conformite(
     prospect_id: int,
+    payload: dict = Body(default={}),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """RC/Admin valide le formulaire et confirme l'activation définitive → PUCE_ACTIVEE."""
+    """Valide tous les champs contrôlés puis crée réellement le PDV."""
     from app.models.prospect import Prospect as ProspectModel
-    from sqlalchemy import text
+    _ensure_conformity_reviewer(current_user)
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
-    _status_v = str(p.status).lower().replace('prospectstatus.', '')
-    if _status_v not in ("en_attente_conformite",):
+    if str(p.status).lower().replace("prospectstatus.", "") != "en_attente_conformite":
         raise HTTPException(400, f"Statut actuel: '{p.status}'. Attendu: 'EN_ATTENTE_CONFORMITE'")
-    # Appeler activate_puce existant pour créer le PDV
-    try:
-        import app.services.prospection_service as svc
-        from app.schemas.prospect import PuceActivateRequest
-        req = PuceActivateRequest(
-            numero_pdv=p.puce_numero or "",
-            type_pdv=getattr(p, 'pdv_type', None),
-            zone=getattr(p, 'pdv_zone', None),
-        )
-        return svc.activate_puce(db, prospect_id, req, current_user)
-    except Exception:
-        # Fallback: juste changer le statut
-        db.execute(text("UPDATE prospects SET status = 'PUCE_ACTIVEE' WHERE id = :id"), {"id": prospect_id})
-        db.commit()
-        return {"success": True, "status": "PUCE_ACTIVEE", "id": prospect_id}
+
+    activation_data = p.activation_data or {}
+    field_reviews = payload.get("field_reviews") or {}
+    missing_reviews = [key for key in activation_data if field_reviews.get(key, {}).get("status") not in ("approved", "rejected")]
+    rejected_fields = [key for key in activation_data if field_reviews.get(key, {}).get("status") == "rejected"]
+    if missing_reviews:
+        raise HTTPException(400, f"Chaque champ doit être contrôlé. Champs restants: {', '.join(missing_reviews)}")
+    if rejected_fields:
+        raise HTTPException(400, "Des champs sont refusés. Renvoyez la demande pour correction avant validation.")
+
+    p.conformity_review = field_reviews
+    p.conformity_reviewed_at = datetime.utcnow()
+    p.conformity_reviewed_by_id = current_user.id
+    p.conformity_corrections = None
+
+    # Reporter les valeurs approuvées sur le prospect et dans la fiche PDV finale.
+    p.prenom = activation_data.get("prenom") or p.prenom
+    p.nom = activation_data.get("nom") or p.nom
+    p.telephone_principal = activation_data.get("telephone") or p.telephone_principal
+    p.telephone_secondaire = activation_data.get("numero_personnel") or p.telephone_secondaire
+    p.quartier = activation_data.get("quartier") or p.quartier
+    p.adresse = activation_data.get("domicile") or p.adresse
+    p.pdv_adresse = activation_data.get("adresse_pdv") or p.pdv_adresse
+    p.puce_numero = activation_data.get("numero_pdv") or p.puce_numero
+    p.latitude = float(activation_data.get("gps_lat") or p.latitude)
+    p.longitude = float(activation_data.get("gps_lng") or p.longitude)
+    db.flush()
+
+    req = PuceActivateRequest(
+        comment=activation_data.get("comment"),
+        numero_pdv=activation_data.get("numero_pdv") or p.puce_numero,
+        gestionnaire=activation_data.get("gestionnaire"),
+        superviseur=activation_data.get("superviseur"),
+        teleconseillere=activation_data.get("teleconseillere"),
+        developpeur=activation_data.get("developpeur"),
+        zone=activation_data.get("zone"),
+        sous_zone=activation_data.get("sous_zone"),
+        quartier_pdv=activation_data.get("quartier"),
+        nom_gerant=f"{activation_data.get('prenom') or p.prenom} {activation_data.get('nom') or p.nom}".strip(),
+        telephone=activation_data.get("telephone"),
+        numero_personnel=activation_data.get("numero_personnel"),
+        type_pdv=activation_data.get("type_pdv") or "RS",
+        adresse=activation_data.get("adresse_pdv"),
+        date_activation=activation_data.get("date_activation"),
+        nom_garant=activation_data.get("nom_garant"),
+        tel_garant=activation_data.get("tel_garant"),
+    )
+    return svc.activate_puce(db, prospect_id, req, current_user)
 
 
 @router.post("/{prospect_id}/rejeter-conformite")
 def rejeter_conformite(
     prospect_id: int,
-    payload: dict = Body(default={"motif": ""}),
+    payload: dict = Body(default={}),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """RC/Admin rejette le formulaire → retour à PUCE_ATTRIBUEE pour correction."""
+    """Retourne uniquement les champs refusés au développeur avec leurs consignes."""
     from app.models.prospect import Prospect as ProspectModel
-    from sqlalchemy import text
+    _ensure_conformity_reviewer(current_user)
     p = db.query(ProspectModel).filter(ProspectModel.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect non trouvé")
-    db.execute(text("UPDATE prospects SET status = 'PUCE_ATTRIBUEE' WHERE id = :id"), {"id": prospect_id})
+    if str(p.status).lower().replace("prospectstatus.", "") != "en_attente_conformite":
+        raise HTTPException(400, "Cette demande n'est plus en attente de conformité")
+
+    activation_data = p.activation_data or {}
+    field_reviews = payload.get("field_reviews") or {}
+    corrections = payload.get("correction_fields") or []
+    correction_map = {
+        item.get("field"): {
+            "field": item.get("field"),
+            "label": item.get("label") or item.get("field"),
+            "comment": (item.get("comment") or "À corriger").strip(),
+        }
+        for item in corrections if item.get("field") in activation_data
+    }
+    rejected_keys = [key for key, review in field_reviews.items() if review.get("status") == "rejected" and key in activation_data]
+    if not rejected_keys:
+        raise HTTPException(400, "Refusez au moins un champ avant de renvoyer la demande")
+    for key in rejected_keys:
+        correction_map.setdefault(key, {"field": key, "label": key, "comment": field_reviews[key].get("comment") or "À corriger"})
+
+    motif = (payload.get("motif") or "Des informations doivent être corrigées.").strip()
+    p.conformity_review = field_reviews
+    p.conformity_corrections = {
+        "motif": motif,
+        "fields": list(correction_map.values()),
+        "returned_at": datetime.utcnow().isoformat(),
+        "returned_by": f"{current_user.prenom or ''} {current_user.nom}".strip(),
+    }
+    p.conformity_reviewed_at = datetime.utcnow()
+    p.conformity_reviewed_by_id = current_user.id
+    p.status = "PUCE_ATTRIBUEE"
     db.commit()
-    return {"success": True, "status": "PUCE_ATTRIBUEE", "id": prospect_id}
+
+    try:
+        from app.services.notification_service import create_notif
+        if p.puce_assigned_to_id:
+            field_names = ", ".join(item["label"] for item in correction_map.values())
+            create_notif(
+                db, user_id=p.puce_assigned_to_id,
+                title=f"↩️ Activation à corriger — {p.reference}",
+                message=f"La conformité a renvoyé votre demande. Champs à modifier : {field_names}. Motif général : {motif}",
+                prospect_id=p.id,
+                payload={"type": "CONFORMITE_CORRECTION", "action": "Corriger et soumettre à nouveau", "fields": list(correction_map.values()), "prospect_reference": p.reference},
+            )
+    except Exception:
+        pass
+    return {"success": True, "status": "PUCE_ATTRIBUEE", "id": p.id, "corrections": p.conformity_corrections}
 
 
 @router.post("/{prospect_id}/confirm-refus-dev")

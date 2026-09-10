@@ -697,15 +697,19 @@ def assign_puce(db: Session, prospect_id: int, payload: PuceAssignRequest, curre
 # ─────────────────────────────────────────────────────────────────────────────
 def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, current_user: User) -> Prospect:
     """Le développeur activateur confirme la pose/activation sur le terrain."""
-    _ensure_role(current_user, [UserRole.DEVELOPPEUR, UserRole.ADMIN], "activer une puce")
+    activation_roles = {"developpeur", "admin", "manager", "rc", "conformite", "responsable_produit_et_qualit_oprationnelle_"}
+    current_role = str(current_user.role).lower().replace("userrole.", "")
+    if current_role not in activation_roles:
+        raise HTTPException(status_code=403, detail="Rôle non autorisé à finaliser cette activation")
     p = _get_prospect_or_404(db, prospect_id)
 
-    if p.status != ProspectStatus.PUCE_ATTRIBUEE:
+    if p.status not in (ProspectStatus.PUCE_ATTRIBUEE, ProspectStatus.EN_ATTENTE_CONFORMITE):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Activation impossible à l'état {p.status.value}",
         )
-    if str(current_user.role).lower().replace("userrole.", "") not in ["admin", "manager"] and p.puce_assigned_to_id != current_user.id:
+    reviewer_roles = ["admin", "manager", "rc", "conformite", "responsable_produit_et_qualit_oprationnelle_"]
+    if str(current_user.role).lower().replace("userrole.", "") not in reviewer_roles and p.puce_assigned_to_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seul le développeur attribué peut activer cette puce.",
@@ -823,8 +827,8 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
             existing_pdv.sous_zone = payload.sous_zone or existing_pdv.sous_zone
             if payload.type_pdv:
                 try:
-                    from app.models.pdv import TypePDV
-                    existing_pdv.type_pdv = TypePDV(payload.type_pdv)
+                    from app.models.pdv import PDVType
+                    existing_pdv.type_pdv = PDVType(payload.type_pdv)
                 except Exception:
                     pass
             existing_pdv.notes = f"Mis à jour via prospection {p.reference}\n" + (existing_pdv.notes or '')
@@ -835,22 +839,26 @@ def activate_puce(db: Session, prospect_id: int, payload: PuceActivateRequest, c
 
         else:
             # ── PDV introuvable → créer un nouveau PDV ──
+            nom_gerant = payload.nom_gerant or f"{p.prenom} {p.nom}".strip()
             new_pdv = PDV(
                 numero_pdv=p.puce_numero,
-                nom=f"{p.nom} {p.prenom}".strip(),
-                telephone=p.telephone_principal,
+                nom=nom_gerant,
+                telephone=payload.telephone or p.telephone_principal,
+                numero_personnel=payload.numero_personnel,
                 quartier=payload.quartier_pdv or p.quartier,
-                adresse=p.pdv_adresse or p.adresse,
+                adresse=payload.adresse or p.pdv_adresse or p.adresse,
                 latitude=p.latitude,
                 longitude=p.longitude,
                 statut=PDVStatut.ACTIF,
                 date_activation=datetime.utcnow(),
-                nom_gerant=f"{p.prenom} {p.nom}".strip(),
+                nom_gerant=nom_gerant,
+                type_pdv=payload.type_pdv or "RS",
                 nouvelle_creation=True,
-                notes=f"Créé via prospection {p.reference}",
+                notes=f"Créé via prospection {p.reference}" + (f"\n{payload.comment}" if payload.comment else ""),
                 gestionnaire=payload.gestionnaire,
                 superviseur=payload.superviseur,
                 teleconseillere=payload.teleconseillere,
+                developpeur=payload.developpeur,
                 zone=payload.zone,
                 sous_zone=payload.sous_zone,
             )
