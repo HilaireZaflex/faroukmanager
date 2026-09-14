@@ -21,6 +21,7 @@ export const MENU_ROUTES = {
   reports:      ['/reports'],
   settings:     ['/settings'],
   superviseurs: ['/superviseurs'],
+  suivi_tc:     ['/suivi-tc'],
 };
 
 const useAuthStore = create(
@@ -106,6 +107,8 @@ const useAuthStore = create(
         const { user, permissions } = get();
         if (!user) return false;
         const role = (user.role || '').toLowerCase().replace('userrole.', '');
+        // « Suivi TC » est attribuable à N'IMPORTE QUEL rôle via Paramètres → Rôles
+        if (menuId === 'suivi_tc' && permissions?.menus?.includes('suivi_tc')) return true;
         if (role === 'admin') return true;
         // Commerciaux et Développeurs : uniquement prospection
         if (role === 'commercial') return menuId === 'prospection';

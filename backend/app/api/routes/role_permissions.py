@@ -19,27 +19,29 @@ class RolePermission(Base):
 # ── Menus par défaut tous rôles non-admin ─────────────────────────────────────
 DEFAULT_MENUS_NON_ADMIN = ["pdvs", "prospection", "evaluations", "alerts"]
 DEFAULT_DASHBOARDS_NON_ADMIN = ["omy", "nafama", "kaabu"]
-ALL_MENUS = ["pdvs", "prospection", "indicateurs", "commissions", "evaluations", "alerts", "reseau", "ia", "carte", "recovery", "import", "reports", "settings", "challenge"]
+ALL_MENUS = ["pdvs", "prospection", "indicateurs", "commissions", "evaluations", "alerts", "reseau", "ia", "carte", "recovery", "import", "reports", "settings", "challenge", "suivi_tc"]
 ALL_DASHBOARDS = ["omy", "nafama", "kaabu"]
 
 # ── Permissions sidebar par défaut ──────────────────────────────────────────
 DEFAULT_SIDEBAR = {
     "admin": {
         "dashboards": ["omy","nafama","kaabu"],
-        "menus": ["pdvs","prospection","indicateurs","commissions","evaluations","alerts","reseau","ia","carte","recovery","import","reports","settings"],
+        "menus": ["pdvs","prospection","indicateurs","commissions","evaluations","alerts","reseau","ia","carte","recovery","import","reports","settings","suivi_tc"],
     },
     # Tous les autres rôles : menus de base uniquement (+ extras attribués par admin)
-    "manager":         {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
+    # `suivi_tc` était historiquement réservé à admin/rc/manager (codé en dur côté interface).
+    "manager":         {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN + ["suivi_tc"]},
     "superviseur":     {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN},
     "rc":              {"dashboards": ALL_DASHBOARDS, "menus": ALL_MENUS},
     "developpeur":     {"dashboards": [], "menus": ["pdvs", "prospection"]},
-    "teleconseillere": {"dashboards": [], "menus": DEFAULT_MENUS_NON_ADMIN},
+    "teleconseillere": {"dashboards": [], "menus": ["pdvs", "evaluations"]},
     "commercial":      {"dashboards": [], "menus": ["prospection"]},
     "COMMERCIAL":      {"dashboards": [], "menus": ["prospection"]},
 }
 
 # ── Menus additionnels disponibles (que l'admin peut attribuer) ───────────────
 EXTRA_MENUS_AVAILABLE = [
+    {"id": "suivi_tc",     "label": "Suivi TC (Téléconseillères)"},
     {"id": "indicateurs",  "label": "Indicateurs"},
     {"id": "commissions",  "label": "Commissions"},
     {"id": "reseau",       "label": "Gestion Réseau"},

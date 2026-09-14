@@ -267,6 +267,34 @@ async def auto_migrate():
     except Exception as e:
         print(f"⚠️ Auto-migration prospects: {e}")
 
+    # ── Suivi TC : conserver l'accès des rôles qui l'avaient EN DUR (manager, rc) ──
+    # Opération additive et unique (marquée par un drapeau) : aucune permission n'est retirée.
+    try:
+        from app.core.database import SessionLocal
+        from app.api.routes.role_permissions import RolePermission
+        from sqlalchemy.orm.attributes import flag_modified
+        db2 = SessionLocal()
+        try:
+            for role_id in ("manager", "rc"):
+                row = db2.query(RolePermission).filter(RolePermission.role_id == role_id).first()
+                if not row:
+                    continue
+                cfg = dict(row.sidebar_config or {})
+                if cfg.get("_suivi_tc_added"):
+                    continue
+                menus = list(cfg.get("menus") or [])
+                if "suivi_tc" not in menus:
+                    menus.append("suivi_tc")
+                cfg["menus"] = menus
+                cfg["_suivi_tc_added"] = True
+                row.sidebar_config = cfg
+                flag_modified(row, "sidebar_config")
+            db2.commit()
+        finally:
+            db2.close()
+    except Exception as e:
+        print(f"⚠️ Migration permissions Suivi TC: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     # Précalculer les données lentes en arrière-plan

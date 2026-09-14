@@ -76,6 +76,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {/* ── ACCUEIL — masqué pour commerciaux et téléconseillères ── */}
             {role !== 'commercial' && role !== 'teleconseillere' && nl('/accueil', Home, 'Accueil', true)}
             {role === 'teleconseillere' && nl('/accueil-tc', Home, '📞 Accueil TC', true)}
+            {role === 'teleconseillere' && nl('/mes-appels', Activity, '📈 Mes appels')}
 
             {/* ── DASHBOARDS ── */}
             {(canD('omy') || canD('nafama') || canD('kaabu')) && (
@@ -172,7 +173,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {can('prospection') && nl('/prospection',  UserPlus,    'Prospection OM')}
             {can('prospection_energia') && nl('/prospection-energia', Activity, '☀️ Prospection ENERGIA')}
             {nl('/reclamations', AlertTriangle, '📣 Réclamations')}
-            {(role === 'admin' || role === 'rc' || role === 'manager') && nl('/suivi-tc', Bell, '📞 Suivi TC')}
+            {can('suivi_tc')     && nl('/suivi-tc',    Bell,        '📞 Suivi TC')}
             {can('indicateurs') && nl('/indicateurs',  Activity,    'Indicateurs')}
             {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}
             {can('evaluations') && nl('/evaluations/superviseurs', Star, '⭐ Éval. Superviseurs')}

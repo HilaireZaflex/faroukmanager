@@ -789,6 +789,74 @@ def get_tc_comptes(
     }
 
 
+@router.get("/tc/mes-stats")
+def get_mes_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Statistiques PERSONNELLES de l'utilisateur connecté.
+
+    Ne retourne que ses propres données : sert de vue personnelle aux téléconseillères.
+    """
+    today = date.today()
+    annee, mois = today.year, today.month
+
+    base = db.query(AppelTC).filter(AppelTC.tc_user_id == current_user.id)
+    total = base.count()
+
+    appels_mois = base.filter(
+        extract('year', AppelTC.created_at) == annee,
+        extract('month', AppelTC.created_at) == mois,
+    ).all()
+
+    def _sv(a):
+        return a.statut.value if hasattr(a.statut, 'value') else str(a.statut or '')
+
+    POSITIFS = ('JOIGNABLE_PROMESSE', 'JOIGNABLE_PAS_INTERESSE', 'JOIGNABLE_DEJA_ACTIF')
+    joignables = sum(1 for a in appels_mois if _sv(a) in POSITIFS)
+    promesses = sum(1 for a in appels_mois if _sv(a) == 'JOIGNABLE_PROMESSE')
+    rappels = sum(1 for a in appels_mois if _sv(a) == 'RAPPEL_PROGRAMME')
+    aujourd_hui = sum(1 for a in appels_mois if a.created_at and a.created_at.date() == today)
+
+    par_indicateur, par_statut = {}, {}
+    for a in appels_mois:
+        ind = a.indicateur.value if hasattr(a.indicateur, 'value') else str(a.indicateur or 'AUTRE')
+        par_indicateur[ind] = par_indicateur.get(ind, 0) + 1
+        s = _sv(a)
+        par_statut[s] = par_statut.get(s, 0) + 1
+
+    pdvs_appeles = {a.numero_pdv for a in appels_mois}
+
+    pdvs_assignes = db.query(func.count(PDV.id)).filter(
+        PDV.statut == 'ACTIF',
+        or_(
+            PDV.teleconseillere_user_id == current_user.id,
+            PDV.teleconseillere == _full_name(current_user),
+            PDV.teleconseillere == f"{current_user.nom or ''} {current_user.prenom or ''}".strip(),
+        ),
+    ).scalar() or 0
+
+    derniers = base.order_by(desc(AppelTC.created_at)).limit(10).all()
+
+    return {
+        "user": {"id": current_user.id, "nom": _full_name(current_user), "role": str(current_user.role)},
+        "annee": annee,
+        "mois": mois,
+        "appels_total": int(total),
+        "appels_mois": len(appels_mois),
+        "appels_aujourd_hui": aujourd_hui,
+        "joignables": joignables,
+        "promesses": promesses,
+        "rappels": rappels,
+        "taux_joignabilite": round(joignables / len(appels_mois) * 100, 1) if appels_mois else 0,
+        "pdvs_assignes": int(pdvs_assignes),
+        "pdvs_appeles_mois": len(pdvs_appeles),
+        "par_indicateur": par_indicateur,
+        "par_statut": par_statut,
+        "derniers_appels": [_fmt(a) for a in derniers],
+    }
+
+
 @router.delete("/appels-tc/{appel_id}")
 def delete_appel(
     appel_id: int,

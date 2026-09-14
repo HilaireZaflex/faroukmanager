@@ -22,6 +22,7 @@ import WhatIfPage from './pages/WhatIfPage';
 import AccueilPage from './pages/AccueilPage';
 import AccueilTCPage from './pages/AccueilTCPage';
 import SuiviTCPage from './pages/SuiviTCPage';
+import MesAppelsPage from './pages/MesAppelsPage';
 import EvalSuperveursPage from './pages/EvalSuperveursPage';
 import KaabuDashboardPage from './pages/KaabuDashboardPage';
 import KaabuMensuelPage from './pages/KaabuMensuelPage';
@@ -164,7 +165,8 @@ function App() {
                 <Route path="/accueil-tc" element={<AccueilTCPage />} />
                 <Route path="/kaabu/dashboard" element={<KaabuMensuelPage />} />
                 <Route path="/kaabu/dashboard/weekly" element={<KaabuDashboardPage />} />
-                <Route path="/suivi-tc" element={<SuiviTCPage />} />
+                <Route path="/suivi-tc" element={<MenuRoute menuId="suivi_tc"><SuiviTCPage /></MenuRoute>} />
+                <Route path="/mes-appels" element={<MesAppelsPage />} />
                 <Route path="/evaluations/superviseurs" element={<EvalSuperveursPage />} />
                 <Route path="/challenge" element={<MenuRoute menuId="challenge"><ChallengePage /></MenuRoute>} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />

@@ -34,6 +34,7 @@ const FEATURES = [
     { id: 'menu_commissions', label: 'Commissions',          sidebarKey: 'commissions' },
     { id: 'menu_evaluations', label: 'Évaluations',          sidebarKey: 'evaluations' },
     { id: 'menu_alerts',      label: 'Alertes',              sidebarKey: 'alerts' },
+    { id: 'menu_suivi_tc',    label: 'Suivi TC (Téléconseillères)', sidebarKey: 'suivi_tc' },
     { id: 'menu_reseau',      label: 'Gestion du Réseau',    sidebarKey: 'reseau' },
   ]},
   { section: '🗺️ Gestion du Réseau — Sous-menus', items: [
@@ -74,7 +75,7 @@ const DEFAULT_PERMISSIONS = {
 
   rc: Object.fromEntries(ALL_IDS.map(id => [id,
     ['menu_omy','menu_pdvs','menu_commissions',
-     'menu_alerts','menu_recovery'].includes(id)])),
+     'menu_alerts','menu_recovery','menu_suivi_tc'].includes(id)])),
 
   developpeur: Object.fromEntries(ALL_IDS.map(id => [id,
     ['menu_prospection','menu_alerts','menu_reseau',
