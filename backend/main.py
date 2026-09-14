@@ -299,6 +299,23 @@ async def auto_migrate():
     except Exception as e:
         print(f"⚠️ Migration permissions Suivi TC: {e}")
 
+    # ── Réclamations : règles de routage par défaut (idempotent) ──
+    try:
+        from app.core.database import SessionLocal
+        from app.models.reclamation import ReclamationRoutage
+        from app.api.routes.reclamations import ROUTAGE_DEFAUT
+        db3 = SessionLocal()
+        try:
+            for cat, role in ROUTAGE_DEFAUT.items():
+                existe = db3.query(ReclamationRoutage).filter(ReclamationRoutage.categorie == cat).first()
+                if not existe:
+                    db3.add(ReclamationRoutage(categorie=cat, role_cible=role, actif=True))
+            db3.commit()
+        finally:
+            db3.close()
+    except Exception as e:
+        print(f"⚠️ Routage réclamations: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     # Précalculer les données lentes en arrière-plan

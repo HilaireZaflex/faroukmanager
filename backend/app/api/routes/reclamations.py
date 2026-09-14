@@ -5,9 +5,22 @@ from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user
 from app.models.user import User
-from app.models.reclamation import Reclamation, ReclamationCommentaire, ReclamationNotification, ReclamationHistorique
+from app.models.reclamation import (
+    Reclamation, ReclamationCommentaire, ReclamationNotification,
+    ReclamationHistorique, ReclamationRoutage,
+)
 
 router = APIRouter()
+
+# Routage automatique par défaut : catégorie → rôle responsable
+ROUTAGE_DEFAUT = {
+    'PDV': 'rc',
+    'PERSONNEL': 'admin',
+    'LOGISTIQUE': 'responsable_produit_et_qualit_oprationnelle_',
+    'FINANCE': 'rc',
+    'TECHNIQUE': 'responsable_produit_et_qualit_oprationnelle_',
+    'AUTRE': 'admin',
+}
 
 # ─── Helpers rôles & autorisations ───────────────────────────────────────────
 
@@ -198,6 +211,26 @@ def create_reclamation(
                 responsable_id = responsable.id
                 responsable_nom = f"{responsable.prenom or ''} {responsable.nom or ''}".strip()
 
+    categorie = data.get("categorie", "AUTRE")
+
+    # Routage automatique par catégorie si aucun responsable n'a été choisi
+    routage_auto = False
+    if not responsable_id and not responsable_nom:
+        regle = db.query(ReclamationRoutage).filter(
+            ReclamationRoutage.categorie == categorie,
+            ReclamationRoutage.actif == True,
+        ).first()
+        if regle and regle.role_cible:
+            role_cible = str(regle.role_cible).lower().replace('userrole.', '').strip()
+            cible = next((u for u in db.query(User).all()
+                          if str(u.role or '').lower().replace('userrole.', '').strip() == role_cible
+                          and u.is_active), None)
+            if cible:
+                responsable = cible
+                responsable_id = cible.id
+                responsable_nom = f"{cible.prenom or ''} {cible.nom or ''}".strip()
+                routage_auto = True
+
     try:
         date_limite = datetime.fromisoformat(data["date_limite"]) if data.get("date_limite") else None
     except (ValueError, TypeError):
@@ -206,7 +239,7 @@ def create_reclamation(
     r = Reclamation(
         titre=titre,
         description=description,
-        categorie=data.get("categorie", "AUTRE"),
+        categorie=categorie,
         priorite=data.get("priorite", "NORMAL"),
         statut="OUVERTE",
         soumetteur_id=current_user.id,
@@ -223,7 +256,9 @@ def create_reclamation(
     log_historique(
         db, r.id, current_user, "CREATION",
         nouvelle_valeur="OUVERTE",
-        details=f"Réclamation créée ({r.categorie} / {r.priorite})" + (f" → {responsable_nom}" if responsable_nom else " — non assignée"),
+        details=(f"Réclamation créée ({r.categorie} / {r.priorite})"
+                 + (f" → {responsable_nom} (routage automatique)" if routage_auto
+                    else (f" → {responsable_nom}" if responsable_nom else " — non assignée"))),
     )
 
     # Notifications
@@ -544,6 +579,45 @@ def marquer_lues(
     if data.get("ids"):
         q = q.filter(ReclamationNotification.id.in_(data["ids"]))
     q.update({"lue": True}, synchronize_session=False)
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/reclamations-routage")
+def get_routage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Règles de routage automatique des réclamations (catégorie → rôle responsable)."""
+    rows = db.query(ReclamationRoutage).order_by(ReclamationRoutage.categorie).all()
+    roles = sorted({str(u.role or '').lower().replace('userrole.', '').strip()
+                    for u in db.query(User).all() if u.role})
+    return {
+        "regles": [{"id": r.id, "categorie": r.categorie, "role_cible": r.role_cible, "actif": bool(r.actif)} for r in rows],
+        "roles_disponibles": roles,
+    }
+
+
+@router.put("/reclamations-routage")
+def set_routage(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Met à jour les règles de routage (administrateur / manager)."""
+    if not _est_admin(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs et managers")
+
+    for item in (data.get("regles") or []):
+        cat = (item.get("categorie") or "").strip()
+        if not cat:
+            continue
+        row = db.query(ReclamationRoutage).filter(ReclamationRoutage.categorie == cat).first()
+        if not row:
+            row = ReclamationRoutage(categorie=cat)
+            db.add(row)
+        row.role_cible = (item.get("role_cible") or "").strip().lower() or None
+        row.actif = bool(item.get("actif", True))
     db.commit()
     return {"success": True}
 

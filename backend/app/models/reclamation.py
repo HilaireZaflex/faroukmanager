@@ -81,3 +81,13 @@ class ReclamationHistorique(Base):
     nouvelle_valeur = Column(String(200), nullable=True)
     details = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class ReclamationRoutage(Base):
+    """Règle de routage automatique : une catégorie → un rôle responsable."""
+    __tablename__ = "reclamation_routage"
+
+    id = Column(Integer, primary_key=True, index=True)
+    categorie = Column(String(50), unique=True, nullable=False)
+    role_cible = Column(String(100), nullable=True)  # rôle utilisateur cible (minuscules)
+    actif = Column(Boolean, default=True, nullable=False)

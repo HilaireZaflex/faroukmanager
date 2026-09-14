@@ -564,6 +564,69 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
   );
 }
 
+// ─── Routage automatique par catégorie ────────────────────────────────────────
+function RoutageCard() {
+  const qc = useQueryClient();
+  const { data } = useQuery('rec-routage', () =>
+    api.get('/reclamations-routage').then(r => r.data), { staleTime: 60000 });
+  const [edits, setEdits] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const regles = data?.regles || [];
+  const roles = data?.roles_disponibles || [];
+
+  const val = (r) => (edits[r.categorie]?.role_cible !== undefined ? edits[r.categorie].role_cible : (r.role_cible || ''));
+  const estActif = (r) => (edits[r.categorie]?.actif !== undefined ? edits[r.categorie].actif : r.actif);
+  const setEdit = (cat, patch) => setEdits(prev => ({ ...prev, [cat]: { ...(prev[cat] || {}), ...patch } }));
+
+  const sauver = async () => {
+    setSaving(true);
+    try {
+      await api.put('/reclamations-routage', {
+        regles: regles.map(r => ({ categorie: r.categorie, role_cible: val(r) || null, actif: estActif(r) })),
+      });
+      toast.success('Routage automatique enregistré');
+      qc.invalidateQueries('rec-routage');
+      setEdits({});
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
+    finally { setSaving(false); }
+  };
+
+  const SS = { padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: '#1a1a2e', color: '#fff', fontSize: 12 };
+
+  return (
+    <div style={{ marginTop: 16, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>🎯 Routage automatique par catégorie</div>
+        <button onClick={sauver} disabled={saving}
+          style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+          {saving ? '⏳' : '💾 Enregistrer'}
+        </button>
+      </div>
+      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>
+        Une réclamation créée <strong>sans responsable</strong> est automatiquement assignée au rôle choisi ici.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {regles.map(r => (
+          <div key={r.categorie} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+            <span style={{ minWidth: 110, color: '#94a3b8', fontWeight: 700 }}>{r.categorie}</span>
+            <span style={{ color: '#475569' }}>→</span>
+            <select value={val(r)} onChange={e => setEdit(r.categorie, { role_cible: e.target.value })} style={{ ...SS, flex: 1, maxWidth: 320 }}>
+              <option value="">— Aucun routage —</option>
+              {roles.map(role => <option key={role} value={role}>{role}</option>)}
+            </select>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#64748b', cursor: 'pointer' }}>
+              <input type="checkbox" checked={estActif(r)} onChange={e => setEdit(r.categorie, { actif: e.target.checked })} />
+              actif
+            </label>
+          </div>
+        ))}
+        {regles.length === 0 && <div style={{ fontSize: 12, color: '#64748b' }}>Aucune règle de routage définie.</div>}
+      </div>
+    </div>
+  );
+}
+
 // ─── Dashboard Admin ───────────────────────────────────────────────────────────
 function TabDashboard({ onRefresh }) {
   const { data: stats } = useQuery('rec-stats', () =>
@@ -614,6 +677,8 @@ function TabDashboard({ onRefresh }) {
           ))}
         </div>
       </div>
+
+      <RoutageCard />
     </div>
   );
 }
