@@ -109,10 +109,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          <div className="login-hint">
-            <p>💡 <strong>Admin:</strong> admin@faroukmanager.com / Admin2026!</p>
-          </div>
         </div>
       </div>
     </div>
