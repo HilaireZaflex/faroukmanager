@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import api from '../services/api';
+import useAuthStore from '../store/authStore';
 
 const MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const IND_COLORS = { OMY:'#a29bfe', NAFAMA:'#00cec9', KAABU:'#fdcb6e', UNIFIE:'#74b9ff', AUTRE:'#64748b' };
@@ -440,6 +441,181 @@ function TabPerformance() {
   );
 }
 
+// ─── Tab 6 : Objectifs ────────────────────────────────────────────────────────
+function couleurTaux(t) {
+  if (!t) return '#64748b';
+  if (t >= 100) return '#22c55e';
+  if (t >= 60) return '#ffa502';
+  return '#ff4757';
+}
+
+function TabObjectifs({ annee: anneeInit, mois: moisInit }) {
+  const user = useAuthStore(s => s.user);
+  const role = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const peutEditer = ['admin', 'manager', 'rc'].includes(role);
+
+  const [annee, setAnnee] = useState(anneeInit);
+  const [mois, setMois] = useState(moisInit);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [edits, setEdits] = useState({});
+  const [msg, setMsg] = useState('');
+  const [globalObj, setGlobalObj] = useState({ objectif_appels: '', objectif_promesses: '', objectif_appels_jour: '' });
+
+  const charger = React.useCallback(async (a, m) => {
+    setLoading(true);
+    try {
+      const r = await api.get('/tc/objectifs', { params: { annee: a, mois: m } });
+      setData(r.data);
+      setEdits({});
+    } catch (e) { setMsg('Erreur de chargement des objectifs'); }
+    finally { setLoading(false); }
+  }, []);
+
+  React.useEffect(() => { charger(annee, mois); }, [charger, annee, mois]);
+
+  const val = (l, champ) => {
+    const e = edits[l.tc_user_id];
+    return e && e[champ] !== undefined ? e[champ] : l[champ];
+  };
+  const setVal = (tcId, champ, v) => setEdits(prev => ({ ...prev, [tcId]: { ...(prev[tcId] || {}), [champ]: v } }));
+
+  const enregistrer = async (l) => {
+    const e = edits[l.tc_user_id] || {};
+    try {
+      await api.put('/tc/objectifs', {
+        tc_user_id: l.tc_user_id, annee, mois,
+        objectif_appels: parseInt(e.objectif_appels ?? l.objectif_appels, 10) || 0,
+        objectif_promesses: parseInt(e.objectif_promesses ?? l.objectif_promesses, 10) || 0,
+        objectif_appels_jour: parseInt(e.objectif_appels_jour ?? l.objectif_appels_jour, 10) || 0,
+      });
+      setMsg(`✅ Objectif enregistré pour ${l.tc_nom}`);
+      charger(annee, mois);
+    } catch (err) { setMsg(`⚠️ ${err?.response?.data?.detail || 'Erreur lors de l\'enregistrement'}`); }
+  };
+
+  const appliquerToutes = async () => {
+    try {
+      const r = await api.put('/tc/objectifs', {
+        annee, mois,
+        objectif_appels: parseInt(globalObj.objectif_appels, 10) || 0,
+        objectif_promesses: parseInt(globalObj.objectif_promesses, 10) || 0,
+        objectif_appels_jour: parseInt(globalObj.objectif_appels_jour, 10) || 0,
+      });
+      setMsg(`✅ Objectifs appliqués à ${r.data.mis_a_jour} téléconseillère(s)`);
+      charger(annee, mois);
+    } catch (err) { setMsg(`⚠️ ${err?.response?.data?.detail || 'Erreur'}`); }
+  };
+
+  const lignes = data?.lignes || [];
+  const numInp = { width: '78px', padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: 12, textAlign: 'center' };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>🎯 Objectifs des téléconseillères</div>
+        <select value={mois} onChange={e => setMois(parseInt(e.target.value, 10))}
+          style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: '#1a1a2e', color: '#fff', fontSize: 13 }}>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{MOIS_NOMS[m]}</option>)}
+        </select>
+        <select value={annee} onChange={e => setAnnee(parseInt(e.target.value, 10))}
+          style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: '#1a1a2e', color: '#fff', fontSize: 13 }}>
+          {[anneeInit - 1, anneeInit, anneeInit + 1].map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        {msg && <span style={{ fontSize: 12, color: msg.startsWith('⚠️') ? '#ff4757' : '#22c55e' }}>{msg}</span>}
+      </div>
+
+      {peutEditer && (
+        <div style={{ background: 'rgba(255,105,0,0.05)', border: '1px solid rgba(255,105,0,0.2)', borderRadius: 12, padding: '14px 16px', marginBottom: 18, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 4 }}>Appels / jour</div>
+            <input type="number" min="0" style={numInp} value={globalObj.objectif_appels_jour}
+              onChange={e => setGlobalObj(g => ({ ...g, objectif_appels_jour: e.target.value }))} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 4 }}>Appels / mois</div>
+            <input type="number" min="0" style={numInp} value={globalObj.objectif_appels}
+              onChange={e => setGlobalObj(g => ({ ...g, objectif_appels: e.target.value }))} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 4 }}>Promesses / mois</div>
+            <input type="number" min="0" style={numInp} value={globalObj.objectif_promesses}
+              onChange={e => setGlobalObj(g => ({ ...g, objectif_promesses: e.target.value }))} />
+          </div>
+          <button onClick={appliquerToutes}
+            style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+            Appliquer à toutes les TC
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>⏳ Chargement...</div>
+      ) : (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                {['Téléconseillère', 'Obj. appels/jour', 'Obj. appels/mois', 'Réalisé', 'Réalisation', 'Obj. promesses', 'Réalisé', 'Promesses', peutEditer ? 'Action' : ''].map((h, i) => (
+                  <th key={i} style={{ padding: '10px 12px', fontSize: 11, color: '#64748b', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {lignes.length === 0 ? (
+                <tr><td colSpan={peutEditer ? 9 : 8} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Aucun compte téléconseillère</td></tr>
+              ) : lignes.map((l, i) => (
+                <tr key={l.tc_user_id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                  <td style={{ padding: '9px 12px', fontSize: 12, fontWeight: 700, color: l.is_active ? '#FF6900' : '#64748b', whiteSpace: 'nowrap' }}>
+                    {l.tc_nom}{!l.is_active && <span style={{ fontSize: 10, color: '#64748b' }}> (inactif)</span>}
+                  </td>
+                  <td style={{ padding: '9px 12px' }}>
+                    {peutEditer
+                      ? <input type="number" min="0" style={numInp} value={val(l, 'objectif_appels_jour')} onChange={e => setVal(l.tc_user_id, 'objectif_appels_jour', e.target.value)} />
+                      : <span style={{ fontSize: 12, color: '#ccc' }}>{l.objectif_appels_jour}</span>}
+                  </td>
+                  <td style={{ padding: '9px 12px' }}>
+                    {peutEditer
+                      ? <input type="number" min="0" style={numInp} value={val(l, 'objectif_appels')} onChange={e => setVal(l.tc_user_id, 'objectif_appels', e.target.value)} />
+                      : <span style={{ fontSize: 12, color: '#ccc' }}>{l.objectif_appels}</span>}
+                  </td>
+                  <td style={{ padding: '9px 12px', fontSize: 13, fontWeight: 800, color: '#fff' }}>{l.appels_mois}</td>
+                  <td style={{ padding: '9px 12px', minWidth: 110 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: couleurTaux(l.taux_realisation) }}>{l.taux_realisation}%</div>
+                    <TauxBar taux={l.taux_realisation} color={couleurTaux(l.taux_realisation)} />
+                  </td>
+                  <td style={{ padding: '9px 12px' }}>
+                    {peutEditer
+                      ? <input type="number" min="0" style={numInp} value={val(l, 'objectif_promesses')} onChange={e => setVal(l.tc_user_id, 'objectif_promesses', e.target.value)} />
+                      : <span style={{ fontSize: 12, color: '#ccc' }}>{l.objectif_promesses}</span>}
+                  </td>
+                  <td style={{ padding: '9px 12px', fontSize: 13, fontWeight: 800, color: '#00d68f' }}>{l.promesses_mois}</td>
+                  <td style={{ padding: '9px 12px', minWidth: 100 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: couleurTaux(l.taux_realisation_promesses) }}>{l.taux_realisation_promesses}%</div>
+                    <TauxBar taux={l.taux_realisation_promesses} color={couleurTaux(l.taux_realisation_promesses)} />
+                  </td>
+                  {peutEditer && (
+                    <td style={{ padding: '9px 12px' }}>
+                      <button onClick={() => enregistrer(l)}
+                        style={{ padding: '6px 12px', borderRadius: 7, border: 'none', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                        💾 Enregistrer
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: '#64748b', marginTop: 10 }}>
+        La réalisation compare les appels du mois en cours à l'objectif mensuel. Les objectifs sont rattachés au compte de chaque téléconseillère.
+      </div>
+    </div>
+  );
+}
+
 // ─── Page Principale ──────────────────────────────────────────────────────────
 export default function SuiviTCPage() {
   const now = new Date();
@@ -459,6 +635,7 @@ export default function SuiviTCPage() {
     { id:'historique',  icon:'📋', label:'Historique appels' },
     { id:'file-admin',  icon:'📞', label:'File unifiée (Admin)' },
     { id:'performance', icon:'📈', label:'Performance' },
+    { id:'objectifs',   icon:'🎯', label:'Objectifs' },
   ];
 
   if (isLoading) return (
@@ -496,6 +673,7 @@ export default function SuiviTCPage() {
       {activeTab === 'historique'  && <TabHistorique dashboard={dashboard}/>}
       {activeTab === 'file-admin'  && <TabFileAdmin/>}
       {activeTab === 'performance' && <TabPerformance/>}
+      {activeTab === 'objectifs'   && <TabObjectifs annee={anneeP} mois={moisP}/>}
     </div>
   );
 }

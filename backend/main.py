@@ -224,6 +224,10 @@ async def auto_migrate():
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_appels_tc_user') THEN ALTER TABLE appels_tc ADD CONSTRAINT fk_appels_tc_user FOREIGN KEY (tc_user_id) REFERENCES users(id); END IF; END $$",
         # Remplissage du lien PDV -> compte TC par correspondance de nom (idempotent : ne remplit que les NULL)
         "UPDATE pdvs SET teleconseillere_user_id = (SELECT u.id FROM users u WHERE UPPER(TRIM(COALESCE(u.prenom,'') || ' ' || COALESCE(u.nom,''))) = UPPER(TRIM(pdvs.teleconseillere)) AND POSITION('teleconseill' IN LOWER(COALESCE(u.role,''))) > 0 LIMIT 1) WHERE teleconseillere_user_id IS NULL AND teleconseillere IS NOT NULL AND TRIM(teleconseillere) <> ''",
+        # ── Suivi TC : objectifs des téléconseillères (filet de sécurité, create_all fait déjà le travail) ──
+        "CREATE TABLE IF NOT EXISTS tc_objectifs (id SERIAL PRIMARY KEY, tc_user_id INTEGER NOT NULL, annee INTEGER NOT NULL, mois INTEGER NOT NULL, objectif_appels INTEGER DEFAULT 0 NOT NULL, objectif_promesses INTEGER DEFAULT 0 NOT NULL, objectif_appels_jour INTEGER DEFAULT 0 NOT NULL, created_at TIMESTAMP DEFAULT NOW() NOT NULL, updated_at TIMESTAMP DEFAULT NOW() NOT NULL, CONSTRAINT uq_tc_objectif_periode UNIQUE (tc_user_id, annee, mois))",
+        "CREATE INDEX IF NOT EXISTS ix_tc_objectifs_tc_user_id ON tc_objectifs (tc_user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_tc_objectifs_periode ON tc_objectifs (annee, mois)",
     ]
     try:
         with engine.connect() as conn:

@@ -8,6 +8,7 @@ from sqlalchemy import func, desc, or_, extract
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user
 from app.models.appel_tc import AppelTC, StatutAppel, IndicateurAppel, STATUT_LABELS
+from app.models.tc_objectif import TcObjectif
 from app.models.user import User
 from app.models.pdv import PDV
 from pydantic import BaseModel
@@ -27,6 +28,15 @@ class AppelCreate(BaseModel):
     statut: StatutAppel
     commentaire: Optional[str] = None
     date_rappel: Optional[date] = None
+
+
+class ObjectifIn(BaseModel):
+    tc_user_id: Optional[int] = None   # None => appliquer à TOUTES les téléconseillères
+    annee: int
+    mois: int
+    objectif_appels: int = 0
+    objectif_promesses: int = 0
+    objectif_appels_jour: int = 0
 
 
 # ─── Helper ───────────────────────────────────────────────────────────────────
@@ -855,6 +865,161 @@ def get_mes_stats(
         "par_statut": par_statut,
         "derniers_appels": [_fmt(a) for a in derniers],
     }
+
+
+# ─── Objectifs des téléconseillères ───────────────────────────────────────────
+
+def _require_objectif_manager(current_user: User):
+    """La gestion des objectifs est réservée aux administrateurs, managers et RC."""
+    role = str(current_user.role or '').lower().replace('userrole.', '')
+    if role not in ('admin', 'manager', 'rc'):
+        raise HTTPException(403, "Accès refusé : gestion des objectifs réservée aux administrateurs, managers et RC")
+
+
+def _comptes_tc(db: Session) -> list:
+    """Tous les comptes dont le rôle est téléconseillère."""
+    return [u for u in db.query(User).order_by(User.nom).all()
+            if 'teleconseill' in str(u.role or '').lower()]
+
+
+def _realise_mois(db: Session, annee: int, mois: int) -> dict:
+    """Réalisé par COMPTE pour un mois : appels, promesses, joignables, aujourd'hui."""
+    from collections import defaultdict
+    today = date.today()
+    agg = defaultdict(lambda: {'appels': 0, 'promesses': 0, 'joignables': 0, 'aujourd_hui': 0})
+    for uid, statut, created in db.query(
+        AppelTC.tc_user_id, AppelTC.statut, AppelTC.created_at
+    ).filter(
+        extract('year', AppelTC.created_at) == annee,
+        extract('month', AppelTC.created_at) == mois,
+    ).all():
+        d = agg[uid]
+        d['appels'] += 1
+        sv = statut.value if hasattr(statut, 'value') else str(statut or '')
+        if sv in ('JOIGNABLE_PROMESSE', 'JOIGNABLE_PAS_INTERESSE', 'JOIGNABLE_DEJA_ACTIF'):
+            d['joignables'] += 1
+        if sv == 'JOIGNABLE_PROMESSE':
+            d['promesses'] += 1
+        if created and created.date() == today:
+            d['aujourd_hui'] += 1
+    return agg
+
+
+@router.get("/tc/objectifs")
+def get_objectifs(
+    annee: int = Query(None),
+    mois: int = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Objectifs et réalisé, par COMPTE téléconseillère, pour une période donnée."""
+    today = date.today()
+    if not annee:
+        annee = today.year
+    if not mois:
+        mois = today.month
+
+    objectifs = {
+        o.tc_user_id: o for o in db.query(TcObjectif).filter(
+            TcObjectif.annee == annee, TcObjectif.mois == mois
+        ).all()
+    }
+    realise = _realise_mois(db, annee, mois)
+
+    lignes = []
+    for u in _comptes_tc(db):
+        o = objectifs.get(u.id)
+        r = realise.get(u.id, {}) or {}
+        obj_appels = int(o.objectif_appels) if o else 0
+        obj_promesses = int(o.objectif_promesses) if o else 0
+        obj_jour = int(o.objectif_appels_jour) if o else 0
+        appels = int(r.get('appels', 0))
+        promesses = int(r.get('promesses', 0))
+        auj = int(r.get('aujourd_hui', 0))
+
+        lignes.append({
+            'objectif_id': o.id if o else None,
+            'tc_user_id': u.id,
+            'tc_nom': _full_name(u),
+            'email': u.email,
+            'is_active': bool(u.is_active),
+            'objectif_appels': obj_appels,
+            'objectif_promesses': obj_promesses,
+            'objectif_appels_jour': obj_jour,
+            'appels_mois': appels,
+            'promesses_mois': promesses,
+            'joignables_mois': int(r.get('joignables', 0)),
+            'appels_aujourd_hui': auj,
+            'taux_realisation': round(appels / obj_appels * 100, 1) if obj_appels else 0,
+            'taux_realisation_jour': round(auj / obj_jour * 100, 1) if obj_jour else 0,
+            'taux_realisation_promesses': round(promesses / obj_promesses * 100, 1) if obj_promesses else 0,
+        })
+
+    lignes.sort(key=lambda x: (x['tc_nom'] or ''))
+    return {'annee': annee, 'mois': mois, 'lignes': lignes}
+
+
+@router.put("/tc/objectifs")
+def set_objectif(
+    body: ObjectifIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Créer ou mettre à jour l'objectif d'une TC.
+
+    Si `tc_user_id` est absent, l'objectif est appliqué à TOUTES les téléconseillères.
+    """
+    _require_objectif_manager(current_user)
+
+    if body.mois < 1 or body.mois > 12:
+        raise HTTPException(400, "Le mois doit être compris entre 1 et 12")
+
+    if body.tc_user_id:
+        cibles = [u for u in _comptes_tc(db) if u.id == body.tc_user_id]
+        if not cibles:
+            raise HTTPException(404, "Compte téléconseillère introuvable")
+    else:
+        cibles = _comptes_tc(db)
+        if not cibles:
+            raise HTTPException(404, "Aucun compte téléconseillère")
+
+    for u in cibles:
+        o = db.query(TcObjectif).filter(
+            TcObjectif.tc_user_id == u.id,
+            TcObjectif.annee == body.annee,
+            TcObjectif.mois == body.mois,
+        ).first()
+        if o is None:
+            o = TcObjectif(tc_user_id=u.id, annee=body.annee, mois=body.mois)
+            db.add(o)
+        o.objectif_appels = max(0, int(body.objectif_appels or 0))
+        o.objectif_promesses = max(0, int(body.objectif_promesses or 0))
+        o.objectif_appels_jour = max(0, int(body.objectif_appels_jour or 0))
+    db.commit()
+
+    return {
+        'success': True,
+        'mis_a_jour': len(cibles),
+        'annee': body.annee,
+        'mois': body.mois,
+        'toutes_les_tc': not bool(body.tc_user_id),
+    }
+
+
+@router.delete("/tc/objectifs/{objectif_id}")
+def delete_objectif(
+    objectif_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Supprimer un objectif (administrateur, manager ou RC)."""
+    _require_objectif_manager(current_user)
+    o = db.query(TcObjectif).filter(TcObjectif.id == objectif_id).first()
+    if not o:
+        raise HTTPException(404, "Objectif introuvable")
+    db.delete(o)
+    db.commit()
+    return {'success': True}
 
 
 @router.delete("/appels-tc/{appel_id}")
