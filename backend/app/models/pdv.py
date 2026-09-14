@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Enum, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Enum, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -48,6 +48,9 @@ class PDV(Base):
     superviseur = Column(String, nullable=True)
     gestionnaire = Column(String, nullable=True)
     teleconseillere = Column(String, nullable=True)
+    # Lien vers le COMPTE de la téléconseillère (users.id).
+    # `teleconseillere` ci-dessus reste l'instantané du nom pour l'affichage.
+    teleconseillere_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     developpeur = Column(String, nullable=True)
     adresse = Column(String, nullable=True)
 

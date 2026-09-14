@@ -4,14 +4,14 @@ Prefix: /api/appels-tc
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, or_, extract
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user
 from app.models.appel_tc import AppelTC, StatutAppel, IndicateurAppel, STATUT_LABELS
 from app.models.user import User
 from app.models.pdv import PDV
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 
 router = APIRouter()
@@ -22,7 +22,8 @@ router = APIRouter()
 class AppelCreate(BaseModel):
     numero_pdv: str
     nom_pdv: Optional[str] = None
-    indicateur: IndicateurAppel
+    indicateur: Optional[IndicateurAppel] = None
+    indicateurs: Optional[List[str]] = None      # appel « unifié » : plusieurs indicateurs à la fois
     statut: StatutAppel
     commentaire: Optional[str] = None
     date_rappel: Optional[date] = None
@@ -30,12 +31,42 @@ class AppelCreate(BaseModel):
 
 # ─── Helper ───────────────────────────────────────────────────────────────────
 
+VALID_INDICATEURS = ("OMY", "NAFAMA", "KAABU")
+
+
+def _full_name(user: User) -> str:
+    """Nom complet d'un compte utilisateur (repli sur l'email)."""
+    return f"{user.prenom or ''} {user.nom or ''}".strip() or (user.email or "")
+
+
+def _normalize_indicateurs(indicateurs, principal=None) -> list:
+    """Liste des indicateurs valides, sans doublon et dans l'ordre reçu.
+
+    Accepte une chaîne "OMY,NAFAMA" ou une liste, plus un indicateur principal optionnel.
+    """
+    valeurs = []
+    if principal is not None:
+        valeurs.append(principal.value if hasattr(principal, "value") else str(principal))
+    if indicateurs:
+        if isinstance(indicateurs, str):
+            valeurs.extend(indicateurs.split(","))
+        else:
+            valeurs.extend(indicateurs)
+    resultat = []
+    for v in valeurs:
+        v = (v or "").strip().upper()
+        if v in VALID_INDICATEURS and v not in resultat:
+            resultat.append(v)
+    return resultat
+
+
 def _fmt(a: AppelTC) -> dict:
     return {
         "id": a.id,
         "numero_pdv": a.numero_pdv,
         "nom_pdv": a.nom_pdv,
         "indicateur": a.indicateur.value if a.indicateur else None,
+        "indicateurs": list(a.indicateurs) if a.indicateurs else ([a.indicateur.value] if a.indicateur else []),
         "tc_user_id": a.tc_user_id,
         "tc_nom": a.tc_nom,
         "statut": a.statut.value if a.statut else None,
@@ -54,13 +85,18 @@ def create_appel(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Enregistrer un appel TC sur un PDV."""
-    tc_nom = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
+    """Enregistrer un appel TC sur un PDV (un appel « unifié » = un seul enregistrement)."""
+    inds = _normalize_indicateurs(body.indicateurs, body.indicateur)
+    if not inds:
+        raise HTTPException(400, "Au moins un indicateur valide est requis (OMY, NAFAMA ou KAABU)")
+
+    tc_nom = _full_name(current_user)
 
     appel = AppelTC(
         numero_pdv=body.numero_pdv,
         nom_pdv=body.nom_pdv,
-        indicateur=body.indicateur,
+        indicateur=inds[0],
+        indicateurs=inds,
         tc_user_id=current_user.id,
         tc_nom=tc_nom,
         statut=body.statut,
@@ -78,7 +114,7 @@ def create_appel(
         send_notification(
             db=db,
             title=f"📞 Appel TC — {body.numero_pdv}",
-            message=f"{tc_nom} a appelé le PDV {body.nom_pdv or body.numero_pdv} [{body.indicateur.value}] : {statut_label}",
+            message=f"{tc_nom} a appelé le PDV {body.nom_pdv or body.numero_pdv} [{', '.join(inds)}] : {statut_label}",
             target_roles=["ADMIN", "RC"],
         )
     except Exception:
@@ -91,6 +127,7 @@ def create_appel(
 def list_appels(
     numero_pdv: Optional[str] = Query(None),
     indicateur: Optional[str] = Query(None),
+    tc_user_id: Optional[int] = Query(None, description="Filtrer sur un COMPTE téléconseillère précis"),
     mes_appels_seulement: bool = Query(False, description="Si True, retourne uniquement les appels de l'utilisateur connecté"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
@@ -104,6 +141,8 @@ def list_appels(
         q = q.filter(AppelTC.numero_pdv == numero_pdv)
     if indicateur:
         q = q.filter(AppelTC.indicateur == indicateur)
+    if tc_user_id:
+        q = q.filter(AppelTC.tc_user_id == tc_user_id)
     if mes_appels_seulement:
         q = q.filter(AppelTC.tc_user_id == current_user.id)
 
@@ -201,38 +240,47 @@ def get_dashboard_admin(
         AppelTC.date_rappel <= today,
     ).scalar()
 
-    # ── Par TC ──
-    par_tc = db.query(
+    # ── Par TC — regroupé par COMPTE utilisateur, en 3 requêtes (plus de N+1) ──
+    POSITIFS = ("JOIGNABLE_PROMESSE", "JOIGNABLE_DEJA_ACTIF")
+
+    par_tc_rows = db.query(
         AppelTC.tc_user_id,
-        AppelTC.tc_nom,
         func.count(AppelTC.id).label("total"),
-        func.count(func.nullif(AppelTC.statut.in_(["JOIGNABLE_PROMESSE", "JOIGNABLE_DEJA_ACTIF"]), False)).label("positifs"),
         func.max(AppelTC.created_at).label("dernier_appel"),
-    ).group_by(AppelTC.tc_user_id, AppelTC.tc_nom).all()
+    ).group_by(AppelTC.tc_user_id).all()
 
-    # Stats par statut pour chaque TC
+    statuts_map = {}
+    for uid, st, cnt in db.query(
+        AppelTC.tc_user_id, AppelTC.statut, func.count(AppelTC.id)
+    ).group_by(AppelTC.tc_user_id, AppelTC.statut).all():
+        key = st.value if hasattr(st, "value") else str(st)
+        statuts_map.setdefault(uid, {})[key] = int(cnt)
+
+    auj_map = {uid: int(cnt) for uid, cnt in db.query(
+        AppelTC.tc_user_id, func.count(AppelTC.id)
+    ).filter(func.date(AppelTC.created_at) == today).group_by(AppelTC.tc_user_id).all()}
+
+    # Nom canonique depuis le COMPTE utilisateur (le nom stocké sert de repli)
+    users_map = {u.id: _full_name(u) for u in db.query(User).all()}
+    nom_stocke = {uid: nom for uid, nom in db.query(
+        AppelTC.tc_user_id, func.max(AppelTC.tc_nom)
+    ).group_by(AppelTC.tc_user_id).all()}
+
     par_tc_detail = []
-    for row in par_tc:
-        stats_statut = db.query(
-            AppelTC.statut, func.count(AppelTC.id).label("count")
-        ).filter(AppelTC.tc_user_id == row.tc_user_id).group_by(AppelTC.statut).all()
-
-        aujourd_hui_tc = db.query(func.count(AppelTC.id)).filter(
-            AppelTC.tc_user_id == row.tc_user_id,
-            func.date(AppelTC.created_at) == today
-        ).scalar()
-
-        taux_joignabilite = round(int(row.positifs or 0) / int(row.total) * 100, 1) if row.total else 0
+    for row in par_tc_rows:
+        details = statuts_map.get(row.tc_user_id, {})
+        total_tc = int(row.total or 0)
+        positifs_tc = sum(details.get(s, 0) for s in POSITIFS)
 
         par_tc_detail.append({
             "tc_user_id": row.tc_user_id,
-            "tc_nom": row.tc_nom,
-            "total": int(row.total),
-            "positifs": int(row.positifs or 0),
-            "taux_joignabilite": taux_joignabilite,
-            "aujourd_hui": int(aujourd_hui_tc or 0),
+            "tc_nom": users_map.get(row.tc_user_id) or nom_stocke.get(row.tc_user_id) or f"Compte #{row.tc_user_id}",
+            "total": total_tc,
+            "positifs": positifs_tc,
+            "taux_joignabilite": round(positifs_tc / total_tc * 100, 1) if total_tc else 0,
+            "aujourd_hui": auj_map.get(row.tc_user_id, 0),
             "dernier_appel": row.dernier_appel.isoformat() if row.dernier_appel else None,
-            "par_statut": {r.statut.value: int(r.count) for r in stats_statut},
+            "par_statut": details,
         })
 
     par_tc_detail.sort(key=lambda x: x["total"], reverse=True)
@@ -327,10 +375,17 @@ def get_liste_unifiee(
     nom_prenom = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
     prenom_nom = f"{current_user.nom or ''} {current_user.prenom or ''}".strip()
     nom_complet = nom_prenom  # format standard: FATOUMATA DOUMBIA
-    if current_user.role == 'SUPERVISEUR' and nom_complet:
-        pdv_query = pdv_query.filter(PDV.superviseur == nom_complet)
-    elif current_user.role in ('TELECONSEILLERE', 'TC') and nom_complet:
-        pdv_query = pdv_query.filter(PDV.teleconseillere == nom_complet)
+    # Rôle comparé SANS tenir compte de la casse ('TELECONSEILLERE' vs 'teleconseillere')
+    role_norm = str(current_user.role or '').lower().replace('userrole.', '')
+    if role_norm == 'superviseur' and nom_prenom:
+        pdv_query = pdv_query.filter(or_(PDV.superviseur == nom_prenom, PDV.superviseur == prenom_nom))
+    elif role_norm in ('teleconseillere', 'tc'):
+        # Lien par COMPTE (fiable) OU par nom (repli)
+        pdv_query = pdv_query.filter(or_(
+            PDV.teleconseillere_user_id == current_user.id,
+            PDV.teleconseillere == nom_prenom,
+            PDV.teleconseillere == prenom_nom,
+        ))
     pdvs = pdv_query.all()
     pdv_map = {p.numero_pdv: p for p in pdvs}
 
@@ -478,26 +533,43 @@ def marquer_appele(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Marquer un PDV comme appelé depuis la liste unifiée."""
+    """Marquer un PDV comme appelé depuis la liste unifiée.
+
+    Un appel « unifié » couvre plusieurs indicateurs mais compte pour UN SEUL appel.
+    """
     from app.models.pdv import PDV
+
+    try:
+        statut_enum = StatutAppel(statut)
+    except ValueError:
+        raise HTTPException(400, f"Statut d'appel invalide : {statut}")
+
+    inds = _normalize_indicateurs(indicateurs)
+    if not inds:
+        raise HTTPException(400, "Au moins un indicateur valide est requis (OMY, NAFAMA ou KAABU)")
+
     pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv).first()
     nom_pdv = pdv.nom if pdv else numero_pdv
 
-    # Créer un appel TC par indicateur mentionné
-    inds = [i.strip() for i in indicateurs.split(',') if i.strip()] or ['UNIFIE']
-    for ind in inds:
-        appel = AppelTC(
-            numero_pdv=numero_pdv,
-            nom_pdv=nom_pdv,
-            indicateur=ind if ind in ('OMY','NAFAMA','KAABU','UNIFIE') else 'UNIFIE',
-            tc_user_id=current_user.id,
-            tc_nom=current_user.nom_complet or current_user.email,
-            statut=statut,
-            commentaire=commentaire,
-        )
-        db.add(appel)
+    appel = AppelTC(
+        numero_pdv=numero_pdv,
+        nom_pdv=nom_pdv,
+        indicateur=inds[0],
+        indicateurs=inds,
+        tc_user_id=current_user.id,
+        tc_nom=_full_name(current_user),
+        statut=statut_enum,
+        commentaire=commentaire,
+    )
+    db.add(appel)
     db.commit()
-    return {"success": True, "message": f"Appel enregistré pour {numero_pdv}"}
+    db.refresh(appel)
+    return {
+        "success": True,
+        "message": f"Appel enregistré pour {numero_pdv}",
+        "appel_id": appel.id,
+        "indicateurs": inds,
+    }
 
 
 @router.get("/appels-tc/suivi/par-tc")
@@ -522,43 +594,55 @@ def suivi_par_tc(
         func.extract('month', AppelTC.created_at) == mois,
     ).all()
 
-    # Grouper par TC
+    # Grouper par COMPTE utilisateur (tc_user_id)
     from collections import defaultdict
     tc_stats = defaultdict(lambda: {
-        'tc_nom': '', 'total': 0, 'joignables': 0, 'injoignables': 0,
+        'total': 0, 'joignables': 0, 'injoignables': 0,
         'promesses': 0, 'rappels': 0, 'par_indicateur': defaultdict(int),
         'derniere_activite': None, 'pdvs_appeles': set()
     })
 
     for a in appels_mois:
-        nom = a.tc_nom or 'Inconnu'
-        tc_stats[nom]['tc_nom'] = nom
-        tc_stats[nom]['total'] += 1
-        tc_stats[nom]['par_indicateur'][a.indicateur or 'AUTRE'] += 1
-        tc_stats[nom]['pdvs_appeles'].add(a.numero_pdv)
-        if a.statut in ('JOIGNABLE_PROMESSE', 'JOIGNABLE_PAS_INTERESSE', 'JOIGNABLE_DEJA_ACTIF'):
-            tc_stats[nom]['joignables'] += 1
-        elif 'NON_JOIGNABLE' in (a.statut or ''):
-            tc_stats[nom]['injoignables'] += 1
-        if a.statut == 'JOIGNABLE_PROMESSE':
-            tc_stats[nom]['promesses'] += 1
-        if a.statut == 'RAPPEL_PROGRAMME':
-            tc_stats[nom]['rappels'] += 1
-        if not tc_stats[nom]['derniere_activite'] or a.created_at > tc_stats[nom]['derniere_activite']:
-            tc_stats[nom]['derniere_activite'] = a.created_at
+        uid = a.tc_user_id
+        tc_stats[uid]['total'] += 1
+        ind = a.indicateur.value if hasattr(a.indicateur, 'value') else (a.indicateur or 'AUTRE')
+        tc_stats[uid]['par_indicateur'][ind] += 1
+        tc_stats[uid]['pdvs_appeles'].add(a.numero_pdv)
+        statut = a.statut.value if hasattr(a.statut, 'value') else str(a.statut or '')
+        if statut in ('JOIGNABLE_PROMESSE', 'JOIGNABLE_PAS_INTERESSE', 'JOIGNABLE_DEJA_ACTIF'):
+            tc_stats[uid]['joignables'] += 1
+        elif 'NON_JOIGNABLE' in statut:
+            tc_stats[uid]['injoignables'] += 1
+        if statut == 'JOIGNABLE_PROMESSE':
+            tc_stats[uid]['promesses'] += 1
+        if statut == 'RAPPEL_PROGRAMME':
+            tc_stats[uid]['rappels'] += 1
+        if not tc_stats[uid]['derniere_activite'] or a.created_at > tc_stats[uid]['derniere_activite']:
+            tc_stats[uid]['derniere_activite'] = a.created_at
 
-    # Ajouter PDVs assignés par TC (depuis table PDVs)
-    pdvs_par_tc = db.query(PDV.teleconseillere, func.count(PDV.id).label('nb')).filter(
-        PDV.statut == 'ACTIF', PDV.teleconseillere.isnot(None)
-    ).group_by(PDV.teleconseillere).all()
-    pdvs_map = {r.teleconseillere: r.nb for r in pdvs_par_tc}
+    # PDVs assignés — par COMPTE, avec repli par nom tant que le lien n'est pas rempli
+    pdvs_par_uid = {uid: int(nb) for uid, nb in db.query(
+        PDV.teleconseillere_user_id, func.count(PDV.id)
+    ).filter(PDV.statut == 'ACTIF', PDV.teleconseillere_user_id.isnot(None)
+    ).group_by(PDV.teleconseillere_user_id).all()}
+
+    pdvs_par_nom = {n: int(c) for n, c in db.query(
+        PDV.teleconseillere, func.count(PDV.id)
+    ).filter(PDV.statut == 'ACTIF', PDV.teleconseillere.isnot(None)
+    ).group_by(PDV.teleconseillere).all()}
+
+    # Noms canoniques depuis les COMPTES (repli : nom stocké sur l'appel)
+    users_map = {u.id: _full_name(u) for u in db.query(User).all()}
+    noms_stockes = {a.tc_user_id: a.tc_nom for a in appels_mois if a.tc_nom}
 
     result = []
-    for nom, stats in tc_stats.items():
-        nb_pdvs = pdvs_map.get(nom, 0)
+    for uid, stats in tc_stats.items():
+        nom = users_map.get(uid) or noms_stockes.get(uid) or f"Compte #{uid}"
+        nb_pdvs = pdvs_par_uid.get(uid) or pdvs_par_nom.get(nom, 0)
         nb_appeles = len(stats['pdvs_appeles'])
         taux = round(stats['joignables'] / stats['total'] * 100) if stats['total'] > 0 else 0
         result.append({
+            'tc_user_id': uid,
             'tc_nom': nom,
             'pdvs_assignes': nb_pdvs,
             'pdvs_appeles_mois': nb_appeles,
@@ -597,6 +681,8 @@ def performance_mensuelle(
         mois_list.append((an, mo))
 
     MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
+    users_map = {u.id: _full_name(u) for u in db.query(User).all()}
+
     result = []
     for ann, mo in mois_list:
         appels = db.query(AppelTC).filter(
@@ -605,11 +691,13 @@ def performance_mensuelle(
         ).all()
         tc_data = defaultdict(lambda: {'total': 0, 'joignables': 0, 'promesses': 0})
         for a in appels:
-            nom = a.tc_nom or 'Inconnu'
+            # Rattachement au COMPTE utilisateur, avec repli sur le nom stocké
+            nom = users_map.get(a.tc_user_id) or a.tc_nom or 'Inconnu'
+            statut = a.statut.value if hasattr(a.statut, 'value') else str(a.statut or '')
             tc_data[nom]['total'] += 1
-            if a.statut and 'JOIGNABLE' in a.statut and 'NON' not in a.statut:
+            if 'JOIGNABLE' in statut and 'NON' not in statut:
                 tc_data[nom]['joignables'] += 1
-            if a.statut == 'JOIGNABLE_PROMESSE':
+            if statut == 'JOIGNABLE_PROMESSE':
                 tc_data[nom]['promesses'] += 1
         result.append({
             'mois': f"{MOIS_NOMS[mo]} {ann}",
@@ -619,6 +707,86 @@ def performance_mensuelle(
         })
 
     return {'historique': result}
+
+
+@router.get("/tc/comptes")
+def get_tc_comptes(
+    annee: int = Query(None),
+    mois: int = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Liste des COMPTES téléconseillères avec leur activité et leurs PDV affectés.
+
+    C'est le lien explicite entre un appel et le COMPTE qui l'a effectué :
+    les statistiques sont rattachées à `users.id`, pas à un nom écrit en texte.
+    """
+    today = date.today()
+    if not annee:
+        annee = today.year
+    if not mois:
+        mois = today.month
+
+    # Comptes dont le rôle contient « teleconseill »
+    comptes = [u for u in db.query(User).order_by(User.nom).all()
+               if 'teleconseill' in str(u.role or '').lower()]
+
+    # PDV affectés — par COMPTE, avec repli par nom tant que le lien n'est pas rempli
+    pdvs_par_uid = {uid: int(nb) for uid, nb in db.query(
+        PDV.teleconseillere_user_id, func.count(PDV.id)
+    ).filter(PDV.statut == 'ACTIF', PDV.teleconseillere_user_id.isnot(None)
+    ).group_by(PDV.teleconseillere_user_id).all()}
+
+    pdvs_par_nom = {n: int(c) for n, c in db.query(
+        PDV.teleconseillere, func.count(PDV.id)
+    ).filter(PDV.statut == 'ACTIF', PDV.teleconseillere.isnot(None)
+    ).group_by(PDV.teleconseillere).all()}
+
+    # Activité du mois, par COMPTE
+    agg = {}
+    for uid, statut, created in db.query(
+        AppelTC.tc_user_id, AppelTC.statut, AppelTC.created_at
+    ).filter(
+        extract('year', AppelTC.created_at) == annee,
+        extract('month', AppelTC.created_at) == mois,
+    ).all():
+        d = agg.setdefault(uid, {'total': 0, 'joignables': 0, 'promesses': 0, 'dernier': None})
+        d['total'] += 1
+        sv = statut.value if hasattr(statut, 'value') else str(statut or '')
+        if sv in ('JOIGNABLE_PROMESSE', 'JOIGNABLE_PAS_INTERESSE', 'JOIGNABLE_DEJA_ACTIF'):
+            d['joignables'] += 1
+        if sv == 'JOIGNABLE_PROMESSE':
+            d['promesses'] += 1
+        if created and (not d['dernier'] or created > d['dernier']):
+            d['dernier'] = created
+
+    resultat = []
+    for u in comptes:
+        nom = _full_name(u)
+        a = agg.get(u.id, {})
+        total = a.get('total', 0)
+        joignables = a.get('joignables', 0)
+        resultat.append({
+            'tc_user_id': u.id,
+            'tc_nom': nom,
+            'email': u.email,
+            'role': str(u.role),
+            'is_active': bool(u.is_active),
+            'pdvs_assignes': pdvs_par_uid.get(u.id) or pdvs_par_nom.get(nom, 0),
+            'appels_mois': total,
+            'joignables': joignables,
+            'promesses': a.get('promesses', 0),
+            'taux_joignabilite': round(joignables / total * 100, 1) if total else 0,
+            'dernier_appel': a['dernier'].isoformat() if a.get('dernier') else None,
+        })
+
+    resultat.sort(key=lambda x: -x['appels_mois'])
+    return {
+        'comptes': resultat,
+        'total_comptes': len(resultat),
+        'annee': annee,
+        'mois': mois,
+    }
 
 
 @router.delete("/appels-tc/{appel_id}")

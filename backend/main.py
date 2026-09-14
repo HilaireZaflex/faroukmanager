@@ -216,6 +216,14 @@ async def auto_migrate():
         "ALTER TABLE prospects ALTER COLUMN status TYPE VARCHAR(50)",
         "ALTER TABLE prospect_history ALTER COLUMN from_status TYPE VARCHAR(50)",
         "ALTER TABLE prospect_history ALTER COLUMN to_status TYPE VARCHAR(50)",
+        # ── Suivi TC : lien des appels et des affectations vers les COMPTES utilisateurs ──
+        "ALTER TABLE appels_tc ADD COLUMN IF NOT EXISTS indicateurs JSONB",
+        "CREATE INDEX IF NOT EXISTS ix_appels_tc_tc_user_created ON appels_tc (tc_user_id, created_at)",
+        "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS teleconseillere_user_id INTEGER",
+        "CREATE INDEX IF NOT EXISTS ix_pdvs_teleconseillere_user_id ON pdvs (teleconseillere_user_id)",
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_appels_tc_user') THEN ALTER TABLE appels_tc ADD CONSTRAINT fk_appels_tc_user FOREIGN KEY (tc_user_id) REFERENCES users(id); END IF; END $$",
+        # Remplissage du lien PDV -> compte TC par correspondance de nom (idempotent : ne remplit que les NULL)
+        "UPDATE pdvs SET teleconseillere_user_id = (SELECT u.id FROM users u WHERE UPPER(TRIM(COALESCE(u.prenom,'') || ' ' || COALESCE(u.nom,''))) = UPPER(TRIM(pdvs.teleconseillere)) AND POSITION('teleconseill' IN LOWER(COALESCE(u.role,''))) > 0 LIMIT 1) WHERE teleconseillere_user_id IS NULL AND teleconseillere IS NOT NULL AND TRIM(teleconseillere) <> ''",
     ]
     try:
         with engine.connect() as conn:
@@ -240,6 +248,21 @@ async def auto_migrate():
                         conn.commit()
                     except Exception:
                         pass  # colonne déjà présente
+                # ── Suivi TC (SQLite : JSON au lieu de JSONB) ──
+                for sql in [
+                    "ALTER TABLE appels_tc ADD COLUMN indicateurs JSON",
+                    "ALTER TABLE pdvs ADD COLUMN teleconseillere_user_id INTEGER",
+                ]:
+                    try:
+                        conn.execute(text(sql))
+                        conn.commit()
+                    except Exception:
+                        pass  # colonne déjà présente
+                try:
+                    conn.execute(text("UPDATE pdvs SET teleconseillere_user_id = (SELECT u.id FROM users u WHERE UPPER(TRIM(COALESCE(u.prenom,'') || ' ' || COALESCE(u.nom,''))) = UPPER(TRIM(pdvs.teleconseillere)) LIMIT 1) WHERE teleconseillere_user_id IS NULL AND teleconseillere IS NOT NULL AND TRIM(teleconseillere) <> ''"))
+                    conn.commit()
+                except Exception:
+                    pass  # remplissage non bloquant
         print("✅ Auto-migration prospects OK")
     except Exception as e:
         print(f"⚠️ Auto-migration prospects: {e}")
