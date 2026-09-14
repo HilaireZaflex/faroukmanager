@@ -66,3 +66,18 @@ class ReclamationNotification(Base):
     type_notif = Column(String(50))  # NOUVELLE / REPONSE / CLOTURE / ESCALADE / RELANCE
     lue = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ReclamationHistorique(Base):
+    """Fil d'activité d'une réclamation (traçabilité de chaque action)."""
+    __tablename__ = "reclamation_historique"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reclamation_id = Column(Integer, ForeignKey("reclamations.id"), nullable=False, index=True)
+    auteur_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    auteur_nom = Column(String(200))
+    action = Column(String(50), nullable=False)  # CREATION / STATUT / REPONSE / REASSIGNATION / COMMENTAIRE / NOTE / RELANCE
+    ancienne_valeur = Column(String(200), nullable=True)
+    nouvelle_valeur = Column(String(200), nullable=True)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

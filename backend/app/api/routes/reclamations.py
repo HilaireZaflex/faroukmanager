@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user
 from app.models.user import User
-from app.models.reclamation import Reclamation, ReclamationCommentaire, ReclamationNotification
+from app.models.reclamation import Reclamation, ReclamationCommentaire, ReclamationNotification, ReclamationHistorique
 
 router = APIRouter()
 
@@ -44,6 +44,23 @@ def _est_en_retard(r: Reclamation) -> bool:
     if r.date_limite:
         return datetime.utcnow() > r.date_limite
     return (datetime.utcnow() - r.created_at) > timedelta(hours=72)
+
+
+def log_historique(db: Session, reclamation_id: int, user, action: str,
+                   ancienne_valeur=None, nouvelle_valeur=None, details=None):
+    """Ajoute une entrée au fil d'activité d'une réclamation."""
+    nom = "Système"
+    if user is not None:
+        nom = f"{user.prenom or ''} {user.nom or ''}".strip() or (user.email or "Utilisateur")
+    db.add(ReclamationHistorique(
+        reclamation_id=reclamation_id,
+        auteur_id=user.id if user is not None else None,
+        auteur_nom=nom,
+        action=action,
+        ancienne_valeur=str(ancienne_valeur)[:200] if ancienne_valeur is not None else None,
+        nouvelle_valeur=str(nouvelle_valeur)[:200] if nouvelle_valeur is not None else None,
+        details=details,
+    ))
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -203,6 +220,12 @@ def create_reclamation(
     db.add(r)
     db.flush()
 
+    log_historique(
+        db, r.id, current_user, "CREATION",
+        nouvelle_valeur="OUVERTE",
+        details=f"Réclamation créée ({r.categorie} / {r.priorite})" + (f" → {responsable_nom}" if responsable_nom else " — non assignée"),
+    )
+
     # Notifications
     msg_admin = f"📣 Nouvelle réclamation de {nom_complet} → {responsable_nom or 'Non assigné'} : \"{r.titre}\" [{r.priorite}]"
     msg_resp = f"📣 {nom_complet} vous a assigné une réclamation : \"{r.titre}\" [{r.priorite}]. Merci de traiter dans les 72h."
@@ -252,6 +275,20 @@ def get_reclamation(
         "created_at": c.created_at.isoformat() if c.created_at else None,
     } for c in commentaires if peut_voir_interne or not c.est_interne]
 
+    # Fil d'activité (traçabilité)
+    historique = db.query(ReclamationHistorique).filter(
+        ReclamationHistorique.reclamation_id == rec_id
+    ).order_by(ReclamationHistorique.created_at.asc()).all()
+    data["historique"] = [{
+        "id": h.id,
+        "action": h.action,
+        "auteur_nom": h.auteur_nom,
+        "ancienne_valeur": h.ancienne_valeur,
+        "nouvelle_valeur": h.nouvelle_valeur,
+        "details": h.details,
+        "created_at": h.created_at.isoformat() if h.created_at else None,
+    } for h in historique]
+
     return data
 
 
@@ -297,6 +334,7 @@ def update_reclamation(
     if "statut" in data:
         r.statut = data["statut"]
         r.updated_at = datetime.utcnow()
+        log_historique(db, r.id, current_user, "STATUT", ancienne_valeur=ancien_statut, nouvelle_valeur=data["statut"])
 
         if data["statut"] == "EN_COURS" and not r.date_prise_en_charge:
             r.date_prise_en_charge = datetime.utcnow()
@@ -326,13 +364,18 @@ def update_reclamation(
     # Réponse sans changement de statut
     if "reponse" in data:
         r.reponse = data["reponse"]
+        if data.get("statut") != "RESOLUE":
+            log_historique(db, r.id, current_user, "REPONSE",
+                           details=(str(data["reponse"])[:300] if data.get("reponse") else None))
 
     # Note de satisfaction (soumetteur uniquement)
     if "note_satisfaction" in data and current_user.id == r.soumetteur_id:
         r.note_satisfaction = data["note_satisfaction"]
+        log_historique(db, r.id, current_user, "NOTE", nouvelle_valeur=data["note_satisfaction"])
 
     # Réassignation
     if "responsable_id" in data:
+        ancien_responsable = r.responsable_nom
         if data["responsable_id"] in (None, ""):
             r.responsable_id = None
             r.responsable_nom = None
@@ -345,6 +388,9 @@ def update_reclamation(
                 r.responsable_nom = f"{new_resp.prenom or ''} {new_resp.nom or ''}".strip()
                 msg = f"👤 Réclamation \"{r.titre}\" réassignée à {r.responsable_nom} par {nom_complet}"
                 type_notif = "REASSIGNATION"
+        log_historique(db, r.id, current_user, "REASSIGNATION",
+                       ancienne_valeur=ancien_responsable or "Non assigné",
+                       nouvelle_valeur=r.responsable_nom or "Non assigné")
 
     # Envoyer notifications
     if msg:
@@ -391,6 +437,9 @@ def add_commentaire(
     )
     db.add(c)
 
+    log_historique(db, rec_id, current_user, "COMMENTAIRE",
+                   details=("Note interne" if est_interne else contenu[:200]))
+
     # Notifier les parties prenantes
     msg = f"💬 {nom_complet} a commenté la réclamation \"{r.titre}\" : \"{contenu[:80]}...\""
     parties = set()
@@ -410,6 +459,46 @@ def add_commentaire(
 
     db.commit()
     return {"success": True, "commentaire": {"auteur_nom": nom_complet, "contenu": contenu, "est_interne": est_interne}}
+
+
+@router.post("/reclamations/{rec_id}/relancer")
+def relancer_reclamation(
+    rec_id: int,
+    data: dict = {},
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Relancer le traitement d'une réclamation (soumetteur ou administrateur)."""
+    r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
+    if not (_est_admin(current_user) or r.soumetteur_id == current_user.id):
+        raise HTTPException(status_code=403, detail="Seuls le soumetteur ou un administrateur peuvent relancer")
+    if r.statut in ('RESOLUE', 'CLOTUREE'):
+        raise HTTPException(status_code=400, detail="Cette réclamation est déjà traitée")
+
+    motif = (data.get("motif") or "").strip()
+    nom_complet = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
+    r.nb_relances = (r.nb_relances or 0) + 1
+    r.updated_at = datetime.utcnow()
+
+    msg = f"🔔 Relance #{r.nb_relances} sur la réclamation \"{r.titre}\" par {nom_complet}"
+    if motif:
+        msg += f" — {motif}"
+
+    if r.responsable_id and r.responsable_id != current_user.id:
+        notifier(db, r.id, r.responsable_id, msg, "RELANCE")
+    for admin in _admins(db):
+        if admin.id != current_user.id and admin.id != r.responsable_id:
+            notifier(db, r.id, admin.id, msg, "RELANCE")
+
+    log_historique(db, r.id, current_user, "RELANCE",
+                   nouvelle_valeur=str(r.nb_relances), details=motif or None)
+
+    db.commit()
+    return {"success": True, "nb_relances": r.nb_relances}
 
 
 @router.get("/reclamations-notifications")

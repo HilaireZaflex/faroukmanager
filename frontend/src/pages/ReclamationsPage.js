@@ -27,6 +27,16 @@ const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
 
+// Fil d'activité
+const ACTION_LABELS = {
+  CREATION: 'création', STATUT: 'changement de statut', REPONSE: 'réponse',
+  REASSIGNATION: 'réassignation', COMMENTAIRE: 'commentaire', NOTE: 'évaluation', RELANCE: 'relance',
+};
+const ACTION_ICONS = {
+  CREATION: '🆕', STATUT: '🔄', REPONSE: '✅', REASSIGNATION: '👤',
+  COMMENTAIRE: '💬', NOTE: '⭐', RELANCE: '🔔',
+};
+
 function StatutBadge({ statut }) {
   const cfg = STATUT_CFG[statut] || STATUT_CFG.OUVERTE;
   return (
@@ -239,6 +249,17 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
     finally { setLoading(false); }
   };
 
+  const handleRelancer = async () => {
+    const motif = window.prompt('Motif de la relance (optionnel) :') || '';
+    setLoading(true);
+    try {
+      await api.post(`/reclamations/${rec.id}/relancer`, { motif });
+      toast.success('Relance envoyée au responsable');
+      onRefresh(); refetchDetails();
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
+    finally { setLoading(false); }
+  };
+
   const cfg = STATUT_CFG[details?.statut || rec.statut] || STATUT_CFG.OUVERTE;
   const commentaires = details?.commentaires || [];
 
@@ -253,6 +274,7 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
               <PrioriteBadge priorite={rec.priorite} />
               <span style={{ fontSize: 11, color: '#64748b' }}>#{rec.id} · {new Date(rec.created_at).toLocaleDateString('fr-FR')}</span>
               {(details || rec).en_retard && <span style={{ fontSize: 10, background: 'rgba(255,71,87,0.15)', color: '#ff4757', borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>⏰ EN RETARD</span>}
+              {(rec.nb_relances || 0) > 0 && <span style={{ fontSize: 10, background: 'rgba(255,165,2,0.15)', color: '#ffa502', borderRadius: 6, padding: '2px 8px', fontWeight: 700 }}>🔔 {rec.nb_relances} relance(s)</span>}
             </div>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginBottom: 4 }}>{rec.titre}</div>
             <div style={{ fontSize: 12, color: '#64748b' }}>
@@ -355,6 +377,16 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
           </div>
         )}
 
+        {/* Relance (soumetteur ou admin, tant que non traitée) */}
+        {(isSoumetteur || isAdmin) && !['RESOLUE', 'CLOTUREE'].includes(details?.statut || rec.statut) && (
+          <div style={{ marginBottom: 16 }}>
+            <button onClick={handleRelancer} disabled={loading}
+              style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,165,2,0.3)', background: 'rgba(255,165,2,0.08)', color: '#ffa502', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>
+              🔔 Relancer le responsable
+            </button>
+          </div>
+        )}
+
         {/* Commentaires */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 12 }}>💬 Discussion ({commentaires.length})</div>
@@ -387,6 +419,32 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
               Envoyer
             </button>
           </div>
+        </div>
+
+        {/* Fil d'activité */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 12 }}>🕓 Fil d'activité</div>
+          {(details?.historique || []).length === 0 ? (
+            <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', padding: 12 }}>Aucune activité enregistrée</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {(details?.historique || []).slice().reverse().map(h => (
+                <div key={h.id} style={{ display: 'flex', gap: 10, fontSize: 11, lineHeight: 1.5 }}>
+                  <span style={{ color: '#64748b', minWidth: 92, flexShrink: 0 }}>
+                    {h.created_at ? new Date(h.created_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </span>
+                  <span style={{ color: '#94a3b8' }}>
+                    {ACTION_ICONS[h.action] || '•'} <strong style={{ color: '#e2e8f0' }}>{h.auteur_nom}</strong>
+                    {' — '}{ACTION_LABELS[h.action] || h.action}
+                    {h.ancienne_valeur && h.nouvelle_valeur
+                      ? <> : <span style={{ color: '#cbd5e1' }}>{h.ancienne_valeur} → {h.nouvelle_valeur}</span></>
+                      : (h.nouvelle_valeur ? <> : <span style={{ color: '#cbd5e1' }}>{h.nouvelle_valeur}</span></> : null)}
+                    {h.details ? <> — <em style={{ color: '#8a8a9a' }}>{h.details}</em></> : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Note satisfaction */}
