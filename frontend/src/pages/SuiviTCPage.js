@@ -700,6 +700,153 @@ function TabComptes({ annee: anneeInit, mois: moisInit }) {
   );
 }
 
+// ─── Tab 8 : Appels Migration (encadrement) ───────────────────────────────────
+function TabMigrationAdmin() {
+  const [statut, setStatut] = useState('');
+  const [typePdv, setTypePdv] = useState('');
+  const [tcId, setTcId] = useState('');
+  const [search, setSearch] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const { data: stats } = useQuery('mig-stats', () =>
+    api.get('/tc/migration/stats').then(r => r.data), { staleTime: 60000 });
+
+  const { data: list, isLoading } = useQuery(
+    ['mig-list', statut, typePdv, tcId],
+    () => api.get('/tc/migration', {
+      params: { statut: statut || undefined, type_pdv: typePdv || undefined, tc_user_id: tcId || undefined, limit: 500 },
+    }).then(r => r.data),
+    { staleTime: 30000 }
+  );
+
+  const items = (list?.items || []).filter(m => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (m.numero_pdv || '').toLowerCase().includes(s)
+        || (m.nom_pdv || '').toLowerCase().includes(s)
+        || (m.tc_nom || '').toLowerCase().includes(s);
+  });
+
+  const exporter = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const r = await api.get('/tc/migration/export', {
+        params: { statut: statut || undefined, type_pdv: typePdv || undefined, tc_user_id: tcId || undefined },
+        responseType: 'blob',
+      });
+      const u = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = `appels_migration_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(u);
+      setMsg('✅ Export généré');
+    } catch (e) { setMsg('⚠️ Export impossible'); }
+    finally { setBusy(false); }
+  };
+
+  const lignes = [
+    { label: 'Appels migration', value: stats?.total || 0, color: '#FF6900' },
+    { label: '✅ Éligibles', value: stats?.valides || 0, color: '#22c55e' },
+    { label: '❌ Rejetés', value: stats?.rejetes || 0, color: '#ff4757' },
+    { label: 'Taux d\'éligibilité', value: `${stats?.taux_validation || 0}%`, color: '#4a9eff' },
+  ];
+  const selStyle = (v) => ({ flex: '1 1 130px', padding: '9px 10px',
+    background: v ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)',
+    border: `1px solid ${v ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`,
+    borderRadius: 10, color: v ? '#FF6900' : '#94a3b8', fontSize: 13, cursor: 'pointer', outline: 'none' });
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
+        {lignes.map(k => (
+          <div key={k.label} style={{ background: `${k.color}10`, border: `1px solid ${k.color}30`, borderRadius: 12, padding: '14px 18px', textAlign: 'center' }}>
+            <div style={{ fontSize: 26, fontWeight: 900, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, width: '100%' }}>
+        <input placeholder="🔍 Rechercher (PDV, TC)…" value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: '2 1 220px', minWidth: 160, padding: '9px 12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box', borderRadius: 10 }} />
+        <select value={statut} onChange={e => setStatut(e.target.value)} style={selStyle(statut)}>
+          <option value="">🔖 Tous résultats</option>
+          <option value="VALIDE">✅ Éligibles</option>
+          <option value="REJETE">❌ Rejetés</option>
+        </select>
+        <select value={typePdv} onChange={e => setTypePdv(e.target.value)} style={selStyle(typePdv)}>
+          <option value="">🏷️ Tous types</option>
+          <option value="RS">RS</option>
+          <option value="KIOSQUE">KIOSQUE</option>
+        </select>
+        <select value={tcId} onChange={e => setTcId(e.target.value)} style={selStyle(tcId)}>
+          <option value="">👤 Toutes les TC</option>
+          {(stats?.par_tc || []).map(t => <option key={t.tc_user_id} value={t.tc_user_id}>{t.tc_nom}</option>)}
+        </select>
+        <button onClick={exporter} disabled={busy}
+          style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#22c55e', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          {busy ? '⏳…' : '⬇️ Exporter'}
+        </button>
+      </div>
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+        {items.length} appel(s) affiché(s){msg ? ` · ${msg}` : ''}
+      </div>
+
+      {isLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>⏳ Chargement…</div> : (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                {['Date', 'Téléconseillère', 'PDV', 'Type', 'Migrer', 'RCCM', 'Pièce', 'Résultat', 'Motif'].map(h => (
+                  <th key={h} style={{ padding: '10px 12px', fontSize: 11, color: '#64748b', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Aucun appel migration enregistré</td></tr>
+              ) : items.map((m, i) => (
+                <tr key={m.id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                  <td style={{ padding: '9px 12px', fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>{m.created_at ? m.created_at.slice(0, 16).replace('T', ' ') : '—'}</td>
+                  <td style={{ padding: '9px 12px', fontSize: 12, fontWeight: 700, color: '#FF6900' }}>{m.tc_nom}</td>
+                  <td style={{ padding: '9px 12px' }}>
+                    <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{m.nom_pdv || m.numero_pdv}</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>{m.numero_pdv}</div>
+                  </td>
+                  <td style={{ padding: '9px 12px' }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
+                      background: m.type_pdv === 'RS' ? 'rgba(74,158,255,0.15)' : 'rgba(162,155,254,0.15)',
+                      color: m.type_pdv === 'RS' ? '#4a9eff' : '#a29bfe' }}>{m.type_pdv}</span>
+                  </td>
+                  <td style={{ padding: '9px 12px', fontSize: 13 }}>{m.veut_migrer ? '✅' : '❌'}</td>
+                  <td style={{ padding: '9px 12px', fontSize: 13 }}>{m.a_rccm ? '✅' : '❌'}</td>
+                  <td style={{ padding: '9px 12px', fontSize: 12, color: '#ccc' }}>{m.a_piece_identite ? (m.type_piece_label || '✅') : '❌'}</td>
+                  <td style={{ padding: '9px 12px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8,
+                      background: m.statut === 'VALIDE' ? 'rgba(34,197,94,0.15)' : 'rgba(255,71,87,0.15)',
+                      color: m.statut === 'VALIDE' ? '#22c55e' : '#ff4757' }}>
+                      {m.statut === 'VALIDE' ? '✅ ÉLIGIBLE' : '❌ REJETÉ'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '9px 12px', fontSize: 11, color: '#8a8a9a', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {m.motif_rejet || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11, color: '#64748b', marginTop: 10 }}>
+        Un PDV est éligible uniquement s'il souhaite migrer en commission directe, possède son RCCM et une pièce d'identité valide (NINA, passeport ou carte biométrique).
+      </div>
+    </div>
+  );
+}
+
 // ─── Page Principale ──────────────────────────────────────────────────────────
 export default function SuiviTCPage() {
   const now = new Date();
@@ -721,6 +868,7 @@ export default function SuiviTCPage() {
     { id:'file-admin',  icon:'📞', label:'File unifiée (Admin)' },
     { id:'performance', icon:'📈', label:'Performance' },
     { id:'objectifs',   icon:'🎯', label:'Objectifs' },
+    { id:'migration',   icon:'🚀', label:'Appels Migration' },
   ];
 
   if (isLoading) return (
@@ -760,6 +908,7 @@ export default function SuiviTCPage() {
       {activeTab === 'file-admin'  && <TabFileAdmin/>}
       {activeTab === 'performance' && <TabPerformance/>}
       {activeTab === 'objectifs'   && <TabObjectifs annee={anneeP} mois={moisP}/>}
+      {activeTab === 'migration'   && <TabMigrationAdmin/>}
     </div>
   );
 }

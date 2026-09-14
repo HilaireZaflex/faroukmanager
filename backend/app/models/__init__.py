@@ -35,6 +35,7 @@ from app.models.nafama import NafamaTransaction
 from app.models.prospect_energia import ProspectEnergia
 from app.models.indicateur_award import IndicateurAward
 from app.models.appel_tc import AppelTC
+from app.models.appel_migration import AppelMigration
 from app.models.tc_objectif import TcObjectif
 from app.models.reclamation import (
     Reclamation, ReclamationCommentaire, ReclamationNotification,

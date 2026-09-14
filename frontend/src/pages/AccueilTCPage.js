@@ -479,6 +479,229 @@ function TabFileUnifiee() {
     </div>
   );
 }
+// ─── Appels Migration : qualification d'un PDV RS / KIOSQUE ───────────────────
+const MIGRATION_TYPES = [
+  { value: 'RS', label: 'RS', color: '#4a9eff' },
+  { value: 'KIOSQUE', label: 'KIOSQUE', color: '#a29bfe' },
+];
+const MIGRATION_TYPE_MAP = Object.fromEntries(MIGRATION_TYPES.map(t => [t.value, t]));
+const MIGRATION_PIECES = [
+  { value: 'NINA', label: 'Carte NINA' },
+  { value: 'PASSEPORT', label: 'Passeport' },
+  { value: 'CARTE_BIOMETRIQUE', label: 'Carte biométrique' },
+  { value: 'AUTRE', label: 'Autre pièce' },
+];
+
+function ChoixOuiNon({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 8 }}>
+      {[{ v: true, l: '✅ Oui', c: '#22c55e' }, { v: false, l: '❌ Non', c: '#ff4757' }].map(o => (
+        <button key={String(o.v)} type="button" onClick={() => onChange(o.v)}
+          style={{ flex: 1, padding: '9px 12px', borderRadius: 9, cursor: 'pointer', fontWeight: 800, fontSize: 13,
+            border: `2px solid ${value === o.v ? o.c : 'rgba(255,255,255,0.12)'}`,
+            background: value === o.v ? `${o.c}22` : 'rgba(255,255,255,0.03)',
+            color: value === o.v ? o.c : '#94a3b8' }}>
+          {o.l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MigrationModal({ pdv, onClose, onSuccess }) {
+  const [veut, setVeut] = React.useState(null);
+  const [rccm, setRccm] = React.useState(null);
+  const [piece, setPiece] = React.useState(null);
+  const [typePiece, setTypePiece] = React.useState('NINA');
+  const [commentaire, setCommentaire] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+
+  const complet = veut !== null && rccm !== null && piece !== null;
+  const valide = veut === true && rccm === true && piece === true;
+  const manques = [];
+  if (veut === false) manques.push('ne souhaite pas migrer');
+  if (rccm === false) manques.push('RCCM manquant');
+  if (piece === false) manques.push("pièce d'identité manquante");
+
+  const submit = async () => {
+    if (!complet) { alert('Veuillez répondre aux 3 questions.'); return; }
+    setLoading(true);
+    try {
+      await api.post('/tc/migration', {
+        numero_pdv: pdv.numero_pdv, nom_pdv: pdv.nom, type_pdv: pdv.type_pdv,
+        veut_migrer: veut, a_rccm: rccm, a_piece_identite: piece,
+        type_piece: piece ? typePiece : null,
+        commentaire: commentaire.trim() || null,
+      });
+      onSuccess?.();
+      onClose();
+    } catch (e) { alert(e?.response?.data?.detail || "Erreur lors de l'enregistrement"); }
+    finally { setLoading(false); }
+  };
+
+  const typeCfg = MIGRATION_TYPE_MAP[pdv.type_pdv] || { color: '#94a3b8', label: pdv.type_pdv };
+  const section = { marginBottom: 16 };
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 1000, backdropFilter: 'blur(3px)' }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(620px, 94vw)', maxHeight: '90vh', overflowY: 'auto',
+        background: 'linear-gradient(180deg,#1a1a2e,#0f0f1e)', border: '1px solid rgba(255,105,0,0.25)', borderRadius: 18, zIndex: 1001, padding: '20px 22px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#fff' }}>🚀 Appel Migration — {pdv.nom || pdv.numero_pdv}</div>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 3 }}>
+              {pdv.numero_pdv} · {pdv.zone || '—'}
+              <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800, background: `${typeCfg.color}22`, color: typeCfg.color }}>{typeCfg.label}</span>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#8a8a9a', cursor: 'pointer', fontSize: 18, width: 32, height: 32, flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={section}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#e2e8f0', marginBottom: 8 }}>1. Le PDV souhaite-t-il migrer en commission directe ?</div>
+          <ChoixOuiNon value={veut} onChange={setVeut} />
+        </div>
+        <div style={section}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#e2e8f0', marginBottom: 8 }}>2. Le PDV a-t-il son RCCM ?</div>
+          <ChoixOuiNon value={rccm} onChange={setRccm} />
+        </div>
+        <div style={section}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#e2e8f0', marginBottom: 8 }}>3. Possède-t-il une pièce d'identité (NINA, passeport, carte biométrique) en cours de validité ?</div>
+          <ChoixOuiNon value={piece} onChange={setPiece} />
+          {piece === true && (
+            <select value={typePiece} onChange={e => setTypePiece(e.target.value)}
+              style={{ marginTop: 8, width: '100%', padding: '9px 12px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.15)', background: '#1a1a2e', color: '#fff', fontSize: 13, boxSizing: 'border-box' }}>
+              {MIGRATION_PIECES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#e2e8f0', marginBottom: 6 }}>Commentaire (optionnel)</div>
+          <textarea value={commentaire} onChange={e => setCommentaire(e.target.value)} rows={2}
+            placeholder="Précisions, nom du gérant, remarques…"
+            style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#fff', fontSize: 13, boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+        </div>
+
+        {/* Verdict calculé automatiquement */}
+        <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 12,
+          background: !complet ? 'rgba(255,255,255,0.03)' : valide ? 'rgba(34,197,94,0.1)' : 'rgba(255,71,87,0.1)',
+          border: `1px solid ${!complet ? 'rgba(255,255,255,0.1)' : valide ? 'rgba(34,197,94,0.35)' : 'rgba(255,71,87,0.35)'}` }}>
+          <div style={{ fontSize: 13, fontWeight: 900, color: !complet ? '#94a3b8' : valide ? '#22c55e' : '#ff4757' }}>
+            {!complet ? 'Répondez aux 3 questions…' : valide ? '✅ ÉLIGIBLE à la migration' : '❌ NON ÉLIGIBLE — sera rejeté'}
+          </div>
+          {complet && !valide && (
+            <div style={{ fontSize: 11, color: '#ff8a95', marginTop: 4 }}>Motif : {manques.join(', ')}</div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '10px 18px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#aaa', cursor: 'pointer', fontSize: 13 }}>Annuler</button>
+          <button onClick={submit} disabled={!complet || loading}
+            style={{ padding: '10px 22px', borderRadius: 9, border: 'none', fontSize: 13, fontWeight: 800,
+              cursor: !complet ? 'not-allowed' : 'pointer', opacity: !complet ? 0.5 : 1,
+              background: valide ? 'linear-gradient(135deg,#22c55e,#16a34a)' : 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff' }}>
+            {loading ? '⏳ Enregistrement…' : valide ? '✅ Valider la migration' : '💾 Enregistrer le rejet'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TabMigration() {
+  const { data, refetch, isLoading } = useQuery('tc-migration-pdv', () =>
+    api.get('/tc/migration/pdv').then(r => r.data), { staleTime: 20000 });
+  const [search, setSearch] = React.useState('');
+  const [typeF, setTypeF] = React.useState('');
+  const [appelF, setAppelF] = React.useState('');
+  const [modal, setModal] = React.useState(null);
+
+  const items = (data?.items || []).filter(p => {
+    if (typeF && p.type_pdv !== typeF) return false;
+    if (appelF === 'RESTE' && p.deja_appele) return false;
+    if (appelF === 'FAIT' && !p.deja_appele) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (!(p.numero_pdv || '').toLowerCase().includes(s) &&
+          !(p.nom || '').toLowerCase().includes(s) &&
+          !(p.quartier || '').toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
+
+  const card = { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px' };
+  const SS = { padding: '8px 10px', borderRadius: 9, border: '1px solid rgba(255,255,255,0.12)', background: '#1a1a2e', color: '#fff', fontSize: 12 };
+
+  return (
+    <div>
+      <div style={{ ...card, borderLeft: '4px solid #FF6900', marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 4 }}>🚀 Appels Migration — commission directe</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+          Appelez vos PDV de type <b style={{ color: '#4a9eff' }}>RS</b> et <b style={{ color: '#a29bfe' }}>KIOSQUE</b> uniquement, puis posez les 3 questions.
+          Un PDV est <b style={{ color: '#22c55e' }}>éligible</b> seulement s'il souhaite migrer, possède son RCCM et une pièce d'identité valide.
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, width: '100%' }}>
+        <input placeholder="🔍 Rechercher un PDV…" value={search} onChange={e => setSearch(e.target.value)}
+          style={{ flex: '2 1 220px', minWidth: 160, padding: '9px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+        <select value={typeF} onChange={e => setTypeF(e.target.value)} style={{ ...SS, flex: '1 1 130px' }}>
+          <option value="">🏷️ Tous types</option>
+          {MIGRATION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <select value={appelF} onChange={e => setAppelF(e.target.value)} style={{ ...SS, flex: '1 1 150px' }}>
+          <option value="">📞 Tous</option>
+          <option value="RESTE">⏳ À appeler</option>
+          <option value="FAIT">✅ Déjà appelés</option>
+        </select>
+      </div>
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
+        {items.length} PDV affiché(s) — {(data?.deja_appeles || 0)} déjà appelé(s) sur {data?.total_pdv || 0}
+      </div>
+
+      {isLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>⏳ Chargement…</div> : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 10 }}>
+          {items.map(p => {
+            const t = MIGRATION_TYPE_MAP[p.type_pdv] || { color: '#94a3b8', label: p.type_pdv };
+            return (
+              <div key={p.numero_pdv} style={{ ...card, borderLeft: `4px solid ${p.deja_appele ? (p.dernier_statut === 'VALIDE' ? '#22c55e' : '#ff4757') : t.color}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nom || p.numero_pdv}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{p.numero_pdv} · {p.quartier || p.zone || '—'}</div>
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: `${t.color}22`, color: t.color, flexShrink: 0 }}>{t.label}</span>
+                </div>
+                {p.deja_appele && (
+                  <div style={{ fontSize: 11, marginTop: 8, fontWeight: 700, color: p.dernier_statut === 'VALIDE' ? '#22c55e' : '#ff4757' }}>
+                    {p.dernier_statut === 'VALIDE' ? '✅ Éligible' : '❌ Rejeté'} · {p.dernier_appel ? new Date(p.dernier_appel).toLocaleDateString('fr-FR') : ''}
+                  </div>
+                )}
+                <button onClick={() => setModal(p)}
+                  style={{ marginTop: 10, width: '100%', padding: '8px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 800,
+                    background: p.deja_appele ? 'rgba(162,155,254,0.12)' : 'linear-gradient(135deg,#FF6900,#ff9500)',
+                    color: p.deja_appele ? '#a29bfe' : '#fff' }}>
+                  {p.deja_appele ? "✏️ Refaire l'appel" : '📞 Appeler & qualifier'}
+                </button>
+              </div>
+            );
+          })}
+          {items.length === 0 && (
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 50, color: '#64748b' }}>
+              <div style={{ fontSize: 40 }}>✅</div>
+              <div style={{ marginTop: 8 }}>Aucun PDV RS / KIOSQUE pour ce filtre.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {modal && <MigrationModal pdv={modal} onClose={() => setModal(null)} onSuccess={refetch} />}
+    </div>
+  );
+}
+
 export default function AccueilTCPage() {
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
@@ -603,6 +826,7 @@ export default function AccueilTCPage() {
       <div style={{ display:'flex', gap:6, marginBottom:20, flexWrap:'wrap', background:'rgba(255,255,255,0.02)', borderRadius:12, padding:6 }}>
         {[
           { id:'unifie',  icon:'📞', label:"File d'appels unifi\u00e9e", badge: totalAAppeler },
+          { id:'migration', icon:'🚀', label:'Appels Migration' },
           { id:'kpis',    icon:'📊', label:'Mes KPIs' },
           { id:'rappels', icon:'📅', label:'Rappels', badge: rappelsAFaire.length || null },
           { id:'historique', icon:'📋', label:'Historique' },
@@ -627,8 +851,11 @@ export default function AccueilTCPage() {
       {/* ── Tab: File d'appels unifiée ── */}
       {activeTab === 'unifie' && <TabFileUnifiee />}
 
+      {/* ── Tab: Appels Migration ── */}
+      {activeTab === 'migration' && <TabMigration />}
+
       {/* ── Tab: KPIs + Historique ── */}
-      {activeTab !== 'unifie' && (
+      {activeTab !== 'unifie' && activeTab !== 'migration' && (
 
       <div>
       {/* ── KPIs ── */}
