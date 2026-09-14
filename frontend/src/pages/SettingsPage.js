@@ -35,6 +35,7 @@ const FEATURES = [
     { id: 'menu_evaluations', label: 'Évaluations',          sidebarKey: 'evaluations' },
     { id: 'menu_alerts',      label: 'Alertes',              sidebarKey: 'alerts' },
     { id: 'menu_suivi_tc',    label: 'Suivi TC (Téléconseillères)', sidebarKey: 'suivi_tc' },
+    { id: 'menu_reclamations', label: 'Réclamations',              sidebarKey: 'reclamations' },
     { id: 'menu_reseau',      label: 'Gestion du Réseau',    sidebarKey: 'reseau' },
   ]},
   { section: '🗺️ Gestion du Réseau — Sous-menus', items: [
@@ -69,20 +70,20 @@ const DEFAULT_PERMISSIONS = {
 
   superviseur: Object.fromEntries(ALL_IDS.map(id => [id,
     ['menu_omy','menu_pdvs','menu_prospection','menu_indicateurs',
-     'menu_alerts','menu_reseau','menu_carte','menu_recovery',
+     'menu_alerts','menu_reseau','menu_carte','menu_recovery','menu_reclamations',
      'reseau_developpeurs','reseau_gestionnaires','reseau_potentialites',
      'reseau_grades','reseau_planning','reseau_superviseurs'].includes(id)])),
 
   rc: Object.fromEntries(ALL_IDS.map(id => [id,
     ['menu_omy','menu_pdvs','menu_commissions',
-     'menu_alerts','menu_recovery','menu_suivi_tc'].includes(id)])),
+     'menu_alerts','menu_recovery','menu_suivi_tc','menu_reclamations'].includes(id)])),
 
   developpeur: Object.fromEntries(ALL_IDS.map(id => [id,
-    ['menu_prospection','menu_alerts','menu_reseau',
+    ['menu_prospection','menu_alerts','menu_reseau','menu_reclamations',
      'reseau_developpeurs'].includes(id)])),
 
   teleconseillere: Object.fromEntries(ALL_IDS.map(id => [id,
-    ['menu_prospection','menu_indicateurs','menu_alerts'].includes(id)])),
+    ['menu_prospection','menu_indicateurs','menu_alerts','menu_reclamations'].includes(id)])),
 };
 
 // ─── SECTION PROFIL ──────────────────────────────────────────────────────────

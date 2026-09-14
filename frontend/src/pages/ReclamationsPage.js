@@ -872,6 +872,19 @@ export default function ReclamationsPage() {
     qc.invalidateQueries('rec-toutes');
   };
 
+  const exporterExcel = async () => {
+    try {
+      const r = await api.get('/reclamations-export', { responseType: 'blob' });
+      const u = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = `reclamations_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(u);
+      toast.success('Export Excel généré');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Export impossible'); }
+  };
+
   const TABS = [
     ...(isAdmin ? [{ id: 'dashboard', icon: '📊', label: 'Tableau de bord' }] : []),
     { id: 'mes-reclamations', icon: '📋', label: 'Mes Réclamations' },
@@ -889,10 +902,18 @@ export default function ReclamationsPage() {
             Soumettez et suivez les réclamations du réseau
           </p>
         </div>
-        <button onClick={() => setShowForm(true)}
-          style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(255,105,0,0.3)' }}>
-          ➕ Nouvelle Réclamation
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {isAdmin && (
+            <button onClick={exporterExcel}
+              style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#22c55e', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              ⬇️ Exporter Excel
+            </button>
+          )}
+          <button onClick={() => setShowForm(true)}
+            style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(255,105,0,0.3)' }}>
+            ➕ Nouvelle Réclamation
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}

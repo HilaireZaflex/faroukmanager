@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timedelta
+import io
 import os
 import uuid
 from app.core.database import get_db
@@ -791,6 +792,67 @@ def delete_piece_jointe(
     log_historique(db, rec_id, current_user, "PIECE_JOINTE_SUPPR", details=nom)
     db.commit()
     return {"success": True}
+
+
+@router.get("/reclamations-export")
+def export_reclamations(
+    statut: Optional[str] = None,
+    categorie: Optional[str] = None,
+    priorite: Optional[str] = None,
+    responsable_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export Excel des réclamations (administrateur / manager)."""
+    if not _est_admin(current_user):
+        raise HTTPException(status_code=403, detail="Export réservé aux administrateurs et managers")
+
+    q = db.query(Reclamation)
+    if statut:
+        q = q.filter(Reclamation.statut == statut)
+    if categorie:
+        q = q.filter(Reclamation.categorie == categorie)
+    if priorite:
+        q = q.filter(Reclamation.priorite == priorite)
+    if responsable_id:
+        q = q.filter(Reclamation.responsable_id == responsable_id)
+    rows = q.order_by(Reclamation.created_at.desc()).all()
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Réclamations"
+    entetes = ["#", "Titre", "Catégorie", "Priorité", "Statut", "Soumetteur", "Responsable",
+               "PDV", "Relances", "Satisfaction", "En retard", "Créée le", "Résolue le"]
+    ws.append(entetes)
+    for cellule in ws[1]:
+        cellule.font = Font(bold=True)
+
+    for r in rows:
+        ws.append([
+            r.id, r.titre, r.categorie, r.priorite, r.statut,
+            r.soumetteur_nom, r.responsable_nom or "Non assigné",
+            r.numero_pdv or "", r.nb_relances or 0, r.note_satisfaction or "",
+            "OUI" if _est_en_retard(r) else "non",
+            r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+            r.date_resolution.strftime("%Y-%m-%d %H:%M") if r.date_resolution else "",
+        ])
+
+    largeurs = [6, 40, 12, 10, 12, 22, 22, 14, 9, 12, 10, 17, 17]
+    for i, largeur in enumerate(largeurs, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = largeur
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nom = f"reclamations_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={nom}"},
+    )
 
 
 @router.get("/reclamations/stats/dashboard")

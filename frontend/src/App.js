@@ -182,7 +182,7 @@ function App() {
                 <Route path="/pdvs/:id" element={<MenuRoute menuId="pdvs"><PDVDetailPage /></MenuRoute>} />
                 <Route path="/prospection" element={<MenuRoute menuId="prospection"><ProspectionPage /></MenuRoute>} />
                 <Route path="/prospection-energia" element={<MenuRoute menuId="prospection_energia"><ProspectionEnergiaPage /></MenuRoute>} />
-                <Route path="/reclamations" element={<ReclamationsPage />} />
+                <Route path="/reclamations" element={<MenuRoute menuId="reclamations"><ReclamationsPage /></MenuRoute>} />
                 <Route path="/evaluations" element={<MenuRoute menuId="evaluations"><EvaluationsPage /></MenuRoute>} />
                 <Route path="/alerts" element={<MenuRoute menuId="alerts"><AlertsPage /></MenuRoute>} />
                 <Route path="/indicateurs" element={<MenuRoute menuId="indicateurs"><IndicatorsPage /></MenuRoute>} />

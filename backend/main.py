@@ -328,6 +328,33 @@ async def auto_migrate():
     except Exception as e:
         print(f"⚠️ Routage réclamations: {e}")
 
+    # ── Réclamations : conserver l'accès de TOUS les rôles (menu historiquement visible partout) ──
+    # Additif et unique (drapeau) : l'administrateur peut ensuite le retirer rôle par rôle.
+    try:
+        from app.core.database import SessionLocal
+        from app.api.routes.role_permissions import RolePermission
+        from sqlalchemy.orm.attributes import flag_modified
+        db4 = SessionLocal()
+        try:
+            for row in db4.query(RolePermission).all():
+                if str(row.role_id).startswith("user_"):
+                    continue  # les extras individuels ne sont pas concernés
+                cfg = dict(row.sidebar_config or {})
+                if cfg.get("_reclamations_added"):
+                    continue
+                menus = list(cfg.get("menus") or [])
+                if "reclamations" not in menus:
+                    menus.append("reclamations")
+                cfg["menus"] = menus
+                cfg["_reclamations_added"] = True
+                row.sidebar_config = cfg
+                flag_modified(row, "sidebar_config")
+            db4.commit()
+        finally:
+            db4.close()
+    except Exception as e:
+        print(f"⚠️ Migration permissions Réclamations: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     # Précalculer les données lentes en arrière-plan
