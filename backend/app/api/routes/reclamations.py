@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user
 from app.models.user import User
+from app.models.pdv import PDV
 from app.models.reclamation import (
     Reclamation, ReclamationCommentaire, ReclamationNotification,
     ReclamationHistorique, ReclamationRoutage,
@@ -134,6 +135,7 @@ def list_reclamations(
     statut: Optional[str] = None,
     categorie: Optional[str] = None,
     priorite: Optional[str] = None,
+    responsable_id: Optional[int] = None,
     mes_reclamations: bool = False,
     a_traiter: bool = False,
     skip: int = 0,
@@ -161,6 +163,8 @@ def list_reclamations(
         q = q.filter(Reclamation.categorie == categorie)
     if priorite:
         q = q.filter(Reclamation.priorite == priorite)
+    if responsable_id:
+        q = q.filter(Reclamation.responsable_id == responsable_id)
 
     total = q.count()
     reclamations = q.order_by(Reclamation.created_at.desc()).offset(skip).limit(limit).all()
@@ -301,6 +305,14 @@ def get_reclamation(
     peut_voir_interne = _est_admin(current_user) or r.responsable_id == current_user.id
 
     data = reclamation_to_dict(r)
+
+    # Identifiant interne du PDV (pour le lien vers sa fiche)
+    if r.numero_pdv:
+        pdv = db.query(PDV).filter(PDV.numero_pdv == r.numero_pdv).first()
+        data["pdv_id"] = pdv.id if pdv else None
+    else:
+        data["pdv_id"] = None
+
     data["commentaires"] = [{
         "id": c.id,
         "auteur_nom": c.auteur_nom,
@@ -633,16 +645,57 @@ def stats_dashboard(
     all_rec = db.query(Reclamation).all()
     maintenant = datetime.utcnow()
 
+    # Délai moyen de résolution (heures)
+    res_avec_delai = [r for r in all_rec if r.date_resolution and r.created_at]
+    delai_moyen_h = round(
+        sum((r.date_resolution - r.created_at).total_seconds() for r in res_avec_delai)
+        / len(res_avec_delai) / 3600, 1
+    ) if res_avec_delai else 0
+
+    # Satisfaction moyenne
+    notes = [r.note_satisfaction for r in all_rec if r.note_satisfaction]
+    satisfaction = round(sum(notes) / len(notes), 2) if notes else 0
+
+    # Respect du délai (SLA) sur les réclamations traitées
+    traitees = [r for r in all_rec if r.statut in ('RESOLUE', 'CLOTUREE')]
+
+    def _dans_sla(r):
+        if not r.created_at:
+            return True
+        limite = r.date_limite or (r.created_at + timedelta(hours=72))
+        fin = r.date_resolution or maintenant
+        return fin <= limite
+
+    taux_sla = round(sum(1 for r in traitees if _dans_sla(r)) / len(traitees) * 100) if traitees else 0
+
+    # Répartition par responsable
+    par_resp = {}
+    for r in all_rec:
+        nom = r.responsable_nom or 'Non assigné'
+        d = par_resp.setdefault(nom, {'responsable_nom': nom, 'total': 0, 'resolues': 0, 'en_retard': 0})
+        d['total'] += 1
+        if r.statut in ('RESOLUE', 'CLOTUREE'):
+            d['resolues'] += 1
+        if _est_en_retard(r):
+            d['en_retard'] += 1
+    par_responsable = sorted(par_resp.values(), key=lambda x: -x['total'])
+
     return {
         "total": len(all_rec),
         "ouvertes": sum(1 for r in all_rec if r.statut == "OUVERTE"),
         "en_cours": sum(1 for r in all_rec if r.statut == "EN_COURS"),
         "resolues": sum(1 for r in all_rec if r.statut == "RESOLUE"),
         "cloturees": sum(1 for r in all_rec if r.statut == "CLOTUREE"),
-        "en_retard": sum(1 for r in all_rec if r.statut not in ('RESOLUE','CLOTUREE') and (maintenant - r.created_at).days > 3),
+        "en_retard": sum(1 for r in all_rec if _est_en_retard(r)),
         "urgentes": sum(1 for r in all_rec if r.priorite == "URGENT" and r.statut not in ('RESOLUE','CLOTUREE')),
         "escaladees": sum(1 for r in all_rec if r.escaladee),
+        "relancees": sum(1 for r in all_rec if (r.nb_relances or 0) > 0),
+        "non_assignees": sum(1 for r in all_rec if not r.responsable_id and r.statut not in ('RESOLUE','CLOTUREE')),
         "taux_resolution": round(sum(1 for r in all_rec if r.statut in ('RESOLUE','CLOTUREE')) / len(all_rec) * 100) if all_rec else 0,
+        "taux_sla": taux_sla,
+        "delai_moyen_resolution_h": delai_moyen_h,
+        "satisfaction_moyenne": satisfaction,
         "par_categorie": {cat: sum(1 for r in all_rec if r.categorie == cat) for cat in ['PDV','PERSONNEL','LOGISTIQUE','FINANCE','TECHNIQUE','AUTRE']},
         "par_priorite": {p: sum(1 for r in all_rec if r.priorite == p) for p in ['URGENT','NORMAL','FAIBLE']},
+        "par_responsable": par_responsable,
     }

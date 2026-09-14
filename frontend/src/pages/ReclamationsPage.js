@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from 'react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import toast from 'react-hot-toast';
@@ -192,6 +192,7 @@ function FormulaireReclamation({ onClose, onSuccess }) {
 
 // ─── Modal détail réclamation ─────────────────────────────────────────────────
 function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
+  const navigate = useNavigate();
   const [commentaire, setCommentaire] = useState('');
   const [estInterne, setEstInterne] = useState(false);
   const [reponse, setReponse] = useState(rec.reponse || '');
@@ -280,7 +281,11 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
             <div style={{ fontSize: 12, color: '#64748b' }}>
               Par <strong style={{ color: '#FF6900' }}>{rec.soumetteur_nom}</strong>
               {rec.responsable_nom && <> → <strong style={{ color: '#a29bfe' }}>{rec.responsable_nom}</strong></>}
-              {rec.numero_pdv && <> · PDV: {rec.numero_pdv}</>}
+              {rec.numero_pdv && (<> · PDV:{' '}
+                {details?.pdv_id
+                  ? <a onClick={() => navigate(`/pdvs/${details.pdv_id}`)} style={{ color: '#4a9eff', cursor: 'pointer', textDecoration: 'underline' }}>{rec.numero_pdv}</a>
+                  : rec.numero_pdv}
+              </>)}
             </div>
             {rec.date_limite && (
               <div style={{ fontSize: 11, marginTop: 4, color: (details?.en_retard || rec.en_retard) ? '#ff4757' : '#94a3b8' }}>
@@ -472,11 +477,17 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
   const [filtreStatut, setFiltreStatut] = useState('');
   const [filtrePriorite, setFiltrePriorite] = useState('');
   const [filtreCategorie, setFiltreCategorie] = useState('');
+  const [filtreResponsable, setFiltreResponsable] = useState('');
   const [search, setSearch] = useState('');
 
+  const { data: responsables = [] } = useQuery('auth-responsables-rec', () =>
+    api.get('/auth/responsables').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+    { staleTime: 300000 }
+  );
+
   const { data, isLoading, refetch } = useQuery(
-    [queryKey, filtreStatut, filtrePriorite, filtreCategorie],
-    () => api.get('/reclamations', { params: { ...params, statut: filtreStatut || undefined, priorite: filtrePriorite || undefined, categorie: filtreCategorie || undefined } }).then(r => r.data),
+    [queryKey, filtreStatut, filtrePriorite, filtreCategorie, filtreResponsable],
+    () => api.get('/reclamations', { params: { ...params, statut: filtreStatut || undefined, priorite: filtrePriorite || undefined, categorie: filtreCategorie || undefined, responsable_id: filtreResponsable || undefined } }).then(r => r.data),
     { staleTime: 30000, refetchOnMount: true }
   );
 
@@ -509,6 +520,11 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
           style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
           <option value="">Toutes catégories</option>
           {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={filtreResponsable} onChange={e => setFiltreResponsable(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
+          <option value="">Tous responsables</option>
+          {responsables.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
         </select>
         <span style={{ fontSize: 12, color: '#64748b' }}>{items.length} réclamation(s)</span>
       </div>
@@ -645,6 +661,11 @@ function TabDashboard({ onRefresh }) {
     { label: '⏰ En retard', value: stats.en_retard, color: '#ff4757' },
     { label: '🔴 Urgentes', value: stats.urgentes, color: '#ff6b81' },
     { label: '📈 Taux résolution', value: `${stats.taux_resolution}%`, color: '#22c55e' },
+    { label: '⏱️ Délai moyen', value: `${stats.delai_moyen_resolution_h || 0} h`, color: '#4a9eff' },
+    { label: '🎯 Respect délai', value: `${stats.taux_sla || 0}%`, color: '#22c55e' },
+    { label: '⭐ Satisfaction', value: stats.satisfaction_moyenne ? `${stats.satisfaction_moyenne}/5` : '—', color: '#ffa502' },
+    { label: '🔔 Relancées', value: stats.relancees || 0, color: '#ffa502' },
+    { label: '🚫 Non assignées', value: stats.non_assignees || 0, color: '#ff4757' },
   ];
 
   return (
@@ -679,6 +700,31 @@ function TabDashboard({ onRefresh }) {
       </div>
 
       <RoutageCard />
+
+      {(stats.par_responsable || []).length > 0 && (
+        <div style={{ marginTop: 16, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>👥 Répartition par responsable</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {['Responsable', 'Total', 'Résolues', 'En retard'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 700, padding: '6px 8px' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {stats.par_responsable.map(r => (
+                <tr key={r.responsable_nom} style={{ borderTop: '1px solid rgba(255,255,255,0.04)', fontSize: 12 }}>
+                  <td style={{ padding: '6px 8px', color: '#e2e8f0' }}>{r.responsable_nom}</td>
+                  <td style={{ padding: '6px 8px', color: '#fff', fontWeight: 700 }}>{r.total}</td>
+                  <td style={{ padding: '6px 8px', color: '#22c55e' }}>{r.resolues}</td>
+                  <td style={{ padding: '6px 8px', color: r.en_retard > 0 ? '#ff4757' : '#64748b' }}>{r.en_retard}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
