@@ -158,6 +158,7 @@ def _log_history(
     to_status: Optional[ProspectStatus] = None,
     comment: Optional[str] = None,
     extra: Optional[Dict[str, Any]] = None,
+    qualification: Optional[str] = None,
 ):
     entry = ProspectHistory(
         prospect_id=prospect.id,
@@ -167,6 +168,7 @@ def _log_history(
         to_status=to_status,
         comment=comment,
         extra=extra,
+        qualification=qualification,
     )
     db.add(entry)
 
@@ -341,6 +343,8 @@ def list_prospects(
     assigned_to_me: bool = False,
     submitted_by_me: bool = False,
     search: Optional[str] = None,
+    qualification: Optional[str] = None,
+    tri: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
 ) -> List[Prospect]:
@@ -391,6 +395,21 @@ def list_prospects(
             Prospect.telephone_principal.ilike(like),
             Prospect.quartier.ilike(like),
         ))
+
+    # Filtre par qualité renseignée par le développeur
+    if qualification:
+        q = q.filter(Prospect.qualification == qualification.strip().upper())
+
+    # Tri : « qualification » = meilleurs d'abord (EXCELLENT → FAIBLE)
+    if tri == 'qualification':
+        from app.models.prospect import QUALIFICATIONS, QUALIFICATION_RANG
+        from sqlalchemy import case
+        rang = case(
+            {v: QUALIFICATION_RANG[v] for v in QUALIFICATIONS},
+            value=Prospect.qualification,
+            else_=0,
+        )
+        return q.order_by(rang.desc(), Prospect.created_at.desc()).offset(skip).limit(limit).all()
 
     return q.order_by(Prospect.created_at.desc()).offset(skip).limit(limit).all()
 
@@ -523,10 +542,28 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
     if payload.approved:
         _ensure_geoloc(p)
 
+    # ── Qualification du prospect (catégorie de qualité) ──
+    from app.models.prospect import QUALIFICATIONS, QUALIFICATION_LABELS
+    qualif = (payload.qualification or "").strip().upper() or None
+    if payload.approved:
+        if not qualif:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Veuillez choisir la qualité du prospect (Excellent, Très bon, Bon, Moyen ou Faible).",
+            )
+        if qualif not in QUALIFICATIONS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Qualité invalide. Valeurs attendues : " + ", ".join(QUALIFICATION_LABELS.values()),
+            )
+    else:
+        qualif = None
+
     from_status = p.status
     p.status = target_status
     p.dev_decision_at = datetime.utcnow()
     p.dev_decision_comment = payload.comment
+    p.qualification = qualif
 
     if payload.approved:
         # Démarrage SLA RC
@@ -538,6 +575,7 @@ def dev_decision(db: Session, prospect_id: int, payload: DevDecisionRequest, cur
         from_status=from_status,
         to_status=target_status,
         comment=payload.comment,
+        qualification=qualif,
     )
     db.commit()
     db.refresh(p)

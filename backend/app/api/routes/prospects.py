@@ -134,6 +134,8 @@ def list_prospects(
     assigned_to_me: bool = Query(False, description="Filtrer ceux qui me sont affectés"),
     submitted_by_me: bool = Query(False, description="Filtrer ceux que j'ai soumis"),
     search: Optional[str] = Query(None, description="Recherche (réf, nom, téléphone, quartier)"),
+    qualification: Optional[str] = Query(None, description="Filtrer par qualité (EXCELLENT, TRES_BON, BON, MOYEN, FAIBLE)"),
+    tri: Optional[str] = Query(None, description="'qualification' = meilleurs prospects d'abord"),
     skip: int = 0,
     limit: int = Query(50, le=200),
 ):
@@ -149,9 +151,69 @@ def list_prospects(
         assigned_to_me=assigned_to_me,
         submitted_by_me=submitted_by_me,
         search=search,
+        qualification=qualification,
+        tri=tri,
         skip=skip,
         limit=limit,
     )
+
+
+@router.get("/stats/qualifications")
+def stats_qualifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """KPI par catégorie de qualité renseignée par les développeurs après visite.
+
+    Sert à visualiser quelles catégories produisent réellement des activations.
+    """
+    from app.models.prospect import (
+        Prospect as ProspectModel, QUALIFICATIONS, QUALIFICATION_LABELS, ProspectStatus,
+    )
+
+    role = str(current_user.role or '').lower().replace('userrole.', '')
+    if role not in ('admin', 'manager', 'rc', 'superviseur',
+                    'responsable_produit_et_qualit_oprationnelle_', 'conformite'):
+        raise HTTPException(status_code=403, detail="Accès réservé au RC, aux superviseurs et aux administrateurs")
+
+    base = db.query(ProspectModel)
+    total = base.count()
+
+    lignes = []
+    total_qualifies = 0
+    total_actives = 0
+    statuts_avances = [
+        ProspectStatus.APPROUVEE_RC,
+        ProspectStatus.PUCE_ATTRIBUEE,
+        ProspectStatus.EN_ATTENTE_CONFORMITE,
+        ProspectStatus.PUCE_ACTIVEE,
+    ]
+
+    for q in QUALIFICATIONS:
+        qs = base.filter(ProspectModel.qualification == q)
+        n = qs.count()
+        actives = qs.filter(ProspectModel.activated_at.isnot(None)).count()
+        avances = qs.filter(ProspectModel.status.in_(statuts_avances)).count()
+        total_qualifies += n
+        total_actives += actives
+        lignes.append({
+            "qualification": q,
+            "label": QUALIFICATION_LABELS[q],
+            "total": n,
+            "approuves_rc": avances,
+            "actives": actives,
+            "taux_activation": round(actives / n * 100, 1) if n else 0,
+        })
+
+    non_qualifies = base.filter(ProspectModel.qualification.is_(None)).count()
+
+    return {
+        "total_prospects": total,
+        "total_qualifies": total_qualifies,
+        "non_qualifies": non_qualifies,
+        "total_actives": total_actives,
+        "lignes": lignes,
+    }
 
 
 @router.get("/stats", response_model=ProspectStatsOut)

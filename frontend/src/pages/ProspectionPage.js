@@ -16,6 +16,29 @@ import useAuthStore from '../store/authStore';
 import useNotifStore from '../store/notifStore';
 import './ProspectionPage.css';
 
+// ─── Qualité du prospect (renseignée par le développeur après la visite) ─────
+const QUALIFICATIONS = [
+  { value: 'EXCELLENT', label: 'Excellent', icon: '🟢', color: '#22c55e', desc: 'Emplacement idéal, forte affluence' },
+  { value: 'TRES_BON',  label: 'Très bon',  icon: '🟩', color: '#10b981', desc: 'Très bon potentiel' },
+  { value: 'BON',       label: 'Bon',       icon: '🟡', color: '#facc15', desc: 'Potentiel correct' },
+  { value: 'MOYEN',     label: 'Moyen',     icon: '🟠', color: '#f59e0b', desc: 'Potentiel limité' },
+  { value: 'FAIBLE',    label: 'Faible',    icon: '🔴', color: '#ef4444', desc: 'Conditions défavorables' },
+];
+const QUALIF_MAP = Object.fromEntries(QUALIFICATIONS.map(q => [q.value, q]));
+const QUALIF_RANG = { EXCELLENT: 5, TRES_BON: 4, BON: 3, MOYEN: 2, FAIBLE: 1 };
+const TOP_QUALIFS = ['EXCELLENT', 'TRES_BON'];
+
+function QualifBadge({ value, size = 11 }) {
+  if (!value) return <span style={{ fontSize: size, color: '#64748b', fontStyle: 'italic' }}>non qualifié</span>;
+  const q = QUALIF_MAP[value] || { label: value, icon: '•', color: '#94a3b8' };
+  return (
+    <span style={{ fontSize: size, fontWeight: 800, padding: '2px 9px', borderRadius: 10,
+      background: `${q.color}22`, color: q.color, whiteSpace: 'nowrap' }}>
+      {q.icon} {q.label}
+    </span>
+  );
+}
+
 // ─── Modale de confirmation personnalisée ────────────────────────────────────
 function ConfirmDeleteModal({ prospect, onConfirm, onCancel }) {
   const st = STATUS_LABELS[prospect.status];
@@ -151,6 +174,78 @@ function SuccessModal({ title, message, next, onClose }) {
 // =============================================================================
 // PAGE PRINCIPALE
 // =============================================================================
+// ─── KPI par qualité renseignée par les développeurs ─────────────────────────
+function TabQualifications() {
+  const { data, isLoading } = useQuery('prospects-qualifications', () =>
+    api.get('/prospects/stats/qualifications').then(r => r.data), { staleTime: 60000 });
+
+  if (isLoading) return <div className="loading-state">Chargement…</div>;
+  if (!data) return <div className="empty-state">Données indisponibles.</div>;
+
+  const lignes = data.lignes || [];
+  const kpis = [
+    { label: 'Prospects qualifiés', value: data.total_qualifies, color: '#FF6900' },
+    { label: 'Non qualifiés',       value: data.non_qualifies,   color: '#94a3b8' },
+    { label: 'Activés',             value: data.total_actives,   color: '#22c55e' },
+    { label: 'Total prospects',     value: data.total_prospects, color: '#4a9eff' },
+  ];
+
+  return (
+    <div>
+      <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 12, padding: '14px 18px', marginBottom: 18 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#22c55e', marginBottom: 4 }}>🎯 Qualité des prospects</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6 }}>
+          Répartition par catégorie renseignée par les développeurs après visite, et performance réelle
+          (approbations RC puis activations). Les <b style={{ color: '#FF6900' }}>Excellent</b> et <b style={{ color: '#10b981' }}>Très bon</b> sont à activer en priorité.
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 20 }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{ background: 'var(--bg-card)', borderLeft: `3px solid ${k.color}`, borderRadius: 10, padding: '14px 16px' }}>
+            <div style={{ fontSize: 26, fontWeight: 900, color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 14 }}>🎯 Répartition et performance par qualité</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {['Qualité', 'Prospects', 'Approuvés RC', 'Activés', "Taux d'activation"].map(h => (
+                <th key={h} style={{ textAlign: 'left', fontSize: 11, color: '#64748b', fontWeight: 700, padding: '8px 10px', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {lignes.map(l => {
+              const q = QUALIF_MAP[l.qualification] || { color: '#94a3b8' };
+              return (
+                <tr key={l.qualification} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <td style={{ padding: '9px 10px' }}><QualifBadge value={l.qualification} size={12} /></td>
+                  <td style={{ padding: '9px 10px', fontWeight: 800, color: '#fff' }}>{l.total}</td>
+                  <td style={{ padding: '9px 10px', color: '#4a9eff' }}>{l.approuves_rc}</td>
+                  <td style={{ padding: '9px 10px', color: '#22c55e', fontWeight: 700 }}>{l.actives}</td>
+                  <td style={{ padding: '9px 10px', minWidth: 150 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: q.color }}>{l.taux_activation}%</span>
+                      <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min(100, l.taux_activation)}%`, background: q.color, borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function ProspectionPage() {
   const { user } = useAuthStore();
   const [searchParams] = useSearchParams();
@@ -181,6 +276,7 @@ export default function ProspectionPage() {
     { id: 'activation',   label: '⚡ Activation',          show: !isCommercial },
     { id: 'conformite',   label: '✅ Conformité',           show: isAdminOrRC },
     { id: 'repartition', label: '📊 Répartition Agents',  show: isAdminOrRC },
+    { id: 'qualifications', label: '🎯 Qualités Prospects', show: isAdminOrRC },
   ];
   const tabs = allTabs.filter(t => t.show);
   const safeTab = tabs.find(t => t.id === activeTab) ? activeTab : 'demandes';
@@ -277,6 +373,7 @@ export default function ProspectionPage() {
             <TabRepartition />
           </React.Suspense>
         )}
+        {safeTab === 'qualifications' && <TabQualifications />}
       </div>
 
       {modalCreate && (
@@ -1682,6 +1779,7 @@ function Etape3DecisionDev({ prospects, currentUser, onDone, onOpen }) {
 
 function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
   const [comment, setComment] = useState('');
+  const [qualification, setQualification] = useState('');
   const [busy, setBusy] = useState(false);
   const [cancelMotif, setCancelMotif] = useState('');
   const [showCancelForm, setShowCancelForm] = useState(false);
@@ -1729,6 +1827,10 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
 
   const decide = async (approved) => {
     if (comment.trim().length < 3) { alert('Veuillez saisir un commentaire (min 3 caractères).'); return; }
+    if (approved && !qualification) {
+      alert('Veuillez choisir la qualité du prospect (Excellent, Très bon, Bon, Moyen ou Faible).');
+      return;
+    }
     if (!gpsLat || !gpsLng) {
       return alert('⚠️ La géolocalisation est obligatoire. Appuyez sur "📍 Capturer ma position" avant de valider.');
     }
@@ -1737,6 +1839,7 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
       await prospectService.devDecision(p.id, {
         approved,
         comment,
+        qualification: approved ? qualification : undefined,
         latitude: gpsLat,
         longitude: gpsLng,
       });
@@ -1823,13 +1926,35 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
               </div>
             </div>
 
+            {/* Catégorie de qualité (obligatoire pour valider) */}
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                🎯 Qualité du prospect <span style={{ color: '#ef4444' }}>*</span>
+                {!qualification && <span style={{ fontWeight: 400, color: '#64748b', marginLeft: 6 }}>(obligatoire pour valider)</span>}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+                {QUALIFICATIONS.map(q => (
+                  <button key={q.value} type="button" onClick={() => setQualification(q.value)}
+                    style={{ textAlign: 'left', padding: '9px 12px', borderRadius: 9, cursor: 'pointer',
+                      border: `2px solid ${qualification === q.value ? q.color : 'rgba(255,255,255,0.1)'}`,
+                      background: qualification === q.value ? `${q.color}22` : 'rgba(255,255,255,0.03)',
+                      color: qualification === q.value ? q.color : '#cbd5e1', transition: 'all 0.15s' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800 }}>{q.icon} {q.label}</div>
+                    <div style={{ fontSize: 10, opacity: 0.8, marginTop: 2 }}>{q.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <textarea
-              placeholder="Justification obligatoire (ex: lieu accessible, bon emplacement, zone concurrentielle…)"
+              placeholder={qualification
+                ? `Expliquez pourquoi « ${QUALIF_MAP[qualification].label} » (obligatoire, min 3 caractères)…`
+                : "Choisissez d'abord la qualité, puis justifiez votre choix (obligatoire)…"}
               value={comment} onChange={e => setComment(e.target.value)}
               style={{ width: '100%', marginTop: 8, minHeight: 70, boxSizing: 'border-box' }}
             />
             <div className="action-bar" style={{ marginTop: 8 }}>
-              <button className="btn-success" disabled={busy || comment.trim().length < 3 || !gpsLat || !gpsLng} onClick={() => decide(true)}>
+              <button className="btn-success" disabled={busy || comment.trim().length < 3 || !qualification || !gpsLat || !gpsLng} onClick={() => decide(true)}>
                 <CheckCircle size={14}/> Valider le prospect
               </button>
               <button className="btn-danger" disabled={busy || comment.trim().length < 3 || !gpsLat || !gpsLng} onClick={() => decide(false)}>
@@ -1850,21 +1975,83 @@ function Decision3Card({ prospect: p, currentUser, onDone, onOpen }) {
 
 // ── Étape 4 : RC valide ou refuse les prospects validés par les devs ──────────
 function Etape4ValidationRC({ prospects, onDone, onOpen }) {
+  const [filtreQualif, setFiltreQualif] = useState('');
+  const [triQualif, setTriQualif] = useState(true);
+
+  const liste = React.useMemo(() => {
+    let l = [...prospects];
+    if (triQualif) {
+      l.sort((a, b) => (QUALIF_RANG[b.qualification] || 0) - (QUALIF_RANG[a.qualification] || 0));
+    }
+    if (filtreQualif === 'TOP') return l.filter(p => TOP_QUALIFS.includes(p.qualification));
+    if (filtreQualif === 'NON_QUALIFIE') return l.filter(p => !p.qualification);
+    if (filtreQualif) return l.filter(p => p.qualification === filtreQualif);
+    return l;
+  }, [prospects, filtreQualif, triQualif]);
+
+  const compte = (v) => prospects.filter(p => p.qualification === v).length;
+  const nbTop = prospects.filter(p => TOP_QUALIFS.includes(p.qualification)).length;
+
   return (
     <>
       <StepLegend
         step={4}
         title="Validation finale par le Responsable Commercial"
-        desc="Le RC examine les prospects validés par les développeurs et sélectionne les meilleurs pour activation. Seuls les prospects approuvés ici passeront à l'étape d'activation."
+        desc="Le RC examine les prospects validés par les développeurs et sélectionne les meilleurs grâce à la qualité renseignée sur le terrain. Seuls les prospects approuvés ici passeront à l'activation."
         next="➡️ Après validation RC : les prospects approuvés sont affectés pour activation (Étape 5)"
         color="#6366f1"
       />
       {prospects.length === 0 ? (
         <div className="empty-state">✅ Aucun prospect en attente de validation RC.</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {prospects.map(p => <Validation4Card key={p.id} prospect={p} onDone={onDone} onOpen={onOpen}/>)}
-        </div>
+        <>
+          {/* Bandeau KPI par qualité */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(128px,1fr))', gap: 10, marginBottom: 14 }}>
+            {QUALIFICATIONS.map(q => {
+              const actif = filtreQualif === q.value;
+              return (
+                <button key={q.value} onClick={() => setFiltreQualif(actif ? '' : q.value)}
+                  style={{ textAlign: 'left', cursor: 'pointer', padding: '12px 14px', borderRadius: 12,
+                    background: actif ? `${q.color}22` : 'var(--bg-card)',
+                    border: `1px solid ${actif ? q.color : 'rgba(255,255,255,0.08)'}` }}>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: q.color }}>{compte(q.value)}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{q.icon} {q.label}</div>
+                </button>
+              );
+            })}
+            <button onClick={() => setFiltreQualif(filtreQualif === 'TOP' ? '' : 'TOP')}
+              style={{ textAlign: 'left', cursor: 'pointer', padding: '12px 14px', borderRadius: 12,
+                background: filtreQualif === 'TOP' ? 'rgba(34,197,94,0.15)' : 'var(--bg-card)',
+                border: `1px solid ${filtreQualif === 'TOP' ? '#22c55e' : 'rgba(255,255,255,0.08)'}` }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#FF6900' }}>{nbTop}</div>
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>⭐ Meilleurs (Excellent + Très bon)</div>
+            </button>
+          </div>
+
+          {/* Tri / filtre rapide */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+            <button onClick={() => setTriQualif(v => !v)}
+              style={{ padding: '7px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                border: `1px solid ${triQualif ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                background: triQualif ? 'rgba(255,105,0,0.12)' : 'transparent',
+                color: triQualif ? '#FF6900' : '#94a3b8' }}>
+              ⬍ {triQualif ? 'Meilleurs d’abord' : 'Trier par qualité'}
+            </button>
+            {filtreQualif && (
+              <button onClick={() => setFiltreQualif('')}
+                style={{ padding: '7px 14px', borderRadius: 20, border: '1px solid rgba(255,71,87,0.3)', background: 'rgba(255,71,87,0.08)', color: '#ff4757', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                ✕ Effacer le filtre
+              </button>
+            )}
+            <span style={{ fontSize: 12, color: '#64748b' }}>{liste.length} prospect(s) affiché(s)</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {liste.length === 0
+              ? <div className="empty-state">Aucun prospect pour ce filtre.</div>
+              : liste.map(p => <Validation4Card key={p.id} prospect={p} onDone={onDone} onOpen={onOpen}/>)}
+          </div>
+        </>
       )}
     </>
   );
@@ -1891,6 +2078,7 @@ function Validation4Card({ prospect: p, onDone, onOpen }) {
   const devHistory = p.history?.find(h => ['DEV_VALIDATE', 'DEV_REJECT'].includes(h.decision_type));
   const devComment = devHistory?.comment || '—';
   const devDecision = devHistory?.decision_type === 'DEV_VALIDATE' ? '✅ Validé' : devHistory?.decision_type === 'DEV_REJECT' ? '❌ Rejeté' : '';
+  const qualification = p.qualification || p.history?.find(h => h.qualification)?.qualification || null;
 
   return (
     <>
@@ -1920,6 +2108,13 @@ function Validation4Card({ prospect: p, onDone, onOpen }) {
                 👤 Visité par : <b>{p.visit_assigned_to.nom} {p.visit_assigned_to.prenom || ''}</b>
               </div>
             )}
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>🎯 Qualité :</span>
+              <QualifBadge value={qualification} size={12} />
+              {TOP_QUALIFS.includes(qualification) && (
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#FF6900' }}>⭐ À activer en priorité</span>
+              )}
+            </div>
             <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: 6, fontSize: 12, borderLeft: '3px solid #10b981' }}>
               💬 <b>Avis du développeur {devDecision} :</b> {devComment}
             </div>

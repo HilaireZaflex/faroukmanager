@@ -78,6 +78,30 @@ class DecisionType(str, enum.Enum):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Qualité du prospect (renseignée par le développeur après la visite terrain).
+# Sert à trier / prioriser les meilleurs prospects avant activation.
+# ─────────────────────────────────────────────────────────────────────────────
+QUALIFICATIONS = ["EXCELLENT", "TRES_BON", "BON", "MOYEN", "FAIBLE"]
+
+# Rang numérique : plus élevé = meilleur (utilisé pour le tri)
+QUALIFICATION_RANG = {
+    "EXCELLENT": 5,
+    "TRES_BON": 4,
+    "BON": 3,
+    "MOYEN": 2,
+    "FAIBLE": 1,
+}
+
+QUALIFICATION_LABELS = {
+    "EXCELLENT": "Excellent",
+    "TRES_BON": "Très bon",
+    "BON": "Bon",
+    "MOYEN": "Moyen",
+    "FAIBLE": "Faible",
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MODÈLE PRINCIPAL : Prospect
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -138,6 +162,9 @@ class Prospect(Base):
     # Décision développeur
     dev_decision_at = Column(DateTime, nullable=True)
     dev_decision_comment = Column(Text, nullable=True)
+    # Qualité évaluée par le développeur après visite :
+    # EXCELLENT / TRES_BON / BON / MOYEN / FAIBLE
+    qualification = Column(String(20), nullable=True, index=True)
     # Compteur de réaffectations (2ème opinion possible)
     visit_attempts = Column(Integer, default=0, nullable=False)
 
@@ -218,6 +245,7 @@ class ProspectHistory(Base):
 
     comment = Column(Text, nullable=True)
     extra = Column(JSON, nullable=True)  # données additionnelles (ex: id puce)
+    qualification = Column(String(20), nullable=True)  # qualité évaluée lors de la visite
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 

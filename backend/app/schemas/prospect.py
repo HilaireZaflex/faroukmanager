@@ -124,6 +124,8 @@ class DevDecisionRequest(BaseModel):
     """Décision du développeur après visite terrain."""
     approved: bool
     comment: str = Field(..., min_length=3, description="Justification obligatoire")
+    # Qualité du prospect évaluée sur place (obligatoire si approved=True)
+    qualification: Optional[str] = Field(None, description="EXCELLENT | TRES_BON | BON | MOYEN | FAIBLE")
     # Peut compléter / corriger les infos GPS lors de la visite
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -189,6 +191,7 @@ class ProspectHistoryOut(BaseModel):
     to_status: Optional[ProspectStatus] = None
     comment: Optional[str] = None
     extra: Optional[Dict[str, Any]] = None
+    qualification: Optional[str] = None
     created_at: datetime
     user: Optional[UserMini] = None
 
@@ -247,6 +250,7 @@ class ProspectOut(BaseModel):
     visit_attempts: int = 0
     dev_decision_at: Optional[datetime] = None
     dev_decision_comment: Optional[str] = None
+    qualification: Optional[str] = None
     rc_decision_at: Optional[datetime] = None
     rc_decision_by: Optional[UserMini] = None
     rc_decision_comment: Optional[str] = None

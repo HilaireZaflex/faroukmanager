@@ -240,6 +240,10 @@ async def auto_migrate():
         "CREATE TABLE IF NOT EXISTS tc_objectifs (id SERIAL PRIMARY KEY, tc_user_id INTEGER NOT NULL, annee INTEGER NOT NULL, mois INTEGER NOT NULL, objectif_appels INTEGER DEFAULT 0 NOT NULL, objectif_promesses INTEGER DEFAULT 0 NOT NULL, objectif_appels_jour INTEGER DEFAULT 0 NOT NULL, created_at TIMESTAMP DEFAULT NOW() NOT NULL, updated_at TIMESTAMP DEFAULT NOW() NOT NULL, CONSTRAINT uq_tc_objectif_periode UNIQUE (tc_user_id, annee, mois))",
         "CREATE INDEX IF NOT EXISTS ix_tc_objectifs_tc_user_id ON tc_objectifs (tc_user_id)",
         "CREATE INDEX IF NOT EXISTS ix_tc_objectifs_periode ON tc_objectifs (annee, mois)",
+        # ── Prospection : qualité du prospect renseignée par le développeur après visite ──
+        "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS qualification VARCHAR(20)",
+        "CREATE INDEX IF NOT EXISTS ix_prospects_qualification ON prospects (qualification)",
+        "ALTER TABLE prospect_history ADD COLUMN IF NOT EXISTS qualification VARCHAR(20)",
     ]
     try:
         with engine.connect() as conn:
@@ -268,6 +272,14 @@ async def auto_migrate():
                 for sql in [
                     "ALTER TABLE appels_tc ADD COLUMN indicateurs JSON",
                     "ALTER TABLE pdvs ADD COLUMN teleconseillere_user_id INTEGER",
+                    "ALTER TABLE prospects ADD COLUMN qualification VARCHAR(20)",
+                    "ALTER TABLE prospect_history ADD COLUMN qualification VARCHAR(20)",
+                    # Colonnes d'activation équipe (parité avec PostgreSQL)
+                    "ALTER TABLE prospects ADD COLUMN activation_superviseur VARCHAR(200)",
+                    "ALTER TABLE prospects ADD COLUMN activation_gestionnaire VARCHAR(200)",
+                    "ALTER TABLE prospects ADD COLUMN activation_teleconseillere VARCHAR(200)",
+                    "ALTER TABLE prospects ADD COLUMN activation_developpeur VARCHAR(200)",
+                    "ALTER TABLE prospects ADD COLUMN activation_type_pdv VARCHAR(200)",
                 ]:
                     try:
                         conn.execute(text(sql))
