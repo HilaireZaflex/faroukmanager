@@ -81,10 +81,12 @@ function PrioriteBadge({ priorite }) {
   );
 }
 
+const OBJETS_RECLAMATION = ['OMY', 'NAFAMA', 'COMMISSION', 'AUTRES'];
+
 // ─── Formulaire nouvelle réclamation ─────────────────────────────────────────
 function FormulaireReclamation({ onClose, onSuccess }) {
   const [form, setForm] = useState({
-    titre: '', description: '', categorie: 'PDV', priorite: 'NORMAL',
+    objet: 'OMY', precision: '', description: '', categorie: 'PDV', priorite: 'NORMAL',
     responsable_id: '', numero_pdv: '', date_limite: '',
   });
   const [loading, setLoading] = useState(false);
@@ -117,10 +119,14 @@ function FormulaireReclamation({ onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.titre || !form.description) return toast.error('Titre et description requis');
+    if (!form.precision.trim()) return toast.error('Veuillez préciser le titre');
+    if (!form.description.trim()) return toast.error('La description est requise');
     setLoading(true);
     try {
-      const payload = { ...form };
+      // Le titre final combine l'objet choisi et la précision saisie
+      const payload = { ...form, titre: `${form.objet} - ${form.precision.trim()}` };
+      delete payload.objet;
+      delete payload.precision;
       if (payload.responsable_id) payload.responsable_id = parseInt(payload.responsable_id);
       else delete payload.responsable_id;
       if (!payload.date_limite) delete payload.date_limite;
@@ -165,7 +171,16 @@ function FormulaireReclamation({ onClose, onSuccess }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={{ fontSize: 10, color: '#FF6900', fontWeight: 700, display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Titre *</label>
-              <input style={IS} placeholder="Résumé de la réclamation" value={form.titre} onChange={e => set('titre', e.target.value)} required />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <select style={{ ...SS, flex: '0 0 170px' }} value={form.objet} onChange={e => set('objet', e.target.value)}>
+                  {OBJETS_RECLAMATION.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <input style={{ ...IS, flex: 1 }} placeholder="Précisez le titre (ex : rupture de stock, panne, écart de commission…)"
+                  value={form.precision} onChange={e => set('precision', e.target.value)} required />
+              </div>
+              <div style={{ fontSize: 10, color: '#64748b', marginTop: 5 }}>
+                Titre final : <span style={{ color: '#FF6900', fontWeight: 700 }}>{form.objet} - {form.precision.trim() || '…'}</span>
+              </div>
             </div>
             <div>
               <label style={{ fontSize: 10, color: '#FF6900', fontWeight: 700, display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Catégorie</label>
@@ -607,35 +622,63 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
 
   const handleRefresh = () => { refetch(); onRefresh(); };
 
+  // Barre de filtres : tout sur une seule ligne (modèle Prospection → Demandes)
+  const filtreActif = !!(search || filtreStatut || filtrePriorite || filtreCategorie || filtreResponsable);
+  const effacerFiltres = () => {
+    setSearch(''); setFiltreStatut(''); setFiltrePriorite(''); setFiltreCategorie(''); setFiltreResponsable('');
+  };
+  const selStyle = (valeur) => ({
+    flex: '1 1 130px', padding: '9px 10px',
+    background: valeur ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)',
+    border: `1px solid ${valeur ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`,
+    borderRadius: 10, color: valeur ? '#FF6900' : '#94a3b8',
+    fontSize: 13, cursor: 'pointer', outline: 'none',
+  });
+
   if (isLoading) return <div style={{ textAlign: 'center', padding: 60, color: '#64748b' }}>⏳ Chargement...</div>;
 
   return (
     <div>
-      {/* Filtres */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input placeholder="🔍 Rechercher..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ flex: 1, minWidth: 200, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: 13 }} />
-        <select value={filtreStatut} onChange={e => setFiltreStatut(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
-          <option value="">Tous statuts</option>
-          {Object.entries(STATUT_CFG).map(([k,v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+      {/* ── Barre de filtres — tout sur une seule ligne ── */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, width: '100%' }}>
+        <div style={{ position: 'relative', flex: '2 1 220px', minWidth: 170 }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', fontSize: 13 }}>🔍</span>
+          <input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', padding: '9px 12px 9px 34px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+            onFocus={e => e.target.style.borderColor = '#FF6900'}
+            onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
+        </div>
+        <select value={filtreStatut} onChange={e => setFiltreStatut(e.target.value)} style={selStyle(filtreStatut)}>
+          <option value="">🔖 Tous statuts</option>
+          {Object.entries(STATUT_CFG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
         </select>
-        <select value={filtrePriorite} onChange={e => setFiltrePriorite(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
-          <option value="">Toutes priorités</option>
+        <select value={filtrePriorite} onChange={e => setFiltrePriorite(e.target.value)} style={selStyle(filtrePriorite)}>
+          <option value="">⚡ Toutes priorités</option>
           {PRIORITES.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
-        <select value={filtreCategorie} onChange={e => setFiltreCategorie(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
-          <option value="">Toutes catégories</option>
+        <select value={filtreCategorie} onChange={e => setFiltreCategorie(e.target.value)} style={selStyle(filtreCategorie)}>
+          <option value="">🏷️ Toutes catégories</option>
           {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select value={filtreResponsable} onChange={e => setFiltreResponsable(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
-          <option value="">Tous responsables</option>
+        <select value={filtreResponsable} onChange={e => setFiltreResponsable(e.target.value)} style={selStyle(filtreResponsable)}>
+          <option value="">👤 Tous responsables</option>
           {responsables.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
         </select>
-        <span style={{ fontSize: 12, color: '#64748b' }}>{items.length} réclamation(s)</span>
+        {filtreActif && (
+          <button onClick={effacerFiltres}
+            style={{ padding: '9px 14px', background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 10, color: '#ff4757', cursor: 'pointer', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            ✕ Effacer
+          </button>
+        )}
+      </div>
+
+      {/* Compteur de résultats */}
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+        {items.length} réclamation{items.length > 1 ? 's' : ''} affichée{items.length > 1 ? 's' : ''}
+        {filtreStatut && <span style={{ color: '#FF6900', marginLeft: 6 }}>· {STATUT_CFG[filtreStatut]?.label || filtreStatut}</span>}
+        {filtrePriorite && <span style={{ color: '#FF6900', marginLeft: 6 }}>· {filtrePriorite}</span>}
+        {filtreCategorie && <span style={{ color: '#FF6900', marginLeft: 6 }}>· {filtreCategorie}</span>}
+        {filtreResponsable && <span style={{ color: '#FF6900', marginLeft: 6 }}>· {responsables.find(u => String(u.id) === String(filtreResponsable))?.nom || 'responsable'}</span>}
       </div>
 
       {/* Liste */}
