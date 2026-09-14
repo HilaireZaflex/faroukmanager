@@ -203,10 +203,11 @@ function TabHistorique({ dashboard }) {
     () => api.get('/appels-tc', { params: selTC ? { tc_user_id: selTC, limit:200 } : { limit:100 } }).then(r => r.data),
     { staleTime: 30000 }
   );
-  const appels = (appelsData?.items || []).filter(a =>
-    (!search || (a.nom_pdv||'').toLowerCase().includes(search.toLowerCase()) || (a.numero_pdv||'').includes(search)) &&
-    (!selInd || a.indicateur === selInd)
-  );
+  const appels = (appelsData?.items || []).filter(a => {
+    const inds = (a.indicateurs && a.indicateurs.length) ? a.indicateurs : (a.indicateur ? [a.indicateur] : []);
+    return (!search || (a.nom_pdv||'').toLowerCase().includes(search.toLowerCase()) || (a.numero_pdv||'').includes(search)) &&
+           (!selInd || inds.includes(selInd));
+  });
 
   return (
     <div>
@@ -216,7 +217,7 @@ function TabHistorique({ dashboard }) {
         <select value={selTC} onChange={e=>setSelTC(e.target.value)}
           style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
           <option value="">Toutes TCs</option>
-          {(dashboard?.par_tc||[]).map(tc => <option key={tc.tc_nom} value={tc.tc_nom}>{tc.tc_nom}</option>)}
+          {(dashboard?.par_tc||[]).map(tc => <option key={tc.tc_user_id ?? tc.tc_nom} value={tc.tc_user_id ?? ''}>{tc.tc_nom}</option>)}
         </select>
         <select value={selInd} onChange={e=>setSelInd(e.target.value)}
           style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
@@ -246,10 +247,12 @@ function TabHistorique({ dashboard }) {
                   <div style={{ fontSize:10, color:'#64748b' }}>{a.numero_pdv}</div>
                 </td>
                 <td style={{ padding:'8px 14px' }}>
-                  <span style={{ fontSize:10, padding:'2px 8px', borderRadius:10, fontWeight:700,
-                    background:`${IND_COLORS[a.indicateur]||'#64748b'}20`, color:IND_COLORS[a.indicateur]||'#64748b' }}>
-                    {a.indicateur}
-                  </span>
+                  {((a.indicateurs && a.indicateurs.length) ? a.indicateurs : [a.indicateur]).filter(Boolean).map((ind, k) => (
+                    <span key={k} style={{ fontSize:10, padding:'2px 8px', borderRadius:10, fontWeight:700, marginRight:4, display:'inline-block',
+                      background:`${IND_COLORS[ind]||'#64748b'}20`, color:IND_COLORS[ind]||'#64748b' }}>
+                      {ind}
+                    </span>
+                  ))}
                 </td>
                 <td style={{ padding:'8px 14px', fontSize:11, color:STATUT_COLORS[a.statut]||'#64748b', whiteSpace:'nowrap' }}>
                   {STATUT_ICONS[a.statut]||''} {(a.statut||'').replace(/_/g,' ')}
@@ -269,8 +272,8 @@ function TabHistorique({ dashboard }) {
 // ─── Tab 4 : File unifiée Admin ───────────────────────────────────────────────
 function TabFileAdmin() {
   const now = new Date();
-  const defMois = now.getMonth() === 0 ? 12 : now.getMonth();
-  const defAnnee = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
+  const defMois = now.getMonth() + 1;   // getMonth() est 0-based
+  const defAnnee = now.getFullYear();
   const [mois, setMois] = useState(defMois);
   const [annee] = useState(defAnnee);
   const [filtreTCAdmin, setFiltreTCAdmin] = useState('');
@@ -280,7 +283,7 @@ function TabFileAdmin() {
   const charger = React.useCallback(async (a, m) => {
     setLoading(true);
     try {
-      const resp = await api.get('/tc/liste-unifiee', { params: { annee: a||2026, mois: m||8 } });
+      const resp = await api.get('/tc/liste-unifiee', { params: { annee: a, mois: m } });
       setData(resp.data);
     } catch(e) { console.error(e); }
     finally { setLoading(false); }
@@ -616,11 +619,92 @@ function TabObjectifs({ annee: anneeInit, mois: moisInit }) {
   );
 }
 
+// ─── Tab 7 : Comptes TC ───────────────────────────────────────────────────────
+function TabComptes({ annee: anneeInit, mois: moisInit }) {
+  const [annee, setAnnee] = useState(anneeInit);
+  const [mois, setMois] = useState(moisInit);
+
+  const { data, isLoading } = useQuery(
+    ['tc-comptes', annee, mois],
+    () => api.get('/tc/comptes', { params: { annee, mois } }).then(r => r.data),
+    { staleTime: 60000 }
+  );
+
+  const comptes = data?.comptes || [];
+  const totalAppels = comptes.reduce((a, c) => a + (c.appels_mois || 0), 0);
+  const totalPdvs = comptes.reduce((a, c) => a + (c.pdvs_assignes || 0), 0);
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:16, flexWrap:'wrap' }}>
+        <div style={{ fontSize:15, fontWeight:800, color:'#fff' }}>👥 Comptes téléconseillères</div>
+        <select value={mois} onChange={e => setMois(parseInt(e.target.value, 10))}
+          style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'#1a1a2e', color:'#fff', fontSize:13 }}>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{MOIS_NOMS[m]}</option>)}
+        </select>
+        <select value={annee} onChange={e => setAnnee(parseInt(e.target.value, 10))}
+          style={{ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.15)', background:'#1a1a2e', color:'#fff', fontSize:13 }}>
+          {[anneeInit - 1, anneeInit, anneeInit + 1].map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <span style={{ fontSize:12, color:'#64748b' }}>{comptes.length} compte(s) · {totalAppels} appels · {totalPdvs} PDV affectés</span>
+      </div>
+
+      {isLoading ? (
+        <div style={{ textAlign:'center', padding:40, color:'#64748b' }}>⏳ Chargement...</div>
+      ) : (
+        <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+            <thead>
+              <tr style={{ background:'rgba(255,255,255,0.04)' }}>
+                {['Téléconseillère', 'Email', 'Statut', 'PDV affectés', 'Appels du mois', 'Joignables', 'Promesses', 'Joignabilité', 'Dernier appel'].map(h => (
+                  <th key={h} style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {comptes.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Aucun compte téléconseillère</td></tr>
+              ) : comptes.map((c, i) => (
+                <tr key={c.tc_user_id} style={{ borderTop:'1px solid rgba(255,255,255,0.04)', background: i%2===0?'transparent':'rgba(255,255,255,0.01)' }}>
+                  <td style={{ padding:'9px 12px', fontSize:12, fontWeight:700, color:'#FF6900', whiteSpace:'nowrap' }}>{c.tc_nom}</td>
+                  <td style={{ padding:'9px 12px', fontSize:11, color:'#8a8a9a' }}>{c.email}</td>
+                  <td style={{ padding:'9px 12px' }}>
+                    <span style={{ fontSize:10, padding:'2px 8px', borderRadius:10, fontWeight:700,
+                      background: c.is_active ? 'rgba(34,197,94,0.15)' : 'rgba(255,71,87,0.15)',
+                      color: c.is_active ? '#22c55e' : '#ff4757' }}>
+                      {c.is_active ? 'ACTIF' : 'INACTIF'}
+                    </span>
+                  </td>
+                  <td style={{ padding:'9px 12px', fontSize:12, color:'#ccc', fontWeight:700 }}>{c.pdvs_assignes}</td>
+                  <td style={{ padding:'9px 12px', fontSize:13, color:'#fff', fontWeight:800 }}>{c.appels_mois}</td>
+                  <td style={{ padding:'9px 12px', fontSize:12, color:'#22c55e' }}>{c.joignables}</td>
+                  <td style={{ padding:'9px 12px', fontSize:12, color:'#00d68f' }}>{c.promesses}</td>
+                  <td style={{ padding:'9px 12px', minWidth:110 }}>
+                    <div style={{ fontSize:12, fontWeight:800, color: couleurTaux(c.taux_joignabilite) }}>{c.taux_joignabilite}%</div>
+                    <TauxBar taux={c.taux_joignabilite} color={couleurTaux(c.taux_joignabilite)} />
+                  </td>
+                  <td style={{ padding:'9px 12px', fontSize:11, color:'#64748b', whiteSpace:'nowrap' }}>
+                    {c.dernier_appel ? c.dernier_appel.slice(0, 10) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ fontSize:11, color:'#64748b', marginTop:10 }}>
+        Chaque ligne correspond à un COMPTE utilisateur : les appels sont rattachés au compte, pas au nom. « PDV affectés » se base sur l'affectation des points de vente.
+      </div>
+    </div>
+  );
+}
+
 // ─── Page Principale ──────────────────────────────────────────────────────────
 export default function SuiviTCPage() {
   const now = new Date();
-  const moisP = now.getMonth() === 0 ? 12 : now.getMonth();
-  const anneeP = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
+  const moisP = now.getMonth() + 1;   // getMonth() est 0-based : 0 = janvier
+  const anneeP = now.getFullYear();
   const [activeTab, setActiveTab] = useState('ensemble');
 
   const { data: dashboard, isLoading } = useQuery(
@@ -631,6 +715,7 @@ export default function SuiviTCPage() {
 
   const TABS = [
     { id:'ensemble',    icon:'📊', label:"Vue d'ensemble" },
+    { id:'comptes',     icon:'👥', label:'Comptes TC' },
     { id:'par-tc',      icon:'👤', label:'Par TC' },
     { id:'historique',  icon:'📋', label:'Historique appels' },
     { id:'file-admin',  icon:'📞', label:'File unifiée (Admin)' },
@@ -669,6 +754,7 @@ export default function SuiviTCPage() {
       </div>
 
       {activeTab === 'ensemble'    && <TabVueEnsemble dashboard={dashboard}/>}
+      {activeTab === 'comptes'     && <TabComptes annee={anneeP} mois={moisP}/>}
       {activeTab === 'par-tc'      && <TabParTC annee={anneeP} mois={moisP}/>}
       {activeTab === 'historique'  && <TabHistorique dashboard={dashboard}/>}
       {activeTab === 'file-admin'  && <TabFileAdmin/>}

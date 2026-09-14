@@ -70,6 +70,36 @@ def _normalize_indicateurs(indicateurs, principal=None) -> list:
     return resultat
 
 
+def _pdv_autorise_pour_tc(db: Session, current_user: User, numero_pdv: str) -> bool:
+    """Une téléconseillère ne peut enregistrer un appel que sur SES PDV affectés.
+
+    - PDV inconnu ou non affecté → autorisé (les cas particuliers ne sont pas bloqués).
+    - PDV affecté au compte de la TC → autorisé.
+    - PDV affecté à une AUTRE téléconseillère → refusé.
+    """
+    role = str(current_user.role or '').lower().replace('userrole.', '')
+    if role not in ('teleconseillere', 'tc'):
+        return True
+
+    pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv).first()
+    if pdv is None:
+        return True
+
+    # Lien fiable par COMPTE
+    if pdv.teleconseillere_user_id:
+        return pdv.teleconseillere_user_id == current_user.id
+
+    # Repli par nom (lien pas encore rempli)
+    nom_pdv = (pdv.teleconseillere or '').strip().upper()
+    if nom_pdv in ('', 'AU BUREAU', '#VALUE!'):
+        return True
+    mes_noms = {
+        _full_name(current_user).strip().upper(),
+        f"{current_user.nom or ''} {current_user.prenom or ''}".strip().upper(),
+    }
+    return nom_pdv in mes_noms
+
+
 def _fmt(a: AppelTC) -> dict:
     return {
         "id": a.id,
@@ -99,6 +129,9 @@ def create_appel(
     inds = _normalize_indicateurs(body.indicateurs, body.indicateur)
     if not inds:
         raise HTTPException(400, "Au moins un indicateur valide est requis (OMY, NAFAMA ou KAABU)")
+
+    if not _pdv_autorise_pour_tc(db, current_user, body.numero_pdv):
+        raise HTTPException(403, "Ce point de vente est affecté à une autre téléconseillère.")
 
     tc_nom = _full_name(current_user)
 
@@ -557,6 +590,9 @@ def marquer_appele(
     inds = _normalize_indicateurs(indicateurs)
     if not inds:
         raise HTTPException(400, "Au moins un indicateur valide est requis (OMY, NAFAMA ou KAABU)")
+
+    if not _pdv_autorise_pour_tc(db, current_user, numero_pdv):
+        raise HTTPException(403, "Ce point de vente est affecté à une autre téléconseillère.")
 
     pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv).first()
     nom_pdv = pdv.nom if pdv else numero_pdv
