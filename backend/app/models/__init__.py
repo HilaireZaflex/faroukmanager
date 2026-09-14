@@ -38,7 +38,7 @@ from app.models.appel_tc import AppelTC
 from app.models.tc_objectif import TcObjectif
 from app.models.reclamation import (
     Reclamation, ReclamationCommentaire, ReclamationNotification,
-    ReclamationHistorique, ReclamationRoutage,
+    ReclamationHistorique, ReclamationRoutage, ReclamationPieceJointe,
 )
 from app.models.eval_superviseur import EvalSuperviseur
 from app.models.kaabu import KaabuTransaction

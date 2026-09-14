@@ -91,3 +91,24 @@ class ReclamationRoutage(Base):
     categorie = Column(String(50), unique=True, nullable=False)
     role_cible = Column(String(100), nullable=True)  # rôle utilisateur cible (minuscules)
     actif = Column(Boolean, default=True, nullable=False)
+
+
+class ReclamationPieceJointe(Base):
+    """Pièce jointe d'une réclamation (photo, capture, document).
+
+    Les fichiers sont stockés sous `uploads/reclamations/...` (volume persistant)
+    mais ce dossier est EXCLU du montage statique public : l'accès passe
+    obligatoirement par un endpoint authentifié.
+    """
+    __tablename__ = "reclamation_pieces_jointes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    reclamation_id = Column(Integer, ForeignKey("reclamations.id"), nullable=False, index=True)
+    auteur_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    auteur_nom = Column(String(200))
+    file_name = Column(String(300), nullable=False)   # nom d'origine affiché
+    file_path = Column(String(500), nullable=False)   # chemin relatif sous uploads/
+    mime_type = Column(String(120), nullable=True)
+    size_bytes = Column(Integer, default=0)
+    kind = Column(String(30), default="AUTRE")        # PHOTO / CAPTURE / DOCUMENT / AUTRE
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

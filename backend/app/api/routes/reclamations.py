@@ -1,15 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timedelta
+import os
+import uuid
 from app.core.database import get_db
 from app.api.routes.auth import get_current_user
 from app.models.user import User
 from app.models.pdv import PDV
 from app.models.reclamation import (
     Reclamation, ReclamationCommentaire, ReclamationNotification,
-    ReclamationHistorique, ReclamationRoutage,
+    ReclamationHistorique, ReclamationRoutage, ReclamationPieceJointe,
 )
+
+# ─── Stockage des pièces jointes ─────────────────────────────────────────────
+# Sous-dossier VOLONTAIREMENT exclu du montage statique public `/uploads`.
+UPLOAD_ROOT = "uploads"
+RECLAMATION_UPLOAD_SUBDIR = "reclamations"
+ALLOWED_MIME = {
+    "image/jpeg", "image/jpg", "image/png", "image/webp",
+    "image/heic", "image/heif", "application/pdf",
+}
+MAX_PIECE_SIZE = 10 * 1024 * 1024  # 10 Mo
 
 router = APIRouter()
 
@@ -98,6 +111,20 @@ def notifier_admin_et_responsable(db: Session, r: Reclamation, message: str, typ
             notified_ids.add(admin.id)
     if r.responsable_id and r.responsable_id not in notified_ids and r.responsable_id != exclude_id:
         notifier(db, r.id, r.responsable_id, message, type_notif)
+
+def _piece_to_dict(p: ReclamationPieceJointe) -> dict:
+    return {
+        "id": p.id,
+        "reclamation_id": p.reclamation_id,
+        "auteur_nom": p.auteur_nom,
+        "file_name": p.file_name,
+        "mime_type": p.mime_type,
+        "size_bytes": p.size_bytes or 0,
+        "kind": p.kind,
+        "url": f"/reclamations/{p.reclamation_id}/pieces-jointes/{p.id}/fichier",
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
+
 
 def reclamation_to_dict(r: Reclamation) -> dict:
     return {
@@ -335,6 +362,12 @@ def get_reclamation(
         "details": h.details,
         "created_at": h.created_at.isoformat() if h.created_at else None,
     } for h in historique]
+
+    # Pièces jointes
+    pieces = db.query(ReclamationPieceJointe).filter(
+        ReclamationPieceJointe.reclamation_id == rec_id
+    ).order_by(ReclamationPieceJointe.id.desc()).all()
+    data["pieces_jointes"] = [_piece_to_dict(p) for p in pieces]
 
     return data
 
@@ -630,6 +663,132 @@ def set_routage(
             db.add(row)
         row.role_cible = (item.get("role_cible") or "").strip().lower() or None
         row.actif = bool(item.get("actif", True))
+    db.commit()
+    return {"success": True}
+
+
+# ─── Pièces jointes ──────────────────────────────────────────────────────────
+
+@router.get("/reclamations/{rec_id}/pieces-jointes")
+def list_pieces_jointes(
+    rec_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
+
+    pieces = db.query(ReclamationPieceJointe).filter(
+        ReclamationPieceJointe.reclamation_id == rec_id
+    ).order_by(ReclamationPieceJointe.id.desc()).all()
+    return {"items": [_piece_to_dict(p) for p in pieces]}
+
+
+@router.post("/reclamations/{rec_id}/pieces-jointes")
+async def upload_piece_jointe(
+    rec_id: int,
+    file: UploadFile = File(...),
+    kind: str = Form("AUTRE"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Ajouter une pièce jointe (image ou PDF, 10 Mo max)."""
+    r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
+
+    contenu = await file.read(MAX_PIECE_SIZE + 1)
+    if len(contenu) > MAX_PIECE_SIZE:
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 10 Mo)")
+    mime = (file.content_type or "").lower()
+    if mime not in ALLOWED_MIME:
+        raise HTTPException(status_code=400, detail="Format non autorisé (image ou PDF uniquement)")
+
+    dossier = os.path.join(UPLOAD_ROOT, RECLAMATION_UPLOAD_SUBDIR, str(rec_id))
+    os.makedirs(dossier, exist_ok=True)
+    ext = os.path.splitext(file.filename or "")[1].lower()[:10]
+    nom_stocke = f"{uuid.uuid4().hex}{ext}"
+    chemin = os.path.join(dossier, nom_stocke)
+    with open(chemin, "wb") as f:
+        f.write(contenu)
+
+    p = ReclamationPieceJointe(
+        reclamation_id=rec_id,
+        auteur_id=current_user.id,
+        auteur_nom=f"{current_user.prenom or ''} {current_user.nom or ''}".strip(),
+        file_name=(file.filename or nom_stocke)[:300],
+        file_path=chemin.replace("\\", "/"),
+        mime_type=mime,
+        size_bytes=len(contenu),
+        kind=(kind or "AUTRE").upper()[:30],
+    )
+    db.add(p)
+    log_historique(db, rec_id, current_user, "PIECE_JOINTE", details=p.file_name)
+    db.commit()
+    db.refresh(p)
+    return _piece_to_dict(p)
+
+
+@router.get("/reclamations/{rec_id}/pieces-jointes/{piece_id}/fichier")
+def download_piece_jointe(
+    rec_id: int,
+    piece_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Télécharger / afficher une pièce jointe (accès authentifié obligatoire)."""
+    r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
+
+    p = db.query(ReclamationPieceJointe).filter(
+        ReclamationPieceJointe.id == piece_id,
+        ReclamationPieceJointe.reclamation_id == rec_id,
+    ).first()
+    if not p or not p.file_path or not os.path.exists(p.file_path):
+        raise HTTPException(status_code=404, detail="Pièce jointe introuvable")
+
+    return FileResponse(p.file_path, media_type=p.mime_type or "application/octet-stream", filename=p.file_name)
+
+
+@router.delete("/reclamations/{rec_id}/pieces-jointes/{piece_id}")
+def delete_piece_jointe(
+    rec_id: int,
+    piece_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Supprimer une pièce jointe (auteur ou administrateur)."""
+    r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
+
+    p = db.query(ReclamationPieceJointe).filter(
+        ReclamationPieceJointe.id == piece_id,
+        ReclamationPieceJointe.reclamation_id == rec_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pièce jointe introuvable")
+    if not (_est_admin(current_user) or p.auteur_id == current_user.id):
+        raise HTTPException(status_code=403, detail="Seul l'auteur ou un administrateur peut supprimer cette pièce")
+
+    nom = p.file_name
+    try:
+        if p.file_path and os.path.exists(p.file_path):
+            os.remove(p.file_path)
+    except Exception:
+        pass  # le fichier a pu déjà être supprimé
+    db.delete(p)
+    log_historique(db, rec_id, current_user, "PIECE_JOINTE_SUPPR", details=nom)
     db.commit()
     return {"success": True}
 

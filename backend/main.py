@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
@@ -31,11 +31,23 @@ app = FastAPI(
     description="Système de gestion intelligente du réseau PDV - Orange Mali"
 )
 
-# Servir les fichiers uploadés comme fichiers statiques
+# Servir les fichiers uploadés comme fichiers statiques.
+# Le dossier `reclamations/` est VOLONTAIREMENT EXCLU : ses pièces jointes ne sont
+# accessibles que via l'endpoint authentifié
+# /api/reclamations/{id}/pieces-jointes/{piece_id}/fichier
+class _UploadsStaticFiles(StaticFiles):
+    _DOSSIERS_PRIVES = ("reclamations",)
+
+    async def get_response(self, path, scope):
+        if path.startswith(self._DOSSIERS_PRIVES):
+            return Response(status_code=404)
+        return await super().get_response(path, scope)
+
+
 os.makedirs("uploads/energia", exist_ok=True)
 os.makedirs("uploads/prospects", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
+os.makedirs("uploads/reclamations", exist_ok=True)
+app.mount("/uploads", _UploadsStaticFiles(directory="uploads"), name="uploads")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

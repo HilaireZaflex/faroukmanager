@@ -37,6 +37,34 @@ const ACTION_ICONS = {
   COMMENTAIRE: '💬', NOTE: '⭐', RELANCE: '🔔',
 };
 
+// Aperçu d'une image de pièce jointe (récupérée avec le token, donc en blob)
+function PieceImage({ url }) {
+  const [src, setSrc] = React.useState(null);
+  React.useEffect(() => {
+    let objetUrl = null;
+    let annule = false;
+    api.get(url, { responseType: 'blob' })
+      .then(r => { if (!annule) { objetUrl = URL.createObjectURL(r.data); setSrc(objetUrl); } })
+      .catch(() => {});
+    return () => { annule = true; if (objetUrl) URL.revokeObjectURL(objetUrl); };
+  }, [url]);
+
+  if (!src) return (
+    <div style={{ width: 60, height: 60, borderRadius: 8, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🖼️</div>
+  );
+  return (
+    <img src={src} alt="" onClick={() => window.open(src, '_blank')}
+      style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }} />
+  );
+}
+
+const tailleLisible = (o) => {
+  if (!o) return '0 o';
+  if (o < 1024) return `${o} o`;
+  if (o < 1024 * 1024) return `${(o / 1024).toFixed(0)} Ko`;
+  return `${(o / 1024 / 1024).toFixed(1)} Mo`;
+};
+
 function StatutBadge({ statut }) {
   const cfg = STATUT_CFG[statut] || STATUT_CFG.OUVERTE;
   return (
@@ -261,6 +289,44 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
     finally { setLoading(false); }
   };
 
+  // ── Pièces jointes ──
+  const [uploading, setUploading] = React.useState(false);
+  const [kindPj, setKindPj] = React.useState('PHOTO');
+
+  const uploaderPiece = async (fichier) => {
+    if (!fichier) return;
+    const fd = new FormData();
+    fd.append('file', fichier);
+    fd.append('kind', kindPj);
+    setUploading(true);
+    try {
+      await api.post(`/reclamations/${rec.id}/pieces-jointes`, fd);
+      toast.success('Pièce jointe ajoutée');
+      refetchDetails();
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur lors de l\'envoi'); }
+    finally { setUploading(false); }
+  };
+
+  const telechargerPiece = async (p) => {
+    try {
+      const r = await api.get(p.url, { responseType: 'blob' });
+      const u = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = u; a.download = p.file_name || 'piece-jointe';
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(u);
+    } catch { toast.error('Téléchargement impossible'); }
+  };
+
+  const supprimerPiece = async (p) => {
+    if (!window.confirm(`Supprimer « ${p.file_name} » ?`)) return;
+    try {
+      await api.delete(p.url);
+      toast.success('Pièce jointe supprimée');
+      refetchDetails();
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
+  };
+
   const cfg = STATUT_CFG[details?.statut || rec.statut] || STATUT_CFG.OUVERTE;
   const commentaires = details?.commentaires || [];
 
@@ -424,6 +490,49 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
               Envoyer
             </button>
           </div>
+        </div>
+
+        {/* Pièces jointes */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>📎 Pièces jointes ({(details?.pieces_jointes || []).length})</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select value={kindPj} onChange={e => setKindPj(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: '#1a1a2e', color: '#fff', fontSize: 11 }}>
+                {['PHOTO', 'CAPTURE', 'DOCUMENT', 'AUTRE'].map(k => <option key={k} value={k}>{k}</option>)}
+              </select>
+              <label style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,105,0,0.3)', background: 'rgba(255,105,0,0.08)', color: '#FF6900', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                {uploading ? '⏳ Envoi...' : '➕ Ajouter'}
+                <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; uploaderPiece(f); }} />
+              </label>
+            </div>
+          </div>
+          {(details?.pieces_jointes || []).length === 0 ? (
+            <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', padding: 12 }}>Aucune pièce jointe</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(details?.pieces_jointes || []).map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '8px 12px' }}>
+                  {(p.mime_type || '').startsWith('image/') ? <PieceImage url={p.url} /> : (
+                    <div style={{ width: 60, height: 60, borderRadius: 8, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📄</div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: '#e2e8f0', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.file_name}</div>
+                    <div style={{ fontSize: 10, color: '#64748b' }}>
+                      {p.kind} · {tailleLisible(p.size_bytes)} · {p.auteur_nom} · {p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR') : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => telechargerPiece(p)} title="Télécharger"
+                    style={{ padding: '6px 10px', borderRadius: 7, border: 'none', background: 'rgba(74,158,255,0.12)', color: '#4a9eff', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>⬇️</button>
+                  {(isAdmin || p.auteur_nom === `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim()) && (
+                    <button onClick={() => supprimerPiece(p)} title="Supprimer"
+                      style={{ padding: '6px 10px', borderRadius: 7, border: 'none', background: 'rgba(255,71,87,0.12)', color: '#ff4757', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>🗑️</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Fil d'activité */}
