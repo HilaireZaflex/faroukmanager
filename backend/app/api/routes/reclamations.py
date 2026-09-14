@@ -9,6 +9,43 @@ from app.models.reclamation import Reclamation, ReclamationCommentaire, Reclamat
 
 router = APIRouter()
 
+# ─── Helpers rôles & autorisations ───────────────────────────────────────────
+
+def _role(user: User) -> str:
+    """Rôle normalisé (minuscules, sans préfixe d'énum)."""
+    return str(user.role or '').lower().replace('userrole.', '').strip()
+
+
+def _est_admin(user: User) -> bool:
+    return _role(user) in ('admin', 'manager')
+
+
+def _admins(db: Session):
+    """Comptes admin/manager — comparaison insensible à la casse."""
+    return [u for u in db.query(User).all() if _est_admin(u)]
+
+
+def _peut_voir(r: Reclamation, user: User) -> bool:
+    """Autorisé : admin/manager, soumetteur, ou responsable assigné."""
+    return _est_admin(user) or r.soumetteur_id == user.id or r.responsable_id == user.id
+
+
+def _peut_traiter(r: Reclamation, user: User) -> bool:
+    """Autorisé à changer le statut / répondre : admin/manager ou responsable assigné."""
+    return _est_admin(user) or r.responsable_id == user.id
+
+
+def _est_en_retard(r: Reclamation) -> bool:
+    """Retard calculé sur l'échéance si elle existe, sinon 72 h après création."""
+    if r.statut in ('RESOLUE', 'CLOTUREE'):
+        return False
+    if not r.created_at:
+        return False
+    if r.date_limite:
+        return datetime.utcnow() > r.date_limite
+    return (datetime.utcnow() - r.created_at) > timedelta(hours=72)
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def notifier(db: Session, reclamation_id: int, destinataire_id: int, message: str, type_notif: str):
@@ -22,7 +59,7 @@ def notifier(db: Session, reclamation_id: int, destinataire_id: int, message: st
 
 def notifier_admin_et_responsable(db: Session, r: Reclamation, message: str, type_notif: str, exclude_id: int = None):
     """Notifier tous les admins + le responsable assigné."""
-    admins = db.query(User).filter(User.role.in_(['ADMIN', 'MANAGER'])).all()
+    admins = _admins(db)
     notified_ids = set()
     for admin in admins:
         if admin.id != exclude_id:
@@ -57,7 +94,7 @@ def reclamation_to_dict(r: Reclamation) -> dict:
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         # Calcul SLA
         "jours_depuis_creation": (datetime.utcnow() - r.created_at).days if r.created_at else 0,
-        "en_retard": (datetime.utcnow() - r.created_at) > timedelta(hours=72) and r.statut not in ('RESOLUE', 'CLOTUREE'),
+        "en_retard": _est_en_retard(r),
     }
 
 # ─── ROUTES RÉCLAMATIONS ─────────────────────────────────────────────────────
@@ -81,7 +118,7 @@ def list_reclamations(
         q = q.filter(Reclamation.soumetteur_id == current_user.id)
     elif a_traiter:
         q = q.filter(Reclamation.responsable_id == current_user.id)
-    elif current_user.role not in ('ADMIN', 'MANAGER'):
+    elif not _est_admin(current_user):
         # Non-admin : voit ses réclamations + celles qu'il doit traiter
         q = q.filter(
             (Reclamation.soumetteur_id == current_user.id) |
@@ -113,6 +150,11 @@ def create_reclamation(
     """Soumettre une nouvelle réclamation."""
     nom_complet = f"{current_user.prenom or ''} {current_user.nom or ''}".strip() or current_user.email
 
+    titre = (data.get("titre") or "").strip()
+    description = (data.get("description") or "").strip()
+    if not titre or not description:
+        raise HTTPException(status_code=400, detail="Titre et description sont obligatoires")
+
     # Mapping responsables fixes → noms affichables
     RESPONSABLES_MAP = {
         'admin': 'Admin',
@@ -124,32 +166,39 @@ def create_reclamation(
     # Trouver le responsable
     responsable = None
     responsable_nom = None
+    responsable_id = None
     resp_id_raw = data.get("responsable_id")
     if resp_id_raw:
-        # Responsable fixe (string) ou utilisateur (int)
         if str(resp_id_raw) in RESPONSABLES_MAP:
+            # Responsable « fixe » : libellé seul, aucun compte utilisateur associé
             responsable_nom = RESPONSABLES_MAP[str(resp_id_raw)]
         else:
             try:
                 responsable = db.query(User).filter(User.id == int(resp_id_raw)).first()
-                if responsable:
-                    responsable_nom = f"{responsable.prenom or ''} {responsable.nom or ''}".strip()
             except (ValueError, TypeError):
-                responsable_nom = str(resp_id_raw)
+                responsable = None
+            if responsable:
+                responsable_id = responsable.id
+                responsable_nom = f"{responsable.prenom or ''} {responsable.nom or ''}".strip()
+
+    try:
+        date_limite = datetime.fromisoformat(data["date_limite"]) if data.get("date_limite") else None
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Date limite invalide")
 
     r = Reclamation(
-        titre=data["titre"],
-        description=data["description"],
+        titre=titre,
+        description=description,
         categorie=data.get("categorie", "AUTRE"),
         priorite=data.get("priorite", "NORMAL"),
         statut="OUVERTE",
         soumetteur_id=current_user.id,
         soumetteur_nom=nom_complet,
-        responsable_id=data.get("responsable_id"),
+        responsable_id=responsable_id,
         responsable_nom=responsable_nom,
         numero_pdv=data.get("numero_pdv"),
         nom_pdv=data.get("nom_pdv"),
-        date_limite=datetime.fromisoformat(data["date_limite"]) if data.get("date_limite") else None,
+        date_limite=date_limite,
     )
     db.add(r)
     db.flush()
@@ -159,7 +208,7 @@ def create_reclamation(
     msg_resp = f"📣 {nom_complet} vous a assigné une réclamation : \"{r.titre}\" [{r.priorite}]. Merci de traiter dans les 72h."
 
     # Notifier admins
-    admins = db.query(User).filter(User.role.in_(['ADMIN', 'MANAGER'])).all()
+    admins = _admins(db)
     for admin in admins:
         if admin.id != current_user.id:
             notifier(db, r.id, admin.id, msg_admin, "NOUVELLE")
@@ -182,11 +231,16 @@ def get_reclamation(
     r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
 
     # Récupérer les commentaires
     commentaires = db.query(ReclamationCommentaire).filter(
         ReclamationCommentaire.reclamation_id == rec_id
     ).order_by(ReclamationCommentaire.created_at.asc()).all()
+
+    # Les notes internes ne sont visibles que par les admins et le responsable assigné
+    peut_voir_interne = _est_admin(current_user) or r.responsable_id == current_user.id
 
     data = reclamation_to_dict(r)
     data["commentaires"] = [{
@@ -196,7 +250,7 @@ def get_reclamation(
         "contenu": c.contenu,
         "est_interne": c.est_interne,
         "created_at": c.created_at.isoformat() if c.created_at else None,
-    } for c in commentaires]
+    } for c in commentaires if peut_voir_interne or not c.est_interne]
 
     return data
 
@@ -212,6 +266,27 @@ def update_reclamation(
     r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
+
+    # ── Contrôle des droits champ par champ ──
+    est_admin = _est_admin(current_user)
+    est_responsable = r.responsable_id == current_user.id
+    est_soumetteur = r.soumetteur_id == current_user.id
+
+    if "responsable_id" in data and not est_admin:
+        raise HTTPException(status_code=403, detail="Seul un administrateur peut réassigner une réclamation")
+    if "statut" in data:
+        nouveau = data.get("statut")
+        # Le soumetteur ne peut que réouvrir ; le reste est réservé au responsable/admin
+        if not (est_admin or est_responsable or (est_soumetteur and nouveau == 'REOUVERTE')):
+            raise HTTPException(status_code=403, detail="Seul le responsable assigné (ou un administrateur) peut changer le statut")
+    if "reponse" in data and not (est_admin or est_responsable):
+        raise HTTPException(status_code=403, detail="Seul le responsable assigné (ou un administrateur) peut répondre")
+    if "escalade_raison" in data and not (est_admin or est_responsable):
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    if "note_satisfaction" in data and not est_soumetteur:
+        raise HTTPException(status_code=403, detail="Seul le soumetteur peut évaluer la résolution")
 
     nom_complet = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
     ancien_statut = r.statut
@@ -258,12 +333,18 @@ def update_reclamation(
 
     # Réassignation
     if "responsable_id" in data:
-        new_resp = db.query(User).filter(User.id == data["responsable_id"]).first()
-        if new_resp:
-            r.responsable_id = new_resp.id
-            r.responsable_nom = f"{new_resp.prenom or ''} {new_resp.nom or ''}".strip()
-            msg = f"👤 Réclamation \"{r.titre}\" réassignée à {r.responsable_nom} par {nom_complet}"
+        if data["responsable_id"] in (None, ""):
+            r.responsable_id = None
+            r.responsable_nom = None
+            msg = f"👤 Réclamation \"{r.titre}\" désassignée par {nom_complet}"
             type_notif = "REASSIGNATION"
+        else:
+            new_resp = db.query(User).filter(User.id == data["responsable_id"]).first()
+            if new_resp:
+                r.responsable_id = new_resp.id
+                r.responsable_nom = f"{new_resp.prenom or ''} {new_resp.nom or ''}".strip()
+                msg = f"👤 Réclamation \"{r.titre}\" réassignée à {r.responsable_nom} par {nom_complet}"
+                type_notif = "REASSIGNATION"
 
     # Envoyer notifications
     if msg:
@@ -287,6 +368,17 @@ def add_commentaire(
     r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réclamation")
+
+    contenu = (data.get("contenu") or "").strip()
+    if not contenu:
+        raise HTTPException(status_code=400, detail="Le commentaire est vide")
+
+    # Une note interne est réservée aux admins / responsable assigné
+    est_interne = bool(data.get("est_interne", False))
+    if est_interne and not (_est_admin(current_user) or r.responsable_id == current_user.id):
+        est_interne = False
 
     nom_complet = f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
     c = ReclamationCommentaire(
@@ -294,13 +386,13 @@ def add_commentaire(
         auteur_id=current_user.id,
         auteur_nom=nom_complet,
         auteur_role=current_user.role,
-        contenu=data["contenu"],
-        est_interne=data.get("est_interne", False),
+        contenu=contenu,
+        est_interne=est_interne,
     )
     db.add(c)
 
     # Notifier les parties prenantes
-    msg = f"💬 {nom_complet} a commenté la réclamation \"{r.titre}\" : \"{data['contenu'][:80]}...\""
+    msg = f"💬 {nom_complet} a commenté la réclamation \"{r.titre}\" : \"{contenu[:80]}...\""
     parties = set()
     if r.soumetteur_id != current_user.id:
         parties.add(r.soumetteur_id)
@@ -311,13 +403,13 @@ def add_commentaire(
         notifier(db, rec_id, uid, msg, "COMMENTAIRE")
 
     # Admins
-    admins = db.query(User).filter(User.role.in_(['ADMIN', 'MANAGER'])).all()
+    admins = _admins(db)
     for admin in admins:
         if admin.id != current_user.id and admin.id not in parties:
             notifier(db, rec_id, admin.id, msg, "COMMENTAIRE")
 
     db.commit()
-    return {"success": True, "commentaire": {"auteur_nom": nom_complet, "contenu": data["contenu"]}}
+    return {"success": True, "commentaire": {"auteur_nom": nom_complet, "contenu": contenu, "est_interne": est_interne}}
 
 
 @router.get("/reclamations-notifications")
@@ -373,6 +465,8 @@ def stats_dashboard(
     current_user: User = Depends(get_current_user),
 ):
     """Stats globales pour le dashboard admin."""
+    if not _est_admin(current_user):
+        raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs et managers")
     all_rec = db.query(Reclamation).all()
     maintenant = datetime.utcnow()
 

@@ -5,6 +5,10 @@ import useNotifStore from '../../store/notifStore';
 
 // Retourne l'URL de redirection selon l'étape de la notification
 const getRedirectUrl = (notif) => {
+  // Notifications de réclamation → ouvrir directement la réclamation concernée
+  if (notif?.type === 'RECLAMATION' && notif?.reclamation_id) {
+    return `/reclamations?rec=${notif.reclamation_id}`;
+  }
   const etape = notif?.etape;
   if (etape === 2) return '/prospection?tab=workflow&step=etape2'; // RC → attribution visite
   if (etape === 3) return '/prospection?tab=workflow&step=etape3'; // Dev → décision visite
@@ -15,7 +19,9 @@ const getRedirectUrl = (notif) => {
 };
 
 // Couleur par défaut basée sur le titre (qui contient l'emoji)
-const getColor = (titre = '') => {
+const getColor = (notif) => {
+  const titre = typeof notif === 'string' ? notif : (notif?.titre || '');
+  if (typeof notif === 'object' && notif?.type === 'RECLAMATION') return '#ff6900';
   if (titre.includes('🔍')) return '#f59e0b';
   if (titre.includes('📋')) return '#6366f1';
   if (titre.includes('📦')) return '#22c55e';
@@ -24,7 +30,9 @@ const getColor = (titre = '') => {
   return '#ff6900';
 };
 
-const getIcon = (titre = '') => {
+const getIcon = (notif) => {
+  const titre = typeof notif === 'string' ? notif : (notif?.titre || '');
+  if (typeof notif === 'object' && notif?.type === 'RECLAMATION') return '📣';
   if (titre.includes('🔍')) return '🔍';
   if (titre.includes('📋')) return '📋';
   if (titre.includes('📦')) return '📦';
@@ -141,8 +149,8 @@ export default function NotificationCenter() {
                   Aucune notification
                 </div>
               ) : notifications.map(n => {
-                const color = getColor(n.titre);
-                const icon = getIcon(n.titre);
+                const color = getColor(n);
+                const icon = getIcon(n);
                 return (
                   <div key={n.id}
                     onClick={() => handleNotifClick(n)}
@@ -267,8 +275,8 @@ export default function NotificationCenter() {
 
 // ─── Popup automatique ────────────────────────────────────────────────────────
 function NotifPopup({ notif, onClose, onView }) {
-  const color = getColor(notif.titre);
-  const icon = getIcon(notif.titre);
+  const color = getColor(notif);
+  const icon = getIcon(notif);
 
   return (
     <div style={{

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from 'react-query';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import toast from 'react-hot-toast';
@@ -19,6 +20,12 @@ const PRIORITE_CFG = {
 };
 const CATEGORIES = ['PDV', 'PERSONNEL', 'LOGISTIQUE', 'FINANCE', 'TECHNIQUE', 'AUTRE'];
 const PRIORITES = ['URGENT', 'NORMAL', 'FAIBLE'];
+
+// Rôles admin/manager — comparaison insensible à la casse ('admin' comme 'ADMIN')
+const estAdmin = (u) => ['ADMIN', 'MANAGER'].includes(String(u?.role || '').toUpperCase().replace('USERROLE.', ''));
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
 
 function StatutBadge({ statut }) {
   const cfg = STATUT_CFG[statut] || STATUT_CFG.OUVERTE;
@@ -88,7 +95,7 @@ function FormulaireReclamation({ onClose, onSuccess }) {
         <div style="font-size:64px;margin-bottom:16px;">✅</div>
         <div style="font-size:22px;font-weight:900;color:#22c55e;margin-bottom:12px;">Réclamation reçue !</div>
         <div style="font-size:14px;color:#94a3b8;line-height:1.6;margin-bottom:20px;">
-          Votre réclamation <strong style="color:#fff">"${payload.titre}"</strong> a bien été soumise.<br/>
+          Votre réclamation <strong style="color:#fff">"${escapeHtml(payload.titre)}"</strong> a bien été soumise.<br/>
           Le responsable assigné sera notifié et traitera votre demande dans les meilleurs délais.<br/>
           <em style="color:#64748b;">Délai de traitement : 72h maximum</em>
         </div>
@@ -176,11 +183,20 @@ function FormulaireReclamation({ onClose, onSuccess }) {
 // ─── Modal détail réclamation ─────────────────────────────────────────────────
 function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
   const [commentaire, setCommentaire] = useState('');
+  const [estInterne, setEstInterne] = useState(false);
   const [reponse, setReponse] = useState(rec.reponse || '');
   const [loading, setLoading] = useState(false);
-  const isAdmin = ['ADMIN', 'MANAGER'].includes(currentUser?.role);
+  const isAdmin = estAdmin(currentUser);
   const isResponsable = rec.responsable_id === currentUser?.id;
   const isSoumetteur = rec.soumetteur_id === currentUser?.id;
+  const peutTraiter = isAdmin || isResponsable;
+  const [responsableId, setResponsableId] = useState(rec.responsable_id || '');
+
+  // Liste des responsables habilités (pour la réassignation, admin uniquement)
+  const { data: responsables = [] } = useQuery('auth-responsables-rec', () =>
+    api.get('/auth/responsables').then(r => Array.isArray(r.data) ? r.data : []).catch(() => []),
+    { staleTime: 300000, enabled: isAdmin }
+  );
 
   const { data: details, refetch: refetchDetails } = useQuery(
     ['rec-detail', rec.id],
@@ -202,11 +218,24 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
     if (!commentaire.trim()) return;
     setLoading(true);
     try {
-      await api.post(`/reclamations/${rec.id}/commentaires`, { contenu: commentaire });
+      await api.post(`/reclamations/${rec.id}/commentaires`, { contenu: commentaire, est_interne: estInterne });
       setCommentaire('');
+      setEstInterne(false);
       refetchDetails();
-      toast.success('Commentaire ajouté');
-    } catch { toast.error('Erreur'); }
+      toast.success(estInterne ? 'Note interne ajoutée' : 'Commentaire ajouté');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
+    finally { setLoading(false); }
+  };
+
+  const handleReassigner = async () => {
+    setLoading(true);
+    try {
+      await api.patch(`/reclamations/${rec.id}`, {
+        responsable_id: responsableId ? parseInt(responsableId, 10) : null,
+      });
+      toast.success(responsableId ? 'Réclamation réassignée' : 'Réclamation désassignée');
+      onRefresh(); refetchDetails();
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
     finally { setLoading(false); }
   };
 
@@ -231,6 +260,12 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
               {rec.responsable_nom && <> → <strong style={{ color: '#a29bfe' }}>{rec.responsable_nom}</strong></>}
               {rec.numero_pdv && <> · PDV: {rec.numero_pdv}</>}
             </div>
+            {rec.date_limite && (
+              <div style={{ fontSize: 11, marginTop: 4, color: (details?.en_retard || rec.en_retard) ? '#ff4757' : '#94a3b8' }}>
+                📅 Échéance : {new Date(rec.date_limite).toLocaleDateString('fr-FR')}
+                {(details?.en_retard || rec.en_retard) && ' — dépassée'}
+              </div>
+            )}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer', flexShrink: 0 }}>×</button>
         </div>
@@ -253,7 +288,25 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
         {(isAdmin || isResponsable) && (details?.statut || rec.statut) !== 'CLOTUREE' && (
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#FF6900', marginBottom: 12, textTransform: 'uppercase' }}>⚙️ Actions</div>
-            
+
+            {/* Réassignation (administrateur uniquement) */}
+            {isAdmin && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 14, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Réassigner à</label>
+                  <select value={responsableId} onChange={e => setResponsableId(e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}>
+                    <option value="">— Non assigné —</option>
+                    {responsables.map(u => <option key={u.id} value={u.id}>{u.nom} ({u.role})</option>)}
+                  </select>
+                </div>
+                <button onClick={handleReassigner} disabled={loading}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(162,155,254,0.3)', background: 'rgba(162,155,254,0.1)', color: '#a29bfe', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>
+                  👤 Réassigner
+                </button>
+              </div>
+            )}
+
             {/* Champ réponse */}
             {['OUVERTE', 'EN_COURS', 'REOUVERTE'].includes(details?.statut || rec.statut) && (
               <div style={{ marginBottom: 12 }}>
@@ -308,15 +361,23 @@ function ModalDetail({ rec, onClose, onRefresh, currentUser }) {
           {commentaires.length === 0 && <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center', padding: 16 }}>Aucun commentaire pour l'instant</div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
             {commentaires.map((c, i) => (
-              <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', borderLeft: '3px solid rgba(255,105,0,0.3)' }}>
+              <div key={i} style={{ background: c.est_interne ? 'rgba(255,165,2,0.06)' : 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 14px', borderLeft: `3px solid ${c.est_interne ? '#ffa502' : 'rgba(255,105,0,0.3)'}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#FF6900' }}>{c.auteur_nom}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: c.est_interne ? '#ffa502' : '#FF6900' }}>
+                    {c.auteur_nom}{c.est_interne ? ' · 🔒 note interne' : ''}
+                  </span>
                   <span style={{ fontSize: 10, color: '#64748b' }}>{c.auteur_role} · {new Date(c.created_at).toLocaleDateString('fr-FR')}</span>
                 </div>
                 <div style={{ fontSize: 13, color: '#e2e8f0' }}>{c.contenu}</div>
               </div>
             ))}
           </div>
+          {peutTraiter && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#8a8a9a', marginBottom: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={estInterne} onChange={e => setEstInterne(e.target.checked)} />
+              🔒 Note interne (non visible par l'auteur de la réclamation)
+            </label>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <input value={commentaire} onChange={e => setCommentaire(e.target.value)} placeholder="Ajouter un commentaire..."
               style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: 13, outline: 'none' }}
@@ -352,11 +413,12 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
   const [selectedRec, setSelectedRec] = useState(null);
   const [filtreStatut, setFiltreStatut] = useState('');
   const [filtrePriorite, setFiltrePriorite] = useState('');
+  const [filtreCategorie, setFiltreCategorie] = useState('');
   const [search, setSearch] = useState('');
 
   const { data, isLoading, refetch } = useQuery(
-    [queryKey, filtreStatut, filtrePriorite],
-    () => api.get('/reclamations', { params: { ...params, statut: filtreStatut || undefined, priorite: filtrePriorite || undefined } }).then(r => r.data),
+    [queryKey, filtreStatut, filtrePriorite, filtreCategorie],
+    () => api.get('/reclamations', { params: { ...params, statut: filtreStatut || undefined, priorite: filtrePriorite || undefined, categorie: filtreCategorie || undefined } }).then(r => r.data),
     { staleTime: 30000, refetchOnMount: true }
   );
 
@@ -384,6 +446,11 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
           style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
           <option value="">Toutes priorités</option>
           {PRIORITES.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select value={filtreCategorie} onChange={e => setFiltreCategorie(e.target.value)}
+          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: '#1a1a2e', color: '#fff', fontSize: 12 }}>
+          <option value="">Toutes catégories</option>
+          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <span style={{ fontSize: 12, color: '#64748b' }}>{items.length} réclamation(s)</span>
       </div>
@@ -493,13 +560,32 @@ function TabDashboard({ onRefresh }) {
   );
 }
 
+// ─── Ouverture directe d'une réclamation (depuis une notification) ───────────
+function ModalDepuisUrl({ recId, onClose, currentUser }) {
+  const { data, refetch } = useQuery(
+    ['rec-url', recId],
+    () => api.get(`/reclamations/${recId}`).then(r => r.data),
+    { enabled: !!recId, staleTime: 0, retry: false }
+  );
+  if (!data) return null;
+  return <ModalDetail rec={data} onClose={onClose} onRefresh={refetch} currentUser={currentUser} />;
+}
+
 // ─── Page Principale ──────────────────────────────────────────────────────────
 export default function ReclamationsPage() {
   const user = useAuthStore(s => s.user);
-  const isAdmin = ['ADMIN', 'MANAGER'].includes(user?.role);
+  const isAdmin = estAdmin(user);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'dashboard' : 'mes-reclamations');
   const [showForm, setShowForm] = useState(false);
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const recUrl = searchParams.get('rec');
+
+  const fermerRecUrl = () => {
+    const p = new URLSearchParams(searchParams);
+    p.delete('rec');
+    setSearchParams(p, { replace: true });
+  };
 
   const handleRefresh = () => {
     qc.invalidateQueries('rec-stats');
@@ -558,6 +644,9 @@ export default function ReclamationsPage() {
 
       {/* Formulaire */}
       {showForm && <FormulaireReclamation onClose={() => setShowForm(false)} onSuccess={handleRefresh} />}
+
+      {/* Réclamation ouverte depuis une notification */}
+      {recUrl && <ModalDepuisUrl recId={recUrl} onClose={fermerRecUrl} currentUser={user} />}
     </div>
   );
 }

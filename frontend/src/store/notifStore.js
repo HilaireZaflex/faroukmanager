@@ -44,10 +44,23 @@ const useNotifStore = create((set, get) => ({
         api.get('/reclamations-notifications', { params: { non_lues_seulement: false } }).catch(() => ({ data: { notifications: [] } })),
       ]);
       const prospNotifs = Array.isArray(res.data) ? res.data : [];
+      // Titre lisible pour les notifications de réclamation (elles n'en ont pas côté serveur)
+      const REC_TITRES = {
+        NOUVELLE: 'Nouvelle réclamation',
+        PRISE_EN_CHARGE: 'Réclamation prise en charge',
+        RESOLUTION: 'Réclamation résolue',
+        CLOTURE: 'Réclamation clôturée',
+        REOUVERTURE: 'Réclamation réouverte',
+        ESCALADE: 'Réclamation escaladée',
+        REASSIGNATION: 'Réclamation réassignée',
+        COMMENTAIRE: 'Nouveau commentaire',
+        MISE_A_JOUR: 'Réclamation mise à jour',
+      };
       const recNotifs = (resRec.data?.notifications || [])
         .filter(n => !n.lue)
         .map(n => ({
           id: 'rec_' + n.id,
+          titre: REC_TITRES[n.type_notif] || 'Réclamation',
           message: n.message,
           type: 'RECLAMATION',
           reclamation_id: n.reclamation_id,
