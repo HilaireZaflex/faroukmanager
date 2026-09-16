@@ -708,6 +708,7 @@ function TabMigrationAdmin() {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [detail, setDetail] = useState(null);
 
   const { data: stats } = useQuery('mig-stats', () =>
     api.get('/tc/migration/stats').then(r => r.data), { staleTime: 60000 });
@@ -808,7 +809,10 @@ function TabMigrationAdmin() {
               {items.length === 0 ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Aucun appel migration enregistré</td></tr>
               ) : items.map((m, i) => (
-                <tr key={m.id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                <tr key={m.id} onClick={() => setDetail(m)} title="Cliquer pour voir tous les détails"
+                  style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)', cursor: 'pointer', transition: 'background 0.15s' }}
+                  onMouseOver={e => e.currentTarget.style.background = 'rgba(255,105,0,0.08)'}
+                  onMouseOut={e => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'}>
                   <td style={{ padding: '9px 12px', fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>{m.created_at ? m.created_at.slice(0, 16).replace('T', ' ') : '—'}</td>
                   <td style={{ padding: '9px 12px', fontSize: 12, fontWeight: 700, color: '#FF6900' }}>{m.tc_nom}</td>
                   <td style={{ padding: '9px 12px' }}>
@@ -835,8 +839,9 @@ function TabMigrationAdmin() {
                       {m.statut === 'VALIDE' ? '✅ ÉLIGIBLE' : '❌ REJETÉ'}
                     </span>
                   </td>
-                  <td style={{ padding: '9px 12px', fontSize: 11, color: '#8a8a9a', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {m.motif_rejet || '—'}
+                  <td style={{ padding: '9px 12px', fontSize: 11, color: '#8a8a9a', maxWidth: 220 }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.motif_rejet || '—'}</div>
+                    <div style={{ fontSize: 10, color: '#FF6900', fontWeight: 700, marginTop: 2 }}>👁️ Voir les détails</div>
                   </td>
                 </tr>
               ))}
@@ -847,6 +852,91 @@ function TabMigrationAdmin() {
 
       <div style={{ fontSize: 11, color: '#64748b', marginTop: 10 }}>
         Un PDV est éligible uniquement s'il souhaite migrer en commission directe, possède son RCCM et une pièce d'identité valide (NINA, passeport ou carte biométrique).
+        Cliquez sur une ligne pour afficher tous les détails.
+      </div>
+
+      {detail && <MigrationDetailModal ligne={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+// ─── Fiche détaillée d'un appel migration ─────────────────────────────────────
+function MigrationDetailModal({ ligne: m, onClose }) {
+  const telLien = (n) => 'tel:' + String(n).replace(/[^0-9+]/g, '');
+  const ligneInfo = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' };
+  const label = { fontSize: 12, color: '#94a3b8' };
+  const valeur = { fontSize: 13, color: '#e2e8f0', fontWeight: 700, textAlign: 'right' };
+  const lienTel = (n, c) => ({ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 9,
+    background: `${c}18`, color: c, border: `1px solid ${c}40`, textDecoration: 'none', fontSize: 13, fontWeight: 700 });
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#0f0f1a', borderRadius: 16, padding: 24, maxWidth: 660, width: '100%', maxHeight: '90vh', overflowY: 'auto', border: '1px solid rgba(255,105,0,0.25)' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#fff' }}>{m.nom_pdv || m.numero_pdv}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
+              {m.numero_pdv} · {m.type_pdv} · {m.created_at ? m.created_at.slice(0, 16).replace('T', ' ') : ''}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>×</button>
+        </div>
+
+        {/* Verdict */}
+        <div style={{ padding: '12px 14px', borderRadius: 12, marginBottom: 16, textAlign: 'center',
+          background: m.statut === 'VALIDE' ? 'rgba(34,197,94,0.1)' : 'rgba(255,71,87,0.1)',
+          border: `1px solid ${m.statut === 'VALIDE' ? 'rgba(34,197,94,0.35)' : 'rgba(255,71,87,0.35)'}` }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: m.statut === 'VALIDE' ? '#22c55e' : '#ff4757' }}>
+            {m.statut === 'VALIDE' ? '✅ ÉLIGIBLE À LA MIGRATION' : '❌ NON ÉLIGIBLE'}
+          </div>
+        </div>
+
+        {/* Téléphones cliquables */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {m.telephone && <a href={telLien(m.telephone)} style={lienTel(m.telephone, '#4a9eff')}>📞 Flotte : {m.telephone}</a>}
+          {m.numero_personnel && <a href={telLien(m.numero_personnel)} style={lienTel(m.numero_personnel, '#00d68f')}>📱 Personnel : {m.numero_personnel}</a>}
+          {!m.telephone && !m.numero_personnel && <span style={{ fontSize: 12, color: '#64748b' }}>Aucun numéro renseigné</span>}
+        </div>
+
+        {/* Détails */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={ligneInfo}><span style={label}>Téléconseillère</span><span style={valeur}>{m.tc_nom}</span></div>
+          <div style={ligneInfo}>
+            <span style={label}>1. Souhaite migrer en commission directe</span>
+            <span style={{ ...valeur, color: m.veut_migrer ? '#22c55e' : '#ff4757' }}>{m.veut_migrer ? '✅ Oui' : '❌ Non'}</span>
+          </div>
+          <div style={ligneInfo}>
+            <span style={label}>2. Possède le RCCM</span>
+            <span style={{ ...valeur, color: m.a_rccm ? '#22c55e' : '#ff4757' }}>{m.a_rccm ? '✅ Oui' : '❌ Non'}</span>
+          </div>
+          <div style={ligneInfo}>
+            <span style={label}>3. Pièce d'identité en cours de validité</span>
+            <span style={{ ...valeur, color: m.a_piece_identite ? '#22c55e' : '#ff4757' }}>
+              {m.a_piece_identite ? `✅ Oui${m.type_piece_label ? ' — ' + m.type_piece_label : ''}` : '❌ Non'}
+            </span>
+          </div>
+        </div>
+
+        {/* Motif complet */}
+        {m.motif_rejet && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: '#ff4757', fontWeight: 800, marginBottom: 6, textTransform: 'uppercase' }}>Motif du rejet</div>
+            <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.65, background: 'rgba(255,71,87,0.07)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 10, padding: '12px 14px', whiteSpace: 'pre-wrap' }}>
+              {m.motif_rejet}
+            </div>
+          </div>
+        )}
+
+        {/* Commentaire complet */}
+        {m.commentaire && (
+          <div>
+            <div style={{ fontSize: 11, color: '#FF6900', fontWeight: 800, marginBottom: 6, textTransform: 'uppercase' }}>Commentaire de la téléconseillère</div>
+            <div style={{ fontSize: 13, color: '#e2e8f0', lineHeight: 1.65, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 14px', whiteSpace: 'pre-wrap' }}>
+              {m.commentaire}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
