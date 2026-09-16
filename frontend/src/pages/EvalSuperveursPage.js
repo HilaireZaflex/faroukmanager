@@ -547,8 +547,8 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
   if (kpisData.taux_actif_nafama != null && kpisData.objectifs?.taux_actif_nafama != null && kpisData.taux_actif_nafama < kpisData.objectifs.taux_actif_nafama * 0.9) {
     kpisProblemes.push({ cat: 'NAFAMA — Taux actif faible', val: `${kpisData.taux_actif_nafama}% (obj: ${kpisData.objectifs.taux_actif_nafama}%)`, color: '#d97706' });
   }
-  if (kpisData.taux_actif_kaabu != null && kpisData.objectifs?.taux_actif_kaabu != null && kpisData.taux_actif_kaabu < kpisData.objectifs.taux_actif_kaabu * 0.9) {
-    kpisProblemes.push({ cat: 'Kaabu — Adoption insuffisante', val: `${kpisData.taux_actif_kaabu}% (obj: ${kpisData.objectifs.taux_actif_kaabu}%)`, color: '#7c3aed' });
+  if (kpisData.taux_actif_km != null && kpisData.objectifs?.taux_actif_km != null && kpisData.taux_actif_km < kpisData.objectifs.taux_actif_km * 0.9) {
+    kpisProblemes.push({ cat: 'Kaabu — Adoption insuffisante', val: `${kpisData.taux_actif_km}% (obj: ${kpisData.objectifs.taux_actif_km}%)`, color: '#7c3aed' });
   }
   if (kpisData.ca_omy != null && kpisData.objectifs?.ca_omy != null && kpisData.ca_omy < kpisData.objectifs.ca_omy * 0.9) {
     const fmt2 = v => new Intl.NumberFormat('fr-FR').format(Math.round(v));
@@ -1910,6 +1910,27 @@ export default function EvalSuperveursPage() {
           </button>
           <p style={{ fontSize: 11, color: '#64748b', marginTop: 6, textAlign: 'right' }}>
             J-1 : Lance l'éval + notifie les TC automatiquement
+          </p>
+          <button onClick={() => {
+            if (!window.confirm(`Rafraîchir les KPIs (dont le Taux actif KM depuis KAABU) pour ${MOIS_NOMS[mois]} ${annee} ?\n\nLes appels mystères et les notes de présentiel déjà saisis sont CONSERVÉS.`)) return;
+            api.post(`/eval-superviseurs/rafraichir-kpis?annee=${annee}&mois=${mois}`)
+              .then(r => {
+                const d = r.data;
+                const avant = d.details?.filter(x => x.taux_actif_km_avant !== x.taux_actif_km_apres).length || 0;
+                alert(`✅ KPIs rafraîchis pour ${d.nb_mises_a_jour} superviseur(s)\n`
+                  + `dont ${avant} avec un Taux actif KM modifié.\n\n`
+                  + `Les appels mystères et notes de présentiel sont intacts.`);
+                qc.invalidateQueries(['eval-classement']);
+                qc.invalidateQueries(['eval-superviseurs-list']);
+                qc.invalidateQueries(['eval-sup']);
+              })
+              .catch(e => alert('Erreur: ' + (e.response?.data?.detail || e.message)));
+          }}
+            style={{ marginTop: 10, padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(255,105,0,0.4)', background: 'rgba(255,105,0,0.1)', color: '#FF6900', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            🔄 Rafraîchir les KPIs (KAABU / OMY / NAFAMA)
+          </button>
+          <p style={{ fontSize: 11, color: '#64748b', marginTop: 6, textAlign: 'right' }}>
+            À utiliser après un import de données — ne touche pas aux mystères
           </p>
         </div>
       </div>

@@ -134,6 +134,91 @@ def calculer_tous_scores(
     }
 
 
+@router.post("/eval-superviseurs/rafraichir-kpis")
+def rafraichir_kpis(
+    annee: int = Query(...),
+    mois: int = Query(...),
+    superviseur: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Recalcule UNIQUEMENT les KPIs des évaluations existantes pour ce mois.
+
+    Contrairement à /lancer-tous, cette route :
+      - NE régénère PAS les PDVs mystères,
+      - NE supprime PAS les appels mystères déjà saisis,
+      - NE remet PAS à zéro les notes de présentiel.
+
+    Elle relit les sources de données (OMY, NAFAMA et surtout KAABU pour le
+    « Taux actif KM ») et met à jour kpis_data + score_kpi, puis recalcule le
+    score final à partir des mystères/présentiel déjà enregistrés.
+
+    Utile après un import de données (KAABU notamment) : les évaluations créées
+    avant l'import conservent sinon des KPIs à 0.
+    """
+    from app.models.eval_superviseur import EvalSuperviseur
+
+    q = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+    )
+    if superviseur:
+        q = q.filter(EvalSuperviseur.superviseur == superviseur)
+    evals = q.all()
+
+    mises_a_jour, erreurs = [], []
+    for e in evals:
+        try:
+            ancien = (e.kpis_data or {})
+            if isinstance(ancien, str):
+                import json as _json
+                try: ancien = _json.loads(ancien)
+                except Exception: ancien = {}
+            ancien_km = ancien.get('taux_actif_km')
+
+            kpis = svc.get_kpis_superviseur(db, e.superviseur, annee, mois)
+            e.kpis_data = kpis
+            e.score_kpi = kpis['score_kpi_global']
+
+            # Recalcul du score final avec les mystères/présentiel DÉJÀ saisis
+            result = svc.calculer_score_final(
+                score_kpi=e.score_kpi,
+                mystery_calls=e.mystery_calls or [],
+                note_maitrise_pdv=e.note_maitrise_pdv or 0,
+                note_maitrise_zone=e.note_maitrise_zone or 0,
+            )
+            e.score_mystery = result['score_mystery']
+            e.score_presentiel = result['score_presentiel']
+            e.score_final = result['score_final']
+            e.mention = result['mention']
+            if e.statut in (None, 'EN_COURS', 'SCORE_CALCULE'):
+                e.statut = 'SCORE_CALCULE'
+
+            nouveau_km = kpis.get('taux_actif_km')
+            mises_a_jour.append({
+                "superviseur": e.superviseur,
+                "taux_actif_km_avant": ancien_km,
+                "taux_actif_km_apres": nouveau_km,
+                "nb_pdv": kpis.get('nb_pdv'),
+                "score_kpi": e.score_kpi,
+                "score_final": e.score_final,
+            })
+        except Exception as ex:
+            erreurs.append({"superviseur": e.superviseur, "erreur": str(ex)[:150]})
+
+    db.commit()
+
+    return {
+        "success": len(erreurs) == 0,
+        "annee": annee,
+        "mois": mois,
+        "nb_evaluations": len(evals),
+        "nb_mises_a_jour": len(mises_a_jour),
+        "erreurs": erreurs,
+        "details": mises_a_jour,
+    }
+
+
 @router.get("/eval-superviseurs/{superviseur}/commentaires")
 def get_commentaires(superviseur: str, annee: int = Query(...), mois: int = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Retourne les commentaires de l'évaluation d'un superviseur."""
@@ -840,48 +925,6 @@ def lancer_evaluation_tous(
         "superviseurs": resultats,
         "tc_listes": tc_listes,  # Liste par TC des PDVs à appeler
     }
-
-
-@router.get("/eval-superviseurs/ma-liste-mystery")
-def ma_liste_mystery(
-    annee: int = Query(...),
-    mois: int = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Retourne la liste des PDVs à appeler pour la TC connectée."""
-    # Construire le nom de la TC pour la recherche (nom seul suffit car unique)
-    tc_nom = (current_user.nom or '').strip()
-    tc_prenom = (current_user.prenom or '').strip()
-    tc_full = f"{tc_prenom} {tc_nom}".strip().lower()
-    tc_nom_lower = tc_nom.lower()
-
-    # Chercher dans toutes les évaluations du mois
-    evals = db.query(EvalSuperviseur).filter(
-        EvalSuperviseur.annee == annee,
-        EvalSuperviseur.mois == mois,
-        EvalSuperviseur.statut.in_(['EN_COURS', 'SCORE_CALCULE']),
-    ).all()
-
-    ma_liste = []
-    for e in evals:
-        for pdv in (e.pdvs_mystery_generes or []):
-            tc_pdv = (pdv.get('teleconseillere') or '').lower()
-            # Correspondance flexible: nom seul OU nom complet
-            if (tc_nom_lower and tc_nom_lower in tc_pdv) or \
-               (tc_full and tc_full in tc_pdv) or \
-               (tc_pdv and tc_pdv in tc_full):
-                # Vérifier si déjà appelé
-                call = next((c for c in (e.mystery_calls or []) if c['numero_pdv'] == pdv['numero_pdv']), None)
-                ma_liste.append({
-                    "superviseur": e.superviseur,
-                    "pdv": pdv,
-                    "statut_appel": call['statut'] if call else None,
-                    "notes": call if call else None,
-                    "eval_id": e.id,
-                })
-
-    return {"tc_nom": tc_nom, "total": len(ma_liste), "liste": ma_liste}
 
 
 @router.get("/eval-superviseurs/classement/tous")
