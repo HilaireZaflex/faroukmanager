@@ -112,6 +112,16 @@ def _award_totaux(db: Session, indicateur: str, mois_challenge: list):
     realise = sum(float(r.realisation or 0) for r in rows)
     return objectif, realise
 
+def _objectif_mensuel(db: Session, kpi: str, mois: str) -> float:
+    """Objectif d'un KPI pour un mois : valeur en base si personnalisée, sinon défaut du code."""
+    row = db.query(ChallengeObjectif).filter(
+        ChallengeObjectif.kpi == kpi,
+        ChallengeObjectif.mois == mois,
+    ).first()
+    if row is not None and row.objectif is not None:
+        return float(row.objectif)
+    return float(OBJECTIFS_MENSUELS.get(mois, {}).get(kpi, 0) or 0)
+
 def calc_taux(realise, objectif):
     """Calcule le taux d'atteinte en %."""
     if not objectif or objectif == 0:
@@ -168,12 +178,12 @@ def get_challenge_dashboard(db: Session = Depends(get_db), current_user=Depends(
     obj_term, real_term = _award_totaux(db, "TERMINAUX", mois_clos)
     obj_nrj, real_nrj = _award_totaux(db, "ORANGE ENERGIE", mois_clos)
 
-    # Objectifs cumulés
-    obj_recrutes = 250 * nb_mois
-    obj_plv = 25 * nb_mois
-    obj_points = sum(OBJECTIFS_MENSUELS.get(m, {}).get("creation_points_controles", 5) for m in mois_clos)
-    obj_terminaux = obj_term or (25 * nb_mois)
-    obj_nrj = obj_nrj or (7 * nb_mois)
+    # Objectifs cumulés (base de données si personnalisés, sinon valeurs par défaut)
+    obj_recrutes = sum(_objectif_mensuel(db, "recrutement_omy", m) for m in mois_clos) or (250 * nb_mois)
+    obj_plv = sum(_objectif_mensuel(db, "deploiement_plv", m) for m in mois_clos) or (25 * nb_mois)
+    obj_points = sum(_objectif_mensuel(db, "creation_points_controles", m) for m in mois_clos)
+    obj_terminaux = obj_term or sum(_objectif_mensuel(db, "ventes_terminaux", m) for m in mois_clos) or (25 * nb_mois)
+    obj_nrj = obj_nrj or sum(_objectif_mensuel(db, "orange_nrj", m) for m in mois_clos) or (7 * nb_mois)
 
     # Taux d'atteinte
     taux_recrutes = calc_taux(total_recrutes, obj_recrutes)
@@ -523,3 +533,189 @@ def list_points_controles(mois: Optional[str] = None, db: Session = Depends(get_
         "total": len(pts),
         "actifs": sum(1 for p in pts if p.est_actif),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MODIFICATION / SUPPRESSION DES DONNÉES
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _maj(objet, data: dict, champs: list):
+    """Applique à l'objet les champs présents dans la requête."""
+    for c in champs:
+        if c in data:
+            setattr(objet, c, data[c])
+
+def _date_iso(valeur):
+    """Convertit une date ISO ; lève 400 si invalide."""
+    if not valeur:
+        return None
+    try:
+        return datetime.fromisoformat(valeur)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Date invalide (format attendu AAAA-MM-JJ)")
+
+
+# ── Recrutements ──
+@router.put("/recrutements/{rec_id}")
+def modifier_recrutement(rec_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Modifier un recrutement existant."""
+    rec = db.query(ChallengeRecrutement).filter(ChallengeRecrutement.id == rec_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recrutement introuvable")
+    _maj(rec, data, ["numero_client", "nom_client", "pdv_numero", "pdv_nom",
+                     "superviseur", "developpeur", "zone", "mois", "est_actif", "notes"])
+    if "date_recrutement" in data:
+        d = _date_iso(data["date_recrutement"])
+        if d:
+            rec.date_recrutement = d
+    db.commit()
+    db.refresh(rec)
+    return {"success": True, "id": rec.id}
+
+@router.delete("/recrutements/{rec_id}")
+def supprimer_recrutement(rec_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Supprimer un recrutement."""
+    rec = db.query(ChallengeRecrutement).filter(ChallengeRecrutement.id == rec_id).first()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recrutement introuvable")
+    db.delete(rec)
+    db.commit()
+    return {"success": True, "id": rec_id}
+
+
+# ── PLV ──
+@router.put("/plv/{plv_id}")
+def modifier_plv(plv_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Modifier un déploiement PLV."""
+    plv = db.query(ChallengePLV).filter(ChallengePLV.id == plv_id).first()
+    if not plv:
+        raise HTTPException(status_code=404, detail="PLV introuvable")
+    _maj(plv, data, ["pdv_numero", "pdv_nom", "zone", "superviseur", "type_plv",
+                     "quantite", "mois", "photo_url", "valide", "valide_par", "notes"])
+    if "date_deploiement" in data:
+        d = _date_iso(data["date_deploiement"])
+        if d:
+            plv.date_deploiement = d
+    db.commit()
+    db.refresh(plv)
+    return {"success": True, "id": plv.id}
+
+@router.delete("/plv/{plv_id}")
+def supprimer_plv(plv_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Supprimer un déploiement PLV."""
+    plv = db.query(ChallengePLV).filter(ChallengePLV.id == plv_id).first()
+    if not plv:
+        raise HTTPException(status_code=404, detail="PLV introuvable")
+    db.delete(plv)
+    db.commit()
+    return {"success": True, "id": plv_id}
+
+
+# ── Points contrôlés ──
+@router.put("/points-controles/{pt_id}")
+def modifier_point_controle(pt_id: int, data: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Modifier un point contrôlé."""
+    pt = db.query(ChallengePointControle).filter(ChallengePointControle.id == pt_id).first()
+    if not pt:
+        raise HTTPException(status_code=404, detail="Point contrôlé introuvable")
+    _maj(pt, data, ["pdv_numero", "pdv_nom", "zone", "superviseur", "mois",
+                    "est_actif", "ca_mensuel", "notes"])
+    if "date_creation" in data:
+        d = _date_iso(data["date_creation"])
+        if d:
+            pt.date_creation = d
+    db.commit()
+    db.refresh(pt)
+    return {"success": True, "id": pt.id}
+
+@router.delete("/points-controles/{pt_id}")
+def supprimer_point_controle(pt_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Supprimer un point contrôlé."""
+    pt = db.query(ChallengePointControle).filter(ChallengePointControle.id == pt_id).first()
+    if not pt:
+        raise HTTPException(status_code=404, detail="Point contrôlé introuvable")
+    db.delete(pt)
+    db.commit()
+    return {"success": True, "id": pt_id}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OBJECTIFS MENSUELS PILOTABLES
+# ─────────────────────────────────────────────────────────────────────────────
+
+KPI_LIBELLES = {
+    "recrutement_omy": ("Recrutement OMY", "clients"),
+    "deploiement_plv": ("Déploiement PLV", "PLV"),
+    "creation_points_controles": ("Points contrôlés", "points"),
+    "ventes_terminaux": ("Ventes terminaux", "terminaux"),
+    "orange_nrj": ("Orange NRJ", "kits"),
+}
+
+@router.get("/objectifs-config")
+def get_objectifs_config(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Objectifs mensuels effectifs (valeur personnalisée en base, sinon valeur par défaut)."""
+    objectifs = []
+    for mois in MOIS_CHALLENGE:
+        for kpi, (libelle, unite) in KPI_LIBELLES.items():
+            row = db.query(ChallengeObjectif).filter(
+                ChallengeObjectif.kpi == kpi,
+                ChallengeObjectif.mois == mois,
+            ).first()
+            defaut = OBJECTIFS_MENSUELS.get(mois, {}).get(kpi, 0)
+            objectifs.append({
+                "mois": mois,
+                "kpi": kpi,
+                "libelle": libelle,
+                "unite": unite,
+                "objectif": float(row.objectif) if row is not None and row.objectif is not None else float(defaut or 0),
+                "personnalise": row is not None,
+            })
+    return {
+        "objectifs": objectifs,
+        "mois": MOIS_CHALLENGE,
+        "kpis": [{"kpi": k, "libelle": v[0], "unite": v[1]} for k, v in KPI_LIBELLES.items()],
+    }
+
+@router.put("/objectifs-config")
+def set_objectif_config(data: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Créer ou modifier l'objectif mensuel d'un KPI."""
+    mois = data.get("mois")
+    kpi = data.get("kpi")
+    if mois not in MOIS_CHALLENGE:
+        raise HTTPException(status_code=400, detail=f"Mois invalide. Valides : {MOIS_CHALLENGE}")
+    if kpi not in KPI_LIBELLES:
+        raise HTTPException(status_code=400, detail=f"KPI invalide. Valides : {list(KPI_LIBELLES)}")
+    try:
+        valeur = float(data.get("objectif", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Objectif invalide")
+    if valeur < 0:
+        raise HTTPException(status_code=400, detail="L'objectif doit être positif")
+
+    row = db.query(ChallengeObjectif).filter(
+        ChallengeObjectif.kpi == kpi,
+        ChallengeObjectif.mois == mois,
+    ).first()
+    if row:
+        row.objectif = valeur
+        row.updated_at = datetime.utcnow()
+    else:
+        db.add(ChallengeObjectif(
+            challenge_type=data.get("challenge_type", "OM"),
+            kpi=kpi, mois=mois, objectif=valeur,
+            unite=KPI_LIBELLES[kpi][1],
+        ))
+    db.commit()
+    return {"success": True, "mois": mois, "kpi": kpi, "objectif": valeur}
+
+@router.delete("/objectifs-config/{mois}/{kpi}")
+def reset_objectif_config(mois: str, kpi: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Revenir à l'objectif par défaut (supprime la personnalisation)."""
+    row = db.query(ChallengeObjectif).filter(
+        ChallengeObjectif.kpi == kpi,
+        ChallengeObjectif.mois == mois,
+    ).first()
+    if row:
+        db.delete(row)
+        db.commit()
+    return {"success": True, "mois": mois, "kpi": kpi, "reinitialise": True}

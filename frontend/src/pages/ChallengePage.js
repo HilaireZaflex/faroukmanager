@@ -711,6 +711,99 @@ export default function ChallengePage() {
 }
 
 // ── Tab Dashboard ─────────────────────────────────────────────────────────────
+// ── Éditeur des objectifs mensuels (base de données) ─────────────────────────
+function PanneauObjectifs() {
+  const qc = useQueryClient();
+  const { data } = useQuery('challenge-objectifs-config', () =>
+    api.get('/challenge/objectifs-config').then(r => r.data), { staleTime: 30000 });
+  const [edits, setEdits] = useState({});
+  const [msg, setMsg] = useState('');
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const objectifs = data?.objectifs || [];
+  const kpis = data?.kpis || [];
+  const mois = data?.mois || [];
+  const cle = (m, k) => `${m}__${k}`;
+  const valeur = (o) => (edits[cle(o.mois, o.kpi)] !== undefined ? edits[cle(o.mois, o.kpi)] : o.objectif);
+  const setVal = (o, v) => setEdits(prev => ({ ...prev, [cle(o.mois, o.kpi)]: v }));
+
+  const enregistrer = async () => {
+    const modifs = Object.entries(edits);
+    if (!modifs.length) { setMsg('Aucune modification à enregistrer'); return; }
+    setBusy(true); setMsg('');
+    try {
+      for (const [c, v] of modifs) {
+        const [m, k] = c.split('__');
+        await api.put('/challenge/objectifs-config', { mois: m, kpi: k, objectif: parseFloat(v) || 0 });
+      }
+      setMsg(`✅ ${modifs.length} objectif(s) enregistré(s)`);
+      qc.invalidateQueries('challenge-objectifs-config');
+      qc.invalidateQueries('challenge-dashboard');
+      setEdits({});
+    } catch (e) { setMsg('⚠️ ' + (e?.response?.data?.detail || 'Erreur')); }
+    finally { setBusy(false); }
+  };
+
+  const inp = { width: 92, padding: '5px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, textAlign: 'center' };
+
+  return (
+    <div className="ch-card" style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <h3 className="ch-section-title" style={{ margin: 0, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
+          ⚙️ Objectifs mensuels (modifiables) {open ? '▾' : '▸'}
+        </h3>
+        {open && (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {msg && <span style={{ fontSize: 12, color: msg.startsWith('⚠️') ? '#ff4757' : '#22c55e' }}>{msg}</span>}
+            <button className="ch-btn ch-btn-primary" onClick={enregistrer} disabled={busy}>
+              {busy ? '⏳…' : '💾 Enregistrer les objectifs'}
+            </button>
+          </div>
+        )}
+      </div>
+      {!open && (
+        <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+          Cliquez pour ajuster les objectifs mensuels (recrutement, PLV, points, terminaux, NRJ) sans redéploiement.
+        </div>
+      )}
+      {open && (
+        <div style={{ overflowX: 'auto', marginTop: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 10px', color: '#64748b' }}>KPI</th>
+                {mois.map(m => <th key={m} style={{ textAlign: 'center', padding: '8px 10px', color: '#64748b' }}>{MOIS_LABELS[m] || m}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {kpis.map(k => (
+                <tr key={k.kpi} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '8px 10px', color: '#e2e8f0', whiteSpace: 'nowrap' }}>
+                    {k.libelle} <span style={{ fontSize: 10, color: '#64748b' }}>({k.unite})</span>
+                  </td>
+                  {mois.map(m => {
+                    const o = objectifs.find(x => x.mois === m && x.kpi === k.kpi);
+                    if (!o) return <td key={m} style={{ padding: '8px 10px', textAlign: 'center', color: '#475569' }}>—</td>;
+                    const modifie = edits[cle(m, k.kpi)] !== undefined;
+                    return (
+                      <td key={m} style={{ padding: '8px 10px', textAlign: 'center' }}>
+                        <input type="number" min="0" style={{ ...inp, borderColor: modifie ? '#FF6900' : 'rgba(255,255,255,0.12)' }}
+                          value={valeur(o)} onChange={e => setVal(o, e.target.value)} />
+                        {o.personnalise && <div style={{ fontSize: 9, color: '#4a9eff', marginTop: 2 }}>personnalisé</div>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabDashboard({ dashboard }) {
   const { kpis, scores, periode } = dashboard || {};
 
@@ -940,6 +1033,7 @@ function TabDashboard({ dashboard }) {
         </div>
       </div>
 
+      <PanneauObjectifs />
     </div>
   );
 }
@@ -1598,17 +1692,43 @@ function TabRecrutement() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [mois, setMois] = useState(MOIS_COURANT.value);
-  const [form, setForm] = useState({ numero_client: '', nom_client: '', pdv_numero: '', pdv_nom: '', superviseur: '', developpeur: '', zone: '', mois: '2026-07' });
+  const [editId, setEditId] = useState(null);
+  const FORM_VIDE = { numero_client: '', nom_client: '', pdv_numero: '', pdv_nom: '', superviseur: '', developpeur: '', zone: '', mois: '2026-07' };
+  const [form, setForm] = useState(FORM_VIDE);
 
   const { data } = useQuery(['challenge-recrutements', mois],
     () => api.get(`/challenge/recrutements?mois=${mois}`).then(r => r.data),
     { staleTime: 30000 }
   );
 
+  const rafraichir = () => {
+    queryClient.invalidateQueries('challenge-recrutements');
+    queryClient.invalidateQueries('challenge-dashboard');
+  };
+
   const mutation = useMutation(
-    (payload) => api.post('/challenge/recrutements', payload).then(r => r.data),
-    { onSuccess: () => { queryClient.invalidateQueries('challenge-recrutements'); queryClient.invalidateQueries('challenge-dashboard'); setShowForm(false); setForm({ numero_client: '', nom_client: '', pdv_numero: '', pdv_nom: '', superviseur: '', developpeur: '', zone: '', mois: '2026-07' }); } }
+    (payload) => (editId
+      ? api.put(`/challenge/recrutements/${editId}`, payload)
+      : api.post('/challenge/recrutements', payload)).then(r => r.data),
+    { onSuccess: () => { rafraichir(); setShowForm(false); setEditId(null); setForm(FORM_VIDE); } }
   );
+
+  const supprimer = async (id) => {
+    if (!window.confirm('Supprimer définitivement ce recrutement ?')) return;
+    try { await api.delete(`/challenge/recrutements/${id}`); rafraichir(); }
+    catch (e) { alert(e?.response?.data?.detail || 'Erreur lors de la suppression'); }
+  };
+
+  const ouvrirEdition = (r) => {
+    setForm({
+      numero_client: r.numero_client || '', nom_client: r.nom_client || '',
+      pdv_numero: r.pdv_numero || '', pdv_nom: r.pdv_nom || '',
+      superviseur: r.superviseur || '', developpeur: r.developpeur || '',
+      zone: r.zone || '', mois: r.mois || '2026-07',
+    });
+    setEditId(r.id);
+    setShowForm(true);
+  };
 
   const stats = data?.stats_par_mois || {};
   const recs = data?.recrutements || [];
@@ -1643,15 +1763,15 @@ function TabRecrutement() {
       {/* Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h3 className="ch-section-title" style={{ margin: 0 }}>{"👥"} Recrutements — {MOIS_LABELS[mois]}</h3>
-        <button className="ch-btn ch-btn-primary" onClick={() => setShowForm(!showForm)}>
+        <button className="ch-btn ch-btn-primary" onClick={() => { setEditId(null); setForm(FORM_VIDE); setShowForm(!showForm); }}>
           <Plus size={14}/> Nouveau recrutement
         </button>
       </div>
 
-      {/* Formulaire ajout */}
+      {/* Formulaire ajout / modification */}
       {showForm && (
         <div className="ch-card" style={{ border: '1px solid rgba(255,105,0,0.3)' }}>
-          <h4 style={{ color: '#FF6900', marginBottom: 16 }}>➕ Enregistrer un nouveau client OM</h4>
+          <h4 style={{ color: '#FF6900', marginBottom: 16 }}>{editId ? '✏️ Modifier le recrutement' : '➕ Enregistrer un nouveau client OM'}</h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {[
               { key: 'numero_client', label: 'N° Client OM', placeholder: '7X XXX XXX' },
@@ -1677,9 +1797,9 @@ function TabRecrutement() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
-            <button className="ch-btn ch-btn-secondary" onClick={() => setShowForm(false)}>Annuler</button>
+            <button className="ch-btn ch-btn-secondary" onClick={() => { setShowForm(false); setEditId(null); setForm(FORM_VIDE); }}>Annuler</button>
             <button className="ch-btn ch-btn-primary" onClick={() => mutation.mutate(form)} disabled={mutation.isLoading}>
-              {mutation.isLoading ? '⏳ Enregistrement…' : '✅ Enregistrer'}
+              {mutation.isLoading ? '⏳ Enregistrement…' : editId ? '💾 Mettre à jour' : '✅ Enregistrer'}
             </button>
           </div>
         </div>
@@ -1691,14 +1811,14 @@ function TabRecrutement() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                {['N° Client', 'Nom Client', 'PDV', 'Zone', 'Superviseur', 'Développeur', 'Date'].map(h => (
+                {['N° Client', 'Nom Client', 'PDV', 'Zone', 'Superviseur', 'Développeur', 'Date', 'Actions'].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {recs.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: '#475569' }}>Aucun recrutement enregistré pour {MOIS_LABELS[mois]}</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 30, color: '#475569' }}>Aucun recrutement enregistré pour {MOIS_LABELS[mois]}</td></tr>
               ) : recs.map(r => (
                 <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>{r.numero_client || '—'}</td>
@@ -1708,6 +1828,10 @@ function TabRecrutement() {
                   <td style={{ padding: '10px 12px', color: '#94a3b8' }}>{r.superviseur || '—'}</td>
                   <td style={{ padding: '10px 12px', color: '#94a3b8' }}>{r.developpeur || '—'}</td>
                   <td style={{ padding: '10px 12px', color: '#64748b', whiteSpace: 'nowrap' }}>{r.date_recrutement ? new Date(r.date_recrutement).toLocaleDateString('fr-FR') : '—'}</td>
+                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => ouvrirEdition(r)} title="Modifier" style={{ background: 'rgba(74,158,255,0.12)', border: '1px solid rgba(74,158,255,0.3)', borderRadius: 6, color: '#4a9eff', padding: '4px 8px', cursor: 'pointer', marginRight: 6 }}>✏️</button>
+                    <button onClick={() => supprimer(r.id)} title="Supprimer" style={{ background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '4px 8px', cursor: 'pointer' }}>🗑️</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1723,17 +1847,43 @@ function TabPLV() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [mois, setMois] = useState(MOIS_COURANT.value);
-  const [form, setForm] = useState({ pdv_numero: '', pdv_nom: '', zone: '', superviseur: '', type_plv: 'Kakemono', quantite: 1, mois: '2026-07' });
+  const [editId, setEditId] = useState(null);
+  const FORM_VIDE = { pdv_numero: '', pdv_nom: '', zone: '', superviseur: '', type_plv: 'Kakemono', quantite: 1, mois: '2026-07' };
+  const [form, setForm] = useState(FORM_VIDE);
 
   const { data } = useQuery(['challenge-plv', mois],
     () => api.get(`/challenge/plv?mois=${mois}`).then(r => r.data),
     { staleTime: 30000 }
   );
 
+  const rafraichir = () => {
+    queryClient.invalidateQueries('challenge-plv');
+    queryClient.invalidateQueries('challenge-dashboard');
+  };
+
   const mutation = useMutation(
-    (payload) => api.post('/challenge/plv', payload).then(r => r.data),
-    { onSuccess: () => { queryClient.invalidateQueries('challenge-plv'); queryClient.invalidateQueries('challenge-dashboard'); setShowForm(false); } }
+    (payload) => (editId
+      ? api.put(`/challenge/plv/${editId}`, payload)
+      : api.post('/challenge/plv', payload)).then(r => r.data),
+    { onSuccess: () => { rafraichir(); setShowForm(false); setEditId(null); setForm(FORM_VIDE); } }
   );
+
+  const supprimer = async (id) => {
+    if (!window.confirm('Supprimer définitivement ce déploiement PLV ?')) return;
+    try { await api.delete(`/challenge/plv/${id}`); rafraichir(); }
+    catch (e) { alert(e?.response?.data?.detail || 'Erreur lors de la suppression'); }
+  };
+
+  const ouvrirEdition = (p) => {
+    setForm({
+      pdv_numero: p.pdv_numero || '', pdv_nom: p.pdv_nom || '',
+      zone: p.zone || '', superviseur: p.superviseur || '',
+      type_plv: p.type_plv || 'Kakemono', quantite: p.quantite || 1,
+      mois: p.mois || '2026-07',
+    });
+    setEditId(p.id);
+    setShowForm(true);
+  };
 
   const stats = data?.stats_par_mois || {};
   const plvs = data?.plv || [];
@@ -1766,12 +1916,12 @@ function TabPLV() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h3 className="ch-section-title" style={{ margin: 0 }}>📦 PLV déployées — {MOIS_LABELS[mois]}</h3>
-        <button className="ch-btn ch-btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={14}/> Ajouter PLV</button>
+        <button className="ch-btn ch-btn-primary" onClick={() => { setEditId(null); setForm(FORM_VIDE); setShowForm(!showForm); }}><Plus size={14}/> Ajouter PLV</button>
       </div>
 
       {showForm && (
         <div className="ch-card" style={{ border: '1px solid rgba(255,105,0,0.3)' }}>
-          <h4 style={{ color: '#FF6900', marginBottom: 16 }}>➕ Enregistrer un déploiement PLV</h4>
+          <h4 style={{ color: '#FF6900', marginBottom: 16 }}>{editId ? '✏️ Modifier le déploiement PLV' : '➕ Enregistrer un déploiement PLV'}</h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {[
               { key: 'pdv_numero', label: 'N° PDV', placeholder: 'Numéro flotte' },
@@ -1806,9 +1956,9 @@ function TabPLV() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
-            <button className="ch-btn ch-btn-secondary" onClick={() => setShowForm(false)}>Annuler</button>
+            <button className="ch-btn ch-btn-secondary" onClick={() => { setShowForm(false); setEditId(null); setForm(FORM_VIDE); }}>Annuler</button>
             <button className="ch-btn ch-btn-primary" onClick={() => mutation.mutate(form)} disabled={mutation.isLoading}>
-              {mutation.isLoading ? '⏳ Enregistrement…' : '✅ Enregistrer'}
+              {mutation.isLoading ? '⏳ Enregistrement…' : editId ? '💾 Mettre à jour' : '✅ Enregistrer'}
             </button>
           </div>
         </div>
@@ -1819,14 +1969,14 @@ function TabPLV() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                {['N° PDV', 'Nom PDV', 'Type PLV', 'Qté', 'Zone', 'Superviseur', 'Statut', 'Date'].map(h => (
+                {['N° PDV', 'Nom PDV', 'Type PLV', 'Qté', 'Zone', 'Superviseur', 'Statut', 'Date', 'Actions'].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {plvs.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 30, color: '#475569' }}>Aucune PLV enregistrée pour {MOIS_LABELS[mois]}</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 30, color: '#475569' }}>Aucune PLV enregistrée pour {MOIS_LABELS[mois]}</td></tr>
               ) : plvs.map(p => (
                 <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>{p.pdv_numero || '—'}</td>
@@ -1841,6 +1991,10 @@ function TabPLV() {
                     </span>
                   </td>
                   <td style={{ padding: '10px 12px', color: '#64748b', whiteSpace: 'nowrap' }}>{p.date_deploiement ? new Date(p.date_deploiement).toLocaleDateString('fr-FR') : '—'}</td>
+                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => ouvrirEdition(p)} title="Modifier" style={{ background: 'rgba(74,158,255,0.12)', border: '1px solid rgba(74,158,255,0.3)', borderRadius: 6, color: '#4a9eff', padding: '4px 8px', cursor: 'pointer', marginRight: 6 }}>✏️</button>
+                    <button onClick={() => supprimer(p.id)} title="Supprimer" style={{ background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '4px 8px', cursor: 'pointer' }}>🗑️</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1855,17 +2009,42 @@ function TabPLV() {
 function TabPointsControles() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ pdv_numero: '', pdv_nom: '', zone: '', superviseur: '', mois: '2026-07', ca_mensuel: '' });
+  const [editId, setEditId] = useState(null);
+  const FORM_VIDE = { pdv_numero: '', pdv_nom: '', zone: '', superviseur: '', mois: '2026-07', ca_mensuel: '' };
+  const [form, setForm] = useState(FORM_VIDE);
 
   const { data } = useQuery('challenge-points',
     () => api.get('/challenge/points-controles').then(r => r.data),
     { staleTime: 30000 }
   );
 
+  const rafraichir = () => {
+    queryClient.invalidateQueries('challenge-points');
+    queryClient.invalidateQueries('challenge-dashboard');
+  };
+
   const mutation = useMutation(
-    (payload) => api.post('/challenge/points-controles', payload).then(r => r.data),
-    { onSuccess: () => { queryClient.invalidateQueries('challenge-points'); queryClient.invalidateQueries('challenge-dashboard'); setShowForm(false); } }
+    (payload) => (editId
+      ? api.put(`/challenge/points-controles/${editId}`, payload)
+      : api.post('/challenge/points-controles', payload)).then(r => r.data),
+    { onSuccess: () => { rafraichir(); setShowForm(false); setEditId(null); setForm(FORM_VIDE); } }
   );
+
+  const supprimer = async (id) => {
+    if (!window.confirm('Supprimer définitivement ce point contrôlé ?')) return;
+    try { await api.delete(`/challenge/points-controles/${id}`); rafraichir(); }
+    catch (e) { alert(e?.response?.data?.detail || 'Erreur lors de la suppression'); }
+  };
+
+  const ouvrirEdition = (p) => {
+    setForm({
+      pdv_numero: p.pdv_numero || '', pdv_nom: p.pdv_nom || '',
+      zone: p.zone || '', superviseur: p.superviseur || '',
+      mois: p.mois || '2026-07', ca_mensuel: p.ca_mensuel || '',
+    });
+    setEditId(p.id);
+    setShowForm(true);
+  };
 
   const stats = data?.stats_par_mois || {};
   const points = data?.points || [];
@@ -1901,12 +2080,12 @@ function TabPointsControles() {
           <h3 className="ch-section-title" style={{ margin: 0 }}>📍 Points Contrôlés — Période</h3>
           <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>Total : {data?.total || 0} / 25 · Actifs : {data?.actifs || 0}</div>
         </div>
-        <button className="ch-btn ch-btn-primary" onClick={() => setShowForm(!showForm)}><Plus size={14}/> Nouveau point</button>
+        <button className="ch-btn ch-btn-primary" onClick={() => { setEditId(null); setForm(FORM_VIDE); setShowForm(!showForm); }}><Plus size={14}/> Nouveau point</button>
       </div>
 
       {showForm && (
         <div className="ch-card" style={{ border: '1px solid rgba(255,105,0,0.3)' }}>
-          <h4 style={{ color: '#FF6900', marginBottom: 16 }}>➕ Nouveau Point Contrôlé</h4>
+          <h4 style={{ color: '#FF6900', marginBottom: 16 }}>{editId ? '✏️ Modifier le point contrôlé' : '➕ Nouveau Point Contrôlé'}</h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {[
               { key: 'pdv_numero', label: 'N° PDV', placeholder: 'Numéro flotte' },
@@ -1930,9 +2109,9 @@ function TabPointsControles() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 16, justifyContent: 'flex-end' }}>
-            <button className="ch-btn ch-btn-secondary" onClick={() => setShowForm(false)}>Annuler</button>
+            <button className="ch-btn ch-btn-secondary" onClick={() => { setShowForm(false); setEditId(null); setForm(FORM_VIDE); }}>Annuler</button>
             <button className="ch-btn ch-btn-primary" onClick={() => mutation.mutate(form)} disabled={mutation.isLoading}>
-              {mutation.isLoading ? '⏳ Enregistrement…' : '✅ Enregistrer'}
+              {mutation.isLoading ? '⏳ Enregistrement…' : editId ? '💾 Mettre à jour' : '✅ Enregistrer'}
             </button>
           </div>
         </div>
@@ -1943,14 +2122,14 @@ function TabPointsControles() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                {['N° PDV', 'Nom PDV', 'Zone', 'Superviseur', 'CA/mois', 'Mois', 'Statut'].map(h => (
+                {['N° PDV', 'Nom PDV', 'Zone', 'Superviseur', 'CA/mois', 'Mois', 'Statut', 'Actions'].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {points.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: '#475569' }}>Aucun point contrôlé enregistré</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 30, color: '#475569' }}>Aucun point contrôlé enregistré</td></tr>
               ) : points.map(p => (
                 <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ padding: '10px 12px', color: '#FF6900', fontWeight: 700 }}>{p.pdv_numero || '—'}</td>
@@ -1963,6 +2142,10 @@ function TabPointsControles() {
                     <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: p.est_actif ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: p.est_actif ? '#10b981' : '#ef4444' }}>
                       {p.est_actif ? '✅ Actif' : '❌ Inactif'}
                     </span>
+                  </td>
+                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => ouvrirEdition(p)} title="Modifier" style={{ background: 'rgba(74,158,255,0.12)', border: '1px solid rgba(74,158,255,0.3)', borderRadius: 6, color: '#4a9eff', padding: '4px 8px', cursor: 'pointer', marginRight: 6 }}>✏️</button>
+                    <button onClick={() => supprimer(p.id)} title="Supprimer" style={{ background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '4px 8px', cursor: 'pointer' }}>🗑️</button>
                   </td>
                 </tr>
               ))}
