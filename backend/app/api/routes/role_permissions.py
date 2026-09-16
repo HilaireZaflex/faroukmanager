@@ -26,13 +26,13 @@ ALL_DASHBOARDS = ["omy", "nafama", "kaabu"]
 DEFAULT_SIDEBAR = {
     "admin": {
         "dashboards": ["omy","nafama","kaabu"],
-        "menus": ["pdvs","prospection","indicateurs","commissions","evaluations","alerts","reseau","ia","carte","recovery","import","reports","settings","suivi_tc","reclamations"],
+        "menus": ["pdvs","prospection","indicateurs","commissions","evaluations","alerts","reseau","ia","carte","recovery","import","reports","settings","suivi_tc","reclamations","challenge"],
     },
     # Tous les autres rôles : menus de base uniquement (+ extras attribués par admin)
     # `suivi_tc` était historiquement réservé à admin/rc/manager (codé en dur côté interface).
     # `reclamations` était visible par TOUS les rôles : il est conservé partout par défaut,
     # puis l'administrateur peut le retirer rôle par rôle.
-    "manager":         {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN + ["suivi_tc", "reclamations"]},
+    "manager":         {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN + ["suivi_tc", "reclamations", "challenge"]},
     "superviseur":     {"dashboards": DEFAULT_DASHBOARDS_NON_ADMIN, "menus": DEFAULT_MENUS_NON_ADMIN + ["reclamations"]},
     "rc":              {"dashboards": ALL_DASHBOARDS, "menus": ALL_MENUS},
     "developpeur":     {"dashboards": [], "menus": ["pdvs", "prospection", "reclamations"]},
@@ -45,6 +45,7 @@ DEFAULT_SIDEBAR = {
 EXTRA_MENUS_AVAILABLE = [
     {"id": "suivi_tc",     "label": "Suivi TC (Téléconseillères)"},
     {"id": "reclamations", "label": "Réclamations"},
+    {"id": "challenge",    "label": "Orange Awards 2026"},
     {"id": "indicateurs",  "label": "Indicateurs"},
     {"id": "commissions",  "label": "Commissions"},
     {"id": "reseau",       "label": "Gestion Réseau"},

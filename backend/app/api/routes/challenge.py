@@ -15,6 +15,7 @@ from app.models.challenge import (
     ChallengePLV, ChallengePointControle
 )
 from app.models.pdv import PDV
+from app.models.indicateur_award import IndicateurAward
 
 router = APIRouter(prefix="/challenge", tags=["challenge"])
 
@@ -76,6 +77,41 @@ def get_mois_challenge_ecoules():
     mois_actuel = get_mois_actuel()
     return [m for m in MOIS_CHALLENGE if m <= mois_actuel]
 
+def get_mois_clos():
+    """Mois du challenge RÉELLEMENT TERMINÉS (le mois en cours est exclu).
+
+    Un mois incomplet ne doit pas compter dans les objectifs cumulés,
+    sinon le taux d'atteinte est artificiellement sous-évalué.
+    """
+    mois_actuel = get_mois_actuel()
+    return [m for m in MOIS_CHALLENGE if m < mois_actuel]
+
+# Correspondance mois challenge (2026-07) → mois des indicateurs Award (JUILLET)
+MOIS_LABELS = {
+    "2026-07": "JUILLET",
+    "2026-08": "AOÛT",
+    "2026-09": "SEPTEMBRE",
+    "2026-10": "OCTOBRE",
+}
+
+def _award_totaux(db: Session, indicateur: str, mois_challenge: list):
+    """Objectif et réalisation cumulés d'un indicateur Award sur des mois du challenge.
+
+    Utilisé pour PDV actif, Ventes terminaux et Orange NRJ, qui sont suivis
+    dans la table `indicateurs_award` (données réelles) et non plus en dur.
+    """
+    labels = [MOIS_LABELS[m] for m in mois_challenge if m in MOIS_LABELS]
+    if not labels:
+        return 0.0, 0.0
+    rows = db.query(IndicateurAward).filter(
+        IndicateurAward.indicateur == indicateur,
+        IndicateurAward.est_total == True,
+        IndicateurAward.mois.in_(labels),
+    ).all()
+    objectif = sum(float(r.objectif_orange or 0) for r in rows)
+    realise = sum(float(r.realisation or 0) for r in rows)
+    return objectif, realise
+
 def calc_taux(realise, objectif):
     """Calcule le taux d'atteinte en %."""
     if not objectif or objectif == 0:
@@ -104,50 +140,67 @@ def get_challenge_dashboard(db: Session = Depends(get_db), current_user=Depends(
     mois_ecoules = get_mois_challenge_ecoules()
 
     # ── KPIs réalisés depuis la base ────────────────────────────────────────
-    # Recrutement OMY
+    # Seuls les mois RÉELLEMENT TERMINÉS comptent dans les objectifs cumulés
+    mois_clos = get_mois_clos()
+    nb_mois = len(mois_clos)
+
+    # Recrutement OMY (table challenge)
     total_recrutes = db.query(func.count(ChallengeRecrutement.id)).filter(
-        ChallengeRecrutement.mois.in_(mois_ecoules)
+        ChallengeRecrutement.mois.in_(mois_clos)
     ).scalar() or 0
 
-    # PLV déployées
+    # PLV déployées et validées (table challenge)
     total_plv = db.query(func.sum(ChallengePLV.quantite)).filter(
-        ChallengePLV.mois.in_(mois_ecoules),
+        ChallengePLV.mois.in_(mois_clos),
         ChallengePLV.valide == True
     ).scalar() or 0
 
-    # Points contrôlés créés
+    # Points contrôlés créés (table challenge)
     total_points = db.query(func.count(ChallengePointControle.id)).filter(
-        ChallengePointControle.mois.in_(mois_ecoules)
+        ChallengePointControle.mois.in_(mois_clos)
     ).scalar() or 0
 
-    # PDVs actifs (depuis la table PDV directement)
+    # Nombre total de PDV actifs (information de contexte)
     total_pdvs = db.query(func.count(PDV.id)).filter(PDV.statut == "ACTIF").scalar() or 1
-    # On considère 85% des PDVs actifs par défaut (à affiner avec vraies données)
-    pdvs_actifs = total_pdvs
-    taux_pdv_actif = 85.0  # Valeur par défaut — à mettre à jour manuellement
 
-    # Objectifs cumulés pour les mois écoulés
-    nb_mois = len(mois_ecoules) if mois_ecoules else 1
+    # PDV actifs / Ventes terminaux / Orange NRJ : données RÉELLES des indicateurs Award
+    obj_pdv, real_pdv = _award_totaux(db, "PDV_ACTIF", mois_clos)
+    obj_term, real_term = _award_totaux(db, "TERMINAUX", mois_clos)
+    obj_nrj, real_nrj = _award_totaux(db, "ORANGE ENERGIE", mois_clos)
+
+    # Objectifs cumulés
     obj_recrutes = 250 * nb_mois
     obj_plv = 25 * nb_mois
-    obj_points = sum(OBJECTIFS_MENSUELS.get(m, {}).get("creation_points_controles", 5) for m in mois_ecoules) if mois_ecoules else 25
-    obj_terminaux = 25 * nb_mois
+    obj_points = sum(OBJECTIFS_MENSUELS.get(m, {}).get("creation_points_controles", 5) for m in mois_clos)
+    obj_terminaux = obj_term or (25 * nb_mois)
+    obj_nrj = obj_nrj or (7 * nb_mois)
 
     # Taux d'atteinte
     taux_recrutes = calc_taux(total_recrutes, obj_recrutes)
     taux_plv = calc_taux(total_plv, obj_plv)
     taux_points = calc_taux(total_points, obj_points)
+    taux_pdv = calc_taux(real_pdv, obj_pdv)
+    taux_term = calc_taux(real_term, obj_terminaux)
+    taux_nrj = calc_taux(real_nrj, obj_nrj)
 
-    # Score OM
-    score_om = 0
-    score_om += calc_score_critere(taux_pdv_actif, 10)      # PDV actif (10%)
-    score_om += calc_score_critere(taux_recrutes, 15)        # Recrutement (15%)
-    score_om += calc_score_critere(taux_plv, 15)             # PLV (15%)
+    # ── Scores (pondérations officielles déclarées) ──
+    POIDS_OM = 40      # PDV actif 10 + Recrutement 15 + PLV 15
+    POIDS_TELCO = 60   # Points 15 + PLV 15 + Terminaux 15 + NRJ 15
 
-    # Score TELCO
-    score_telco = 0
-    score_telco += calc_score_critere(taux_points, 15)       # Points contrôlés (15%)
-    score_telco += calc_score_critere(taux_plv, 15)          # PLV/Note DZ (15%)
+    score_om = (
+        calc_score_critere(taux_pdv, 10) +
+        calc_score_critere(taux_recrutes, 15) +
+        calc_score_critere(taux_plv, 15)
+    )
+    score_telco = (
+        calc_score_critere(taux_points, 15) +
+        calc_score_critere(taux_plv, 15) +
+        calc_score_critere(taux_term, 15) +
+        calc_score_critere(taux_nrj, 15)
+    )
+    # Chaque challenge est ramené sur 100 avant la moyenne (les maxima diffèrent)
+    om_pct = round(score_om / POIDS_OM * 100, 1) if POIDS_OM else 0
+    telco_pct = round(score_telco / POIDS_TELCO * 100, 1) if POIDS_TELCO else 0
 
     return {
         "periode": {
@@ -157,6 +210,7 @@ def get_challenge_dashboard(db: Session = Depends(get_db), current_user=Depends(
             "jours_ecoules": jours_ecoules,
             "avancement_pct": avancement_periode,
             "mois_ecoules": mois_ecoules,
+            "mois_clos": mois_clos,
         },
         "kpis": {
             "recrutement_omy": {
@@ -180,17 +234,35 @@ def get_challenge_dashboard(db: Session = Depends(get_db), current_user=Depends(
                 "taux": taux_points,
                 "par_mois_restant": 5,
             },
+            "ventes_terminaux": {
+                "realise": int(real_term),
+                "objectif_cumule": int(obj_terminaux),
+                "taux": taux_term,
+                "source": "indicateurs_award",
+            },
+            "orange_nrj": {
+                "realise": int(real_nrj),
+                "objectif_cumule": int(obj_nrj),
+                "taux": taux_nrj,
+                "source": "indicateurs_award",
+            },
             "pdv_actifs": {
-                "realise": pdvs_actifs,
+                "realise": int(real_pdv),
                 "total_pdvs": total_pdvs,
-                "taux": taux_pdv_actif,
+                "objectif_cumule": int(obj_pdv),
+                "taux": taux_pdv,
                 "objectif_pct": 90,
+                "source": "indicateurs_award",
             },
         },
         "scores": {
             "om": round(score_om, 1),
+            "om_max": POIDS_OM,
+            "om_pct": om_pct,
             "telco": round(score_telco, 1),
-            "global": round((score_om + score_telco) / 2, 1),
+            "telco_max": POIDS_TELCO,
+            "telco_pct": telco_pct,
+            "global": round((om_pct + telco_pct) / 2, 1),
         },
         "objectifs_mensuels": OBJECTIFS_MENSUELS,
     }
@@ -209,14 +281,21 @@ def get_objectifs_mois(mois: str, db: Session = Depends(get_db), current_user=De
     plv = db.query(func.sum(ChallengePLV.quantite)).filter(ChallengePLV.mois == mois, ChallengePLV.valide == True).scalar() or 0
     points = db.query(func.count(ChallengePointControle.id)).filter(ChallengePointControle.mois == mois).scalar() or 0
 
+    # Ventes terminaux / Orange NRJ / PDV actif : données réelles des indicateurs Award
+    _, real_term = _award_totaux(db, "TERMINAUX", [mois])
+    _, real_nrj = _award_totaux(db, "ORANGE ENERGIE", [mois])
+    obj_pdv_m, real_pdv = _award_totaux(db, "PDV_ACTIF", [mois])
+    obj_pdv_m = int(obj_pdv_m) or obj.get("pdv_actif", 1016)
+
     return {
         "mois": mois,
         "kpis": [
             {"kpi": "Recrutement OMY", "objectif": obj.get("recrutement_omy", 250), "realise": recrutes, "taux": calc_taux(recrutes, obj.get("recrutement_omy", 250)), "unite": "clients", "poids_om": 15},
             {"kpi": "Déploiement PLV", "objectif": obj.get("deploiement_plv", 25), "realise": int(plv), "taux": calc_taux(plv, obj.get("deploiement_plv", 25)), "unite": "PLV", "poids_om": 15, "poids_telco": 15},
             {"kpi": "Points Contrôlés", "objectif": obj.get("creation_points_controles", 5), "realise": points, "taux": calc_taux(points, obj.get("creation_points_controles", 5)), "unite": "points", "poids_telco": 15},
-            {"kpi": "Ventes Terminaux", "objectif": obj.get("ventes_terminaux", 25), "realise": 0, "taux": 0, "unite": "terminaux", "poids_telco": 15},
-            {"kpi": "Orange NRJ", "objectif": obj.get("orange_nrj", 7), "realise": 0, "taux": 0, "unite": "kits", "poids_telco": 15},
+            {"kpi": "Ventes Terminaux", "objectif": obj.get("ventes_terminaux", 25), "realise": int(real_term), "taux": calc_taux(real_term, obj.get("ventes_terminaux", 25)), "unite": "terminaux", "poids_telco": 15, "source": "indicateurs_award"},
+            {"kpi": "Orange NRJ", "objectif": obj.get("orange_nrj", 7), "realise": int(real_nrj), "taux": calc_taux(real_nrj, obj.get("orange_nrj", 7)), "unite": "kits", "poids_telco": 15, "source": "indicateurs_award"},
+            {"kpi": "PDV actifs", "objectif": obj_pdv_m, "realise": int(real_pdv), "taux": calc_taux(real_pdv, obj_pdv_m), "unite": "PDV", "poids_om": 10, "source": "indicateurs_award"},
         ]
     }
 
@@ -327,7 +406,8 @@ def list_plv(mois: Optional[str] = None, db: Session = Depends(get_db), current_
 @router.get("/classement")
 def get_classement(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Classement des superviseurs/développeurs selon leur contribution."""
-    mois = MOIS_CHALLENGE
+    # On se base sur les mois terminés (cohérent avec le tableau de bord)
+    mois = get_mois_clos() or MOIS_CHALLENGE
 
     # Classement recrutement par superviseur
     recruts = db.query(
@@ -359,25 +439,39 @@ def get_classement(db: Session = Depends(get_db), current_user=Depends(get_curre
 def get_alertes(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Alertes si un KPI est en dessous du seuil critique."""
     alertes = []
-    mois_ecoules = get_mois_challenge_ecoules()
-    if not mois_ecoules:
+    mois_clos = get_mois_clos()
+    if not mois_clos:
         return {"alertes": [], "nb_critiques": 0}
 
-    nb_mois = len(mois_ecoules)
+    nb_mois = len(mois_clos)
 
     # Recrutement
-    recrutes = db.query(func.count(ChallengeRecrutement.id)).filter(ChallengeRecrutement.mois.in_(mois_ecoules)).scalar() or 0
+    recrutes = db.query(func.count(ChallengeRecrutement.id)).filter(ChallengeRecrutement.mois.in_(mois_clos)).scalar() or 0
     taux_r = calc_taux(recrutes, 250 * nb_mois)
     if taux_r < 95:
         manquant = int(250 * nb_mois - recrutes)
         alertes.append({"kpi": "Recrutement OMY", "taux": taux_r, "niveau": "critique" if taux_r < 70 else "attention", "message": f"⚠️ {manquant} recrutements manquants pour atteindre 95%", "action": f"Recruter au moins {manquant} nouveaux clients OM immédiatement"})
 
     # PLV
-    plv = db.query(func.sum(ChallengePLV.quantite)).filter(ChallengePLV.mois.in_(mois_ecoules), ChallengePLV.valide == True).scalar() or 0
+    plv = db.query(func.sum(ChallengePLV.quantite)).filter(ChallengePLV.mois.in_(mois_clos), ChallengePLV.valide == True).scalar() or 0
     taux_plv = calc_taux(plv, 25 * nb_mois)
     if taux_plv < 95:
         manquant = int(25 * nb_mois - plv)
         alertes.append({"kpi": "Déploiement PLV", "taux": taux_plv, "niveau": "critique" if taux_plv < 70 else "attention", "message": f"⚠️ {manquant} PLV manquantes", "action": f"Déployer {manquant} supports de visibilité"})
+
+    # Ventes terminaux (source Award)
+    obj_term, real_term = _award_totaux(db, "TERMINAUX", mois_clos)
+    if obj_term:
+        taux_term = calc_taux(real_term, obj_term)
+        if taux_term < 95:
+            alertes.append({"kpi": "Ventes Terminaux", "taux": taux_term, "niveau": "critique" if taux_term < 70 else "attention", "message": f"⚠️ {int(obj_term - real_term)} terminaux manquants", "action": "Relancer les ventes de terminaux sur le réseau"})
+
+    # Orange NRJ (source Award)
+    obj_nrj, real_nrj = _award_totaux(db, "ORANGE ENERGIE", mois_clos)
+    if obj_nrj:
+        taux_nrj = calc_taux(real_nrj, obj_nrj)
+        if taux_nrj < 95:
+            alertes.append({"kpi": "Orange NRJ", "taux": taux_nrj, "niveau": "critique" if taux_nrj < 70 else "attention", "message": f"⚠️ {int(obj_nrj - real_nrj)} kits Orange Énergie manquants", "action": "Prioriser la vente de kits Orange Énergie"})
 
     nb_critiques = sum(1 for a in alertes if a["niveau"] == "critique")
     return {"alertes": alertes, "nb_critiques": nb_critiques, "nb_attention": len(alertes) - nb_critiques}

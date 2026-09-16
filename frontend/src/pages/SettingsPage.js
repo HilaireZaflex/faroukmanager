@@ -36,6 +36,7 @@ const FEATURES = [
     { id: 'menu_alerts',      label: 'Alertes',              sidebarKey: 'alerts' },
     { id: 'menu_suivi_tc',    label: 'Suivi TC (Téléconseillères)', sidebarKey: 'suivi_tc' },
     { id: 'menu_reclamations', label: 'Réclamations',              sidebarKey: 'reclamations' },
+    { id: 'menu_challenge',  label: 'Orange Awards 2026',          sidebarKey: 'challenge' },
     { id: 'menu_reseau',      label: 'Gestion du Réseau',    sidebarKey: 'reseau' },
   ]},
   { section: '🗺️ Gestion du Réseau — Sous-menus', items: [

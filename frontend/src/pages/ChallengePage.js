@@ -525,6 +525,7 @@ const MAIN_TABS = [
   { id: 'dashboard', label: '\uD83C\uDFC6 Score Global' },
   { id: 'telco',     label: '\uD83D\uDD35 Challenge PDG TELCO', color: '#0ea5e9' },
   { id: 'om',        label: '\uD83D\uDFE0 Challenge Orange Money', color: '#FF6900' },
+  { id: 'classement', label: '\uD83C\uDFC5 Classement' },
   { id: 'simulation', label: '\uD83D\uDD2E Simulation' },
   { id: 'projection', label: '\uD83D\uDCC8 Projection' },
   { id: 'alertes',   label: '\uD83D\uDEA8 Alertes' },
@@ -593,11 +594,13 @@ export default function ChallengePage() {
       if (pctO !== null && pctO < 95) count++;
       if (cfg.hasFarouk && pctF !== null && pctF < 80) count++;
     });
-    // KPIs Challenge OM
+    // KPIs Challenge OM — le backend renvoie des POURCENTAGES (0-100)
     const kpis = dashboard?.kpis || {};
-    if ((kpis?.recrutement_omy?.taux || 0) < 0.95) count++;
-    if ((kpis?.deploiement_plv?.taux || 0) < 0.95) count++;
-    if ((kpis?.points_controles?.taux || 0) < 0.95) count++;
+    if ((kpis?.recrutement_omy?.taux || 0) < 95) count++;
+    if ((kpis?.deploiement_plv?.taux || 0) < 95) count++;
+    if ((kpis?.points_controles?.taux || 0) < 95) count++;
+    if ((kpis?.ventes_terminaux?.taux || 0) < 95) count++;
+    if ((kpis?.orange_nrj?.taux || 0) < 95) count++;
     return count;
   }, [awardDataMain, dashboard]);
 
@@ -757,11 +760,11 @@ function TabDashboard({ dashboard }) {
   // === CHALLENGE 2 : ORANGE MONEY (100%) ===
   const omSousCriteres = [
     { key: 'ca_cashout',     label: '\uD83D\uDCF1 CA Cash-out (OMY)',              poids: 30, taux: getIndTaux('OMY'),               objectif: 'Taux >= 95%' },
-    { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: getIndTaux('PDV_ACTIF') ?? kpis?.pdv_actifs?.taux ?? null,  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
+    { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: getIndTaux('PDV_ACTIF') ?? (kpis?.pdv_actifs?.taux != null ? kpis.pdv_actifs.taux / 100 : null),  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
     { key: 'recrutement',    label: '\uD83D\uDC65 Recrutement Orange Money',        poids: 15, taux: kpis?.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux / 100 : null, objectif: '1000 clients actifs / DZ (250/mois)' },
     { key: 'adoption_kaabu', label: '\uD83D\uDCB3 Adoption Kaabu',                  poids: 15, taux: getIndTaux('KAABU MOBILE'),     objectif: 'Min 10 tx/PDV/mois, taux actif atteint' },
-    { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: 0,    objectif: 'P\u00e9n\u00e9tration fintech < 2% \u2014 Actuel: 4% \u26a0\uFE0F' },
-    { key: 'deploiement_plv', label: '\uD83D\uDCE6 D\u00e9ploiement support visibilit\u00e9', poids: 15, taux: kpis?.deploiement_plv?.taux || null, objectif: 'Min 100 PLV / DZ (25/mois)' },
+    { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: null,    objectif: 'P\u00e9n\u00e9tration fintech < 2% \u2014 non mesur\u00e9 pour l\u2019instant' },
+    { key: 'deploiement_plv', label: '\uD83D\uDCE6 D\u00e9ploiement support visibilit\u00e9', poids: 15, taux: kpis?.deploiement_plv?.taux != null ? kpis.deploiement_plv.taux / 100 : null, objectif: 'Min 100 PLV / DZ (25/mois)' },
   ];
 
   // Calcul des scores pond\u00e9r\u00e9s

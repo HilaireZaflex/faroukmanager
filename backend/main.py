@@ -369,6 +369,34 @@ async def auto_migrate():
     except Exception as e:
         print(f"⚠️ Migration permissions Réclamations: {e}")
 
+    # ── Orange Awards : rendre le menu visible par les managers et le RC ──
+    # Additif et unique (drapeau) : l'administrateur peut ensuite l'ajuster.
+    try:
+        from app.core.database import SessionLocal
+        from app.api.routes.role_permissions import RolePermission
+        from sqlalchemy.orm.attributes import flag_modified
+        db5 = SessionLocal()
+        try:
+            for role_id in ("manager", "rc"):
+                row = db5.query(RolePermission).filter(RolePermission.role_id == role_id).first()
+                if not row:
+                    continue
+                cfg = dict(row.sidebar_config or {})
+                if cfg.get("_challenge_added"):
+                    continue
+                menus = list(cfg.get("menus") or [])
+                if "challenge" not in menus:
+                    menus.append("challenge")
+                cfg["menus"] = menus
+                cfg["_challenge_added"] = True
+                row.sidebar_config = cfg
+                flag_modified(row, "sidebar_config")
+            db5.commit()
+        finally:
+            db5.close()
+    except Exception as e:
+        print(f"⚠️ Migration permissions Orange Awards: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     # Précalculer les données lentes en arrière-plan
