@@ -815,10 +815,10 @@ function TabDashboard({ dashboard }) {
     () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
   );
 
-  // Mois TERMINÉS seulement (le mois en cours ne doit pas fausser le score)
+  // Mois pris en compte dans le score : tous les mois entamés (mois en cours inclus)
   const labelsClos = React.useMemo(() => {
-    const clos = (periode?.mois_clos || []).map(m => AWARD_MOIS[m]).filter(Boolean);
-    if (clos.length) return clos;
+    const inclus = (periode?.mois_score || periode?.mois_clos || []).map(m => AWARD_MOIS[m]).filter(Boolean);
+    if (inclus.length) return inclus;
     // Repli si l'information n'est pas fournie : tous les mois sauf le mois courant
     const courant = AWARD_MOIS[new Date().toISOString().slice(0, 7)];
     return ['JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE'].filter(m => m !== courant);

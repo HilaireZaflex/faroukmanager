@@ -122,6 +122,41 @@ def _objectif_mensuel(db: Session, kpi: str, mois: str) -> float:
         return float(row.objectif)
     return float(OBJECTIFS_MENSUELS.get(mois, {}).get(kpi, 0) or 0)
 
+def _jours_ecoules_du_mois(mois: str, courant: str) -> float:
+    """Fraction du mois écoulée (1.0 si le mois est terminé)."""
+    import calendar
+    if mois != courant:
+        return 1.0
+    annee, mm = int(mois[:4]), int(mois[5:7])
+    jours = calendar.monthrange(annee, mm)[1]
+    return min(datetime.utcnow().day, jours) / jours if jours else 1.0
+
+def _objectif_periode(db: Session, kpi: str, mois_liste: list) -> float:
+    """Somme des objectifs du challenge sur une période.
+
+    Le mois en cours est compté AU PRORATA des jours écoulés, pour que le score
+    soit à la fois réactif (il bouge dès une saisie) et équitable.
+    """
+    courant = get_mois_actuel()
+    total = 0.0
+    for m in mois_liste:
+        total += _objectif_mensuel(db, kpi, m) * _jours_ecoules_du_mois(m, courant)
+    return round(total, 2)
+
+def _award_periode(db: Session, indicateur: str, mois_liste: list):
+    """Objectif et réalisation cumulés d'un indicateur Award.
+
+    L'objectif du mois en cours est proratisé (jours écoulés).
+    """
+    courant = get_mois_actuel()
+    objectif = 0.0
+    realise = 0.0
+    for m in mois_liste:
+        o, r = _award_totaux(db, indicateur, [m])
+        objectif += o * _jours_ecoules_du_mois(m, courant)
+        realise += r
+    return round(objectif, 2), round(realise, 2)
+
 def calc_taux(realise, objectif):
     """Calcule le taux d'atteinte en %."""
     if not objectif or objectif == 0:
@@ -150,40 +185,43 @@ def get_challenge_dashboard(db: Session = Depends(get_db), current_user=Depends(
     mois_ecoules = get_mois_challenge_ecoules()
 
     # ── KPIs réalisés depuis la base ────────────────────────────────────────
-    # Seuls les mois RÉELLEMENT TERMINÉS comptent dans les objectifs cumulés
+    # Mois pris en compte dans le score : tous les mois entamés, mois en cours inclus
+    # (pour que le score réagisse immédiatement à une saisie). L'objectif du mois en
+    # cours est proratisé sur les jours écoulés.
     mois_clos = get_mois_clos()
-    nb_mois = len(mois_clos)
+    mois_score = get_mois_challenge_ecoules()
+    nb_mois = len(mois_score)
 
     # Recrutement OMY (table challenge)
     total_recrutes = db.query(func.count(ChallengeRecrutement.id)).filter(
-        ChallengeRecrutement.mois.in_(mois_clos)
+        ChallengeRecrutement.mois.in_(mois_score)
     ).scalar() or 0
 
     # PLV déployées et validées (table challenge)
     total_plv = db.query(func.sum(ChallengePLV.quantite)).filter(
-        ChallengePLV.mois.in_(mois_clos),
+        ChallengePLV.mois.in_(mois_score),
         ChallengePLV.valide == True
     ).scalar() or 0
 
     # Points contrôlés créés (table challenge)
     total_points = db.query(func.count(ChallengePointControle.id)).filter(
-        ChallengePointControle.mois.in_(mois_clos)
+        ChallengePointControle.mois.in_(mois_score)
     ).scalar() or 0
 
     # Nombre total de PDV actifs (information de contexte)
     total_pdvs = db.query(func.count(PDV.id)).filter(PDV.statut == "ACTIF").scalar() or 1
 
     # PDV actifs / Ventes terminaux / Orange NRJ : données RÉELLES des indicateurs Award
-    obj_pdv, real_pdv = _award_totaux(db, "PDV_ACTIF", mois_clos)
-    obj_term, real_term = _award_totaux(db, "TERMINAUX", mois_clos)
-    obj_nrj, real_nrj = _award_totaux(db, "ORANGE ENERGIE", mois_clos)
+    obj_pdv, real_pdv = _award_periode(db, "PDV_ACTIF", mois_score)
+    obj_term, real_term = _award_periode(db, "TERMINAUX", mois_score)
+    obj_nrj, real_nrj = _award_periode(db, "ORANGE ENERGIE", mois_score)
 
     # Objectifs cumulés (base de données si personnalisés, sinon valeurs par défaut)
-    obj_recrutes = sum(_objectif_mensuel(db, "recrutement_omy", m) for m in mois_clos) or (250 * nb_mois)
-    obj_plv = sum(_objectif_mensuel(db, "deploiement_plv", m) for m in mois_clos) or (25 * nb_mois)
-    obj_points = sum(_objectif_mensuel(db, "creation_points_controles", m) for m in mois_clos)
-    obj_terminaux = obj_term or sum(_objectif_mensuel(db, "ventes_terminaux", m) for m in mois_clos) or (25 * nb_mois)
-    obj_nrj = obj_nrj or sum(_objectif_mensuel(db, "orange_nrj", m) for m in mois_clos) or (7 * nb_mois)
+    obj_recrutes = _objectif_periode(db, "recrutement_omy", mois_score) or (250 * nb_mois)
+    obj_plv = _objectif_periode(db, "deploiement_plv", mois_score) or (25 * nb_mois)
+    obj_points = _objectif_periode(db, "creation_points_controles", mois_score)
+    obj_terminaux = obj_term or _objectif_periode(db, "ventes_terminaux", mois_score) or (25 * nb_mois)
+    obj_nrj = obj_nrj or _objectif_periode(db, "orange_nrj", mois_score) or (7 * nb_mois)
 
     # Taux d'atteinte
     taux_recrutes = calc_taux(total_recrutes, obj_recrutes)
@@ -221,6 +259,7 @@ def get_challenge_dashboard(db: Session = Depends(get_db), current_user=Depends(
             "avancement_pct": avancement_periode,
             "mois_ecoules": mois_ecoules,
             "mois_clos": mois_clos,
+            "mois_score": mois_score,
         },
         "kpis": {
             "recrutement_omy": {
