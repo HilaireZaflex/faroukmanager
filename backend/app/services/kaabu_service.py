@@ -373,18 +373,58 @@ def get_hors_zone(db: Session, annee: int, semaine: str) -> Dict[str, Any]:
 
 # ─── PDVs INACTIFS ────────────────────────────────────────────────────────────
 
-def get_inactifs(db: Session, annee: int, semaine: str, teleconseillere: Optional[str] = None) -> Dict[str, Any]:
-    q = db.query(KaabuTransaction).filter(
+def _population_kaabu(db: Session, annee: int) -> set:
+    """PDV connus de KAABU sur l'année (apparus au moins une semaine)."""
+    return {r[0] for r in db.query(KaabuTransaction.numero_pdv).filter(
+        KaabuTransaction.annee == annee
+    ).distinct().all() if r[0]}
+
+
+def _infos_pdv_recent(db: Session, annee: int) -> Dict[str, Any]:
+    """Dernière ligne connue par PDV (sert à afficher un PDV inactif)."""
+    rows = (db.query(KaabuTransaction)
+            .filter(KaabuTransaction.annee == annee)
+            .order_by(KaabuTransaction.semaine).all())
+    info: Dict[str, Any] = {}
+    for r in rows:
+        info[r.numero_pdv] = r
+    return info
+
+
+def _pdvs_inactifs(db: Session, annee: int, semaines: List[str],
+                   teleconseillere: Optional[str] = None) -> List[Any]:
+    """PDV inactifs sur une période.
+
+    Un PDV est inactif s'il fait partie de la population KAABU de l'année mais
+    n'a AUCUNE activité sur la période (aucune ligne avec est_actif = 1).
+
+    Cette définition couvre les deux formats :
+      - historique S01-S31 : les lignes présentes mais étiquetées INACTIF
+        par Orange ne sont pas dans l'ensemble actif → elles ressortent ;
+      - nouveau format 'ACTIFS KM' : la feuille ne contient que des PDV actifs,
+        donc les inactifs sont les PDV du référentiel ABSENTS de la semaine.
+    """
+    population = _population_kaabu(db, annee)
+    actifs = {r[0] for r in db.query(KaabuTransaction.numero_pdv).filter(
         KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine == semaine,
-        KaabuTransaction.est_actif == 0,
-    )
-    if teleconseillere:
-        q = q.filter(KaabuTransaction.teleconseillere.ilike(f"%{teleconseillere}%"))
+        KaabuTransaction.semaine.in_(semaines),
+        KaabuTransaction.est_actif == 1,
+    ).distinct().all() if r[0]}
 
-    rows = q.order_by(KaabuTransaction.superviseur, KaabuTransaction.numero_pdv).all()
+    info = _infos_pdv_recent(db, annee)
+    result = []
+    for num in sorted(population - actifs):
+        r = info.get(num)
+        if r is None:
+            continue
+        if teleconseillere and teleconseillere.lower() not in (r.teleconseillere or '').lower():
+            continue
+        result.append(r)
+    return result
 
-    # Chercher le dernier volume de ce PDV (semaine précédente)
+
+def get_inactifs(db: Session, annee: int, semaine: str, teleconseillere: Optional[str] = None) -> Dict[str, Any]:
+    # Semaine précédente (pour afficher le dernier volume connu)
     all_sems = [r[0] for r in db.query(KaabuTransaction.semaine).filter(
         KaabuTransaction.annee == annee
     ).distinct().order_by(KaabuTransaction.semaine).all()]
@@ -401,6 +441,10 @@ def get_inactifs(db: Session, annee: int, semaine: str, teleconseillere: Optiona
             KaabuTransaction.semaine == prev_sem,
         ).all()
         prev_data = {r.numero_pdv: r for r in prev_rows}
+
+    rows = _pdvs_inactifs(db, annee, [semaine], teleconseillere)
+    # tri par superviseur puis numéro, comme avant
+    rows.sort(key=lambda r: ((r.superviseur or ''), r.numero_pdv))
 
     pdvs = []
     for r in rows:
@@ -665,29 +709,14 @@ def get_inactifs_mensuel(db, annee, mois, teleconseillere=None):
     sems = _get_semaines_du_mois(db, annee, mois)
     if not sems:
         return {"total": 0, "pdvs": []}
-    # PDVs inactifs = jamais actifs dans aucune semaine du mois
-    from sqlalchemy import func, distinct, case
-    actifs_pdvs = set(
-        r[0] for r in db.query(KaabuTransaction.numero_pdv)
-        .filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine.in_(sems), KaabuTransaction.est_actif == 1)
-        .distinct().all()
-    )
-    q = db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine.in_(sems),
-        KaabuTransaction.numero_pdv.notin_(actifs_pdvs),
-    )
-    if teleconseillere:
-        q = q.filter(KaabuTransaction.teleconseillere.ilike(f"%{teleconseillere}%"))
-    rows = q.all()
-    pdvs_vus = set()
-    pdvs = []
-    for r in rows:
-        if r.numero_pdv in pdvs_vus: continue
-        pdvs_vus.add(r.numero_pdv)
-        pdvs.append({"numero_pdv": r.numero_pdv, "login": r.login, "superviseur": r.superviseur,
-                     "groupe": r.groupe, "teleconseillere": r.teleconseillere, "localite": r.localite,
-                     "quartier": r.quartier, "segment": r.segment, "situation_login": r.situation_login})
+    # Même règle que l'hebdomadaire : inactif = PDV de la population KAABU
+    # de l'année sans aucune activité sur le mois.
+    rows = _pdvs_inactifs(db, annee, sems, teleconseillere)
+    rows.sort(key=lambda r: ((r.superviseur or ''), r.numero_pdv))
+    pdvs = [{"numero_pdv": r.numero_pdv, "login": r.login, "superviseur": r.superviseur,
+             "groupe": r.groupe, "teleconseillere": r.teleconseillere, "localite": r.localite,
+             "quartier": r.quartier, "segment": r.segment, "situation_login": r.situation_login}
+            for r in rows]
     return {"total": len(pdvs), "mois": mois, "annee": annee, "pdvs": pdvs}
 
 
