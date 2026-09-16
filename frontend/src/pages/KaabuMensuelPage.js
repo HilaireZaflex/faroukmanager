@@ -465,7 +465,10 @@ export default function KaabuMensuelPage() {
 
   useEffect(() => {
     if (periods?.mois?.length) {
-      const last = periods.mois[periods.mois.length - 1];
+      // « dernier mois rempli » = mois de la dernière semaine présente en base.
+      // (Ne pas se fier au dernier élément de la liste : une semaine ISO 1 peut
+      //  être rattachée à décembre et fausser la sélection.)
+      const last = periods.dernier || periods.mois[periods.mois.length - 1];
       setMois(last.mois); setAnnee(last.annee);
       if (!activeTab) setActiveTab(isTelec ? 'inactifs' : 'overview');
     }

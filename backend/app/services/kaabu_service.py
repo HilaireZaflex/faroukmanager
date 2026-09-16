@@ -17,10 +17,24 @@ def _taux(op, total): return round(op / total, 4) if total else 0
 import datetime
 
 def _semaine_to_mois(annee: int, semaine: str) -> int:
-    """Convertit une semaine ISO (ex: 'S14') en mois (1-12)."""
+    """Convertit une semaine ISO (ex: 'S14') en mois (1-12) de l'année donnée.
+
+    On se base sur le JEUDI de la semaine (jour de référence ISO), et non sur
+    le lundi :
+      - le lundi de la semaine ISO 1 peut tomber fin décembre de l'année
+        précédente (2026 : S01 démarre le lundi 29/12/2025) → un mois
+        « Décembre » fantôme apparaissait dans les périodes mensuelles ;
+      - le lundi sous-estime le mois : S27 (29/06 → 05/07) était comptée en
+        Juin alors que la semaine appartient à Juillet.
+    Le jeudi donne : JUILLET = S27-S31, AOÛT = S32-S35, SEPTEMBRE = S36-S37.
+    """
     try:
         w = int(semaine.replace('S', '').replace('s', '').strip())
-        d = datetime.date.fromisocalendar(annee, w, 1)
+        d = datetime.date.fromisocalendar(annee, w, 4)   # jeudi de la semaine
+        if d.year < annee:
+            d = datetime.date(annee, 1, 1)
+        elif d.year > annee:
+            d = datetime.date(annee, 12, 31)
         return d.month
     except:
         return 0
@@ -37,17 +51,28 @@ def _get_semaines_du_mois(db: Session, annee: int, mois: int) -> List[str]:
 # ─── PÉRIODES DISPONIBLES ─────────────────────────────────────────────────────
 
 def get_available_periods_mensuel(db: Session) -> Dict[str, Any]:
-    """Retourne les mois disponibles calculés depuis les semaines."""
+    """Retourne les mois disponibles calculés depuis les semaines.
+
+    Renvoie aussi `dernier` : le mois de la DERNIÈRE semaine présente en base.
+    C'est ce que l'interface doit sélectionner par défaut (le dernier mois
+    rempli), plutôt que le dernier élément de la liste triée.
+    """
     rows = (db.query(KaabuTransaction.annee, KaabuTransaction.semaine)
             .distinct().order_by(KaabuTransaction.annee, KaabuTransaction.semaine).all())
     mois_set = set()
+    dernier = None
     for r in rows:
         m = _semaine_to_mois(r.annee, r.semaine)
         if m > 0:
             mois_set.add((r.annee, m))
+            # les semaines sont triées : la dernière rencontrée est la plus récente
+            dernier = {"annee": r.annee, "mois": m, "semaine": r.semaine}
     MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
     mois_list = sorted(mois_set)
-    return {"mois": [{"annee": a, "mois": m, "label": MOIS_NOMS[m]} for a, m in mois_list]}
+    return {
+        "mois": [{"annee": a, "mois": m, "label": MOIS_NOMS[m]} for a, m in mois_list],
+        "dernier": dernier,
+    }
 
 
 def get_available_periods(db: Session) -> Dict[str, Any]:
