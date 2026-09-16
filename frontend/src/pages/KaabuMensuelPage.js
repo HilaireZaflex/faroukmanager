@@ -11,6 +11,7 @@ import {
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import AppelTCModal from '../components/common/AppelTCModal';
+import QueryError from '../components/common/QueryError';
 
 const COLOR = '#FF6900';
 const COLORS = ['#FF6900','#3742fa','#22c55e','#ffa502','#a29bfe','#00d68f','#ff4757','#fd79a8','#0ea5e9'];
@@ -57,12 +58,13 @@ function ClassementMensuel({ endpoint, colNom, nomLabel, mois, annee }) {
   const [sortCol, setSortCol] = useState('montant');
   const [sortDir, setSortDir] = useState('desc');
 
-  const { data: rawData, isLoading } = useQuery(
+  const { data: rawData, isLoading, isError, error, refetch } = useQuery(
     [endpoint, mois, annee],
     () => api.get(`${endpoint}?annee=${annee}&mois=${mois}`).then(r => r.data),
     { staleTime: 300000 }
   );
 
+  if (isError) return <QueryError error={error} label="ce classement" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   const data = Array.isArray(rawData) ? rawData : [];
   if (!data.length) return <EmptyKaabu msg={`Aucune donnée pour ${MOIS_NOMS[mois]} ${annee}.`} />;
@@ -146,11 +148,12 @@ function ClassementMensuel({ endpoint, colNom, nomLabel, mois, annee }) {
 
 // ─── Vue d'ensemble mensuelle ─────────────────────────────────────────────────
 function TabOverviewMensuel({ annee, mois }) {
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, isError, error, refetch } = useQuery(
     ['kaabu-m-overview', annee, mois],
     () => api.get(`/kaabu/mensuel/vue-ensemble?annee=${annee}&mois=${mois}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="la vue d'ensemble" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.total_pdv) return <EmptyKaabu msg={`Aucune donnée pour ${MOIS_NOMS[mois]} ${annee}.`} />;
   const ev = data.evolution_volume || 0;
@@ -219,10 +222,11 @@ function TabOverviewMensuel({ annee, mois }) {
 function TabInactifsMensuel({ annee, mois, teleFilter }) {
   const [search, setSearch] = useState('');
   const [appelPDV, setAppelPDV] = useState(null);
-  const { data, isLoading } = useQuery(['kaabu-m-inactifs', annee, mois, teleFilter],
+  const { data, isLoading, isError, error, refetch } = useQuery(['kaabu-m-inactifs', annee, mois, teleFilter],
     () => api.get(`/kaabu/mensuel/inactifs?annee=${annee}&mois=${mois}${teleFilter?`&teleconseillere=${teleFilter}`:''}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="les inactifs" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   const pdvs = data?.pdvs || [];
   const filtered = pdvs.filter(p => !search || (p.numero_pdv||'').includes(search) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
@@ -289,10 +293,11 @@ function TabEnBaisseMensuel({ annee, mois, teleFilter }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
 
-  const { data, isLoading } = useQuery(['kaabu-m-baisse', annee, mois, seuil, teleFilter],
+  const { data, isLoading, isError, error, refetch } = useQuery(['kaabu-m-baisse', annee, mois, seuil, teleFilter],
     () => api.get(`/kaabu/mensuel/en-baisse?annee=${annee}&mois=${mois}&seuil=${-seuil}${teleFilter?`&teleconseillere=${teleFilter}`:''}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="les baisses" onRetry={refetch} />;
   const pdvs = data?.pdvs || [];
   const displayed = pdvs.filter(p => activeFilter==='critique'?Math.abs(p.variation_pct)>40:activeFilter==='haute'?Math.abs(p.variation_pct)>20&&Math.abs(p.variation_pct)<=40:activeFilter==='normale'?Math.abs(p.variation_pct)<=20:true);
 
@@ -367,11 +372,12 @@ function TabEnBaisseMensuel({ annee, mois, teleFilter }) {
 // ─── Zone Tab Mensuel ─────────────────────────────────────────────────────────
 function ZoneMensuelTab({ endpoint, mois, annee }) {
   const ZONE_COLORS = { 'ZONE A': '#FF6900', 'ZONE B': '#3742fa', 'ZONE C': '#22c55e', 'ZONE D': '#ffa502', 'ZONE E': '#a29bfe', 'AU BUREAU': '#8a8a9a' };
-  const { data: rawData, isLoading } = useQuery(
+  const { data: rawData, isLoading, isError, error, refetch } = useQuery(
     [endpoint, mois, annee],
     () => api.get(`${endpoint}?annee=${annee}&mois=${mois}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="les zones" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   const data = Array.isArray(rawData) ? rawData : [];
   if (!data.length) return <div style={{ textAlign: 'center', padding: '60px', color: '#8a8a9a' }}>📭 Aucune donnée de zone.</div>;
@@ -453,7 +459,7 @@ export default function KaabuMensuelPage() {
   const isTelec = role === 'teleconseillere';
   const teleNom = isTelec ? (user?.nom || '').trim() : null;
 
-  const { data: periods } = useQuery('kaabu-periods-mensuel',
+  const { data: periods, isError: periodsError, error: periodsErr, refetch: refetchPeriods } = useQuery('kaabu-periods-mensuel',
     () => api.get('/kaabu/periods-mensuel').then(r => r.data), { staleTime: 60000 }
   );
 
@@ -499,6 +505,15 @@ export default function KaabuMensuelPage() {
             style={{ background:'none',border:'none',color:canNext?COLOR:'#444',cursor:canNext?'pointer':'not-allowed',fontSize:18 }}>›</button>
         </div>
       </div>
+
+      {/* Erreur de chargement des périodes : sans elles, aucun onglet ne s'affiche */}
+      {periodsError && (
+        <QueryError
+          error={periodsErr}
+          label="les périodes KAABU (mois disponibles)"
+          onRetry={refetchPeriods}
+        />
+      )}
 
       <div style={{ display:'flex',gap:4,flexWrap:'wrap',marginBottom:24,background:'rgba(255,255,255,0.03)',borderRadius:12,padding:5 }}>
         {allTabs.map(t=>(

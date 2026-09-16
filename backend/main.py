@@ -246,6 +246,13 @@ async def auto_migrate():
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS qualification VARCHAR(20)",
         "CREATE INDEX IF NOT EXISTS ix_prospects_qualification ON prospects (qualification)",
         "ALTER TABLE prospect_history ADD COLUMN IF NOT EXISTS qualification VARCHAR(20)",
+        # ── KAABU : colonnes déclarées dans le modèle mais absentes des tables anciennes ──
+        # Sans elles, les requêtes chargeant l'entité complète (db.query(KaabuTransaction))
+        # échouent en PostgreSQL : colonne inexistante → 500 sur les dashboards hebdo + mensuel.
+        "ALTER TABLE kaabu_transactions ADD COLUMN IF NOT EXISTS gestionnaire VARCHAR",
+        "ALTER TABLE kaabu_transactions ADD COLUMN IF NOT EXISTS sous_zone VARCHAR",
+        "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_gestionnaire ON kaabu_transactions (gestionnaire)",
+        "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_sous_zone ON kaabu_transactions (sous_zone)",
     ]
     try:
         with engine.connect() as conn:
@@ -282,6 +289,11 @@ async def auto_migrate():
                     "ALTER TABLE prospects ADD COLUMN activation_teleconseillere VARCHAR(200)",
                     "ALTER TABLE prospects ADD COLUMN activation_developpeur VARCHAR(200)",
                     "ALTER TABLE prospects ADD COLUMN activation_type_pdv VARCHAR(200)",
+                    # KAABU : parité avec PostgreSQL (SQLite ne supporte pas IF NOT EXISTS)
+                    "ALTER TABLE kaabu_transactions ADD COLUMN gestionnaire VARCHAR",
+                    "ALTER TABLE kaabu_transactions ADD COLUMN sous_zone VARCHAR",
+                    "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_gestionnaire ON kaabu_transactions (gestionnaire)",
+                    "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_sous_zone ON kaabu_transactions (sous_zone)",
                 ]:
                     try:
                         conn.execute(text(sql))

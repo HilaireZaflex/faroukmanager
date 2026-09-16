@@ -10,6 +10,7 @@ import {
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import AppelTCModal from '../components/common/AppelTCModal';
+import QueryError from '../components/common/QueryError';
 
 const COLOR = '#FF6900';
 const COLORS = ['#FF6900','#3742fa','#22c55e','#ffa502','#a29bfe','#00d68f','#ff4757','#fd79a8','#0ea5e9'];
@@ -55,12 +56,13 @@ function ClassementKaabu({ endpoint, colNom, nomLabel, semaine, annee }) {
   const [sortCol, setSortCol] = useState('montant');
   const [sortDir, setSortDir] = useState('desc');
 
-  const { data: rawData, isLoading } = useQuery(
+  const { data: rawData, isLoading, isError, error, refetch } = useQuery(
     [endpoint, semaine, annee],
     () => api.get(`${endpoint}?annee=${annee}&semaine=${semaine}`).then(r => r.data),
     { staleTime: 300000 }
   );
 
+  if (isError) return <QueryError error={error} label="ce classement" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   const data = Array.isArray(rawData) ? rawData : [];
   if (!data.length) return <EmptyKaabu msg="Aucune donnée pour cette semaine." />;
@@ -147,11 +149,12 @@ function ClassementKaabu({ endpoint, colNom, nomLabel, semaine, annee }) {
 
 // ─── Vue d'ensemble ───────────────────────────────────────────────────────────
 function TabOverview({ annee, semaine }) {
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, isError, error, refetch } = useQuery(
     ['kaabu-overview', annee, semaine],
     () => api.get(`/kaabu/vue-ensemble?annee=${annee}&semaine=${semaine}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="la vue d'ensemble" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.total_pdv) return <EmptyKaabu msg="Aucune donnée pour cette semaine." />;
   const ev = data.evolution_volume || 0;
@@ -212,7 +215,8 @@ function TabOverview({ annee, semaine }) {
 
 // ─── Évolution ────────────────────────────────────────────────────────────────
 function TabEvolution({ annee }) {
-  const { data, isLoading } = useQuery(['kaabu-evolution', annee], () => api.get(`/kaabu/evolution?annee=${annee}`).then(r => r.data), { staleTime: 300000 });
+  const { data, isLoading, isError, error, refetch } = useQuery(['kaabu-evolution', annee], () => api.get(`/kaabu/evolution?annee=${annee}`).then(r => r.data), { staleTime: 300000 });
+  if (isError) return <QueryError error={error} label="l'évolution" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   if (!data?.length) return <EmptyKaabu />;
   return (
@@ -265,10 +269,11 @@ function TabEvolution({ annee }) {
 function TabInactifs({ annee, semaine, teleFilter }) {
   const [search, setSearch] = useState('');
   const [appelPDV, setAppelPDV] = useState(null);
-  const { data, isLoading } = useQuery(['kaabu-inactifs', annee, semaine, teleFilter],
+  const { data, isLoading, isError, error, refetch } = useQuery(['kaabu-inactifs', annee, semaine, teleFilter],
     () => api.get(`/kaabu/inactifs?annee=${annee}&semaine=${semaine}${teleFilter?`&teleconseillere=${teleFilter}`:''}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="les inactifs" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   const pdvs = data?.pdvs || [];
   const filtered = pdvs.filter(p => !search || (p.numero_pdv||'').includes(search) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()) || (p.localite||'').toLowerCase().includes(search.toLowerCase()));
@@ -339,10 +344,11 @@ function TabEnBaisse({ annee, semaine, teleFilter }) {
   const [search, setSearch] = useState('');
   const [appelPDV, setAppelPDV] = useState(null);
 
-  const { data, isLoading } = useQuery(['kaabu-baisse', annee, semaine, seuil, teleFilter],
+  const { data, isLoading, isError, error, refetch } = useQuery(['kaabu-baisse', annee, semaine, seuil, teleFilter],
     () => api.get(`/kaabu/en-baisse?annee=${annee}&semaine=${semaine}&seuil=${-seuil}${teleFilter?`&teleconseillere=${teleFilter}`:''}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="les baisses" onRetry={refetch} />;
   const pdvs = data?.pdvs || [];
   const displayed = pdvs
     .filter(p => activeFilter==='critique'?Math.abs(p.variation_pct)>40:activeFilter==='haute'?Math.abs(p.variation_pct)>20&&Math.abs(p.variation_pct)<=40:activeFilter==='normale'?Math.abs(p.variation_pct)<=20:true)
@@ -433,10 +439,11 @@ function TabEnBaisse({ annee, semaine, teleFilter }) {
 
 // ─── Hors Zone ────────────────────────────────────────────────────────────────
 function TabHorsZone({ annee, semaine }) {
-  const { data, isLoading } = useQuery(['kaabu-hors-zone', annee, semaine],
+  const { data, isLoading, isError, error, refetch } = useQuery(['kaabu-hors-zone', annee, semaine],
     () => api.get(`/kaabu/hors-zone?annee=${annee}&semaine=${semaine}`).then(r => r.data),
     { staleTime: 300000 }
   );
+  if (isError) return <QueryError error={error} label="les PDV hors zone" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin:'60px auto' }}/>;
   if (!data?.total_pdv) return <EmptyKaabu msg="Aucun PDV hors zone cette semaine."/>;
   return (
@@ -531,12 +538,13 @@ function ZoneTab({ endpoint, semaine, annee }) {
   const [sortCol, setSortCol] = useState('montant');
   const [sortDir, setSortDir] = useState('desc');
 
-  const { data: rawData, isLoading } = useQuery(
+  const { data: rawData, isLoading, isError, error, refetch } = useQuery(
     [endpoint, semaine, annee],
     () => api.get(`${endpoint}?annee=${annee}&semaine=${semaine}`).then(r => r.data),
     { staleTime: 300000 }
   );
 
+  if (isError) return <QueryError error={error} label="ce classement" onRetry={refetch} />;
   if (isLoading) return <div className="loading-spinner" style={{ margin: '60px auto' }} />;
   const data = Array.isArray(rawData) ? rawData : [];
   if (!data.length) return <EmptyKaabu msg="Aucune donnée de zone pour cette semaine." />;
@@ -650,7 +658,7 @@ export default function KaabuDashboardPage() {
   const isTelec = role === 'teleconseillere';
   const teleNom = isTelec ? (user?.nom || '').trim() : null;
 
-  const { data: periods, refetch: refetchPeriods } = useQuery('kaabu-periods',
+  const { data: periods, refetch: refetchPeriods, isError: periodsError, error: periodsErr } = useQuery('kaabu-periods',
     () => api.get('/kaabu/periods').then(r => r.data), { staleTime: 60000 }
   );
 
@@ -680,6 +688,14 @@ export default function KaabuDashboardPage() {
     { id: 'en_baisse',     label: '📉 En Baisse',          show: true },
     { id: 'evolution',     label: '📈 Évolution',          show: !isTelec },
   ].filter(t => t.show);
+
+  // Erreur de chargement ≠ absence de données : on ne doit pas inviter à importer
+  // un fichier quand c'est en réalité la requête qui a échoué.
+  if (periodsError) return (
+    <div className="page">
+      <QueryError error={periodsErr} label="les périodes KAABU (semaines disponibles)" onRetry={refetchPeriods} />
+    </div>
+  );
 
   if (!semDispo.length && !periods) return (
     <div className="page">
