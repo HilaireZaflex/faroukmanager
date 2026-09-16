@@ -813,7 +813,10 @@ def _pdvs_hors_zone(db: Session) -> set:
     return hist | ref
 
 
-def import_excel(db: Session, filepath: str, filename: Optional[str] = None) -> Dict[str, Any]:
+def import_excel(db: Session, filepath: str, filename: Optional[str] = None,
+                 semaine_forcee: Optional[str] = None,
+                 annee_forcee: Optional[int] = None,
+                 dry_run: bool = False) -> Dict[str, Any]:
     import pandas as pd
 
     # Lire la feuille SOURCE (essayer plusieurs noms)
@@ -881,14 +884,19 @@ def import_excel(db: Session, filepath: str, filename: Optional[str] = None) -> 
     # Pas de colonnes SEMAINE / ANNEE : la période est dans le nom du fichier.
     a_colonne_semaine = 'semaine' in df.columns
     if not a_colonne_semaine:
-        periode = _parse_periode_depuis_nom(filename or filepath)
-        if not periode:
-            raise ValueError(
-                "Impossible de déterminer la semaine : le fichier ne contient pas de "
-                "colonne SEMAINE et le nom du fichier n'indique pas de semaine "
-                "(attendu : un nom contenant 'S32', 'S33', ...)."
-            )
-        annee_fichier, semaine_fichier = periode
+        if semaine_forcee:
+            annee_fichier = int(annee_forcee or 2026)
+            semaine_fichier = str(semaine_forcee).strip().upper()
+        else:
+            periode = _parse_periode_depuis_nom(filename or filepath)
+            if not periode:
+                raise ValueError(
+                    "Impossible de déterminer la semaine : le fichier ne contient pas de "
+                    "colonne SEMAINE et le nom du fichier n'indique pas de semaine "
+                    "(attendu : un nom contenant 'S32', 'S33', ...), et aucune semaine "
+                    "n'a été précisée dans le formulaire."
+                )
+            annee_fichier, semaine_fichier = periode
         df['semaine'] = semaine_fichier
         df['annee'] = annee_fichier
 
@@ -991,6 +999,32 @@ def import_excel(db: Session, filepath: str, filename: Optional[str] = None) -> 
     # Le nouveau format ne l'a plus : on reporte l'historique (PDV déjà marqués
     # hors zone lors des imports précédents, complétés par pdvs.quartier).
     hors_zone_pdvs = _pdvs_hors_zone(db)
+
+    # ── Mode aperçu : on n'écrit RIEN, on renvoie seulement ce qui serait importé ──
+    if dry_run:
+        def _num(col):
+            if col not in df.columns:
+                return 0
+            return int(pd.to_numeric(df[col], errors='coerce').fillna(0).sum())
+
+        nb_actifs = int(df['situation_login'].apply(is_actif).sum())
+        nb_hors_zone = int(sum(
+            1 for _, r in df.iterrows()
+            if is_hors_zone(r.get('agent_operation_speciale'), r.get('developpeur'))
+            or str(r.get('numero_pdv', '')).strip() in hors_zone_pdvs
+        ))
+        return {
+            "apercu": True,
+            "inserted": int(len(df)),
+            "semaines": sorted(df['semaine'].astype(str).unique().tolist()),
+            "annees": sorted(int(a) for a in df['annee'].unique().tolist()),
+            "pdvs_uniques": int(df['numero_pdv'].nunique()),
+            "montant_total": _num('montant_global'),
+            "volume_total": _num('volume_kaabu'),
+            "nb_actifs": nb_actifs,
+            "nb_hors_zone": nb_hors_zone,
+            "colonnes_source": [str(c) for c in df.columns],
+        }
 
     # Supprimer et réimporter — en UNE SEULE transaction.
     # Avant, un commit était fait juste après la suppression puis tous les 1000

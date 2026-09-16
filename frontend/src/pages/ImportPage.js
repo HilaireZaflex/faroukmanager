@@ -419,6 +419,244 @@ function ImportNafama({ queryClient }) {
   );
 }
 
+// ─── Import KAABU ─────────────────────────────────────────────────────────
+// Un fichier = une semaine. Deux usages :
+//   • Hebdomadaire : on importe le fichier de la semaine
+//   • Mensuel      : on sélectionne les 4-5 fichiers du mois d'un coup
+// La semaine est lue dans le nom du fichier (ex. « DONNEES KAABU S36.xlsx »).
+function ImportKaabu({ queryClient }) {
+  const [periode, setPeriode] = useState('hebdo');
+  const [annee, setAnnee] = useState(new Date().getFullYear());
+  const [semaine, setSemaine] = useState('');
+  const [mode, setMode] = useState('remplacer');
+  const [files, setFiles] = useState([]);
+  const [apercu, setApercu] = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+  const reset = () => { setApercu(null); setResult(null); };
+
+  const onPick = (e) => {
+    setFiles(Array.from(e.target.files || []));
+    reset();
+  };
+
+  const buildForm = () => {
+    const fd = new FormData();
+    files.forEach(f => fd.append('files', f));
+    return fd;
+  };
+
+  const params = () => {
+    const p = new URLSearchParams();
+    if (annee) p.append('annee', annee);
+    // En hebdomadaire, la semaine saisie sert de repli si elle n'est pas dans le nom
+    if (periode === 'hebdo' && semaine) {
+      const s = String(semaine).trim().toUpperCase();
+      p.append('semaine', s.startsWith('S') ? s : `S${s.padStart(2, '0')}`);
+    }
+    return p.toString();
+  };
+
+  const verifier = async () => {
+    if (!files.length) return toast.error('Sélectionnez au moins un fichier KAABU');
+    setLoading(true); reset();
+    try {
+      const res = await api.post(`/kaabu/import/apercu?${params()}`, buildForm(), {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setApercu(res.data);
+      if (!res.data.tous_ok) toast.error('Certains fichiers posent problème — voir le détail');
+      else toast.success(`Vérification OK : ${res.data.total_lignes} lignes`);
+    } catch (err) {
+      toast.error('Erreur : ' + (err.response?.data?.detail || err.message));
+    } finally { setLoading(false); }
+  };
+
+  const importer = async () => {
+    if (!files.length) return toast.error('Sélectionnez au moins un fichier KAABU');
+    setLoading(true); setResult(null);
+    try {
+      const res = await api.post(`/kaabu/import?mode=${mode}&${params()}`, buildForm(), {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setResult(res.data);
+      queryClient?.invalidateQueries();
+      if (res.data.success) toast.success(`Import KAABU terminé ! ${res.data.inserted} lignes`);
+      else toast.error('Import terminé avec des erreurs — voir le détail');
+    } catch (err) {
+      toast.error('Erreur : ' + (err.response?.data?.detail || err.message));
+    } finally { setLoading(false); }
+  };
+
+  const cell = { padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 12 };
+  const th = { ...cell, textAlign: 'left', color: 'var(--text-muted)', fontWeight: 700 };
+
+  return (
+    <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(162,155,254,0.3)', borderRadius: 'var(--radius)', padding: 20, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+        <span style={{ fontSize: 22 }}>🟣</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Import direct fichier KAABU (Orange)</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Un fichier = une semaine · la semaine est lue dans le nom du fichier
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: 'rgba(162,155,254,0.07)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+        ✅ <b>Format attendu</b> — feuille <b>ACTIFS KM</b> avec les colonnes :<br/>
+        &nbsp;&nbsp;• <b>numero_utilisateur</b> = numéro du PDV<br/>
+        &nbsp;&nbsp;• <b>agent</b> = login (nom + numéro)<br/>
+        &nbsp;&nbsp;• <b>CATEGORIE</b>, <b>volume_Cashin</b>, <b>montant_Cashin</b>, <b>volume_Cashout</b>, <b>montant_Cashout</b><br/>
+        &nbsp;&nbsp;• Volume et montant globaux sont calculés automatiquement (cashin + cashout).<br/>
+        &nbsp;&nbsp;• <b>Superviseur, zone, téléconseillère, développeur, type de PDV</b> sont complétés depuis la fiche PDV.<br/>
+        &nbsp;&nbsp;• Le nom du fichier doit contenir la semaine : <b>… S36.xlsx</b>
+      </div>
+
+      {/* Période + fichiers */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr 2fr', gap: 12, marginBottom: 16 }}>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Période *</div>
+          <select value={periode} onChange={e => { setPeriode(e.target.value); reset(); }}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="hebdo">📆 Hebdomadaire (1 fichier)</option>
+            <option value="mensuel">📅 Mensuel (les 4-5 fichiers du mois)</option>
+          </select>
+        </label>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Année *</div>
+          <input type="number" value={annee} onChange={e => { setAnnee(parseInt(e.target.value) || ''); reset(); }} min={2020} max={2035}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}/>
+        </label>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>
+            {periode === 'hebdo' ? 'Semaine (si absente du nom)' : '—'}
+          </div>
+          <input type="text" value={periode === 'hebdo' ? semaine : ''} disabled={periode !== 'hebdo'}
+            onChange={e => { setSemaine(e.target.value); reset(); }} placeholder="Ex: 36"
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12, opacity: periode === 'hebdo' ? 1 : 0.4 }}/>
+        </label>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>
+            Fichiers KAABU * {periode === 'mensuel' && <span style={{ color: '#a29bfe' }}>(sélection multiple)</span>}
+          </div>
+          <input type="file" accept=".xlsx,.xls" multiple onChange={onPick}
+            style={{ width: '100%', padding: '6px 0', fontSize: 12, color: 'var(--text-primary)' }}/>
+        </label>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: 12, marginBottom: 16 }}>
+        <label style={{ fontSize: 12 }}>
+          <div style={{ marginBottom: 4, color: 'var(--text-muted)' }}>Mode *</div>
+          <select value={mode} onChange={e => setMode(e.target.value)}
+            style={{ width: '100%', padding: '8px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+            <option value="remplacer">♻️ Remplacer la semaine</option>
+            <option value="completer">➕ Compléter (ignorer les semaines déjà présentes)</option>
+          </select>
+        </label>
+      </div>
+
+      {files.length > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+          📎 {files.length} fichier{files.length > 1 ? 's' : ''} sélectionné{files.length > 1 ? 's' : ''} :
+          <span style={{ color: 'var(--text-secondary)' }}> {files.map(f => f.name).join(' · ')}</span>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button onClick={verifier} disabled={loading || !files.length}
+          style={{ padding: '10px 20px', background: loading ? 'var(--text-muted)' : 'rgba(162,155,254,0.15)', color: loading ? '#fff' : '#a29bfe', border: '1px solid rgba(162,155,254,0.4)', borderRadius: 8, fontWeight: 700, cursor: loading || !files.length ? 'not-allowed' : 'pointer', fontSize: 13 }}>
+          {loading ? '⏳ Analyse…' : '🔍 Vérifier les fichiers (sans importer)'}
+        </button>
+        <button onClick={importer} disabled={loading || !files.length}
+          style={{ padding: '10px 20px', background: loading ? 'var(--text-muted)' : '#a29bfe', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: loading || !files.length ? 'not-allowed' : 'pointer', fontSize: 13 }}>
+          {loading ? '⏳ Import en cours…' : '🚀 Importer dans KAABU'}
+        </button>
+      </div>
+
+      {/* Aperçu */}
+      {apercu && (
+        <div style={{ marginTop: 16, padding: 14, background: 'rgba(162,155,254,0.06)', borderRadius: 8, borderLeft: `3px solid ${apercu.tous_ok ? '#a29bfe' : 'var(--danger)'}` }}>
+          <div style={{ fontWeight: 700, marginBottom: 10, fontSize: 13 }}>
+            {apercu.tous_ok ? '🔍 Vérification réussie — rien n\'a encore été importé' : '⚠️ Problème détecté sur certains fichiers'}
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={th}>Fichier</th><th style={th}>Semaine</th><th style={th}>Lignes</th>
+                <th style={th}>PDV</th><th style={th}>Montant</th><th style={th}>Déjà en base</th>
+              </tr>
+            </thead>
+            <tbody>
+              {apercu.fichiers.map((f, i) => (
+                <tr key={i}>
+                  <td style={cell}>{f.ok ? f.fichier : <span style={{ color: 'var(--danger)' }}>{f.fichier} — {f.erreur}</span>}</td>
+                  <td style={cell}>{f.semaine || '—'}</td>
+                  <td style={cell}>{f.ok ? f.lignes?.toLocaleString() : '—'}</td>
+                  <td style={cell}>{f.ok ? f.pdvs_uniques : '—'}</td>
+                  <td style={cell}>{f.ok ? Number(f.montant_total).toLocaleString('fr-FR') : '—'}</td>
+                  <td style={{ ...cell, color: f.deja_en_base ? '#ffa502' : 'var(--text-muted)' }}>
+                    {f.ok ? (f.deja_en_base ? `${f.deja_en_base} lignes (seront remplacées)` : 'non') : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
+            <b>Total :</b> {apercu.total_lignes?.toLocaleString()} lignes ·{' '}
+            {Number(apercu.total_montant || 0).toLocaleString('fr-FR')} FCFA
+          </div>
+        </div>
+      )}
+
+      {/* Résultat de l'import */}
+      {result && (
+        <div style={{ marginTop: 16, padding: 14, background: result.success ? 'rgba(162,155,254,0.1)' : 'rgba(255,71,87,0.08)', borderRadius: 8, borderLeft: `3px solid ${result.success ? '#a29bfe' : 'var(--danger)'}` }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>
+            {result.success ? '✅ Import KAABU terminé' : '⚠️ Import terminé avec des erreurs'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12, marginBottom: 10 }}>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#a29bfe' }}>{result.inserted?.toLocaleString()}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Lignes importées</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#ffa502' }}>{result.replaced_existing || 0}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Lignes remplacées</div>
+            </div>
+            <div style={{ textAlign: 'center', padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#3b82f6' }}>{(result.semaines || []).join(', ') || '—'}</div>
+              <div style={{ color: 'var(--text-muted)' }}>Semaines traitées</div>
+            </div>
+          </div>
+          {result.details?.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr><th style={th}>Fichier</th><th style={th}>Semaine</th><th style={th}>Statut</th><th style={th}>Détail</th></tr>
+              </thead>
+              <tbody>
+                {result.details.map((d, i) => (
+                  <tr key={i}>
+                    <td style={cell}>{d.fichier}</td>
+                    <td style={cell}>{d.semaine || '—'}</td>
+                    <td style={{ ...cell, color: d.statut === 'importe' ? 'var(--success)' : d.statut === 'ignore' ? '#ffa502' : 'var(--danger)' }}>
+                      {d.statut === 'importe' ? '✅ importé' : d.statut === 'ignore' ? '⏭️ ignoré' : '❌ erreur'}
+                    </td>
+                    <td style={cell}>{d.statut === 'importe' ? `${d.lignes} lignes insérées, ${d.remplacees} remplacées` : (d.message || '')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ImportExportOrange({ queryClient }) {
   const [file, setFile] = useState(null);
   const [mode, setMode] = useState('mensuel');
@@ -663,37 +901,20 @@ export default function ImportPage() {
       <ImportNafama queryClient={queryClient} />
 
       {/* ── KAABU ──────────────────────────────────────────────────────────── */}
-      <div style={{ margin: '32px 0 16px', borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+      <div style={{ margin: '32px 0 16px', borderBottom: '1px solid rgba(162,155,254,0.4)', paddingBottom: 12 }}>
         <h2 style={{ fontSize: 15, fontWeight: 800, color: '#a29bfe' }}>🟣 Données KAABU</h2>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Performances spécifiques à l'indicateur KAABU</p>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+          Import du fichier KAABU d'Orange (feuille <b>ACTIFS KM</b>), en hebdomadaire ou mensuel.
+          Un fichier = une semaine, remplacée en bloc et en une seule transaction.
+        </p>
       </div>
 
-      <ImportSection
-        icon={Calendar}
-        title="📅 Import KAABU — Mensuel"
-        description="Importez les performances mensuelles KAABU. Colonnes requises: numero_pdv, annee, mois, ca, nb_operations, est_actif. L'indicateur KAABU sera automatiquement assigné."
-        endpoint="/performance/monthly?indicateur=KAABU"
-        label="KAABU Mensuel"
-        templateType="mensuel"
-        color="#a29bfe"
-        queryClient={queryClient}
-      />
-
-      <ImportSection
-        icon={CalendarDays}
-        title="📆 Import KAABU — Hebdomadaire"
-        description="Importez les performances hebdomadaires KAABU. Colonnes requises: numero_pdv, annee, semaine, ca, nb_operations, est_actif."
-        endpoint="/performance/weekly?indicateur=KAABU"
-        label="KAABU Hebdomadaire"
-        templateType="hebdo"
-        color="#a29bfe"
-        queryClient={queryClient}
-      />
+      <ImportKaabu queryClient={queryClient} />
 
       {/* Aide colonnes */}
       <div className="card">
         <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>📋 Guide des colonnes</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
           {/* PDV columns */}
           <div>
             <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)', marginBottom: 10, textTransform: 'uppercase' }}>🏪 Fiche PDV</h4>
@@ -758,6 +979,30 @@ export default function ImportPage() {
               </div>
             ))}
             <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 6, fontStyle: 'italic' }}>💡 Feuille "SOURCE" détectée automatiquement</p>
+          </div>
+          {/* KAABU columns */}
+          <div>
+            <h4 style={{ fontSize: 12, fontWeight: 700, color: '#a29bfe', marginBottom: 10, textTransform: 'uppercase' }}>🟣 KAABU (Orange)</h4>
+            <p style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600, marginBottom: 8 }}>✅ Feuille "ACTIFS KM" · 1 fichier = 1 semaine</p>
+            {[
+              ['numero_utilisateur *', 'Numéro du PDV'],
+              ['agent', 'Login (nom + numéro)'],
+              ['CATEGORIE', 'wari / nèguè / zira / sanou…'],
+              ['volume_Cashin *', 'Volume cash-in'],
+              ['montant_Cashin *', 'Montant cash-in (FCFA)'],
+              ['volume_Cashout *', 'Volume cash-out'],
+              ['montant_Cashout *', 'Montant cash-out (FCFA)'],
+            ].map(([col, desc]) => (
+              <div key={col} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                <code style={{ fontSize: 10, background: 'rgba(162,155,254,0.12)', color: '#a29bfe', padding: '2px 6px', borderRadius: 4, flexShrink: 0, alignSelf: 'flex-start' }}>{col}</code>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{desc}</span>
+              </div>
+            ))}
+            <p style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 6, fontStyle: 'italic' }}>
+              💡 Le nom du fichier doit contenir la semaine (ex. « DONNEES KAABU S36.xlsx »).
+              Volume et montant globaux sont calculés ; superviseur, zone, téléconseillère,
+              développeur et type de PDV sont repris de la fiche PDV.
+            </p>
           </div>
         </div>
       </div>

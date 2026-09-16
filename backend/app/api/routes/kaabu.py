@@ -144,27 +144,174 @@ def evolution(annee: int = Query(...),
     return kaabu_service.get_evolution(db, annee)
 
 
-@router.post("/kaabu/import")
-async def import_kaabu(
-    file: UploadFile = File(...),
+# ─── IMPORT ───────────────────────────────────────────────────────────────────
+
+def _controle_fichier(file) -> None:
+    from fastapi import HTTPException
+    if not (file.filename or '').lower().endswith(('.xlsx', '.xls')):
+        raise HTTPException(400, f"Format non supporté pour « {file.filename} ». Utilisez .xlsx ou .xls")
+
+
+def _sauver_temporaire(contents: bytes) -> str:
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+        tmp.write(contents)
+        return tmp.name
+
+
+async def _lire_fichiers(files: list) -> list:
+    """Retourne [(nom_origine, chemin_temporaire, contenu_bytes)]."""
+    sortie = []
+    for f in files:
+        _controle_fichier(f)
+        contenu = await f.read()
+        sortie.append((f.filename, _sauver_temporaire(contenu), contenu))
+    return sortie
+
+
+@router.post("/kaabu/import/apercu")
+async def apercu_import_kaabu(
+    files: list[UploadFile] = File(...),
+    annee: Optional[int] = Query(None),
+    semaine: Optional[str] = Query(None, description="Force la semaine (ex. S36) si absente du nom de fichier"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Importer le fichier Excel KAABU (feuille SOURCE)."""
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        from fastapi import HTTPException
-        raise HTTPException(400, "Format non supporté. Utilisez .xlsx")
+    """Contrôle à blanc : analyse les fichiers SANS rien écrire en base.
 
-    contents = await file.read()
-    # Sauvegarder temporairement
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
-        tmp.write(contents)
-        tmp_path = tmp.name
+    Renvoie, par fichier : la semaine détectée, le nombre de lignes, le montant,
+    et si cette semaine est déjà présente en base (donc remplacée à l'import).
+    """
+    from fastapi import HTTPException
+    from app.models.kaabu import KaabuTransaction
 
+    fichiers = await _lire_fichiers(files)
+    resultats, total_lignes, total_montant = [], 0, 0
     try:
-        # Le nom d'origine est transmis : le nouveau format hebdomadaire
-        # ('ACTIFS KM') ne contient pas la semaine, elle n'est que dans le nom.
-        result = kaabu_service.import_excel(db, tmp_path, filename=file.filename)
-        return {"success": True, **result}
+        for nom, chemin, _ in fichiers:
+            try:
+                r = kaabu_service.import_excel(
+                    db, chemin, filename=nom,
+                    semaine_forcee=semaine, annee_forcee=annee, dry_run=True,
+                )
+                semaines = r.get('semaines') or []
+                nb_existant = db.query(KaabuTransaction).filter(
+                    KaabuTransaction.annee.in_(r.get('annees') or [2026]),
+                    KaabuTransaction.semaine.in_(semaines),
+                ).count() if semaines else 0
+                total_lignes += r.get('inserted', 0)
+                total_montant += r.get('montant_total', 0)
+                resultats.append({
+                    "fichier": nom,
+                    "ok": True,
+                    "semaine": ", ".join(semaines) or None,
+                    "annee": (r.get('annees') or [None])[0],
+                    "lignes": r.get('inserted', 0),
+                    "pdvs_uniques": r.get('pdvs_uniques', 0),
+                    "montant_total": r.get('montant_total', 0),
+                    "nb_actifs": r.get('nb_actifs', 0),
+                    "nb_hors_zone": r.get('nb_hors_zone', 0),
+                    "deja_en_base": nb_existant,
+                })
+            except Exception as e:
+                resultats.append({"fichier": nom, "ok": False, "erreur": str(e)})
     finally:
-        os.unlink(tmp_path)
+        for _, chemin, _ in fichiers:
+            try:
+                os.unlink(chemin)
+            except OSError:
+                pass
+
+    return {
+        "apercu": True,
+        "fichiers": resultats,
+        "total_lignes": total_lignes,
+        "total_montant": total_montant,
+        "tous_ok": all(r["ok"] for r in resultats) if resultats else False,
+    }
+
+
+@router.post("/kaabu/import")
+async def import_kaabu(
+    files: list[UploadFile] = File(...),
+    mode: str = Query("remplacer", description="'remplacer' = écrase la semaine, 'completer' = n'importe que les semaines absentes"),
+    annee: Optional[int] = Query(None),
+    semaine: Optional[str] = Query(None, description="Force la semaine (ex. S36) si absente du nom de fichier"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Importe un ou plusieurs fichiers KAABU (format Orange 'ACTIFS KM' ou historique).
+
+    Un fichier = une semaine. La semaine est lue dans le nom du fichier
+    (ex. « DONNEES KAABU S36.xlsx ») ou forcée par le paramètre `semaine`.
+    Chaque semaine importée est remplacée en bloc, en une seule transaction.
+    """
+    from fastapi import HTTPException
+    from app.models.kaabu import KaabuTransaction
+
+    if mode not in ("remplacer", "completer"):
+        raise HTTPException(400, "mode doit être 'remplacer' ou 'completer'")
+
+    fichiers = await _lire_fichiers(files)
+    details, total_insere, total_remplace = [], 0, 0
+    erreurs = []
+    try:
+        for nom, chemin, _ in fichiers:
+            try:
+                # Détection préalable de la période (pour le mode 'completer')
+                r_apercu = kaabu_service.import_excel(
+                    db, chemin, filename=nom,
+                    semaine_forcee=semaine, annee_forcee=annee, dry_run=True,
+                )
+                semaines = r_apercu.get('semaines') or []
+                annees = r_apercu.get('annees') or [2026]
+
+                if mode == "completer":
+                    deja = db.query(KaabuTransaction).filter(
+                        KaabuTransaction.annee.in_(annees),
+                        KaabuTransaction.semaine.in_(semaines),
+                    ).count() if semaines else 0
+                    if deja:
+                        details.append({
+                            "fichier": nom, "statut": "ignore",
+                            "semaine": ", ".join(semaines),
+                            "message": f"Semaine déjà présente ({deja} lignes) — non modifiée",
+                        })
+                        continue
+
+                remplaces = db.query(KaabuTransaction).filter(
+                    KaabuTransaction.annee.in_(annees),
+                    KaabuTransaction.semaine.in_(semaines),
+                ).count() if semaines else 0
+
+                result = kaabu_service.import_excel(
+                    db, chemin, filename=nom,
+                    semaine_forcee=semaine, annee_forcee=annee,
+                )
+                total_insere += result.get('inserted', 0)
+                total_remplace += remplaces
+                details.append({
+                    "fichier": nom, "statut": "importe",
+                    "semaine": ", ".join(result.get('semaines') or []),
+                    "annee": (result.get('annees') or [None])[0],
+                    "lignes": result.get('inserted', 0),
+                    "remplacees": remplaces,
+                })
+            except Exception as e:
+                db.rollback()
+                erreurs.append({"fichier": nom, "erreur": str(e)})
+                details.append({"fichier": nom, "statut": "erreur", "message": str(e)})
+    finally:
+        for _, chemin, _ in fichiers:
+            try:
+                os.unlink(chemin)
+            except OSError:
+                pass
+
+    return {
+        "success": len(erreurs) == 0,
+        "inserted": total_insere,
+        "replaced_existing": total_remplace,
+        "details": details,
+        "erreurs": erreurs,
+        "semaines": sorted({d.get("semaine") for d in details if d.get("semaine")}),
+    }
