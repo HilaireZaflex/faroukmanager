@@ -19,6 +19,68 @@ router = APIRouter()
 INDICATEURS = ["OMY", "KAABU MOBILE", "NAFAMA", "TERMINAUX", "ORANGE ENERGIE", "PDV_ACTIF", "PDV_CA1000", "FINTECH", "NOTE_DZ", "PLV"]
 MOIS_ORDRE = ["JUILLET", "AOÛT", "SEPTEMBRE", "OCTOBRE"]
 
+# Indicateurs de FLUX : le TOTAL du mois = SOMME des semaines.
+# Les autres (PDV_ACTIF, PDV_CA1000, KAABU MOBILE, NOTE_DZ, FINTECH) sont des
+# photos instantanées : leurs semaines répètent la même valeur, on ne les somme pas.
+INDICATEURS_CUMULABLES = {"OMY", "NAFAMA", "TERMINAUX", "ORANGE ENERGIE", "PLV"}
+
+# Semaines ISO attendues pour chaque mois du challenge 2026.
+# Sert de garde-fou : des semaines mal rattachées à un mois (doublons de saisie)
+# ne doivent PAS être additionnées au TOTAL.
+SEM_MOIS = {
+    "JUILLET":   ["S27", "S28", "S29", "S30"],
+    "AOÛT":      ["S31", "S32", "S33", "S34"],
+    "SEPTEMBRE": ["S35", "S36", "S37", "S38"],
+    "OCTOBRE":   ["S39", "S40", "S41", "S42"],
+}
+
+
+def _recalculer_total(db: Session, indicateur: str, mois: str):
+    """Recalcule la ligne TOTAL d'un indicateur de flux à partir de ses semaines.
+
+    Retourne (total, semaines_ignorees). Les semaines hors du mois (doublons de
+    saisie) sont ignorées et signalées plutôt que sommées à tort.
+    """
+    if indicateur not in INDICATEURS_CUMULABLES:
+        return None, []
+
+    semaines = db.query(IndicateurAward).filter(
+        IndicateurAward.indicateur == indicateur,
+        IndicateurAward.mois == mois,
+        IndicateurAward.est_total == False,
+    ).all()
+    if not semaines:
+        return None, []
+
+    attendues = SEM_MOIS.get(mois)
+    if attendues:
+        retenues = [s for s in semaines if s.semaine in attendues]
+        ignorees = [s.semaine for s in semaines if s.semaine not in attendues]
+    else:
+        retenues, ignorees = semaines, []
+    if not retenues:
+        return None, ignorees
+
+    somme = sum(float(s.realisation or 0) for s in retenues)
+
+    total = db.query(IndicateurAward).filter(
+        IndicateurAward.indicateur == indicateur,
+        IndicateurAward.mois == mois,
+        IndicateurAward.est_total == True,
+    ).first()
+    if total is None:
+        total = IndicateurAward(indicateur=indicateur, mois=mois, semaine="TOTAL", est_total=True)
+        db.add(total)
+
+    total.realisation = somme
+    if not total.objectif_orange:
+        obj = next((s.objectif_orange for s in retenues if s.objectif_orange), None)
+        if obj:
+            total.objectif_orange = float(obj)
+    if total.objectif_orange:
+        total.taux_orange = round(somme / float(total.objectif_orange), 4)
+    return total, ignorees
+
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
 class IndicateurUpsert(BaseModel):
@@ -148,13 +210,25 @@ def upsert_indicateur(
             setattr(existing, field, value)
         db.commit()
         db.refresh(existing)
-        return {"action": "updated", "data": _fmt(existing)}
+        recalcule = None
+        if not existing.est_total:
+            t, _ig = _recalculer_total(db, existing.indicateur, existing.mois)
+            if t is not None:
+                db.commit()
+                recalcule = _fmt(t)
+        return {"action": "updated", "data": _fmt(existing), "total_recalcule": recalcule}
     else:
         row = IndicateurAward(**body.dict())
         db.add(row)
         db.commit()
         db.refresh(row)
-        return {"action": "created", "data": _fmt(row)}
+        recalcule = None
+        if not row.est_total:
+            t, _ig = _recalculer_total(db, row.indicateur, row.mois)
+            if t is not None:
+                db.commit()
+                recalcule = _fmt(t)
+        return {"action": "created", "data": _fmt(row), "total_recalcule": recalcule}
 
 
 # ─── POST /award/import ───────────────────────────────────────────────────────
@@ -179,6 +253,7 @@ async def import_award_excel(
 
     total_inserted = 0
     total_updated = 0
+    couples = set()   # (indicateur, mois) touchés → pour recalculer les TOTAL
 
     for sheet in xl.sheet_names:
         if sheet not in INDICATEURS:
@@ -205,6 +280,7 @@ async def import_award_excel(
                 continue
             if mois not in [m.upper() for m in MOIS_ORDRE]:
                 continue
+            couples.add((sheet, mois))
 
             est_total = semaine == 'TOTAL'
 
@@ -253,10 +329,54 @@ async def import_award_excel(
                 total_inserted += 1
 
     db.commit()
+
+    # Recalcul des lignes TOTAL des indicateurs de flux touchés par l'import
+    recalcules = []
+    for ind, mo in sorted(couples):
+        t, ignorees = _recalculer_total(db, ind, mo)
+        if t is not None:
+            recalcules.append({"indicateur": t.indicateur, "mois": t.mois,
+                               "realisation": t.realisation, "taux_orange": t.taux_orange,
+                               "semaines_ignorees": ignorees})
+    db.commit()
+
     return {
         "success": True,
         "inserted": total_inserted,
         "updated": total_updated,
         "total": total_inserted + total_updated,
         "indicateurs": [s for s in xl.sheet_names if s in INDICATEURS],
+        "totaux_recalcules": recalcules,
     }
+
+
+# ─── POST /award/recompute-totals ─────────────────────────────────────────────
+@router.post("/award/recompute-totals")
+def recompute_totals(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Recalcule les lignes TOTAL de tous les indicateurs de flux depuis les semaines.
+
+    À lancer après un import ou une correction : garantit que le score du challenge
+    reflète bien les saisies hebdomadaires.
+    """
+    recalcules = []
+    couples = db.query(IndicateurAward.indicateur, IndicateurAward.mois).filter(
+        IndicateurAward.est_total == False
+    ).distinct().all()
+    for ind, mo in couples:
+        if ind not in INDICATEURS_CUMULABLES:
+            continue
+        t, ignorees = _recalculer_total(db, ind, mo)
+        if t is not None:
+            recalcules.append({
+                "indicateur": t.indicateur,
+                "mois": t.mois,
+                "realisation": t.realisation,
+                "objectif": t.objectif_orange,
+                "taux_orange": t.taux_orange,
+                "semaines_ignorees": ignorees,
+            })
+    db.commit()
+    return {"success": True, "nb_recalcules": len(recalcules), "totaux": recalcules}

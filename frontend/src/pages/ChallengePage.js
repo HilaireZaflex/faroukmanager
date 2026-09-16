@@ -8,6 +8,8 @@ import './ChallengePage.css';
 // ── Constantes ──────────────────────────────────────────────────────────────
 const MOIS_CHALLENGE = ["2026-07", "2026-08", "2026-09", "2026-10"];
 const MOIS_LABELS = { "2026-07": "Juillet", "2026-08": "Août", "2026-09": "Septembre", "2026-10": "Octobre" };
+// Correspondance avec les libellés utilisés par les indicateurs Award
+const AWARD_MOIS = { "2026-07": "JUILLET", "2026-08": "AOÛT", "2026-09": "SEPTEMBRE", "2026-10": "OCTOBRE" };
 const CHALLENGE_END = new Date("2026-10-31");
 
 // ── Utilitaires ──────────────────────────────────────────────────────────────
@@ -805,6 +807,7 @@ function PanneauObjectifs() {
 }
 
 function TabDashboard({ dashboard }) {
+  const qc = useQueryClient();
   const { kpis, scores, periode } = dashboard || {};
 
   // Charger les donn\u00e9es des indicateurs Award
@@ -812,27 +815,34 @@ function TabDashboard({ dashboard }) {
     () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
   );
 
+  // Mois TERMINÉS seulement (le mois en cours ne doit pas fausser le score)
+  const labelsClos = React.useMemo(() => {
+    const clos = (periode?.mois_clos || []).map(m => AWARD_MOIS[m]).filter(Boolean);
+    if (clos.length) return clos;
+    // Repli si l'information n'est pas fournie : tous les mois sauf le mois courant
+    const courant = AWARD_MOIS[new Date().toISOString().slice(0, 7)];
+    return ['JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE'].filter(m => m !== courant);
+  }, [periode]);
+
   // Extraire le dernier total disponible pour chaque indicateur
   const getLastTotal = (ind) => {
     const data = awardData?.[ind] || {};
     return (data.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0] || null;
   };
 
-  // Taux GLOBAL du challenge = cumul réalisations / objectif global
+  // Taux d'un indicateur = cumul des mois TERMINÉS / cumul des objectifs de ces mois.
+  // (avant : comparaison au seul objectif GLOBAL, ce qui déconnectait la jauge des saisies)
   const getIndTaux = (ind) => {
     const data = awardData?.[ind] || {};
     const totaux = data.totaux || [];
-    const globalEntry = totaux.find(t => t.mois === 'GLOBAL');
-    const totauxMensuels = totaux.filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
-    const cumulReal = totauxMensuels.reduce((acc, t) => acc + (t.realisation || 0), 0);
-    // Pour TERMINAUX : objectif global = 100, on compare réalisation cumulée
-    if (globalEntry?.objectif_orange) {
-      const taux = cumulReal / globalEntry.objectif_orange;
-      return Math.min(1, taux);
-    }
-    // Sinon utiliser le taux orange du dernier mois
-    const lastTotal = totauxMensuels.slice(-1)[0];
-    return lastTotal?.taux_orange != null ? Math.min(1, lastTotal.taux_orange) : null;
+    const clos = totaux.filter(t => t.mois !== 'GLOBAL' && labelsClos.includes(t.mois) && t.realisation !== null);
+    const obj = clos.reduce((a, t) => a + (t.objectif_orange || 0), 0);
+    const real = clos.reduce((a, t) => a + (t.realisation || 0), 0);
+    if (obj > 0) return Math.min(1, real / obj);
+    // Repli : dernier mois renseigné
+    const dispo = totaux.filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
+    const dernier = dispo[dispo.length - 1];
+    return dernier?.taux_orange != null ? Math.min(1, dernier.taux_orange) : null;
   };
 
   const indData = INDICATEURS_LIST.map(ind => ({
@@ -845,7 +855,7 @@ function TabDashboard({ dashboard }) {
   const telcoSousCriteres = [
     { key: 'ca_sell_out',   label: '\uD83D\uDFE2 CA Sell out (NAFAMA)',     poids: 40, taux: getIndTaux('NAFAMA'),         objectif: 'Taux >= 95%' },
     { key: 'vente_term',    label: '\uD83D\uDDA5\uFE0F Vente terminaux',    poids: 15, taux: getIndTaux('TERMINAUX'),      objectif: 'Min 100 terminaux / DZ' },
-    { key: 'creation_pts',  label: '\uD83D\uDCCD Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, taux: kpis?.points_controles?.realise != null ? Math.min(1, (kpis.points_controles.realise || 0) / 25) : null, objectif: 'Min 25 / DZ, activer >= 80%' },
+    { key: 'creation_pts',  label: '\uD83D\uDCCD Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, taux: (kpis?.points_controles?.objectif_cumule ? Math.min(1, (kpis.points_controles.realise || 0) / kpis.points_controles.objectif_cumule) : null), objectif: 'Min 25 / DZ, activer >= 80%' },
     { key: 'kit_energie',   label: '\u2600\uFE0F Kit Orange \u00c9nergie',   poids: 15, taux: getIndTaux('ORANGE ENERGIE'), objectif: '>= 80% objectif + >= 80% utilisation' },
     { key: 'note_dz',       label: '\u2B50 Note DZ',                         poids: 15, taux: null,                        objectif: '\u00c9valuation visibilit\u00e9 & animation' },
   ];
@@ -909,13 +919,63 @@ function TabDashboard({ dashboard }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* JAUGES GLOBALES */}
+        {/* JAUGES GLOBALES */}
       <div className="ch-card">
         <h3 className="ch-section-title">{'\uD83C\uDFC6'} Score Global Challenge {'\u2014'} Orange AWARDS 2026</h3>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 40, flexWrap: 'wrap', padding: '20px 0' }}>
           <ScoreJauge label="PDG TELCO" score={scoreTelco} color="#0ea5e9"/>
           <ScoreJauge label="Orange Money" score={scoreOM} color="#FF6900"/>
           <ScoreJauge label="Score Global" score={scoreGlobal} color="#10b981"/>
+        </div>
+
+        {/* Détail du calcul : lien explicite entre les critères et les jauges */}
+        <div style={{ marginTop: 12, overflowX: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#94a3b8' }}>
+              🧮 Détail du calcul — mois pris en compte : <span style={{ color: '#FF6900' }}>{labelsClos.join(', ') || '—'}</span>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  await api.post('/award/recompute-totals');
+                  await Promise.all([
+                    qc.invalidateQueries('award-dashboard'),
+                    qc.invalidateQueries('challenge-dashboard'),
+                  ]);
+                } catch (e) { alert(e?.response?.data?.detail || 'Recalcul impossible'); }
+              }}
+              style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(74,158,255,0.35)', background: 'rgba(74,158,255,0.1)', color: '#4a9eff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              🔄 Recalculer les totaux depuis les semaines
+            </button>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                {['Challenge', 'Critère', 'Poids', 'Taux', 'Contribution'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '6px 10px', color: '#64748b', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[...telcoSousCriteres.map(c => ({ ...c, ch: 'PDG TELCO' })), ...omSousCriteres.map(c => ({ ...c, ch: 'Orange Money' }))]
+                .map((c, i) => {
+                  const pct = c.taux != null ? Math.round(Math.min(1, c.taux) * 100) : null;
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ padding: '6px 10px', color: c.ch === 'PDG TELCO' ? '#0ea5e9' : '#FF6900', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.ch}</td>
+                      <td style={{ padding: '6px 10px', color: '#e2e8f0' }}>{c.label}</td>
+                      <td style={{ padding: '6px 10px', color: '#94a3b8' }}>{c.poids}%</td>
+                      <td style={{ padding: '6px 10px', fontWeight: 700, color: pct == null ? '#475569' : getColor(pct) }}>
+                        {pct == null ? 'non mesuré' : `${pct}%`}
+                      </td>
+                      <td style={{ padding: '6px 10px', color: '#94a3b8' }}>
+                        {pct == null ? '—' : `${Math.round(Math.min(1, c.taux) * c.poids * 10) / 10} pt`}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
         </div>
         {/* Messages dynamiques selon niveau + tendance */}
         <div style={{ marginTop: 8 }}>
