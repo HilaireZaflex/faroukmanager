@@ -40,7 +40,13 @@ def _get_semaines_mois(db: Session, annee: int, mois: int) -> List[str]:
     for (sem,) in rows:
         try:
             w = int(sem.replace('S', '').replace('s', '').strip())
-            d = dt.date.fromisocalendar(annee, w, 1)
+            # Jeudi de la semaine (jour de référence ISO) : même convention que
+            # le module KAABU. Le lundi plaçait S01 en décembre et S27 en juin.
+            d = dt.date.fromisocalendar(annee, w, 4)
+            if d.year < annee:
+                d = dt.date(annee, 1, 1)
+            elif d.year > annee:
+                d = dt.date(annee, 12, 31)
             if d.month == mois:
                 semaines.append(sem)
         except:

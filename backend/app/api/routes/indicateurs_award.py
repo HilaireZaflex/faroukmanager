@@ -27,11 +27,34 @@ INDICATEURS_CUMULABLES = {"OMY", "NAFAMA", "TERMINAUX", "ORANGE ENERGIE", "PLV"}
 # Semaines ISO attendues pour chaque mois du challenge 2026.
 # Sert de garde-fou : des semaines mal rattachées à un mois (doublons de saisie)
 # ne doivent PAS être additionnées au TOTAL.
+#
+# Convention : on rattache une semaine au mois de son JEUDI (jour de référence
+# ISO), exactement comme le module KAABU. L'ancien découpage en blocs de 4
+# semaines (JUILLET = S27-S30, AOÛT = S31-S34, ...) était une convention
+# interne erronée : il plaçait par exemple S27 (29/06 → 05/07) en Juin et ne
+# correspondait pas au découpage des autres modules.
+def _mois_de_semaine_iso(annee: int, semaine) -> int:
+    """Mois (1-12) d'une semaine ISO, déterminé par son jeudi."""
+    import datetime as _dt
+    try:
+        w = int(str(semaine).replace('S', '').replace('s', '').strip())
+        d = _dt.date.fromisocalendar(annee, w, 4)   # jeudi
+        if d.year < annee:
+            d = _dt.date(annee, 1, 1)
+        elif d.year > annee:
+            d = _dt.date(annee, 12, 31)
+        return d.month
+    except Exception:
+        return 0
+
+
+ANNEE_CHALLENGE = 2026
+MOIS_NUM = {"JUILLET": 7, "AOÛT": 8, "SEPTEMBRE": 9, "OCTOBRE": 10}
+
 SEM_MOIS = {
-    "JUILLET":   ["S27", "S28", "S29", "S30"],
-    "AOÛT":      ["S31", "S32", "S33", "S34"],
-    "SEPTEMBRE": ["S35", "S36", "S37", "S38"],
-    "OCTOBRE":   ["S39", "S40", "S41", "S42"],
+    nom: [f"S{w:02d}" for w in range(1, 54)
+          if _mois_de_semaine_iso(ANNEE_CHALLENGE, w) == num]
+    for nom, num in MOIS_NUM.items()
 }
 
 
