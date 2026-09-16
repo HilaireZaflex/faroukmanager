@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct, case
 from app.models.kaabu import KaabuTransaction
 from typing import List, Dict, Any, Optional
+import os
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -737,7 +738,53 @@ def get_en_baisse_mensuel(db, annee, mois, seuil_pct=-20.0, teleconseillere=None
 
 # ─── IMPORT EXCEL ─────────────────────────────────────────────────────────────
 
-def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
+def _parse_periode_depuis_nom(nom: str) -> Optional[tuple]:
+    """Déduit (annee, semaine) d'un nom de fichier, ex. 'DONNEES KAABU S36.xlsx'.
+
+    Les fichiers hebdomadaires du nouveau format ('ACTIFS KM') ne contiennent
+    ni colonne SEMAINE ni colonne ANNEE : la période n'est que dans le nom.
+    Retourne None si aucune semaine n'est trouvée (on refuse alors d'importer
+    plutôt que de deviner).
+    """
+    import re
+    base = os.path.basename(nom or '')
+    m = re.search(r'(?<![A-Za-z0-9])S\s*(\d{1,2})(?![0-9])', base, re.IGNORECASE)
+    if not m:
+        return None
+    num = int(m.group(1))
+    if not (1 <= num <= 53):
+        return None
+    semaine = f"S{num:02d}"
+    m2 = re.search(r'(?<![0-9])(20\d{2})(?![0-9])', base)
+    annee = int(m2.group(1)) if m2 else 2026
+    return annee, semaine
+
+
+def _pdvs_hors_zone(db: Session) -> set:
+    """Ensemble des PDV hors zone.
+
+    Deux sources complémentaires :
+      - l'historique : PDV déjà marqués hors zone dans les imports précédents ;
+      - le référentiel : pdvs.quartier contenant 'HORS ZONE'.
+    Le nouveau format hebdomadaire ne porte plus l'information hors zone,
+    on la reporte donc depuis l'historique.
+    """
+    from app.models.pdv import PDV as PDVModel
+    hist = {r[0] for r in db.query(KaabuTransaction.numero_pdv).filter(
+        KaabuTransaction.est_hors_zone == 1
+    ).distinct().all() if r[0]}
+    ref = set()
+    try:
+        from sqlalchemy import func as _func
+        ref = {str(r[0]).strip() for r in db.query(PDVModel.numero_pdv).filter(
+            _func.upper(_func.coalesce(PDVModel.quartier, '')).like('%HORS ZONE%')
+        ).all() if r[0]}
+    except Exception:
+        ref = set()
+    return hist | ref
+
+
+def import_excel(db: Session, filepath: str, filename: Optional[str] = None) -> Dict[str, Any]:
     import pandas as pd
 
     # Lire la feuille SOURCE (essayer plusieurs noms)
@@ -786,6 +833,12 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
         # Format DONNEES KAABU (simplifié)
         'Montant_Cashin': 'montant_cashin',
         'Montant_Cashout': 'montant_cashout',
+        # Format ACTIFS KM (nouveau format hebdomadaire, 1 fichier = 1 semaine)
+        # 'point_vente', 'DZ' et 'PARTENAIRE' sont volontairement ignorés.
+        'NUMERO_UTILISATEUR': 'numero_pdv',
+        # 'agent' du nouveau format = 'LOGIN' de l'ancien (nom + numéro PDV,
+        # vérifié identique pour 92 % des PDV communs).
+        'AGENT': 'login',
     }
     _renorm = {_norm_header(k): v for k, v in col_map.items()}
     df = df.rename(columns={
@@ -794,6 +847,22 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
     })
     df = df.dropna(subset=['numero_pdv'])
     df['numero_pdv'] = df['numero_pdv'].astype(str).str.strip()
+
+    # ── Nouveau format hebdomadaire (feuille 'ACTIFS KM') ──────────────────────
+    # Pas de colonnes SEMAINE / ANNEE : la période est dans le nom du fichier.
+    a_colonne_semaine = 'semaine' in df.columns
+    if not a_colonne_semaine:
+        periode = _parse_periode_depuis_nom(filename or filepath)
+        if not periode:
+            raise ValueError(
+                "Impossible de déterminer la semaine : le fichier ne contient pas de "
+                "colonne SEMAINE et le nom du fichier n'indique pas de semaine "
+                "(attendu : un nom contenant 'S32', 'S33', ...)."
+            )
+        annee_fichier, semaine_fichier = periode
+        df['semaine'] = semaine_fichier
+        df['annee'] = annee_fichier
+
     df['semaine'] = df['semaine'].astype(str).str.strip()
 
     # Gérer l'année : depuis colonne ou déterminer depuis semaine (2026 par défaut)
@@ -823,7 +892,9 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
             'teleconseillere': p.teleconseillere,
             'coach_distri': None,
             'developpeur': p.developpeur,
-            'localite': p.commune,
+            # 'localite' correspond au QUARTIER du référentiel (vérifié : 1052/1098
+            # PDV). La colonne 'commune' est vide dans toute la table pdvs.
+            'localite': p.quartier,
             'quartier': p.quartier,
             'segment': p.segment,
             'type_pdv': str(p.type_pdv.value) if p.type_pdv and hasattr(p.type_pdv, 'value') else None,
@@ -840,6 +911,10 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
         ('teleconseillere', 'teleconseillere'), ('coach_distri', 'coach_distri'),
         ('developpeur', 'developpeur'), ('localite', 'localite'),
         ('quartier', 'quartier'), ('segment', 'segment'),
+        # Ajoutés : ces colonnes existaient dans pdv_info mais n'étaient jamais
+        # reportées, elles restaient vides pour les fichiers sans colonne TYPE.
+        ('type_pdv', 'type_pdv'), ('sous_zone', 'sous_zone'),
+        ('gestionnaire', 'gestionnaire'),
     ]:
         if col_kaabu not in df.columns:
             df[col_kaabu] = df['numero_pdv'].map(lambda x: pdv_info.get(x, {}).get(col_pdv))
@@ -850,9 +925,15 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
                 lambda x: pdv_info.get(x, {}).get(col_pdv)
             )
 
-    # Situation login : "ACTIF" si volume > 0, "INACTIF" sinon
+    # ── Actif / inactif ────────────────────────────────────────────────────────
+    # Ancien format : Orange fournit SITUATION LOGIN ('ACTIF REGULIER S31',
+    # 'INACTIF S31', ...) et l'inactivité se lit dans le libellé.
+    # Nouveau format 'ACTIFS KM' : la feuille ne liste QUE les PDV actifs et il
+    # n'y a pas de situation login → toutes les lignes sont actives. Les inactifs
+    # d'une semaine sont alors les PDV du référentiel ABSENTS de cette semaine
+    # (calculé à la lecture des dashboards, pas ici).
     if 'situation_login' not in df.columns:
-        df['situation_login'] = df['volume_kaabu'].apply(lambda v: 'ACTIF' if float(v or 0) > 0 else 'INACTIF')
+        df['situation_login'] = 'ACTIF KM'
 
     # Déterminer est_actif depuis SITUATION LOGIN
     def is_actif(situation):
@@ -860,7 +941,6 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
         s = str(situation).upper()
         # 'INACTIF' contient la sous-chaîne 'ACTIF' : il faut tester INACTIF
         # en premier, sinon tous les PDV inactifs étaient marqués actifs.
-        # ('ACTIF S30 MAIS INACTIF RECENT S31' → inactif, comme l'indique Orange)
         if 'INACTIF' in s:
             return 0
         return 1 if 'ACTIF' in s else 0
@@ -876,6 +956,12 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
             v = float(val)
             return 0 if pd.isna(v) else int(v)
         except: return 0
+
+    # ── Hors zone ──────────────────────────────────────────────────────────────
+    # L'ancien format portait 'HORS ZONE' dans AGENT D'OPERATION SPECIALE.
+    # Le nouveau format ne l'a plus : on reporte l'historique (PDV déjà marqués
+    # hors zone lors des imports précédents, complétés par pdvs.quartier).
+    hors_zone_pdvs = _pdvs_hors_zone(db)
 
     # Supprimer et réimporter — en UNE SEULE transaction.
     # Avant, un commit était fait juste après la suppression puis tous les 1000
@@ -918,7 +1004,9 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
             situation_login=str(row.get('situation_login', '')) if pd.notna(row.get('situation_login')) else None,
             segment=str(row.get('segment', '')) if pd.notna(row.get('segment')) else None,
             est_actif=is_actif(row.get('situation_login')),
-            est_hors_zone=is_hors_zone(row.get('agent_operation_speciale'), row.get('developpeur')),
+            est_hors_zone=1 if (is_hors_zone(
+                row.get('agent_operation_speciale'), row.get('developpeur')
+            ) or str(row.get('numero_pdv', '')).strip() in hors_zone_pdvs) else 0,
         )
         batch.append(t)
         inserted += 1

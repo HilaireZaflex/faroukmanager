@@ -162,7 +162,9 @@ async def import_kaabu(
         tmp_path = tmp.name
 
     try:
-        result = kaabu_service.import_excel(db, tmp_path)
+        # Le nom d'origine est transmis : le nouveau format hebdomadaire
+        # ('ACTIFS KM') ne contient pas la semaine, elle n'est que dans le nom.
+        result = kaabu_service.import_excel(db, tmp_path, filename=file.filename)
         return {"success": True, **result}
     finally:
         os.unlink(tmp_path)
