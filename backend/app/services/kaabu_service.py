@@ -877,7 +877,12 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
             return 0 if pd.isna(v) else int(v)
         except: return 0
 
-    # Supprimer et réimporter
+    # Supprimer et réimporter — en UNE SEULE transaction.
+    # Avant, un commit était fait juste après la suppression puis tous les 1000
+    # enregistrements : une erreur ou une coupure en cours de route laissait la
+    # table amputée (incident du 16/09/2026, table réduite à 1000 lignes).
+    # Désormais aucun commit intermédiaire : soit l'import complet réussit,
+    # soit rien n'est modifié.
     if 'semaine' in df.columns and 'annee' in df.columns:
         annees = df['annee'].unique()
         semaines = df['semaine'].unique()
@@ -885,7 +890,6 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
             KaabuTransaction.annee.in_(annees.tolist()),
             KaabuTransaction.semaine.in_(semaines.tolist()),
         ).delete(synchronize_session=False)
-        db.commit()
 
     inserted = 0
     batch = []
@@ -920,12 +924,17 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
         inserted += 1
         if len(batch) >= 1000:
             db.bulk_save_objects(batch)
-            db.commit()
             batch = []
 
     if batch:
         db.bulk_save_objects(batch)
+
+    # Commit unique : tout ou rien
+    try:
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "inserted": inserted,

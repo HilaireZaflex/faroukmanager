@@ -33,7 +33,6 @@ import OMyDashboardPage from './pages/OMyDashboardPage';
 import OMyWeeklyDashboardPage from './pages/OMyWeeklyDashboardPage';
 import NafamaDashboardPage from './pages/NafamaDashboardPage';
 import NafamaWeeklyDashboardPage from './pages/NafamaWeeklyDashboardPage';
-import KaabuWeeklyDashboardPage from './pages/KaabuWeeklyDashboardPage';
 import GestionReseauPage from './pages/GestionReseauPage';
 import ProspectionPage from './pages/ProspectionPage';
 import ProspectionEnergiaPage from './pages/ProspectionEnergiaPage';
@@ -173,7 +172,6 @@ function App() {
                 <Route path="/omy/dashboard/weekly" element={<OMyWeeklyDashboardPage />} />
                 <Route path="/nafama/dashboard" element={<NafamaDashboardPage />} />
                 <Route path="/nafama/dashboard/weekly" element={<NafamaWeeklyDashboardPage />} />
-                <Route path="/kaabu/dashboard/weekly" element={<KaabuWeeklyDashboardPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/dashboard/weekly" element={<WeeklyDashboardPage />} />
 
