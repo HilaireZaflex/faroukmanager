@@ -747,7 +747,16 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
         xl = pd.ExcelFile(filepath)
         df = pd.read_excel(filepath, sheet_name=xl.sheet_names[0])
 
-    df.columns = [c.strip() for c in df.columns]
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # ── Normalisation des en-têtes ────────────────────────────────────────────
+    # Fichier Orange : les en-têtes contiennent des espaces parasites et une
+    # casse irrégulière ('COACH-DISTRI OML  ', 'DEVELOPPEUR ', ' RS'...).
+    # Les anciennes clés de col_map conservaient ces espaces, alors que
+    # df.columns était déjà nettoyé → la correspondance échouait et les
+    # colonnes étaient importées vides (coach_distri, developpeur).
+    def _norm_header(h) -> str:
+        return ' '.join(str(h).replace('\u00a0', ' ').strip().upper().split())
 
     # Renommer les colonnes — supporte les 2 formats de fichier KAABU
     col_map = {
@@ -771,14 +780,18 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
         'QUARTIER': 'quartier',
         'SITUATION LOGIN': 'situation_login',
         'SEGMENT': 'segment',
-        'COACH-DISTRI OML  ': 'coach_distri',
-        'DEVELOPPEUR ': 'developpeur',
-        "AGENT D'OPERATION  SPECIALE": 'agent_operation_speciale',
+        'COACH-DISTRI OML': 'coach_distri',
+        'DEVELOPPEUR': 'developpeur',
+        "AGENT D'OPERATION SPECIALE": 'agent_operation_speciale',
         # Format DONNEES KAABU (simplifié)
         'Montant_Cashin': 'montant_cashin',
         'Montant_Cashout': 'montant_cashout',
     }
-    df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+    _renorm = {_norm_header(k): v for k, v in col_map.items()}
+    df = df.rename(columns={
+        c: _renorm[_norm_header(c)]
+        for c in df.columns if _norm_header(c) in _renorm
+    })
     df = df.dropna(subset=['numero_pdv'])
     df['numero_pdv'] = df['numero_pdv'].astype(str).str.strip()
     df['semaine'] = df['semaine'].astype(str).str.strip()
@@ -845,6 +858,11 @@ def import_excel(db: Session, filepath: str) -> Dict[str, Any]:
     def is_actif(situation):
         if pd.isna(situation): return 0
         s = str(situation).upper()
+        # 'INACTIF' contient la sous-chaîne 'ACTIF' : il faut tester INACTIF
+        # en premier, sinon tous les PDV inactifs étaient marqués actifs.
+        # ('ACTIF S30 MAIS INACTIF RECENT S31' → inactif, comme l'indique Orange)
+        if 'INACTIF' in s:
+            return 0
         return 1 if 'ACTIF' in s else 0
 
     def is_hors_zone(agent_op, developpeur):
