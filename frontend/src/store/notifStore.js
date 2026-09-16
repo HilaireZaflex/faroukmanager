@@ -1,5 +1,31 @@
 import { create } from 'zustand';
 import api from '../services/api';
+import useAuthStore from './authStore';
+
+// ── Préférence « ne plus afficher les alertes » (persistée par utilisateur) ──
+// Clé localStorage : { "<userId>": true }
+const MUTE_KEY = 'fm_notif_muted_users';
+
+function _readMutedMap() {
+  try {
+    return JSON.parse(localStorage.getItem(MUTE_KEY) || '{}') || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function _currentUserId() {
+  try {
+    return useAuthStore.getState()?.user?.id ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _isMutedFor(userId) {
+  if (userId === null || userId === undefined) return false;
+  return !!_readMutedMap()[String(userId)];
+}
 
 // ── Son de notification via Web Audio API (aucune dépendance externe) ────────
 let _audioCtx = null;
@@ -35,6 +61,29 @@ const useNotifStore = create((set, get) => ({
   notifications: [],
   lastFetch: null,
   _seenIds: new Set(),
+  muted: false,   // true = plus aucune alerte automatique (popup + son)
+
+  // Charge la préférence de l'utilisateur connecté
+  loadMutePref: () => {
+    set({ muted: _isMutedFor(_currentUserId()) });
+  },
+
+  // Active / désactive les alertes automatiques (persisté par utilisateur)
+  setMuted: (value) => {
+    const muted = !!value;
+    const uid = _currentUserId();
+    if (uid !== null && uid !== undefined) {
+      try {
+        const map = _readMutedMap();
+        if (muted) map[String(uid)] = true;
+        else delete map[String(uid)];
+        localStorage.setItem(MUTE_KEY, JSON.stringify(map));
+      } catch (e) {
+        // localStorage indisponible → la préférence reste valable pour la session
+      }
+    }
+    set({ muted });
+  },
 
   // Récupère les notifications non lues du serveur
   fetchNotifications: async () => {
@@ -55,6 +104,7 @@ const useNotifStore = create((set, get) => ({
         REASSIGNATION: 'Réclamation réassignée',
         COMMENTAIRE: 'Nouveau commentaire',
         MISE_A_JOUR: 'Réclamation mise à jour',
+        RELANCE: 'Relance réclamation',
       };
       const recNotifs = (resRec.data?.notifications || [])
         .filter(n => !n.lue)
@@ -69,9 +119,9 @@ const useNotifStore = create((set, get) => ({
           type_notif: n.type_notif,
         }));
       const data = [...prospNotifs, ...recNotifs];
-      const { _seenIds, lastFetch } = get();
+      const { _seenIds, lastFetch, muted } = get();
 
-      if (lastFetch !== null) {
+      if (lastFetch !== null && !muted) {
         const newOnes = data.filter(n => !_seenIds.has(n.id));
         if (newOnes.length > 0) {
           playNotifSound();
@@ -103,18 +153,22 @@ const useNotifStore = create((set, get) => ({
     } catch (e) {}
   },
 
-  // Marque toutes comme lues
+  // Marque TOUTES les notifications comme lues (workflow + réclamations)
   markAllRead: async () => {
-    try {
-      await api.post('/notifications/read-all');
-      set(state => ({
-        notifications: state.notifications.map(n => ({ ...n, lu: true })),
-      }));
-    } catch (e) {}
+    // Les deux sources sont indépendantes : une panne de l'une ne doit pas
+    // empêcher l'autre d'être marquée comme lue.
+    await Promise.all([
+      api.post('/notifications/read-all').catch(() => {}),
+      // ids vide = toutes les notifications de réclamation de l'utilisateur
+      api.post('/reclamations-notifications/marquer-lues', {}).catch(() => {}),
+    ]);
+    set(state => ({
+      notifications: state.notifications.map(n => ({ ...n, lu: true })),
+    }));
   },
 
   // Réinitialise (logout)
-  reset: () => set({ notifications: [], lastFetch: null }),
+  reset: () => set({ notifications: [], lastFetch: null, _seenIds: new Set(), muted: false }),
 }));
 
 export default useNotifStore;
