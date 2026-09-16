@@ -799,14 +799,14 @@ function TabMigrationAdmin() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                {['Date', 'Téléconseillère', 'PDV', 'Type', 'Migrer', 'RCCM', 'Pièce', 'Résultat', 'Motif'].map(h => (
+                {['Date', 'Téléconseillère', 'PDV', 'Type', 'Téléphones', 'Migrer', 'RCCM', 'Pièce', 'Résultat', 'Motif'].map(h => (
                   <th key={h} style={{ padding: '10px 12px', fontSize: 11, color: '#64748b', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Aucun appel migration enregistré</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Aucun appel migration enregistré</td></tr>
               ) : items.map((m, i) => (
                 <tr key={m.id} style={{ borderTop: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
                   <td style={{ padding: '9px 12px', fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>{m.created_at ? m.created_at.slice(0, 16).replace('T', ' ') : '—'}</td>
@@ -819,6 +819,11 @@ function TabMigrationAdmin() {
                     <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6,
                       background: m.type_pdv === 'RS' ? 'rgba(74,158,255,0.15)' : 'rgba(162,155,254,0.15)',
                       color: m.type_pdv === 'RS' ? '#4a9eff' : '#a29bfe' }}>{m.type_pdv}</span>
+                  </td>
+                  <td style={{ padding: '9px 12px' }}>
+                    {m.telephone && <div style={{ fontSize: 11, color: '#4a9eff', whiteSpace: 'nowrap' }}>📞 {m.telephone}</div>}
+                    {m.numero_personnel && <div style={{ fontSize: 11, color: '#00d68f', whiteSpace: 'nowrap' }}>📱 {m.numero_personnel}</div>}
+                    {!m.telephone && !m.numero_personnel && <span style={{ fontSize: 11, color: '#64748b' }}>—</span>}
                   </td>
                   <td style={{ padding: '9px 12px', fontSize: 13 }}>{m.veut_migrer ? '✅' : '❌'}</td>
                   <td style={{ padding: '9px 12px', fontSize: 13 }}>{m.a_rccm ? '✅' : '❌'}</td>

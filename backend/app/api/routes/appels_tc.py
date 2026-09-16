@@ -536,6 +536,8 @@ def get_liste_unifiee(
             "superviseur":   pdv.superviseur or "—",
             "teleconseillere": pdv.teleconseillere or "—",
             "telephone":     pdv.telephone or "—",
+            "numero_personnel": pdv.numero_personnel or "—",
+            "nom_gerant":    pdv.nom_gerant or "—",
             "score":         score,
             "nb_alertes":    len(alertes),
             "alertes":       alertes,

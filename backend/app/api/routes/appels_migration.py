@@ -156,6 +156,8 @@ def list_pdv_migration(
             "sous_zone": p.sous_zone,
             "quartier": p.quartier,
             "telephone": p.telephone,
+            "numero_personnel": p.numero_personnel,
+            "nom_gerant": p.nom_gerant,
             "teleconseillere": p.teleconseillere,
             "deja_appele": m is not None,
             "dernier_statut": m.statut if m else None,
@@ -291,7 +293,23 @@ def list_appels_migration(
 
     total = q.count()
     items = q.order_by(AppelMigration.created_at.desc()).offset(skip).limit(limit).all()
-    return {"total": total, "items": [_fmt(m) for m in items]}
+
+    # Téléphones des PDV concernés (flotte + personnel)
+    tels = {}
+    numeros = [m.numero_pdv for m in items]
+    if numeros:
+        for p in db.query(PDV).filter(PDV.numero_pdv.in_(numeros)).all():
+            tels[p.numero_pdv] = (p.telephone, p.numero_personnel)
+
+    resultat = []
+    for m in items:
+        d = _fmt(m)
+        tel, perso = tels.get(m.numero_pdv, (None, None))
+        d["telephone"] = tel
+        d["numero_personnel"] = perso
+        resultat.append(d)
+
+    return {"total": total, "items": resultat}
 
 
 @router.get("/tc/migration/stats")
@@ -381,6 +399,7 @@ def export_migration(
     ws.title = "Appels Migration"
     entetes = [
         "#", "Date", "Téléconseillère", "N° PDV", "Nom PDV", "Type PDV",
+        "Téléphone flotte", "Téléphone personnel",
         "Souhaite migrer", "RCCM", "Pièce d'identité", "Type de pièce",
         "Résultat", "Motif du rejet", "Commentaire",
     ]
@@ -388,11 +407,20 @@ def export_migration(
     for c in ws[1]:
         c.font = Font(bold=True)
 
+    # Téléphones des PDV concernés
+    tels = {}
+    numeros = [m.numero_pdv for m in rows]
+    if numeros:
+        for p in db.query(PDV).filter(PDV.numero_pdv.in_(numeros)).all():
+            tels[p.numero_pdv] = (p.telephone, p.numero_personnel)
+
     for m in rows:
+        tel, perso = tels.get(m.numero_pdv, (None, None))
         ws.append([
             m.id,
             m.created_at.strftime("%Y-%m-%d %H:%M") if m.created_at else "",
             m.tc_nom or "", m.numero_pdv, m.nom_pdv or "", m.type_pdv or "",
+            tel or "", perso or "",
             "OUI" if m.veut_migrer else "NON",
             "OUI" if m.a_rccm else "NON",
             "OUI" if m.a_piece_identite else "NON",
@@ -400,7 +428,7 @@ def export_migration(
             m.statut, m.motif_rejet or "", m.commentaire or "",
         ])
 
-    for i, largeur in enumerate([6, 17, 22, 14, 26, 10, 15, 8, 16, 18, 10, 45, 40], start=1):
+    for i, largeur in enumerate([6, 17, 22, 14, 26, 10, 17, 18, 15, 8, 16, 18, 10, 45, 40], start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = largeur
 
     buffer = io.BytesIO()

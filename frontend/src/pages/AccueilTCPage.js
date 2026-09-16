@@ -125,7 +125,8 @@ function ModalAppelUnifie({ pdv, onClose, onSuccess }) {
         <div style={{ display:'flex', justifyContent:'space-between', marginBottom:20 }}>
           <div>
             <div style={{ fontSize:18, fontWeight:900, color:'#fff' }}>{pdv.nom}</div>
-            <div style={{ fontSize:12, color:'#64748b' }}>{pdv.numero_pdv} · {pdv.zone} · 📞 {pdv.telephone || '—'}</div>
+            <div style={{ fontSize:12, color:'#64748b' }}>{pdv.numero_pdv} · {pdv.zone}</div>
+            <NumerosAppel telephone={pdv.telephone} numeroPersonnel={pdv.numero_personnel} nomGerant={pdv.nom_gerant} />
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none', color:'#aaa', fontSize:20, cursor:'pointer' }}>×</button>
         </div>
@@ -438,8 +439,9 @@ function TabFileUnifiee() {
                   )}
                 </div>
                 <div style={{ fontSize:11, color: isCalled ? '#4a5568' : '#64748b', marginBottom:6 }}>
-                  📍 {p.zone} · {p.sous_zone} · 👤 {p.superviseur} · 📞 {p.telephone || '—'}
+                  📍 {p.zone} · {p.sous_zone} · 👤 {p.superviseur}
                 </div>
+                {!isCalled && <NumerosAppel telephone={p.telephone} numeroPersonnel={p.numero_personnel} nomGerant={p.nom_gerant} compact />}
                 {!isCalled && (
                   <>
                     <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:6 }}>
@@ -508,6 +510,35 @@ function ChoixOuiNon({ value, onChange }) {
   );
 }
 
+// Affichage des numéros à appeler : flotte + personnel (cliquables)
+function NumerosAppel({ telephone, numeroPersonnel, nomGerant, compact }) {
+  const tel = String(telephone || '').trim();
+  const perso = String(numeroPersonnel || '').trim();
+  const valide = (n) => n && n !== '—';
+  const telLien = (n) => 'tel:' + n.replace(/[^0-9+]/g, '');
+
+  const Bouton = ({ num, label, icon, color }) => (
+    <a href={telLien(num)} title={`Appeler ${num}`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: compact ? '2px 7px' : '3px 9px',
+        borderRadius: 8, background: `${color}18`, color, border: `1px solid ${color}40`,
+        textDecoration: 'none', fontSize: compact ? 10 : 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+      {icon} {label}{compact ? '' : ' :'} {num}
+    </a>
+  );
+
+  if (!valide(tel) && !valide(perso)) {
+    return <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>📞 Aucun numéro renseigné</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 6 }}>
+      {valide(tel) && <Bouton num={tel} label="Flotte" icon="📞" color="#4a9eff" />}
+      {valide(perso) && <Bouton num={perso} label="Perso" icon="📱" color="#00d68f" />}
+      {valide(nomGerant) && <span style={{ fontSize: 10, color: '#64748b' }}>👤 {nomGerant}</span>}
+    </div>
+  );
+}
+
 function MigrationModal({ pdv, onClose, onSuccess }) {
   const [veut, setVeut] = React.useState(null);
   const [rccm, setRccm] = React.useState(null);
@@ -554,6 +585,7 @@ function MigrationModal({ pdv, onClose, onSuccess }) {
               {pdv.numero_pdv} · {pdv.zone || '—'}
               <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 800, background: `${typeCfg.color}22`, color: typeCfg.color }}>{typeCfg.label}</span>
             </div>
+            <NumerosAppel telephone={pdv.telephone} numeroPersonnel={pdv.numero_personnel} nomGerant={pdv.nom_gerant} />
           </div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#8a8a9a', cursor: 'pointer', fontSize: 18, width: 32, height: 32, flexShrink: 0 }}>✕</button>
         </div>
@@ -674,6 +706,7 @@ function TabMigration() {
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 6, background: `${t.color}22`, color: t.color, flexShrink: 0 }}>{t.label}</span>
                 </div>
+                <NumerosAppel telephone={p.telephone} numeroPersonnel={p.numero_personnel} nomGerant={p.nom_gerant} />
                 {p.deja_appele && (
                   <div style={{ fontSize: 11, marginTop: 8, fontWeight: 700, color: p.dernier_statut === 'VALIDE' ? '#22c55e' : '#ff4757' }}>
                     {p.dernier_statut === 'VALIDE' ? '✅ Éligible' : '❌ Rejeté'} · {p.dernier_appel ? new Date(p.dernier_appel).toLocaleDateString('fr-FR') : ''}
