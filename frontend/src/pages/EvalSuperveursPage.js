@@ -1,6 +1,6 @@
 /**
  * EvalSuperveursPage — Module d'évaluation mensuelle des superviseurs
- * KPIs (70%) + Appel des Téléconseillères (20%) + Présentiel (10%)
+ * KPIs (80%) + Appel des Téléconseillères (15%) + Présentiel (5%)
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
@@ -56,7 +56,7 @@ function KPIsSection({ kpis }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: '#8a8a9a' }}>Score global KPIs :</span>
           <ScoreBadge score={kpis.score_kpi_global} size="md" />
-          <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 70%</span>
+          <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 80%</span>
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
@@ -120,7 +120,7 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
           {evaluation?.score_mystery != null && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <ScoreBadge score={evaluation.score_mystery} size="md" />
-              <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 20%</span>
+              <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 15%</span>
             </div>
           )}
         </div>
@@ -342,7 +342,7 @@ function PresentielSection({ evaluation, superviseur, annee, mois, onRefresh }) 
         {evaluation?.score_presentiel != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <ScoreBadge score={evaluation.score_presentiel} size="md" />
-            <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 10%</span>
+            <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 5%</span>
           </div>
         )}
       </div>
@@ -454,9 +454,9 @@ async function partagerWhatsApp(evaluation, superviseur, mois, annee, numeroFour
 ━━━━━━━━━━━━━━━━━━
 
 📊 *Composantes :*
-• KPIs (70%) : *${scoreKpi}/100*
-• Appels Téléconseillères (20%) : *${scoreMystery}/100*
-• Présentiel (10%) : *${scorePresentiel}/100*
+• KPIs (80%) : *${scoreKpi}/100*
+• Appels Téléconseillères (15%) : *${scoreMystery}/100*
+• Présentiel (5%) : *${scorePresentiel}/100*
 
 ${kpiLines ? `📈 *Détail des KPIs :*\n${kpiLines}\n` : ''}
 💬 _${encourage}_
@@ -708,7 +708,7 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
       <div class="score-info">
         <h2>${mention}</h2>
         <p>Score final sur 100 points</p>
-        <p style="margin-top:8px;font-size:13px;color:#374151">KPIs 70% &nbsp;·&nbsp; Appel des Téléconseillères 20% &nbsp;·&nbsp; Présentiel 10%</p>
+        <p style="margin-top:8px;font-size:13px;color:#374151">KPIs 80% &nbsp;·&nbsp; Appel des Téléconseillères 15% &nbsp;·&nbsp; Présentiel 5%</p>
       </div>
     </div>
     <!-- Composantes -->
@@ -716,17 +716,17 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
       <div class="comp-card">
         <div class="label">📊 KPIs</div>
         <div class="val" style="color:#3742fa">${Math.round(evaluation.score_kpi || 0)}<span style="font-size:16px;color:#9ca3af">/100</span></div>
-        <div class="sub">Poids : 70%</div>
+        <div class="sub">Poids : 80%</div>
       </div>
       <div class="comp-card">
         <div class="label">📞 Appel des Téléconseillères</div>
         <div class="val" style="color:#16a34a">${Math.round(evaluation.score_mystery || 0)}<span style="font-size:16px;color:#9ca3af">/100</span></div>
-        <div class="sub">Poids : 20%</div>
+        <div class="sub">Poids : 15%</div>
       </div>
       <div class="comp-card">
         <div class="label">🏢 Présentiel</div>
         <div class="val" style="color:#FF6900">${Math.round(evaluation.score_presentiel || 0)}<span style="font-size:16px;color:#9ca3af">/100</span></div>
-        <div class="sub">Poids : 10%</div>
+        <div class="sub">Poids : 5%</div>
       </div>
     </div>
     <!-- KPIs tableau -->
@@ -883,7 +883,7 @@ function PlanActionTab({ evaluation, superviseur }) {
 
   if (kpis.taux_actif_omy != null && kpis.taux_actif_omy < 85) actions.push({ priorite: 'HAUTE', categorie: 'OMY', icon: '📱', action: `Activer les PDVs inactifs OMY — Taux actuel: ${kpis.taux_actif_omy}% (Objectif: 85%)`, detail: 'Identifier les PDVs avec CA = 0 et effectuer une visite terrain cette semaine', delai: 'Cette semaine' });
   if (kpis.taux_actif_nafama != null && kpis.taux_actif_nafama < 80) actions.push({ priorite: 'HAUTE', categorie: 'NAFAMA', icon: '🟢', action: `Booster les ventes NAFAMA — Taux actuel: ${kpis.taux_actif_nafama}% (Objectif: 80%)`, detail: 'Former les PDVs sur les techniques de vente SIM et crédit téléphonique', delai: 'Cette semaine' });
-  if (kpis.taux_actif_kaabu != null && kpis.taux_actif_kaabu < 70) actions.push({ priorite: 'HAUTE', categorie: 'KAABU', icon: '💳', action: `Augmenter adoption Kaabu — Taux actuel: ${kpis.taux_actif_kaabu}% (Objectif: 70%)`, detail: 'Organiser des sessions de formation Kaabu dans chaque sous-zone', delai: 'Cette semaine' });
+  if (kpis.taux_actif_km != null && kpis.taux_actif_km < 80) actions.push({ priorite: 'HAUTE', categorie: 'KAABU', icon: '💳', action: `Augmenter adoption Kaabu — Taux actuel: ${kpis.taux_actif_km}% (Objectif: 80%)`, detail: 'Organiser des sessions de formation Kaabu dans chaque sous-zone', delai: 'Cette semaine' });
   if (evaluation.score_mystery != null && evaluation.score_mystery < 70) actions.push({ priorite: 'MOYENNE', categorie: 'Appels TC', icon: '📞', action: `Améliorer la joignabilité des PDVs — Score appels TC: ${Math.round(evaluation.score_mystery)}/100`, detail: 'S\'assurer que les PDVs répondent aux appels et connaissent leurs produits', delai: 'Ce mois' });
   if (evaluation.score_presentiel != null && evaluation.score_presentiel < 70) actions.push({ priorite: 'MOYENNE', categorie: 'Présentiel', icon: '🏢', action: `Renforcer la maîtrise terrain — Score présentiel: ${Math.round(evaluation.score_presentiel)}/100`, detail: 'Apprendre les 10 PDVs de chaque sous-zone et leurs spécificités', delai: 'Ce mois' });
   if (score >= 80) actions.push({ priorite: 'BONNE PRATIQUE', categorie: 'Excellence', icon: '⭐', action: 'Maintenir ce niveau d\'excellence et partager les bonnes pratiques', detail: 'Identifier les 3 meilleures pratiques de votre zone et les transmettre à vos collègues', delai: 'En continu' });
@@ -1726,7 +1726,7 @@ export default function EvalSuperveursPage() {
         </div>
       </div>
       <div class="table-wrap">
-        <div class="table-title">📊 Classement complet — KPIs 70% · Appels TC 20% · Présentiel 10%</div>
+        <div class="table-title">📊 Classement complet — KPIs 80% · Appels TC 15% · Présentiel 5%</div>
         <table>
           <thead><tr>
             <th style="text-align:center;padding:8px 6px;font-size:11px">Rang</th>
@@ -1853,7 +1853,7 @@ export default function EvalSuperveursPage() {
         <div>
           <h1 className="page-title">🎯 Évaluation Superviseurs</h1>
           <p style={{ color: '#8a8a9a', fontSize: 13, marginTop: 4 }}>
-            KPIs 70% · Appel des Téléconseillères 20% · Présentiel 10%
+            KPIs 80% · Appel des Téléconseillères 15% · Présentiel 5%
           </p>
           {/* Bouton Publier Classement */}
           {isAdmin && (
@@ -2109,9 +2109,9 @@ export default function EvalSuperveursPage() {
                   {/* Détail par composante */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
                     {[
-                      { label: '📊 KPIs (70%)', score: evaluation.score_kpi, poids: 70, color: '#3742fa' },
-                      { label: '📞 Appel des Téléconseillères (20%)', score: evaluation.score_mystery, poids: 20, color: '#22c55e' },
-                      { label: '🏢 Présentiel (10%)', score: evaluation.score_presentiel, poids: 10, color: '#FF6900' },
+                      { label: '📊 KPIs (80%)', score: evaluation.score_kpi, poids: 80, color: '#3742fa' },
+                      { label: '📞 Appel des Téléconseillères (15%)', score: evaluation.score_mystery, poids: 15, color: '#22c55e' },
+                      { label: '🏢 Présentiel (5%)', score: evaluation.score_presentiel, poids: 5, color: '#FF6900' },
                     ].map((comp, i) => (
                       <div key={i} style={{ padding: '16px', background: `rgba(${comp.color === '#3742fa' ? '55,66,250' : comp.color === '#22c55e' ? '34,197,94' : '255,105,0'},0.08)`, border: `1px solid ${comp.color}25`, borderRadius: 12, textAlign: 'center' }}>
                         <div style={{ fontSize: 13, color: '#8a8a9a', marginBottom: 8 }}>{comp.label}</div>

@@ -1,7 +1,7 @@
 """
 Service d'évaluation des superviseurs — FaroukManager
 Agrège les KPIs depuis OMY, NAFAMA, KAABU et PDV
-Pondération : KPIs 70% | Mystery TC 20% | Présentiel 10%
+Pondération : KPIs 80% | Mystery TC 15% | Présentiel 5%
 """
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_
@@ -11,6 +11,14 @@ import random
 
 from app.models.pdv import PDV
 from app.models.user import User
+
+
+# ─── PONDÉRATION DU SCORE FINAL ───────────────────────────────────────────────
+# Source unique de vérité : toute modification ici se répercute sur le calcul
+# et sur le détail renvoyé à l'interface.
+POIDS_KPI = 0.80          # KPIs automatiques (OMY, NAFAMA, KAABU, commissions…)
+POIDS_MYSTERY = 0.15      # Appels des téléconseillères (mystery shopping)
+POIDS_PRESENTIEL = 0.05   # Test de connaissance terrain (présentiel)
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -303,7 +311,7 @@ def calculer_score_final(
 ) -> Dict[str, Any]:
     """
     Calcule le score final de l'évaluation.
-    KPIs=70% | Mystery=20% | Présentiel=10%
+    KPIs=80% | Mystery=15% | Présentiel=5%
     """
     # Score mystery (moyenne des 3 questions × 5 PDVs)
     if mystery_calls:
@@ -328,9 +336,9 @@ def calculer_score_final(
 
     # Score final pondéré
     score_final = round(
-        score_kpi * 0.70 +
-        score_mystery_100 * 0.20 +
-        score_presentiel_100 * 0.10,
+        score_kpi * POIDS_KPI +
+        score_mystery_100 * POIDS_MYSTERY +
+        score_presentiel_100 * POIDS_PRESENTIEL,
         2
     )
 
@@ -349,12 +357,12 @@ def calculer_score_final(
         'score_final': score_final,
         'mention': mention,
         'detail': {
-            'poids_kpi': 0.70,
-            'poids_mystery': 0.20,
-            'poids_presentiel': 0.10,
-            'contribution_kpi': round(score_kpi * 0.70, 2),
-            'contribution_mystery': round(score_mystery_100 * 0.20, 2),
-            'contribution_presentiel': round(score_presentiel_100 * 0.10, 2),
+            'poids_kpi': POIDS_KPI,
+            'poids_mystery': POIDS_MYSTERY,
+            'poids_presentiel': POIDS_PRESENTIEL,
+            'contribution_kpi': round(score_kpi * POIDS_KPI, 2),
+            'contribution_mystery': round(score_mystery_100 * POIDS_MYSTERY, 2),
+            'contribution_presentiel': round(score_presentiel_100 * POIDS_PRESENTIEL, 2),
         }
     }
 
