@@ -2614,18 +2614,15 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    // Le numéro de flotte rattache l'activation à un PDV existant : sans lui,
-    // la conformité reçoit une demande inexploitable. On avertit donc, sans
-    // bloquer (une demande incomplète reste acceptée par le backend).
+    // Numéro de flotte OBLIGATOIRE : sans lui, impossible de rattacher
+    // l'activation au PDV existant ni de remplacer l'ancien gérant.
     if (!String(form.numero_pdv || '').trim()) {
-      const continuer = window.confirm(
-        "Aucun numéro de flotte n'est renseigné.\n\n" +
-        "Ce numéro est nécessaire pour rattacher l'activation au PDV existant " +
-        "et remplacer l'ancien gérant.\n\nSoumettre quand même ?"
-      );
-      if (!continuer) return;
+      alert("Le numéro de flotte est obligatoire.\n\nRecherchez et sélectionnez le numéro de flotte du PDV (ou saisissez-le) avant de soumettre la demande.");
+      const champ = document.querySelector('input[placeholder*="N° PDV"]');
+      if (champ) { champ.scrollIntoView({ behavior: 'smooth', block: 'center' }); champ.focus(); }
+      return;
     }
-    // Tous les champs sont facultatifs : une demande incomplète peut être
+    // Les autres champs restent facultatifs : une demande incomplète peut être
     // soumise puis contrôlée et, si nécessaire, renvoyée par la conformité.
     setBusy(true);
     try {
@@ -2801,7 +2798,7 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 
           {/* SECTION 2 — Informations PDV */}
           <ASection title="Informations du PDV" icon="🏪" cols={3}>
-            <AFL label="Numéro Flotte (PDV)">
+            <AFL label="Numéro Flotte (PDV)" required>
               <PDVSearchInput
                 value={form.numero_pdv}
                 onChange={(num, pdv) => {

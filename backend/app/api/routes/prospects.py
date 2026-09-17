@@ -527,6 +527,15 @@ def soumettre_conformite(
     activation_data = {key: activation_payload.get(key) for key in ACTIVATION_FORM_FIELDS}
     activation_data["document_count"] = len(p.attachments or [])
 
+    # Numéro de flotte OBLIGATOIRE : sans lui, l'activation ne peut pas être
+    # rattachée à un PDV existant ni remplacer l'ancien gérant.
+    if not str(activation_data.get("numero_pdv") or "").strip():
+        raise HTTPException(
+            400,
+            "Le numéro de flotte est obligatoire : recherchez et sélectionnez le "
+            "numéro de flotte du PDV avant de soumettre la demande.",
+        )
+
     role = str(current_user.role).lower().replace("userrole.", "")
     if role not in REVIEWER_ROLES and p.puce_assigned_to_id != current_user.id:
         raise HTTPException(403, "Seul le développeur chargé de l'activation peut soumettre ce formulaire")
