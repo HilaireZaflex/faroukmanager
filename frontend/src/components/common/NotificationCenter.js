@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, BellOff, X, CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Bell, X, CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useNotifStore from '../../store/notifStore';
-import useAuthStore from '../../store/authStore';
 
 // Retourne l'URL de redirection selon l'étape de la notification
 const getRedirectUrl = (notif) => {
@@ -43,8 +42,7 @@ const getIcon = (notif) => {
 };
 
 export default function NotificationCenter() {
-  const { notifications, markRead, markAllRead, muted, setMuted, loadMutePref } = useNotifStore();
-  const userId = useAuthStore(s => s.user?.id);
+  const { notifications, markRead, markAllRead } = useNotifStore();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [showPopup, setShowPopup] = useState(true);
@@ -55,19 +53,14 @@ export default function NotificationCenter() {
   const count = unread.length;
   const popupNotif = unread[0] || null;
 
-  // Charge la préférence « ne plus afficher » de l'utilisateur connecté
-  // (rechargée si l'utilisateur change → login / logout / bascule de compte)
-  useEffect(() => { loadMutePref(); }, [loadMutePref, userId]);
-
-  // Quand une nouvelle notif arrive, réaffiche le popup (sauf si alertes coupées)
+  // Quand une nouvelle notif arrive, réaffiche le popup
   useEffect(() => {
-    if (popupNotif && !muted) setShowPopup(true);
-  }, [popupNotif?.id, muted]);
+    if (popupNotif) setShowPopup(true);
+  }, [popupNotif?.id]);
 
-  // Programme la réapparition du popup — désactivé si l'utilisateur a coupé les alertes
+  // Programme la réapparition du popup
   const armPopupTimer = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (muted) { setShowPopup(false); return; }
     timerRef.current = setTimeout(() => setShowPopup(true), 30000);
   };
 
@@ -75,17 +68,6 @@ export default function NotificationCenter() {
   const handleDismiss = () => {
     setShowPopup(false);
     armPopupTimer();
-  };
-
-  // Coupe / réactive les alertes automatiques
-  const handleToggleMute = () => {
-    const next = !muted;
-    setMuted(next);
-    if (next) {
-      // On coupe : fermeture immédiate du popup et annulation du minuteur
-      setShowPopup(false);
-      if (timerRef.current) clearTimeout(timerRef.current);
-    }
   };
 
   const goToNotif = (notif) => {
@@ -106,13 +88,12 @@ export default function NotificationCenter() {
 
   return (
     <>
-      {/* Popup automatique : réapparaît toutes les 30s si non lu — masqué si alertes coupées */}
-      {popupNotif && showPopup && !open && !muted && (
+      {/* Popup automatique : réapparaît toutes les 30s si non lu */}
+      {popupNotif && showPopup && !open && (
         <NotifPopup
           notif={popupNotif}
           onClose={handleDismiss}
           onView={() => handleView(popupNotif)}
-          onMute={handleToggleMute}
         />
       )}
 
@@ -137,30 +118,15 @@ export default function NotificationCenter() {
               background: '#0f172a',
             }}>
               <div style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>
-                {muted ? '🔕' : '🔔'} Notifications
+                🔔 Notifications
                 {count > 0 && (
                   <span style={{
-                    background: muted ? '#64748b' : '#ef4444', color: '#fff', borderRadius: 10,
+                    background: '#ef4444', color: '#fff', borderRadius: 10,
                     padding: '1px 8px', fontSize: 11, marginLeft: 8, fontWeight: 700,
                   }}>{count} non lue{count > 1 ? 's' : ''}</span>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button
-                  onClick={handleToggleMute}
-                  title={muted
-                    ? 'Réactiver les alertes automatiques'
-                    : 'Ne plus afficher les alertes automatiques'}
-                  style={{
-                    background: muted ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
-                    border: `1px solid ${muted ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.15)'}`,
-                    cursor: 'pointer', color: muted ? '#22c55e' : '#94a3b8',
-                    fontSize: 11, fontWeight: 700,
-                    borderRadius: 6, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4,
-                  }}>
-                  {muted ? <Bell size={12}/> : <BellOff size={12}/>}
-                  {muted ? 'Réactiver' : 'Ne plus afficher'}
-                </button>
                 {count > 0 && (
                   <button onClick={markAllRead} style={{
                     background: 'rgba(255,105,0,0.15)', border: '1px solid rgba(255,105,0,0.3)',
@@ -275,17 +241,17 @@ export default function NotificationCenter() {
           onClick={() => { setOpen(o => !o); setShowPopup(false); armPopupTimer(); }}
           style={{
             width: 54, height: 54, borderRadius: '50%',
-            background: muted ? '#64748b' : (count > 0 ? '#ef4444' : '#ff6900'),
+            background: count > 0 ? '#ef4444' : '#ff6900',
             border: 'none', cursor: 'pointer', position: 'relative',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: (count > 0 && !muted)
+            boxShadow: count > 0
               ? '0 0 0 4px rgba(239,68,68,0.25), 0 6px 20px rgba(0,0,0,0.5)'
               : '0 6px 20px rgba(0,0,0,0.4)',
             transition: 'all 0.3s',
-            animation: (count > 0 && !muted) ? 'notif-pulse 1.5s infinite' : 'none',
+            animation: count > 0 ? 'notif-pulse 1.5s infinite' : 'none',
           }}
         >
-          {muted ? <BellOff size={24} color="#fff"/> : <Bell size={24} color="#fff"/>}
+          <Bell size={24} color="#fff"/>
           {count > 0 && (
             <span style={{
               position: 'absolute', top: -3, right: -3,
@@ -312,7 +278,7 @@ export default function NotificationCenter() {
 }
 
 // ─── Popup automatique ────────────────────────────────────────────────────────
-function NotifPopup({ notif, onClose, onView, onMute }) {
+function NotifPopup({ notif, onClose, onView }) {
   const color = getColor(notif);
   const icon = getIcon(notif);
 
@@ -393,17 +359,6 @@ function NotifPopup({ notif, onClose, onView, onMute }) {
             Plus tard
           </button>
         </div>
-
-        {/* Couper définitivement les alertes automatiques */}
-        <button onClick={onMute} style={{
-          width: '100%', marginTop: 10, padding: '9px 0',
-          background: 'rgba(255,255,255,0.04)', color: '#94a3b8',
-          border: '1px dashed rgba(255,255,255,0.18)', borderRadius: 8,
-          fontSize: 12, cursor: 'pointer', fontWeight: 700,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        }}>
-          <BellOff size={13}/> Ne plus afficher ces alertes
-        </button>
       </div>
 
       <style>{`

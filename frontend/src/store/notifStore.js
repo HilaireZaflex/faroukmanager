@@ -1,31 +1,10 @@
 import { create } from 'zustand';
 import api from '../services/api';
-import useAuthStore from './authStore';
 
-// ── Préférence « ne plus afficher les alertes » (persistée par utilisateur) ──
-// Clé localStorage : { "<userId>": true }
-const MUTE_KEY = 'fm_notif_muted_users';
-
-function _readMutedMap() {
-  try {
-    return JSON.parse(localStorage.getItem(MUTE_KEY) || '{}') || {};
-  } catch (e) {
-    return {};
-  }
-}
-
-function _currentUserId() {
-  try {
-    return useAuthStore.getState()?.user?.id ?? null;
-  } catch (e) {
-    return null;
-  }
-}
-
-function _isMutedFor(userId) {
-  if (userId === null || userId === undefined) return false;
-  return !!_readMutedMap()[String(userId)];
-}
+// Nettoyage : l'option « ne plus afficher les alertes » a été RETIRÉE (elle
+// privait silencieusement certains utilisateurs de leurs notifications).
+// On supprime la préférence encore stockée chez ceux qui l'avaient activée.
+try { localStorage.removeItem('fm_notif_muted_users'); } catch (e) {}
 
 // ── Son de notification via Web Audio API (aucune dépendance externe) ────────
 let _audioCtx = null;
@@ -61,29 +40,6 @@ const useNotifStore = create((set, get) => ({
   notifications: [],
   lastFetch: null,
   _seenIds: new Set(),
-  muted: false,   // true = plus aucune alerte automatique (popup + son)
-
-  // Charge la préférence de l'utilisateur connecté
-  loadMutePref: () => {
-    set({ muted: _isMutedFor(_currentUserId()) });
-  },
-
-  // Active / désactive les alertes automatiques (persisté par utilisateur)
-  setMuted: (value) => {
-    const muted = !!value;
-    const uid = _currentUserId();
-    if (uid !== null && uid !== undefined) {
-      try {
-        const map = _readMutedMap();
-        if (muted) map[String(uid)] = true;
-        else delete map[String(uid)];
-        localStorage.setItem(MUTE_KEY, JSON.stringify(map));
-      } catch (e) {
-        // localStorage indisponible → la préférence reste valable pour la session
-      }
-    }
-    set({ muted });
-  },
 
   // Récupère les notifications non lues du serveur
   fetchNotifications: async () => {
@@ -119,9 +75,9 @@ const useNotifStore = create((set, get) => ({
           type_notif: n.type_notif,
         }));
       const data = [...prospNotifs, ...recNotifs];
-      const { _seenIds, lastFetch, muted } = get();
+      const { _seenIds, lastFetch } = get();
 
-      if (lastFetch !== null && !muted) {
+      if (lastFetch !== null) {
         const newOnes = data.filter(n => !_seenIds.has(n.id));
         if (newOnes.length > 0) {
           playNotifSound();
@@ -168,7 +124,7 @@ const useNotifStore = create((set, get) => ({
   },
 
   // Réinitialise (logout)
-  reset: () => set({ notifications: [], lastFetch: null, _seenIds: new Set(), muted: false }),
+  reset: () => set({ notifications: [], lastFetch: null, _seenIds: new Set() }),
 }));
 
 export default useNotifStore;
