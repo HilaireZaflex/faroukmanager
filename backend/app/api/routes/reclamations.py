@@ -794,6 +794,66 @@ def delete_piece_jointe(
     return {"success": True}
 
 
+@router.delete("/reclamations/{rec_id}")
+def supprimer_reclamation(
+    rec_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Supprime définitivement une réclamation et tout ce qui y est rattaché.
+
+    Autorisé à : un administrateur/manager (n'importe laquelle), le soumetteur
+    de la réclamation, ou le responsable assigné — c'est-à-dire les personnes
+    qui la voient dans « Mes Réclamations », « À Traiter » ou « Toutes ».
+
+    Sont supprimés : commentaires, notifications, historique, pièces jointes
+    (fichiers compris), puis la réclamation elle-même.
+    """
+    r = db.query(Reclamation).filter(Reclamation.id == rec_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Réclamation non trouvée")
+    if not _peut_voir(r, current_user):
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas autorisé à supprimer cette réclamation")
+
+    titre = r.titre
+    nb_pieces = 0
+    nb_commentaires = 0
+
+    # Pièces jointes : supprimer les fichiers du disque puis les lignes
+    pieces = db.query(ReclamationPieceJointe).filter(
+        ReclamationPieceJointe.reclamation_id == rec_id
+    ).all()
+    for p in pieces:
+        try:
+            if p.file_path and os.path.exists(p.file_path):
+                os.remove(p.file_path)
+        except Exception:
+            pass  # le fichier a pu déjà être supprimé
+        nb_pieces += 1
+
+    # Historique : il est rattaché à la réclamation, donc supprimé avec elle.
+    # On ne journalise donc pas la suppression (la ligne partirait aussitôt).
+    db.query(ReclamationPieceJointe).filter(
+        ReclamationPieceJointe.reclamation_id == rec_id).delete(synchronize_session=False)
+    nb_commentaires = db.query(ReclamationCommentaire).filter(
+        ReclamationCommentaire.reclamation_id == rec_id).delete(synchronize_session=False)
+    db.query(ReclamationNotification).filter(
+        ReclamationNotification.reclamation_id == rec_id).delete(synchronize_session=False)
+    db.query(ReclamationHistorique).filter(
+        ReclamationHistorique.reclamation_id == rec_id).delete(synchronize_session=False)
+
+    db.delete(r)
+    db.commit()
+
+    return {
+        "success": True,
+        "id": rec_id,
+        "titre": titre,
+        "pieces_jointes_supprimees": nb_pieces,
+        "commentaires_supprimes": nb_commentaires,
+    }
+
+
 @router.get("/reclamations-export")
 def export_reclamations(
     statut: Optional[str] = None,

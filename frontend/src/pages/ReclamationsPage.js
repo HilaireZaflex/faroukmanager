@@ -119,12 +119,17 @@ function FormulaireReclamation({ onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.precision.trim()) return toast.error('Veuillez préciser le titre');
+    const estAutres = form.objet === 'AUTRES';
+    // La précision n'est demandée que pour le titre « AUTRES »
+    if (estAutres && !form.precision.trim()) return toast.error('Veuillez préciser le titre');
     if (!form.description.trim()) return toast.error('La description est requise');
     setLoading(true);
     try {
-      // Le titre final combine l'objet choisi et la précision saisie
-      const payload = { ...form, titre: `${form.objet} - ${form.precision.trim()}` };
+      // Titre final : « AUTRES - <précision> » ou simplement l'objet choisi
+      const titreFinal = estAutres
+        ? `AUTRES - ${form.precision.trim()}`
+        : form.objet;
+      const payload = { ...form, titre: titreFinal };
       delete payload.objet;
       delete payload.precision;
       if (payload.responsable_id) payload.responsable_id = parseInt(payload.responsable_id);
@@ -172,14 +177,21 @@ function FormulaireReclamation({ onClose, onSuccess }) {
             <div style={{ gridColumn: '1/-1' }}>
               <label style={{ fontSize: 10, color: '#FF6900', fontWeight: 700, display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Titre *</label>
               <div style={{ display: 'flex', gap: 10 }}>
-                <select style={{ ...SS, flex: '0 0 170px' }} value={form.objet} onChange={e => set('objet', e.target.value)}>
+                <select style={{ ...SS, flex: form.objet === 'AUTRES' ? '0 0 170px' : 1 }}
+                  value={form.objet}
+                  onChange={e => { set('objet', e.target.value); if (e.target.value !== 'AUTRES') set('precision', ''); }}>
                   {OBJETS_RECLAMATION.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
-                <input style={{ ...IS, flex: 1 }} placeholder="Précisez le titre (ex : rupture de stock, panne, écart de commission…)"
-                  value={form.precision} onChange={e => set('precision', e.target.value)} required />
+                {/* Le champ de précision n'apparaît QUE pour le titre « AUTRES » */}
+                {form.objet === 'AUTRES' && (
+                  <input style={{ ...IS, flex: 1 }} placeholder="Précisez le titre (ex : rupture de stock, panne, écart de commission…)"
+                    value={form.precision} onChange={e => set('precision', e.target.value)} required />
+                )}
               </div>
               <div style={{ fontSize: 10, color: '#64748b', marginTop: 5 }}>
-                Titre final : <span style={{ color: '#FF6900', fontWeight: 700 }}>{form.objet} - {form.precision.trim() || '…'}</span>
+                Titre final : <span style={{ color: '#FF6900', fontWeight: 700 }}>
+                  {form.objet === 'AUTRES' ? `AUTRES - ${form.precision.trim() || '…'}` : form.objet}
+                </span>
               </div>
             </div>
             <div>
@@ -622,6 +634,26 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
 
   const handleRefresh = () => { refetch(); onRefresh(); };
 
+  // ── Suppression d'une réclamation ─────────────────────────────────────────
+  const [suppression, setSuppression] = useState(null);
+  const supprimerReclamation = async (r, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm(
+      `Supprimer définitivement la réclamation #${r.id} « ${r.titre} » ?\n\n` +
+      `Seront également supprimés : les commentaires, les notifications, l'historique ` +
+      `et les pièces jointes.\n\nCette action est irréversible.`
+    )) return;
+    setSuppression(r.id);
+    try {
+      await api.delete(`/reclamations/${r.id}`);
+      toast.success('Réclamation supprimée');
+      if (selectedRec && selectedRec.id === r.id) setSelectedRec(null);
+      handleRefresh();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Suppression impossible');
+    } finally { setSuppression(null); }
+  };
+
   // Barre de filtres : tout sur une seule ligne (modèle Prospection → Demandes)
   const filtreActif = !!(search || filtreStatut || filtrePriorite || filtreCategorie || filtreResponsable);
   const effacerFiltres = () => {
@@ -714,7 +746,20 @@ function ListeReclamations({ queryKey, params, currentUser, onRefresh }) {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>#{r.id}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>#{r.id}</div>
+                    <button
+                      onClick={(e) => supprimerReclamation(r, e)}
+                      disabled={suppression === r.id}
+                      title="Supprimer cette réclamation"
+                      style={{
+                        background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.35)',
+                        color: '#ff4757', borderRadius: 8, padding: '4px 8px', cursor: suppression === r.id ? 'wait' : 'pointer',
+                        fontSize: 13, lineHeight: 1, opacity: suppression === r.id ? 0.5 : 1,
+                      }}>
+                      {suppression === r.id ? '⏳' : '🗑️'}
+                    </button>
+                  </div>
                   <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>{new Date(r.created_at).toLocaleDateString('fr-FR')}</div>
                   {r.jours_depuis_creation > 0 && <div style={{ fontSize: 10, color: r.en_retard ? '#ff4757' : '#64748b' }}>{r.jours_depuis_creation}j</div>}
                   {r.note_satisfaction && <div style={{ fontSize: 12, color: '#ffa502' }}>{'⭐'.repeat(r.note_satisfaction)}</div>}
