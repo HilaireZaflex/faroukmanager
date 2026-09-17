@@ -2341,8 +2341,19 @@ function PDVSearchInput({ value, onChange }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Garder le champ affiché en phase avec la valeur du formulaire.
+  // Sans cela, un retour de conformité (ou une réinitialisation) laissait
+  // l'ancien texte affiché alors que le formulaire contenait autre chose.
+  useEffect(() => {
+    setQuery(value || '');
+  }, [value]);
+
   const search = (q) => {
     setQuery(q);
+    // Important : le numéro TAPÉ doit remonter au formulaire même sans
+    // sélection dans la liste. Sinon, un numéro saisi à la main n'était
+    // jamais enregistré et la demande partait « sans numéro flotte ».
+    onChange(q, null);
     clearTimeout(timer.current);
     if (!q || q.length < 2) { setResults([]); setOpen(false); return; }
     timer.current = setTimeout(async () => {
@@ -2410,6 +2421,66 @@ function PDVSearchInput({ value, onChange }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Aperçu d'une pièce jointe (photo prise sur le terrain) ──────────────────
+// Affiche une vignette cliquable pour les images, une icône pour les PDF.
+// Les fichiers HEIC (iPhone) ne s'affichent pas dans le navigateur : on
+// retombe alors proprement sur l'icône.
+function FilePreview({ file, onRemove }) {
+  const [url, setUrl] = useState(null);
+  const [zoom, setZoom] = useState(false);
+  const [erreur, setErreur] = useState(false);
+  const nom = file?.name || 'fichier';
+  const estImage = !!file && (
+    String(file.type || '').startsWith('image/') ||
+    /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(nom)
+  );
+
+  useEffect(() => {
+    if (!estImage || !file) { setUrl(null); return; }
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file, estImage]);
+
+  const taille = file?.size
+    ? (file.size < 1024 * 1024 ? `${Math.round(file.size / 1024)} Ko` : `${(file.size / 1024 / 1024).toFixed(1)} Mo`)
+    : '';
+  const apercuOk = estImage && url && !erreur;
+
+  return (
+    <div style={{ position: 'relative', width: 96 }}>
+      <div
+        onClick={() => apercuOk && setZoom(true)}
+        title={apercuOk ? 'Cliquer pour agrandir' : nom}
+        style={{
+          width: 96, height: 96, borderRadius: 10, overflow: 'hidden',
+          border: '1px solid rgba(34,197,94,0.35)', background: 'rgba(255,255,255,0.04)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: apercuOk ? 'zoom-in' : 'default',
+        }}>
+        {apercuOk
+          ? <img src={url} alt={nom} onError={() => setErreur(true)}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ fontSize: 28 }}>{estImage ? '🖼️' : '📄'}</span>}
+      </div>
+      <div title={nom} style={{ fontSize: 9, color: '#94a3b8', marginTop: 3, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {nom}
+      </div>
+      <div style={{ fontSize: 9, color: '#64748b', textAlign: 'center' }}>{taille}</div>
+      <button type="button" aria-label={`Retirer ${nom}`} onClick={onRemove}
+        style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ff4757', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+
+      {zoom && apercuOk && (
+        <div onClick={() => setZoom(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, cursor: 'zoom-out' }}>
+          <img src={url} alt={nom} style={{ maxWidth: '95%', maxHeight: '92%', borderRadius: 8, boxShadow: '0 10px 50px rgba(0,0,0,0.7)' }} />
+          <div style={{ position: 'absolute', top: 16, right: 22, color: '#fff', fontSize: 26, fontWeight: 700 }}>✕</div>
         </div>
       )}
     </div>
@@ -2543,6 +2614,17 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    // Le numéro de flotte rattache l'activation à un PDV existant : sans lui,
+    // la conformité reçoit une demande inexploitable. On avertit donc, sans
+    // bloquer (une demande incomplète reste acceptée par le backend).
+    if (!String(form.numero_pdv || '').trim()) {
+      const continuer = window.confirm(
+        "Aucun numéro de flotte n'est renseigné.\n\n" +
+        "Ce numéro est nécessaire pour rattacher l'activation au PDV existant " +
+        "et remplacer l'ancien gérant.\n\nSoumettre quand même ?"
+      );
+      if (!continuer) return;
+    }
     // Tous les champs sont facultatifs : une demande incomplète peut être
     // soumise puis contrôlée et, si nécessaire, renvoyée par la conformité.
     setBusy(true);
@@ -2695,15 +2777,20 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
 
                 {form.pieces_fichiers?.length > 0 && (
                   <div style={{ marginTop: 12 }}>
-                    <div style={{ fontSize: 13, color: '#22c55e', fontWeight: 700, marginBottom: 8 }}>✅ {form.pieces_fichiers.length} fichier{form.pieces_fichiers.length > 1 ? 's' : ''} sélectionné{form.pieces_fichiers.length > 1 ? 's' : ''}</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    <div style={{ fontSize: 13, color: '#22c55e', fontWeight: 700, marginBottom: 8 }}>
+                      ✅ {form.pieces_fichiers.length} fichier{form.pieces_fichiers.length > 1 ? 's' : ''} sélectionné{form.pieces_fichiers.length > 1 ? 's' : ''}
+                      <span style={{ color: '#64748b', fontWeight: 500 }}> · cliquez une photo pour l'agrandir</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
                       {form.pieces_fichiers.map((file, i) => (
-                        <div key={`${file.name}-${file.size}-${file.lastModified}`} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 7, padding: '5px 8px', fontSize: 11 }}>
-                          <span>{file.type?.startsWith('image/') || /\.(heic|heif)$/i.test(file.name) ? '🖼️' : '📄'}</span>
-                          <span style={{ color: '#22c55e', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                          <button type="button" aria-label={`Retirer ${file.name}`} onClick={() => setForm(current => ({ ...current, pieces_fichiers: current.pieces_fichiers.filter((_, index) => index !== i) }))}
-                            style={{ background: 'none', border: 'none', color: '#ff4757', cursor: 'pointer', fontSize: 16, padding: '2px 4px' }}>✕</button>
-                        </div>
+                        <FilePreview
+                          key={`${file.name}-${file.size}-${file.lastModified}`}
+                          file={file}
+                          onRemove={() => setForm(current => ({
+                            ...current,
+                            pieces_fichiers: current.pieces_fichiers.filter((_, index) => index !== i),
+                          }))}
+                        />
                       ))}
                     </div>
                   </div>
@@ -2718,19 +2805,24 @@ function ActivationCard({ prospect: p, currentUser, onDone }) {
               <PDVSearchInput
                 value={form.numero_pdv}
                 onChange={(num, pdv) => {
+                  // Principe métier : on rattache un NOUVEAU gérant à un numéro
+                  // de flotte existant. Les informations déjà saisies par le
+                  // développeur (identité et téléphone du nouveau gérant) ne
+                  // doivent donc JAMAIS être écrasées par celles de l'ancien
+                  // gérant du PDV. On se contente de compléter les champs
+                  // encore vides avec les caractéristiques du PDV.
                   setForm(f => ({
                     ...f,
                     numero_pdv: num,
-                    zone: pdv?.zone || f.zone,
-                    sous_zone: pdv?.sous_zone || f.sous_zone,
-                    // Quartier : priorité au quartier du prospect (p.quartier), sinon PDV
-                    quartier: p.quartier || pdv?.quartier || f.quartier,
-                    type_pdv: pdv?.type_pdv || f.type_pdv,
-                    gestionnaire: pdv?.gestionnaire || f.gestionnaire,
-                    superviseur: pdv?.superviseur || f.superviseur,
-                    teleconseillere: pdv?.teleconseillere || f.teleconseillere,
-                    nom: pdv?.nom_gerant || f.nom,
-                    telephone: pdv?.telephone || f.telephone,
+                    zone: f.zone || pdv?.zone || '',
+                    sous_zone: f.sous_zone || pdv?.sous_zone || '',
+                    quartier: f.quartier || p.quartier || pdv?.quartier || '',
+                    type_pdv: f.type_pdv || pdv?.type_pdv || 'RS',
+                    gestionnaire: f.gestionnaire || pdv?.gestionnaire || '',
+                    superviseur: f.superviseur || pdv?.superviseur || '',
+                    teleconseillere: f.teleconseillere || pdv?.teleconseillere || '',
+                    // `nom`, `prenom`, `telephone` et `numero_personnel`
+                    // désignent le nouveau gérant : on n'y touche pas.
                   }));
                 }}
               />
