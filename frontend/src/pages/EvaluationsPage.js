@@ -17,7 +17,7 @@ export default function EvaluationsPage() {
     { id: 'comment-ca-marche', label: '❓ Comment ça marche ?' },
     { id: 'campagnes',         label: '📋 Mes campagnes' },
     { id: 'notes-manuelles',   label: '✍️ Saisir des notes' },
-    { id: 'appels-mysteres',   label: '🕵️ Appels mystères (TC)' },
+    { id: 'appels-mysteres',   label: '🕵️ Appels TC' },
     { id: 'resultats',         label: '🏆 Résultats & PDF' },
     { id: 'configuration',     label: '⚙️ Configuration' },
   ];
@@ -67,7 +67,7 @@ function TabGuide({ onStart }) {
         </h2>
         <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
           Ce module permet d'<b>évaluer objectivement</b> chaque membre du réseau (superviseurs, gestionnaires, développeurs, téléconseillères).
-          Le système combine <b>données automatiques</b> (KPI du réseau) et <b>évaluation humaine</b> (appels mystères + notes manuelles).
+          Le système combine <b>données automatiques</b> (KPI du réseau) et <b>évaluation humaine</b> (appels TC + notes manuelles).
         </p>
       </div>
 
@@ -79,25 +79,25 @@ function TabGuide({ onStart }) {
             n: 1, emoji: '📋', color: '#3b82f6',
             titre: 'Admin/RC crée une campagne',
             qui: 'Admin ou RC',
-            quoi: 'Choisir qui évaluer (superviseurs ? développeurs ?), pour quelle période (avril 2026 ?), et quelles téléconseillères feront les appels mystères.',
+            quoi: 'Choisir qui évaluer (superviseurs ? développeurs ?), pour quelle période (avril 2026 ?), et quelles téléconseillères feront les appels TC.',
             exemple: 'Ex : "Évaluation Superviseurs — Avril 2026"',
             action: 'Onglet "Mes campagnes" → Nouvelle campagne',
           },
           {
             n: 2, emoji: '🕵️', color: '#8b5cf6',
-            titre: 'Génération des appels mystères',
+            titre: 'Génération des appels TC',
             qui: 'Système automatique',
             quoi: 'Le système tire au sort 5 PDV par agent évalué et les distribue aux téléconseillères avec la question à poser. Les TC voient leur liste directement.',
             exemple: 'Ex : TC Aminata doit appeler 5 PDV de la zone de Superviseur Mariam.',
-            action: 'Dans la campagne → "Générer appels mystères"',
+            action: 'Dans la campagne → "Générer appels TC"',
           },
           {
             n: 3, emoji: '📞', color: '#10b981',
-            titre: 'Les TC font leurs appels mystères',
+            titre: 'Les TC font leurs appels TC',
             qui: 'Téléconseillères',
             quoi: 'Chaque TC appelle les PDV assignés et pose la question (ex: "Quand votre superviseur est-il passé ?"). Elle note la réponse et donne une note sur 10.',
             exemple: 'PDV répond : "Il y a 3 jours" → TC donne 8/10',
-            action: 'Onglet "Appels mystères (TC)"',
+            action: 'Onglet "Appels TC"',
           },
           {
             n: 4, emoji: '✍️', color: '#f59e0b',
@@ -111,7 +111,7 @@ function TabGuide({ onStart }) {
             n: 5, emoji: '🏆', color: '#FF6900',
             titre: 'Calcul du score final & clôture',
             qui: 'Admin (un clic)',
-            quoi: 'Le système combine automatiquement : KPI du réseau (40%) + notes appels mystères (30%) + test terrain (20%) + notes manuelles (10%). Score sur 100, classement, bonus et rapport PDF.',
+            quoi: 'Le système combine automatiquement : KPI du réseau (40%) + notes appels TC (30%) + test terrain (20%) + notes manuelles (10%). Score sur 100, classement, bonus et rapport PDF.',
             exemple: 'Superviseur Mariam : 74.8/100 → "Bien ✓" → Bonus 5%',
             action: 'Dans la campagne → "Calculer tous les scores" → "Clôturer"',
           },
@@ -149,10 +149,10 @@ function TabGuide({ onStart }) {
       {/* Tableau des pondérations */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
         {[
-          { role: 'SUPERVISEUR', poids: [['KPI automatiques', 40], ['Appels mystères PDV', 30], ['Test connaissance terrain', 20], ['Notes RC/Admin', 10]] },
-          { role: 'GESTIONNAIRE', poids: [['KPI automatiques', 60], ['Appels mystères PDV', 40]] },
+          { role: 'SUPERVISEUR', poids: [['KPI automatiques', 40], ['Appels TC PDV', 30], ['Test connaissance terrain', 20], ['Notes RC/Admin', 10]] },
+          { role: 'GESTIONNAIRE', poids: [['KPI automatiques', 60], ['Appels TC PDV', 40]] },
           { role: 'DEVELOPPEUR', poids: [['Performance commerciale', 40], ['Qualité terrain', 30], ['Contribution indicateurs', 20], ['Discipline/SLA', 10]] },
-          { role: 'TELECONSEILLERE', poids: [['Volume appels', 30], ['Qualité interactions', 30], ['Impact terrain', 30], ['Appels mystères retour', 10]] },
+          { role: 'TELECONSEILLERE', poids: [['Volume appels', 30], ['Qualité interactions', 30], ['Impact terrain', 30], ['Appels TC retour', 10]] },
         ].map(r => (
           <div key={r.role} className="modal-section" style={{ background: 'var(--bg-card)', margin: 0 }}>
             <h3 style={{ color: ROLE_LABELS[r.role]?.color }}>{ROLE_LABELS[r.role]?.label}</h3>
@@ -188,7 +188,7 @@ function TabCampagnes() {
   const [selected, setSelected] = useState(null);
   const [users, setUsers] = useState([]);
   const [filterRole, setFilterRole] = useState('SUPERVISEUR');
-  const [mysteryResult, setMysteryResult] = useState(null); // résultat génération appels mystères
+  const [mysteryResult, setMysteryResult] = useState(null); // résultat génération appels TC
   const [mysteryGenModal, setMysteryGenModal] = useState(null); // modal choisir agent+TC
 
   const reload = () => evalService.listCampaigns({ role_type: filterRole || undefined }).then(setCampaigns);
@@ -215,7 +215,7 @@ function TabCampagnes() {
         alert('✅ Campagne clôturée ! Consultez les résultats dans "Résultats & PDF".');
         reload();
       } else if (action === 'delete') {
-        if (!window.confirm('⚠️ Supprimer cette campagne ?\n\nToutes les données (scores, appels mystères, notes) seront définitivement supprimées.')) return;
+        if (!window.confirm('⚠️ Supprimer cette campagne ?\n\nToutes les données (scores, appels TC, notes) seront définitivement supprimées.')) return;
         await api.delete(`/evaluations/campaigns/${campaignId}`);
         reload();
       }
@@ -225,7 +225,7 @@ function TabCampagnes() {
   // Étapes d'une campagne (pour l'affichage visuel)
   const getSteps = (c) => [
     { label: 'Campagne créée',         done: true },
-    { label: 'Appels mystères générés', done: c.n_scores > 0 || c.status === 'ACTIVE' },
+    { label: 'Appels TC générés', done: c.n_scores > 0 || c.status === 'ACTIVE' },
     { label: 'Notes saisies',           done: c.n_final > 0 },
     { label: 'Scores calculés',         done: ['CLOSED', 'REVIEW'].includes(c.status) || c.n_final === c.n_scores },
     { label: 'Clôturé',                 done: c.status === 'CLOSED' },
@@ -373,7 +373,7 @@ function TabCampagnes() {
                     }}>👁</button>
                   {c.status === 'DRAFT' && (
                     <button onClick={() => handleAction('mystery', c.id)}
-                      title="Générer les appels mystères"
+                      title="Générer les appels TC"
                       style={{
                         padding: '5px 8px', borderRadius: 6, border: '1px solid #8b5cf6',
                         background: 'rgba(139,92,246,0.12)', color: '#8b5cf6',
@@ -419,7 +419,7 @@ function TabCampagnes() {
       {campaigns.length > 0 && (
         <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
           <span>👁 Voir détail</span>
-          <span>🕵️ Générer appels mystères</span>
+          <span>🕵️ Générer appels TC</span>
           <span>▶ Calculer scores</span>
           <span>🔒 Clôturer</span>
         </div>
@@ -430,7 +430,7 @@ function TabCampagnes() {
       {selected && <CampagneDetailModal campaign={selected} users={users}
         onClose={() => setSelected(null)}/>}
 
-      {/* Modal choisir agent + TC pour générer les appels mystères */}
+      {/* Modal choisir agent + TC pour générer les appels TC */}
       {mysteryGenModal && (
         <MysteryGenModal
           campaign={mysteryGenModal.campaign}
@@ -442,7 +442,7 @@ function TabCampagnes() {
         />
       )}
 
-      {/* Modal résultat génération appels mystères avec 2 sections */}
+      {/* Modal résultat génération appels TC avec 2 sections */}
       {mysteryResult && (
         <MysteryResultModal result={mysteryResult} onClose={() => setMysteryResult(null)}/>
       )}
@@ -451,7 +451,7 @@ function TabCampagnes() {
 }
 
 // Wizard création simplifié (3 étapes)
-/* ── Modal sélection agent + TC pour générer les appels mystères ── */
+/* ── Modal sélection agent + TC pour générer les appels TC ── */
 function MysteryGenModal({ campaign, campaignId, users, tcs, onClose, onDone }) {
   const ROLE_MAP = { SUPERVISEUR: 'superviseur', GESTIONNAIRE: 'manager', DEVELOPPEUR: 'developpeur', TELECONSEILLERE: 'teleconseillere' };
   const roleType = campaign?.role_type || 'SUPERVISEUR';
@@ -480,7 +480,7 @@ function MysteryGenModal({ campaign, campaignId, users, tcs, onClose, onDone }) 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-        <h2>🕵️ Générer les appels mystères</h2>
+        <h2>🕵️ Générer les appels TC</h2>
         <div style={{ padding: '10px 14px', background: 'rgba(139,92,246,0.08)', borderRadius: 8, borderLeft: '3px solid #8b5cf6', marginBottom: 20, fontSize: 13 }}>
           Sélectionnez l'agent à évaluer et la TC qui effectuera les appels.<br/>
           <b>10 PDV seront générés automatiquement</b> : 5 pour vérifier le dernier passage + 5 pour tester la géolocalisation terrain.
@@ -572,7 +572,7 @@ function MysteryGenModal({ campaign, campaignId, users, tcs, onClose, onDone }) 
   );
 }
 
-/* ── Modal résultat génération appels mystères — 2 sections ── */
+/* ── Modal résultat génération appels TC — 2 sections ── */
 function MysteryResultModal({ result, onClose }) {
   const [noteModal, setNoteModal] = useState(null); // tâche à noter
   const [notedIds, setNotedIds] = useState(new Set());
@@ -627,7 +627,7 @@ function MysteryResultModal({ result, onClose }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 760 }}>
-        <h2>🕵️ Appels mystères — {agentName}</h2>
+        <h2>🕵️ Appels TC — {agentName}</h2>
 
         {/* Résumé */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
@@ -693,7 +693,7 @@ function MysteryResultModal({ result, onClose }) {
         </div>
 
         <div style={{ padding: '10px 14px', background: 'rgba(34,197,94,0.08)', borderRadius: 8, borderLeft: '3px solid var(--success)', marginTop: 16, fontSize: 13 }}>
-          ✅ <b>{tcName}</b> verra ces {tasks.length} PDV dans son onglet "Appels mystères (TC)". Vous pouvez aussi noter directement ci-dessus.
+          ✅ <b>{tcName}</b> verra ces {tasks.length} PDV dans son onglet "Appels TC". Vous pouvez aussi noter directement ci-dessus.
         </div>
 
         <div className="modal-footer">
@@ -767,7 +767,7 @@ function WizardCreerCampagne({ users, tcs, onClose, onSaved }) {
       return;
     }
     if (d.mystery_call_user_ids.length === 0) {
-      alert('⚠️ Veuillez sélectionner au moins une téléconseillère pour les appels mystères.');
+      alert('⚠️ Veuillez sélectionner au moins une téléconseillère pour les appels TC.');
       return;
     }
     setBusy(true);
@@ -860,7 +860,7 @@ function WizardCreerCampagne({ users, tcs, onClose, onSaved }) {
                     style={{ borderColor: roleColor }}
                     placeholder="Ex : Évaluation Superviseurs — Avril 2026"/>
                 </label>
-                <label>Appels mystères par agent
+                <label>Appels TC par agent
                   <input type="number" min={1} max={10} value={d.n_mystery_calls}
                     onChange={e => setD({...d, n_mystery_calls: parseInt(e.target.value)})}/>
                 </label>
@@ -895,7 +895,7 @@ function WizardCreerCampagne({ users, tcs, onClose, onSaved }) {
                 {[
                   { icon: '📅', label: 'Période', val: `${d.date_start} → ${d.date_end}` },
                   { icon: '👥', label: 'Agents', val: d.target_user_ids.length > 0 ? `${d.target_user_ids.length} sélectionné(s)` : `Tous (${roleUsers.length})` },
-                  { icon: '📞', label: 'Appels mystères', val: `${d.n_mystery_calls} PDV / agent` },
+                  { icon: '📞', label: 'Appels TC', val: `${d.n_mystery_calls} PDV / agent` },
                 ].map(item => (
                   <div key={item.label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
                     <div style={{ fontSize: 20, marginBottom: 4 }}>{item.icon}</div>
@@ -956,10 +956,10 @@ function WizardCreerCampagne({ users, tcs, onClose, onSaved }) {
               </div>
             </div>
 
-            {/* TC pour appels mystères — TOUTES sélectionnées par défaut */}
+            {/* TC pour appels TC — TOUTES sélectionnées par défaut */}
             <div className="modal-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <h3 style={{ margin: 0 }}>📞 TC pour les appels mystères</h3>
+                <h3 style={{ margin: 0 }}>📞 TC pour les appels TC</h3>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button onClick={() => setD(s => ({ ...s, mystery_call_user_ids: tcs.map(u => u.id) }))}
                     style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, border: '1px solid #8b5cf6', background: 'rgba(139,92,246,0.12)', color: '#8b5cf6', cursor: 'pointer' }}>
@@ -1140,7 +1140,7 @@ function TabNotesManuelles() {
                           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>Note sur {c.max || 10}</span>
                         </label>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
-                          {c.key === 'mystery_last_visit' && '📞 Basé sur les appels mystères — les TC ont demandé aux PDV "Quand votre agent est-il passé ?"'}
+                          {c.key === 'mystery_last_visit' && '📞 Basé sur les appels TC — les TC ont demandé aux PDV "Quand votre agent est-il passé ?"'}
                           {c.key === 'geo_knowledge' && '🗺️ Test terrain — vous appelez l\'agent et lui donnez 5 PDV à localiser'}
                           {c.key === 'mystery_quality' && '🕵️ Qualité des interactions vérifiée par rappel des PDV'}
                         </div>
@@ -1189,7 +1189,7 @@ function TabAppelsMysteres() {
   return (
     <>
       <div style={{ padding: 14, background: 'rgba(139,92,246,0.08)', borderRadius: 8, borderLeft: '3px solid #8b5cf6', marginBottom: 16 }}>
-        <b>🕵️ {isAdminRC ? 'Supervision des appels mystères' : 'Comment faire un appel mystère ?'}</b>
+        <b>🕵️ {isAdminRC ? 'Supervision des appels TC' : 'Comment faire un appel TC ?'}</b>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.6 }}>
           {isAdminRC ? (
             <>En tant qu'Admin/RC, vous pouvez voir toutes les tâches en attente, appeler les PDV directement et enregistrer les résultats.</>
@@ -1233,7 +1233,7 @@ function TabAppelsMysteres() {
       {loading ? <div className="loading-state">Chargement de votre liste…</div> :
        displayQueue.length === 0 ? (
         <div className="empty-state">
-          🎉 {isAdminRC ? 'Aucun appel mystère en attente.' : 'Vous n\'avez aucun appel mystère en attente.'}<br/>
+          🎉 {isAdminRC ? 'Aucun appel TC en attente.' : 'Vous n\'avez aucun appel TC en attente.'}<br/>
           <small>Les appels seront attribués quand une campagne est lancée.</small>
         </div>
       ) : (
@@ -1293,7 +1293,7 @@ function TabAppelsMysteres() {
       {logModal && (
         <div className="modal-backdrop" onClick={() => setLogModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
-            <h2>📞 Résultat de l'appel mystère</h2>
+            <h2>📞 Résultat de l'appel TC</h2>
             <div style={{ background: 'rgba(139,92,246,0.08)', borderRadius: 8, padding: 12, marginBottom: 16 }}>
               <b>Question posée :</b> {logModal.question}
               {isAdminRC && logModal.tc_user_name && (
@@ -1424,7 +1424,7 @@ function TabResultats() {
                         <b style={{ fontSize: 14 }}>{s.user_name}</b>
                         <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                           <span>KPI : {s.score_kpi?.toFixed(1)||'—'}</span>
-                          <span>Mystères : {s.score_mystery?.toFixed(1)||'—'}</span>
+                          <span>Appels TC : {s.score_mystery?.toFixed(1)||'—'}</span>
                           <span>Manuel : {s.score_manual?.toFixed(1)||'—'}</span>
                           {s.bonus_amount > 0 && <span style={{ color: 'var(--success)' }}>💰 Bonus : {s.bonus_amount?.toLocaleString('en-US').replace(/,/g, ' ')} F</span>}
                         </div>
@@ -1484,7 +1484,7 @@ function TabConfiguration() {
         <b>⚙️ À quoi sert la configuration ?</b>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.6 }}>
           Vous pouvez ajuster l'importance (%) de chaque dimension dans le score final.
-          Par exemple : si vous voulez donner plus d'importance aux appels mystères, augmentez leur pourcentage.
+          Par exemple : si vous voulez donner plus d'importance aux appels TC, augmentez leur pourcentage.
           <b> La somme doit toujours égaler 100%.</b>
         </div>
       </div>
@@ -1811,7 +1811,7 @@ function CampagneDetailModal({ campaign, users, onClose }) {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   {[
                     { label: '📊 Score KPI', val: activeAgent.score_kpi, color: '#3b82f6', desc: 'Données terrain' },
-                    { label: '🕵️ Appels mystères', val: activeAgent.score_mystery, color: '#8b5cf6', desc: 'Notes TC' },
+                    { label: '🕵️ Appels TC', val: activeAgent.score_mystery, color: '#8b5cf6', desc: 'Notes TC' },
                     { label: '✍️ Notes manuelles', val: activeAgent.score_manual, color: '#f59e0b', desc: 'Évaluation directe' },
                   ].map(item => (
                     <div key={item.label} style={{

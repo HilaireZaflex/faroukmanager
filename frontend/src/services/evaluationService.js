@@ -20,7 +20,7 @@ export const evalService = {
   addManualNote:   (cid, uid, p)   => api.post(`${base}/campaigns/${cid}/scores/${uid}/manual-note`, p).then(r => r.data),
   downloadPdf:     (cid, uid)      => `${api.defaults.baseURL}${base}/campaigns/${cid}/scores/${uid}/pdf`,
 
-  // Appels mystères
+  // Appels TC
   myMysteryQueue:  ()              => api.get(`${base}/mystery/my-queue`).then(r => r.data),
   logMystery:      (id, payload)   => api.post(`${base}/mystery/${id}/log`, payload).then(r => r.data),
   mysteryStats:    (cid)           => api.get(`${base}/mystery/stats/${cid}`).then(r => r.data),

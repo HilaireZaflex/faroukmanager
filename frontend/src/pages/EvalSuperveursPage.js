@@ -104,7 +104,7 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
 
   // Nom du PDV : les appels enregistrés avant la correction ne contiennent que
   // numero_pdv. On retrouve donc le nom dans la liste des PDV générés pour les
-  // appels mystères, puis on retombe sur le numéro.
+  // appels TC, puis on retombe sur le numéro.
   const nomPdv = React.useCallback((c) => {
     if (!c) return '—';
     if (c.pdv_nom) return c.pdv_nom;
@@ -531,11 +531,18 @@ async function exportPDF(evaluation, superviseur, mois, annee) {
 async function _buildReportHTML(evaluation, superviseur, mois, annee) {
   // Charger les PDV inactifs/en baisse depuis l'API
   let pdvDetails = { omy: { inactifs: [], en_baisse: [] }, nafama: { inactifs: [], en_baisse: [] }, kaabu: { inactifs: [] } };
+  // PDV qui pénalisent le superviseur (analyse multi-sources OMY/KAABU/NAFAMA/Appels TC)
+  let pdvsRisque = { pdvs: [], synthese: {} };
   try {
     const api = require('../services/api').default;
     const r = await api.get(`/eval-superviseurs/${encodeURIComponent(superviseur)}/pdv-details`, { params: { annee, mois } });
     pdvDetails = r.data;
   } catch (e) { console.warn('PDV details non disponibles:', e); }
+  try {
+    const api = require('../services/api').default;
+    const r2 = await api.get(`/eval-superviseurs/${encodeURIComponent(superviseur)}/pdvs-a-risque`, { params: { annee, mois } });
+    pdvsRisque = r2.data || pdvsRisque;
+  } catch (e) { console.warn('PDV à risque non disponibles:', e); }
   const MOIS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
   const score = Math.round(evaluation.score_final || 0);
   const mention = evaluation.mention || '—';
@@ -621,7 +628,7 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
   };
 
   // Nom du PDV — les appels enregistrés avant la correction ne contiennent que
-  // le numéro : on retrouve le nom dans les PDV générés pour les appels mystères.
+  // le numéro : on retrouve le nom dans les PDV générés pour les appels TC.
   const nomPdvReport = (c) => {
     if (!c) return '—';
     if (c.pdv_nom) return c.pdv_nom;
@@ -646,6 +653,34 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
         </td>
       </tr>`;
   }).join('');
+
+  // ── PDV qui pénalisent le superviseur (analyse multi-sources) ──────────────
+  const CAT_COUL = { OMY: '#dc2626', KAABU: '#7c3aed', NAFAMA: '#0d9488', MYSTERE: '#d97706' };
+  const synth = pdvsRisque.synthese || {};
+  const synthObjectifs = [
+    { label: 'Taux actif OMY',    taux: synth.taux_actif_omy,    obj: synth.objectif_omy,    reactiver: synth.pdv_a_reactiver_omy,    color: '#dc2626' },
+    { label: 'Taux actif KM',     taux: synth.taux_actif_km,     obj: synth.objectif_km,     reactiver: synth.pdv_a_reactiver_km,     color: '#7c3aed' },
+    { label: 'Taux actif NAFAMA', taux: synth.taux_actif_nafama, obj: synth.objectif_nafama, reactiver: synth.pdv_a_reactiver_nafama, color: '#0d9488' },
+  ];
+  const syntheseHtml = synthObjectifs.map(o => {
+    const atteint = (o.taux || 0) >= (o.obj || 0);
+    return `<div style="flex:1;min-width:180px;border-radius:10px;padding:12px;border-top:3px solid ${atteint ? '#16a34a' : o.color};background:#f9fafb">
+      <div style="font-size:11px;color:#6b7280">${o.label}</div>
+      <div style="font-size:20px;font-weight:800;color:${atteint ? '#16a34a' : o.color}">${o.taux != null ? o.taux + '%' : '—'}<span style="font-size:11px;font-weight:600;color:#9ca3af"> / obj. ${o.obj}%</span></div>
+      <div style="font-size:11px;color:${atteint ? '#16a34a' : '#d97706'};margin-top:3px">${atteint ? '✅ Objectif atteint' : `${o.reactiver} PDV à réactiver`}</div>
+    </div>`;
+  }).join('');
+
+  const pdvsRisqueRows = (pdvsRisque.pdvs || []).map(p => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600">${p.nom && p.nom !== '—' ? p.nom : p.numero_pdv}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.numero_pdv}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.quartier || '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.teleconseillere || '—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">
+        ${p.raisons.map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;border-radius:12px;background:${(CAT_COUL[r.categorie] || '#dc2626')}1a;color:${CAT_COUL[r.categorie] || '#dc2626'};font-size:11px;font-weight:600">${r.label}</span>`).join('')}
+      </td>
+    </tr>`).join('');
 
   // Récupérer TOUS les KPIs disponibles: depuis kpis_data directement (valeurs brutes)
   // + depuis objectifs/scores_kpi si disponibles
@@ -767,15 +802,28 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
           <div style="color:#374151;font-size:12px;margin-top:4px">${k.val}</div>
         </div>`).join('')}
     </div>` : ''}
-    <!-- PDV problématiques appels TC -->
-    ${pdvsEnRetardRows ? `<div class="section-title" style="margin-top:20px">📵 PDV problématiques — Appels des Téléconseillères (${pdvsEnRetard.length})</div>
+    <!-- PDV qui pénalisent le superviseur -->
+    ${(pdvsRisque.pdvs || []).length > 0
+      ? `<div class="section-title" style="margin-top:24px">⚠️ PDV qui impactent négativement le score (${pdvsRisque.pdvs.length} PDV sur ${synth.nb_pdv || '—'})</div>
+    <p style="color:#6b7280;font-size:13px;margin:0 0 14px">Ces points de vente vous empêchent d'atteindre vos objectifs. Traitez en priorité ceux qui cumulent le plus de problèmes.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">${syntheseHtml}</div>
     <div class="alert-box">
-      <h3>Ces PDV ont des insuffisances détectées lors des appels des Téléconseillères</h3>
+      <h3>Détail des PDV à problème</h3>
+      <table>
+        <thead><tr><th>PDV</th><th>Numéro</th><th>Quartier</th><th>Téléconseillère</th><th>Problèmes détectés</th></tr></thead>
+        <tbody>${pdvsRisqueRows}</tbody>
+      </table>
+    </div>`
+      : pdvsEnRetardRows
+        ? `<div class="section-title" style="margin-top:20px">📵 PDV problématiques — Appels TC (${pdvsEnRetard.length})</div>
+    <div class="alert-box">
+      <h3>Ces PDV ont des insuffisances détectées lors des appels TC</h3>
       <table>
         <thead><tr><th>PDV</th><th>Numéro</th><th>Quartier</th><th>Problèmes détectés</th></tr></thead>
         <tbody>${pdvsEnRetardRows}</tbody>
       </table>
-    </div>` : kpisProblemes.length === 0 ? `<div class="section-title" style="margin-top:32px">✅ Aucune anomalie détectée</div>
+    </div>`
+        : kpisProblemes.length === 0 ? `<div class="section-title" style="margin-top:32px">✅ Aucune anomalie détectée</div>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;color:#16a34a;font-weight:600;text-align:center">
       Toutes les catégories KPIs sont au-dessus des objectifs et aucun PDV n'est en difficulté.
     </div>` : ''}
@@ -1813,7 +1861,7 @@ export default function EvalSuperveursPage() {
     { enabled: !!selectedSup, retry: false, onError: () => {} }
   );
 
-  // PDV qui pénalisent le superviseur (OMY + KAABU + NAFAMA + mystères)
+  // PDV qui pénalisent le superviseur (OMY + KAABU + NAFAMA + appels TC)
   const { data: pdvsRisque } = useQuery(
     ['eval-pdvs-risque', selectedSup, annee, mois],
     () => api.get(`/eval-superviseurs/${encodeURIComponent(selectedSup)}/pdvs-a-risque`, { params: { annee, mois } }).then(r => r.data),
@@ -1943,14 +1991,14 @@ export default function EvalSuperveursPage() {
             J-1 : Lance l'éval + notifie les TC automatiquement
           </p>
           <button onClick={() => {
-            if (!window.confirm(`Rafraîchir les KPIs (dont le Taux actif KM depuis KAABU) pour ${MOIS_NOMS[mois]} ${annee} ?\n\nLes appels mystères et les notes de présentiel déjà saisis sont CONSERVÉS.`)) return;
+            if (!window.confirm(`Rafraîchir les KPIs (dont le Taux actif KM depuis KAABU) pour ${MOIS_NOMS[mois]} ${annee} ?\n\nLes appels TC et les notes de présentiel déjà saisis sont CONSERVÉS.`)) return;
             api.post(`/eval-superviseurs/rafraichir-kpis?annee=${annee}&mois=${mois}`)
               .then(r => {
                 const d = r.data;
                 const avant = d.details?.filter(x => x.taux_actif_km_avant !== x.taux_actif_km_apres).length || 0;
                 alert(`✅ KPIs rafraîchis pour ${d.nb_mises_a_jour} superviseur(s)\n`
                   + `dont ${avant} avec un Taux actif KM modifié.\n\n`
-                  + `Les appels mystères et notes de présentiel sont intacts.`);
+                  + `Les appels TC et notes de présentiel sont intacts.`);
                 qc.invalidateQueries(['eval-classement']);
                 qc.invalidateQueries(['eval-superviseurs-list']);
                 qc.invalidateQueries(['eval-sup']);
@@ -1961,7 +2009,7 @@ export default function EvalSuperveursPage() {
             🔄 Rafraîchir les KPIs (KAABU / OMY / NAFAMA)
           </button>
           <p style={{ fontSize: 11, color: '#64748b', marginTop: 6, textAlign: 'right' }}>
-            À utiliser après un import de données — ne touche pas aux mystères
+            À utiliser après un import de données — ne touche pas aux appels TC
           </p>
         </div>
       </div>
@@ -2043,7 +2091,7 @@ export default function EvalSuperveursPage() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{c.superviseur}</div>
                           <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 2 }}>
-                            KPIs: {Math.round(c.score_kpi || 0)} · Mystery: {Math.round(c.score_mystery || 0)} · Présentiel: {Math.round(c.score_presentiel || 0)}
+                            KPIs: {Math.round(c.score_kpi || 0)} · Appels TC: {Math.round(c.score_mystery || 0)} · Présentiel: {Math.round(c.score_presentiel || 0)}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>

@@ -25,7 +25,7 @@ DEFAULT_CONFIGS = {
             {"key": "taux_actif_omy",       "label": "Taux actif OMy",      "max": 100, "unit": "%",    "auto": True},
             {"key": "taux_actif_nafama",    "label": "Taux actif NAFAMA",   "max": 100, "unit": "%",    "auto": True},
             {"key": "taux_actif_kaabu",     "label": "Taux actif KAABU",    "max": 100, "unit": "%",    "auto": True},
-            {"key": "mystery_last_visit",   "label": "Appels mystères (dernier passage)", "max": 10, "unit": "/10", "auto": False, "category": "mystery"},
+            {"key": "mystery_last_visit",   "label": "Appels TC (dernier passage)", "max": 10, "unit": "/10", "auto": False, "category": "mystery"},
             {"key": "geo_knowledge",        "label": "Connaissance terrain", "max": 10, "unit": "/10", "auto": False, "category": "terrain"},
         ],
         "mystery_call_questions": {
@@ -51,7 +51,7 @@ DEFAULT_CONFIGS = {
             {"key": "taux_actif_nafama",  "label": "Taux actif NAFAMA",     "max": 100, "unit": "%",    "auto": True},
             {"key": "taux_actif_kaabu",   "label": "Taux actif KAABU",      "max": 100, "unit": "%",    "auto": True},
             {"key": "pdv_actifs",         "label": "Nb PDV actifs",          "max": 100, "unit": "PDV",  "auto": True},
-            {"key": "mystery_last_visit", "label": "Appels mystères (passage)", "max": 10, "unit": "/10", "auto": False, "category": "mystery"},
+            {"key": "mystery_last_visit", "label": "Appels TC (passage)", "max": 10, "unit": "/10", "auto": False, "category": "mystery"},
         ],
         "mystery_call_questions": {
             "LAST_VISIT": "Bonjour, quand votre gestionnaire est-il passé vous voir pour la dernière fois ?",
