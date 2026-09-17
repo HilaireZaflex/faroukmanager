@@ -533,6 +533,22 @@ def ma_liste_mystery_early(
     return {"tc_nom": tc_nom, "total": len(ma_liste), "liste": ma_liste}
 
 
+@router.get("/eval-superviseurs/{superviseur}/pdvs-a-risque")
+def get_pdvs_a_risque(
+    superviseur: str,
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """PDV du superviseur qui pénalisent ses résultats, avec les raisons.
+
+    Croise OMY, KAABU, NAFAMA et les appels mystères pour expliquer au
+    superviseur quels points de vente l'empêchent d'atteindre ses objectifs.
+    """
+    return svc.get_pdvs_a_risque(db, superviseur, annee, mois)
+
+
 @router.get("/eval-superviseurs/{superviseur}/pdv-details")
 def get_pdv_details(
     superviseur: str,
@@ -685,6 +701,28 @@ def ajouter_mystery_call(
     call_data['tc_nom'] = call.tc_nom or f"{current_user.prenom or ''} {current_user.nom or ''}".strip()
     call_data['tc_user_id'] = current_user.id
     call_data['date_appel'] = str(date.today())
+
+    # Enrichir avec le NOM du PDV : sans lui, les tableaux de récapitulatif
+    # n'affichent ni nom ni numéro (le payload ne contient que numero_pdv).
+    try:
+        from app.models.pdv import PDV as _PDV
+        p = db.query(_PDV).filter(_PDV.numero_pdv == str(call.numero_pdv)).first()
+        if not p:
+            # repli : la liste générée pour les appels mystères contient le nom
+            for g in (e.pdvs_mystery_generes or []):
+                if str(g.get('numero_pdv')) == str(call.numero_pdv):
+                    p = None
+                    call_data['pdv_nom'] = g.get('nom')
+                    call_data['pdv_numero'] = call.numero_pdv
+                    call_data['quartier'] = g.get('quartier')
+                    break
+        if p is not None:
+            call_data['pdv_nom'] = p.nom
+            call_data['pdv_numero'] = p.numero_pdv
+            call_data['quartier'] = p.quartier
+    except Exception:
+        pass
+    call_data.setdefault('pdv_numero', call.numero_pdv)
 
     # Remplacer si même PDV existe
     calls = [c for c in calls if c['numero_pdv'] != call.numero_pdv]

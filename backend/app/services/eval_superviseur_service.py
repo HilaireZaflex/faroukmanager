@@ -233,6 +233,196 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     }
 
 
+# ─── PDV QUI PÉNALISENT LE SUPERVISEUR ────────────────────────────────────────
+
+# Objectifs utilisés pour dire si un PDV « empêche d'atteindre l'objectif »
+OBJECTIFS_PDV = {
+    'taux_actif_omy': 100,
+    'taux_actif_km': 90,
+    'taux_actif_nafama': 85,
+}
+
+
+def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> Dict[str, Any]:
+    """Liste les PDV du superviseur qui tirent ses résultats vers le bas, AVEC les raisons.
+
+    Croise les sources réelles :
+      - OMY    : monthly_performances (est_actif, CA)
+      - KAABU  : kaabu_transactions sur les semaines du mois (activité réelle)
+      - NAFAMA : nafama_transactions (présence de ventes)
+      - Mystère: appels téléconseillères injoignables ou mal notés
+
+    Chaque PDV ressort avec la liste de ses raisons, triée du plus pénalisant
+    au moins pénalisant, pour que le superviseur sache quoi corriger en priorité.
+    """
+    from app.models.performance import MonthlyPerformance
+    from app.models.nafama import NafamaTransaction
+    from app.models.kaabu import KaabuTransaction
+
+    pdvs = db.query(PDV).filter(PDV.superviseur.ilike(f"%{superviseur}%")).all()
+    nb_pdv = len(pdvs)
+    if not nb_pdv:
+        return {"superviseur": superviseur, "annee": annee, "mois": mois, "nb_pdv": 0,
+                "synthese": {}, "pdvs": []}
+
+    pdv_ids = [p.id for p in pdvs]
+    numeros = [str(p.numero_pdv).strip() for p in pdvs if p.numero_pdv]
+
+    # ── OMY ──────────────────────────────────────────────────────────────────
+    perfs_omy = {
+        p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+            MonthlyPerformance.pdv_id.in_(pdv_ids),
+            MonthlyPerformance.annee == annee,
+            MonthlyPerformance.mois == mois,
+            MonthlyPerformance.indicateur == 'OMY',
+        ).all()
+    }
+
+    # ── KAABU : semaines du mois, activité réelle ────────────────────────────
+    semaines = _get_semaines_mois(db, annee, mois)
+    kaabu_actifs, kaabu_volume = set(), {}
+    if semaines and numeros:
+        for num, actif, vol in db.query(
+            KaabuTransaction.numero_pdv, KaabuTransaction.est_actif, KaabuTransaction.volume_kaabu
+        ).filter(
+            KaabuTransaction.annee == annee,
+            KaabuTransaction.semaine.in_(semaines),
+            KaabuTransaction.numero_pdv.in_(numeros),
+        ).all():
+            if actif:
+                kaabu_actifs.add(str(num).strip())
+            kaabu_volume[str(num).strip()] = kaabu_volume.get(str(num).strip(), 0) + (vol or 0)
+
+    # ── NAFAMA : ventes du mois ──────────────────────────────────────────────
+    nafama_pdvs, nafama_montant = set(), {}
+    if numeros:
+        for num, mont in db.query(
+            NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant)
+        ).filter(
+            NafamaTransaction.annee == annee,
+            NafamaTransaction.mois == mois,
+            NafamaTransaction.numero_pdv.in_(numeros),
+        ).group_by(NafamaTransaction.numero_pdv).all():
+            nafama_pdvs.add(str(num).strip())
+            nafama_montant[str(num).strip()] = float(mont or 0)
+
+    # ── Appels mystères déjà enregistrés ─────────────────────────────────────
+    from app.models.eval_superviseur import EvalSuperviseur
+    ev = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.superviseur == superviseur,
+        EvalSuperviseur.annee == annee,
+        EvalSuperviseur.mois == mois,
+    ).first()
+    appels = {str(c.get('numero_pdv')): c for c in ((ev.mystery_calls or []) if ev else [])}
+
+    # ── Construction des raisons, PDV par PDV ───────────────────────────────
+    lignes, nb_inactif_omy, nb_inactif_km, nb_sans_nafama = [], 0, 0, 0
+
+    for p in pdvs:
+        num = str(p.numero_pdv).strip()
+        raisons = []
+
+        perf = perfs_omy.get(p.id)
+        ca_omy = float(perf.montant_ca or 0) if perf and perf.montant_ca else 0
+        if perf is None:
+            nb_inactif_omy += 1
+            raisons.append({
+                "code": "OMY_ABSENT", "categorie": "OMY",
+                "label": "Absent de l'import OMY",
+                "detail": "Ce PDV n'apparaît pas du tout dans les données OMY du mois.",
+            })
+        elif not perf.est_actif:
+            nb_inactif_omy += 1
+            raisons.append({
+                "code": "OMY_INACTIF", "categorie": "OMY",
+                "label": "Inactif OMY",
+                "detail": "Aucune transaction OMY enregistrée ce mois-ci.",
+            })
+
+        if num and num not in kaabu_actifs:
+            nb_inactif_km += 1
+            raisons.append({
+                "code": "KAABU_INACTIF", "categorie": "KAABU",
+                "label": "Inactif KAABU",
+                "detail": "Ce PDV n'apparaît pas dans la liste KAABU du mois.",
+            })
+
+        if num and num not in nafama_pdvs:
+            nb_sans_nafama += 1
+            raisons.append({
+                "code": "NAFAMA_AUCUNE", "categorie": "NAFAMA",
+                "label": "Aucune vente NAFAMA",
+                "detail": "Aucune vente NAFAMA enregistrée ce mois-ci.",
+            })
+
+        appel = appels.get(num)
+        if appel:
+            if appel.get('statut') == 'INJOIGNABLE':
+                raisons.append({
+                    "code": "MYSTERY_INJOIGNABLE", "categorie": "MYSTERE",
+                    "label": "Injoignable à l'appel mystère",
+                    "detail": "Le PDV n'a pas répondu lors du contrôle téléphonique.",
+                })
+            else:
+                notes = [appel.get('note_connaissance'), appel.get('note_visite'), appel.get('note_superviseur')]
+                notes = [n for n in notes if n is not None]
+                if notes and (sum(notes) / len(notes)) < 5:
+                    raisons.append({
+                        "code": "MYSTERY_NOTES", "categorie": "MYSTERE",
+                        "label": f"Notes d'appel faibles ({round(sum(notes)/len(notes), 1)}/10)",
+                        "detail": "Ne connaît pas bien les produits ou ne voit pas son superviseur.",
+                    })
+
+        if raisons:
+            lignes.append({
+                "numero_pdv": num,
+                "nom": p.nom or '—',
+                "quartier": p.quartier or '—',
+                "teleconseillere": p.teleconseillere or '—',
+                "superviseur": p.superviseur,
+                "ca_omy": round(ca_omy) if ca_omy else 0,
+                "volume_kaabu": kaabu_volume.get(num, 0),
+                "montant_nafama": round(nafama_montant.get(num, 0)),
+                "raisons": raisons,
+                "nb_raisons": len(raisons),
+            })
+
+    # Les PDV qui cumulent le plus de problèmes d'abord
+    lignes.sort(key=lambda x: (-x['nb_raisons'], x['numero_pdv']))
+
+    def taux(nb_ok):
+        return round(nb_ok / nb_pdv * 100, 1) if nb_pdv else 0
+
+    synthese = {
+        "nb_pdv": nb_pdv,
+        "nb_pdv_a_risque": len(lignes),
+        "taux_actif_omy": taux(nb_pdv - nb_inactif_omy),
+        "objectif_omy": OBJECTIFS_PDV['taux_actif_omy'],
+        "manque_omy": nb_inactif_omy,
+        "taux_actif_km": taux(nb_pdv - nb_inactif_km),
+        "objectif_km": OBJECTIFS_PDV['taux_actif_km'],
+        "manque_km": nb_inactif_km,
+        "taux_actif_nafama": taux(nb_pdv - nb_sans_nafama),
+        "objectif_nafama": OBJECTIFS_PDV['taux_actif_nafama'],
+        "manque_nafama": nb_sans_nafama,
+    }
+    # Nombre de PDV à remettre en activité pour atteindre chaque objectif
+    for cle, t, o in (("omy", synthese['taux_actif_omy'], synthese['objectif_omy']),
+                      ("km", synthese['taux_actif_km'], synthese['objectif_km']),
+                      ("nafama", synthese['taux_actif_nafama'], synthese['objectif_nafama'])):
+        manque_pts = max(0, o - t)
+        synthese[f"pdv_a_reactiver_{cle}"] = int(-(-manque_pts * nb_pdv / 100 // 1)) if manque_pts else 0
+
+    return {
+        "superviseur": superviseur,
+        "annee": annee,
+        "mois": mois,
+        "semaines": semaines,
+        "synthese": synthese,
+        "pdvs": lignes,
+    }
+
+
 # ─── GÉNÉRATION PDVs MYSTERY ──────────────────────────────────────────────────
 
 def generer_pdvs_mystery(db: Session, superviseur: str, nb: int = 5, exclus: List[str] = None) -> List[Dict]:

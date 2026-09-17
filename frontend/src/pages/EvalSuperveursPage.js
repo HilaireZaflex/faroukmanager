@@ -102,6 +102,17 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
   const joignables = callsEffectues.filter(c => c.statut === 'JOIGNABLE');
   const injoignables = callsEffectues.filter(c => c.statut === 'INJOIGNABLE');
 
+  // Nom du PDV : les appels enregistrés avant la correction ne contiennent que
+  // numero_pdv. On retrouve donc le nom dans la liste des PDV générés pour les
+  // appels mystères, puis on retombe sur le numéro.
+  const nomPdv = React.useCallback((c) => {
+    if (!c) return '—';
+    if (c.pdv_nom) return c.pdv_nom;
+    const num = String(c.numero_pdv ?? c.pdv_numero ?? '').trim();
+    const trouve = pdvsGeneres.find(p => String(p?.numero_pdv ?? '').trim() === num);
+    return trouve?.nom || num || '—';
+  }, [pdvsGeneres]);
+
   const mutation = useMutation(
     (data) => api.post(`/eval-superviseurs/${encodeURIComponent(superviseur)}/mystery-call?annee=${annee}&mois=${mois}`, data).then(r => r.data),
     { onSuccess: () => { qc.invalidateQueries(['eval-sup', superviseur, annee, mois]); setAppelEnCours(null); setNotes({ note_connaissance:'',note_visite:'',note_superviseur:'',commentaire:'' }); onRefresh(); } }
@@ -160,7 +171,10 @@ function MysterySection({ evaluation, superviseur, annee, mois, onRefresh }) {
                 const col = moy >= 7 ? '#22c55e' : moy >= 5 ? '#ffa502' : '#ff4757';
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '8px 10px', color: '#e2e8f0', fontWeight: 600 }}>{c.pdv_nom || c.pdv_numero}</td>
+                    <td style={{ padding: '8px 10px', color: '#e2e8f0', fontWeight: 600 }}>
+                      {nomPdv(c)}
+                      <span style={{ fontSize: 10, color: '#64748b', fontWeight: 500, marginLeft: 6 }}>{c.numero_pdv}</span>
+                    </td>
                     <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 800, color: (c.note_connaissance||0) >= 7 ? '#22c55e' : (c.note_connaissance||0) >= 5 ? '#ffa502' : '#ff4757' }}>{c.note_connaissance ?? '—'}/10</td>
                     <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 800, color: (c.note_visite||0) >= 7 ? '#22c55e' : (c.note_visite||0) >= 5 ? '#ffa502' : '#ff4757' }}>{c.note_visite ?? '—'}/10</td>
                     <td style={{ textAlign: 'center', padding: '8px 10px', fontWeight: 800, color: (c.note_superviseur||0) >= 7 ? '#22c55e' : (c.note_superviseur||0) >= 5 ? '#ffa502' : '#ff4757' }}>{c.note_superviseur ?? '—'}/10</td>
@@ -606,6 +620,16 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
     nb_pdv_visites:        '👣 Nb PDV Visités',
   };
 
+  // Nom du PDV — les appels enregistrés avant la correction ne contiennent que
+  // le numéro : on retrouve le nom dans les PDV générés pour les appels mystères.
+  const nomPdvReport = (c) => {
+    if (!c) return '—';
+    if (c.pdv_nom) return c.pdv_nom;
+    const num = String(c.numero_pdv ?? c.pdv_numero ?? '').trim();
+    const t = (evaluation.pdvs_mystery_generes || []).find(p => String(p?.numero_pdv ?? '').trim() === num);
+    return t?.nom || num || '—';
+  };
+
   const pdvsEnRetardRows = pdvsEnRetard.map(c => {
     const raisons = [];
     if (c.statut === 'INJOIGNABLE') raisons.push('Injoignable');
@@ -614,8 +638,8 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
     if (c.note_superviseur != null && c.note_superviseur < 5) raisons.push(`Supervision: ${c.note_superviseur}/10`);
     return `
       <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600">${c.pdv_nom || c.pdv_numero}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${c.pdv_numero}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600">${nomPdvReport(c)}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${c.numero_pdv || '—'}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${c.quartier || c.localite || '—'}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">
           ${raisons.map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;border-radius:12px;background:#fee2e2;color:#dc2626;font-size:11px;font-weight:600">${r}</span>`).join('')}
@@ -1789,6 +1813,13 @@ export default function EvalSuperveursPage() {
     { enabled: !!selectedSup, retry: false, onError: () => {} }
   );
 
+  // PDV qui pénalisent le superviseur (OMY + KAABU + NAFAMA + mystères)
+  const { data: pdvsRisque } = useQuery(
+    ['eval-pdvs-risque', selectedSup, annee, mois],
+    () => api.get(`/eval-superviseurs/${encodeURIComponent(selectedSup)}/pdvs-a-risque`, { params: { annee, mois } }).then(r => r.data),
+    { enabled: !!selectedSup, staleTime: 60000, onError: () => {} }
+  );
+
   // Initialiser l'évaluation
   const initMutation = useMutation(
     () => api.post('/eval-superviseurs/initialiser', { superviseur: selectedSup, annee, mois }).then(r => r.data),
@@ -2121,36 +2152,86 @@ export default function EvalSuperveursPage() {
                     ))}
                   </div>
 
-                  {/* PDV qui retardent le superviseur */}
-                  {evaluation.mystery_calls && evaluation.mystery_calls.length > 0 && (() => {
-                    const pdvsEnRetard = evaluation.mystery_calls.filter(c =>
-                      c.statut === 'INJOIGNABLE' ||
-                      (c.note_connaissance != null && c.note_connaissance < 5) ||
-                      (c.note_visite != null && c.note_visite < 5)
-                    );
-                    if (!pdvsEnRetard.length) return null;
+                  {/* PDV qui pénalisent le superviseur — analyse multi-sources */}
+                  {pdvsRisque && pdvsRisque.pdvs && pdvsRisque.pdvs.length > 0 && (() => {
+                    const s = pdvsRisque.synthese || {};
+                    const CAT = {
+                      OMY:     { icon: '📶', color: '#dc2626', label: 'OMY' },
+                      KAABU:   { icon: '💳', color: '#7c3aed', label: 'KAABU' },
+                      NAFAMA:  { icon: '🟢', color: '#00cec9', label: 'NAFAMA' },
+                      MYSTERE: { icon: '📞', color: '#ffa502', label: 'Appel TC' },
+                    };
+                    const objectifs = [
+                      { label: 'Taux actif OMY',    taux: s.taux_actif_omy,    obj: s.objectif_omy,    manque: s.manque_omy,    reactiver: s.pdv_a_reactiver_omy,    color: '#dc2626' },
+                      { label: 'Taux actif KM',     taux: s.taux_actif_km,     obj: s.objectif_km,     manque: s.manque_km,     reactiver: s.pdv_a_reactiver_km,     color: '#7c3aed' },
+                      { label: 'Taux actif NAFAMA', taux: s.taux_actif_nafama, obj: s.objectif_nafama, manque: s.manque_nafama, reactiver: s.pdv_a_reactiver_nafama, color: '#00cec9' },
+                    ];
+                    const fmtN = v => new Intl.NumberFormat('fr-FR').format(Math.round(v || 0));
                     return (
-                      <div style={{ margin: '20px 0', background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.2)', borderRadius: 14, padding: 20 }}>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: '#ff4757', marginBottom: 14 }}>
-                          ⚠️ PDV qui impactent négativement le score ({pdvsEnRetard.length} PDV)
+                      <div style={{ margin: '20px 0', background: 'rgba(255,71,87,0.06)', border: '1px solid rgba(255,71,87,0.25)', borderRadius: 14, padding: 20 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#ff4757', marginBottom: 4 }}>
+                          ⚠️ PDV qui impactent négativement le score ({pdvsRisque.pdvs.length} PDV sur {s.nb_pdv})
                         </div>
+                        <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+                          Ces points de vente vous empêchent d'atteindre vos objectifs. Traitez en priorité ceux qui cumulent le plus de problèmes.
+                        </p>
+
+                        {/* Où en est le superviseur par rapport aux objectifs */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 18 }}>
+                          {objectifs.map(o => {
+                            const atteint = (o.taux || 0) >= (o.obj || 0);
+                            return (
+                              <div key={o.label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 12px', borderTop: `3px solid ${atteint ? '#22c55e' : o.color}` }}>
+                                <div style={{ fontSize: 11, color: '#94a3b8' }}>{o.label}</div>
+                                <div style={{ fontSize: 19, fontWeight: 900, color: atteint ? '#22c55e' : o.color, marginTop: 2 }}>
+                                  {o.taux != null ? `${o.taux}%` : '—'}
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}> / obj. {o.obj}%</span>
+                                </div>
+                                <div style={{ fontSize: 11, color: atteint ? '#22c55e' : '#ffa502', marginTop: 3 }}>
+                                  {atteint
+                                    ? '✅ Objectif atteint'
+                                    : `${o.manque} PDV inactif${o.manque > 1 ? 's' : ''} · ${o.reactiver} à réactiver`}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Liste des PDV, du plus pénalisant au moins pénalisant */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {pdvsEnRetard.map((c, i) => (
-                            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 16px', borderLeft: '3px solid #ff4757' }}>
+                          {pdvsRisque.pdvs.map((p, i) => (
+                            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 16px', borderLeft: `3px solid ${p.nb_raisons >= 3 ? '#ff4757' : p.nb_raisons === 2 ? '#ffa502' : '#64748b'}` }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                                 <div>
-                                  <div style={{ fontWeight: 700, color: '#e2e8f0', fontSize: 14 }}>{c.pdv_nom || c.pdv_numero}</div>
-                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{c.pdv_numero} · {c.quartier || c.localite || '—'}</div>
+                                  <div style={{ fontWeight: 800, color: '#e2e8f0', fontSize: 14 }}>
+                                    {p.nom && p.nom !== '—' ? p.nom : p.numero_pdv}
+                                    <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500, marginLeft: 8 }}>{p.numero_pdv}</span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                                    📍 {p.quartier} · 📞 {p.teleconseillere}
+                                    {p.ca_omy > 0 && <> · CA OMY : {fmtN(p.ca_omy)} F</>}
+                                    {p.volume_kaabu > 0 && <> · Vol. KAABU : {fmtN(p.volume_kaabu)}</>}
+                                    {p.montant_nafama > 0 && <> · NAFAMA : {fmtN(p.montant_nafama)} F</>}
+                                  </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                  {c.statut === 'INJOIGNABLE' && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,71,87,0.15)', color: '#ff4757', fontWeight: 700 }}>📵 Injoignable</span>}
-                                  {c.note_connaissance != null && c.note_connaissance < 5 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,165,2,0.15)', color: '#ffa502', fontWeight: 700 }}>📚 Connaissance faible ({c.note_connaissance}/10)</span>}
-                                  {c.note_visite != null && c.note_visite < 5 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,165,2,0.15)', color: '#ffa502', fontWeight: 700 }}>🏃 Visite insuffisante ({c.note_visite}/10)</span>}
-                                  {c.note_superviseur != null && c.note_superviseur < 5 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(99,102,241,0.15)', color: '#6366f1', fontWeight: 700 }}>👔 Gestion faible ({c.note_superviseur}/10)</span>}
+                                  {p.raisons.map(r => {
+                                    const c = CAT[r.categorie] || { icon: '⚠️', color: '#ff4757' };
+                                    return (
+                                      <span key={r.code} title={r.detail}
+                                        style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: `${c.color}22`, color: c.color, fontWeight: 700, cursor: 'help' }}>
+                                        {c.icon} {r.label}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             </div>
                           ))}
+                        </div>
+
+                        <div style={{ marginTop: 14, fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>
+                          💡 Survolez une étiquette pour voir l'explication. Les PDV sont classés par nombre de problèmes.
                         </div>
                       </div>
                     );
