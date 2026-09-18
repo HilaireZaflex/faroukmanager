@@ -2225,7 +2225,8 @@ export default function EvalSuperveursPage() {
                 )}
               </div>
               {evaluation?.kpis_data ? (
-                <KPIsSection kpis={evaluation.kpis_data} kpisPrecedent={kpisPrecedent} />
+                <KPIsSection kpis={evaluation.kpis_data}
+                  kpisPrecedent={kpisPrecedent?.disponible ? kpisPrecedent : null} />
               ) : (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#8a8a9a' }}>
                   <p>Cliquez sur "Démarrer l'évaluation" pour charger les KPIs</p>

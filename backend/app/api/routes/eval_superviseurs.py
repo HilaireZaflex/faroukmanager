@@ -142,16 +142,42 @@ def get_kpis_mois_precedent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """KPIs du MOIS PRÉCÉDENT, pour mesurer la progression du superviseur.
+    """KPIs du MOIS PRÉCÉDENT tels qu'ENREGISTRÉS dans l'évaluation de ce mois.
 
-    Recalculés en direct (et non relus depuis l'enregistrement du mois
-    précédent) afin d'utiliser exactement la même méthode que les KPIs
-    affichés : c'est indispensable pour que l'écart affiché soit fiable.
+    On compare deux instantanés d'évaluation, et non un instantané avec un
+    recalcul en direct : les données sources évoluent (PDV réaffectés, imports
+    corrigés), si bien qu'un recalcul de juillet aujourd'hui ne donne plus
+    forcément le chiffre qui avait été enregistré en juillet. Mélanger les deux
+    produisait des écarts fantômes (ex. « -2,2 % » sur un nombre de PDV
+    pourtant identique).
+
+    `disponible` indique si une évaluation existe pour le mois précédent.
     """
     mois_prec = mois - 1 if mois > 1 else 12
     annee_prec = annee if mois > 1 else annee - 1
-    kpis = svc.get_kpis_superviseur(db, superviseur, annee_prec, mois_prec)
-    return {**kpis, "annee_precedente": annee_prec, "mois_precedent": mois_prec}
+
+    ev = db.query(EvalSuperviseur).filter(
+        EvalSuperviseur.superviseur == superviseur,
+        EvalSuperviseur.annee == annee_prec,
+        EvalSuperviseur.mois == mois_prec,
+    ).first()
+
+    kpis = {}
+    if ev and ev.kpis_data:
+        kpis = ev.kpis_data
+        if isinstance(kpis, str):
+            import json as _json
+            try:
+                kpis = _json.loads(kpis)
+            except Exception:
+                kpis = {}
+
+    return {
+        **(kpis or {}),
+        "annee_precedente": annee_prec,
+        "mois_precedent": mois_prec,
+        "disponible": bool(ev),
+    }
 
 
 @router.post("/eval-superviseurs/rafraichir-kpis")
