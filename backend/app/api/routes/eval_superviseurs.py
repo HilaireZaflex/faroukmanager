@@ -16,6 +16,19 @@ from datetime import date
 
 router = APIRouter()
 
+# ─── Seuils « PDV qui retardent le superviseur » ──────────────────────────────
+# Un PDV est considéré comme un mauvais PDV pour son superviseur lorsqu'il
+# cumule LES DEUX conditions (pas une seule) :
+#   · commission réelle agent ≤ SEUIL_COMMISSION_RETARD F sur le mois
+#   · montant NAFAMA          ≤ SEUIL_NAFAMA_RETARD F sur le mois
+#
+# « Commission réelle agent » = 70 % de la commission générée par le PDV
+# (commission PDG + commission Revendeur), exactement le miroir de la
+# « Commission Réelle PDG » (30 %) déjà utilisée dans Commissions.
+TAUX_COMMISSION_AGENT = 0.70
+SEUIL_COMMISSION_RETARD = 10_000
+SEUIL_NAFAMA_RETARD = 300_000
+
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -606,10 +619,16 @@ def get_pdv_details(
     """Retourne les PDV inactifs et en baisse de CA pour le superviseur (OMY, NAFAMA, KAABU)."""
     from app.models.pdv import PDV
     from app.models.performance import MonthlyPerformance
+    from app.models.nafama import NafamaTransaction
 
     # Trouver le mois précédent pour comparer
     mois_prec = mois - 1 if mois > 1 else 12
     annee_prec = annee if mois > 1 else annee - 1
+
+    vide = {"omy": {"inactifs": [], "en_baisse": []},
+            "nafama": {"inactifs": [], "en_baisse": []},
+            "kaabu": {"inactifs": []},
+            "en_retard": []}
 
     # PDVs du superviseur
     pdvs = db.query(PDV).filter(
@@ -618,7 +637,21 @@ def get_pdv_details(
     pdv_ids = [p.id for p in pdvs]
 
     if not pdv_ids:
-        return {"omy": {"inactifs": [], "en_baisse": []}, "nafama": {"inactifs": [], "en_baisse": []}, "kaabu": {"inactifs": [], "en_baisse": []}}
+        return vide
+
+    # Montant NAFAMA cumulé du mois, par PDV (sert au critère « mauvais PDV »)
+    numeros = [str(p.numero_pdv) for p in pdvs if p.numero_pdv]
+    montant_nafama_par_pdv = {}
+    if numeros:
+        for num, total in db.query(
+            NafamaTransaction.numero_pdv,
+            func.sum(NafamaTransaction.montant),
+        ).filter(
+            NafamaTransaction.numero_pdv.in_(numeros),
+            NafamaTransaction.annee == annee,
+            NafamaTransaction.mois == mois,
+        ).group_by(NafamaTransaction.numero_pdv).all():
+            montant_nafama_par_pdv[str(num)] = float(total or 0)
 
     # Performances par indicateur (OMY, NAFAMA, KAABU)
     def get_perfs_by_indicateur(indicateur_val):
@@ -639,6 +672,9 @@ def get_pdv_details(
         ca_act = perf.montant_ca if perf else None
         ca_prev = perf.ca_mois_precedent if perf else None
         taux_var = perf.taux_variation if perf else None
+        comm_pdg = (perf.commission_pdg or 0) if perf else 0
+        comm_rev = (perf.commission_revendeur or 0) if perf else 0
+        commission_agent = round((comm_pdg + comm_rev) * TAUX_COMMISSION_AGENT)
         return {
             "id": pdv.id,
             "numero_pdv": pdv.numero_pdv,
@@ -648,20 +684,34 @@ def get_pdv_details(
             "ca_actuel": round(ca_act) if ca_act else None,
             "ca_precedent": round(ca_prev) if ca_prev else None,
             "variation_pct": round(taux_var, 1) if taux_var is not None else None,
+            # ── Alimentation de la section « PDV qui retardent le superviseur » ──
+            "commission_agent": commission_agent,
+            "commission_pdg": round(comm_pdg),
+            "commission_revendeur": round(comm_rev),
+            "montant_nafama": round(montant_nafama_par_pdv.get(str(pdv.numero_pdv), 0)),
+            "est_actif": bool(perf.est_actif) if perf else False,
         }
 
     result = {"omy": {"inactifs": [], "en_baisse": []},
               "nafama": {"inactifs": [], "en_baisse": []},
-              "kaabu": {"inactifs": []}}
+              "kaabu": {"inactifs": []},
+              "en_retard": []}
 
     for pdv in pdvs:
         # OMY
         perf_omy = perfs_omy.get(pdv.id)
         if perf_omy:
+            info_omy = pdv_info(pdv, perf_omy)
             if not perf_omy.est_actif:
-                result["omy"]["inactifs"].append(pdv_info(pdv, perf_omy))
+                result["omy"]["inactifs"].append(info_omy)
             elif perf_omy.taux_variation is not None and perf_omy.taux_variation < -30:
-                result["omy"]["en_baisse"].append(pdv_info(pdv, perf_omy))
+                result["omy"]["en_baisse"].append(info_omy)
+
+            # Mauvais PDV : les DEUX critères doivent être réunis
+            # (commission réelle agent faible ET montant NAFAMA faible)
+            if (info_omy["commission_agent"] <= SEUIL_COMMISSION_RETARD
+                    and info_omy["montant_nafama"] <= SEUIL_NAFAMA_RETARD):
+                result["en_retard"].append(info_omy)
 
         # NAFAMA
         perf_naf = perfs_nafama.get(pdv.id)
@@ -675,6 +725,12 @@ def get_pdv_details(
         perf_kaabu = perfs_kaabu.get(pdv.id)
         if perf_kaabu and not perf_kaabu.est_actif:
             result["kaabu"]["inactifs"].append(pdv_info(pdv, perf_kaabu))
+
+    # Les mauvais PDV sont classés du plus pénalisant au moins pénalisant :
+    # commission agent croissante, puis montant NAFAMA croissant.
+    result["en_retard"].sort(
+        key=lambda p: (p["commission_agent"], p["montant_nafama"], p["nom"] or '')
+    )
 
     return result
 

@@ -911,56 +911,85 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;color:#16a34a;font-weight:600;text-align:center">
       Toutes les catégories KPIs sont au-dessus des objectifs et aucun PDV n'est en difficulté.
     </div>` : ''}
-    <!-- PDV OMY, NAFAMA, KAABU -->
+    <!-- PDV inactifs OMY / NAFAMA / KAABU — inactifs uniquement :
+         les baisses sont déjà détaillées dans la section du haut -->
     ${(() => {
-      const fmtRow = (p, baisse) => {
-        const varStr = p.variation_pct != null ? ` (${p.variation_pct > 0 ? '+' : ''}${p.variation_pct}%)` : '';
+      const fmtRow = (p) => {
         const caStr = p.ca_actuel != null ? new Intl.NumberFormat('fr-FR').format(p.ca_actuel) : '—';
         const caPStr = p.ca_precedent != null ? new Intl.NumberFormat('fr-FR').format(p.ca_precedent) : '—';
-        const badge = baisse
-          ? `<span style="background:#fee2e2;color:#dc2626;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">📉 ${varStr}</span>`
-          : `<span style="background:#fef3c7;color:#d97706;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">💤 Inactif</span>`;
         return `<tr>
           <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:12px;font-weight:600">${p.nom || p.numero_pdv}</td>
           <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px;color:#6b7280">${p.numero_pdv}</td>
           <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px;color:#6b7280">${p.quartier}</td>
           <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px">${caStr}</td>
           <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6;font-size:11px;color:#6b7280">${caPStr}</td>
-          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6">${badge}</td>
+          <td style="padding:7px 12px;border-bottom:1px solid #f3f4f6"><span style="background:#fef3c7;color:#d97706;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700">💤 Inactif</span></td>
         </tr>`;
       };
       const thead = `<thead><tr><th>PDV</th><th>Numéro</th><th>Quartier</th><th>CA Mois</th><th>CA Préc.</th><th>Statut</th></tr></thead>`;
       let html = '';
 
-      const omyAll = [...(pdvDetails.omy?.inactifs||[]), ...(pdvDetails.omy?.en_baisse||[])];
+      const omyAll = pdvDetails.omy?.inactifs || [];
       if (omyAll.length) html += `
-        <div class="section-title" style="margin-top:24px">📱 OMY — PDV inactifs & en baisse (${omyAll.length})</div>
+        <div class="section-title" style="margin-top:24px">📱 OMY — PDV inactifs (${omyAll.length})</div>
         <table>${thead}<tbody>
-          ${(pdvDetails.omy?.inactifs||[]).map(p => fmtRow(p, false)).join('')}
-          ${(pdvDetails.omy?.en_baisse||[]).map(p => fmtRow(p, true)).join('')}
+          ${omyAll.map(p => fmtRow(p)).join('')}
         </tbody></table>`;
 
-      const nafAll = [...(pdvDetails.nafama?.inactifs||[]), ...(pdvDetails.nafama?.en_baisse||[])];
+      const nafAll = pdvDetails.nafama?.inactifs || [];
       if (nafAll.length) html += `
-        <div class="section-title" style="margin-top:20px">🟢 NAFAMA — PDV inactifs & en baisse (${nafAll.length})</div>
+        <div class="section-title" style="margin-top:20px">🟢 NAFAMA — PDV inactifs (${nafAll.length})</div>
         <table>${thead}<tbody>
-          ${(pdvDetails.nafama?.inactifs||[]).map(p => fmtRow(p, false)).join('')}
-          ${(pdvDetails.nafama?.en_baisse||[]).map(p => fmtRow(p, true)).join('')}
+          ${nafAll.map(p => fmtRow(p)).join('')}
         </tbody></table>`;
 
       const kaabuAll = pdvDetails.kaabu?.inactifs || [];
       if (kaabuAll.length) html += `
         <div class="section-title" style="margin-top:20px">💳 KAABU — PDV inactifs (${kaabuAll.length})</div>
         <table>${thead}<tbody>
-          ${kaabuAll.map(p => fmtRow(p, false)).join('')}
+          ${kaabuAll.map(p => fmtRow(p)).join('')}
         </tbody></table>`;
 
       if (!omyAll.length && !nafAll.length && !kaabuAll.length) html = `
-        <div class="section-title" style="margin-top:24px">✅ Aucun PDV inactif ou en baisse détecté</div>
+        <div class="section-title" style="margin-top:24px">✅ Aucun PDV inactif détecté</div>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;color:#16a34a;font-weight:600;text-align:center">
-          Tous les PDVs sont actifs et sans baisse significative de CA. Excellent travail !
+          Tous les PDVs sont actifs. Les baisses éventuelles sont détaillées plus haut.
         </div>`;
       return html;
+    })()}
+    <!-- PDV qui retardent le superviseur : commission réelle agent ≤ 10 000 F
+         ET montant NAFAMA ≤ 300 000 F (les DEUX critères) -->
+    ${(() => {
+      const retard = pdvDetails.en_retard || [];
+      const fn = v => new Intl.NumberFormat('fr-FR').format(Math.round(Number(v) || 0));
+      const titre = `<div class="section-title" style="margin-top:24px">🎯 PDV qui retardent le superviseur${retard.length ? ` (${retard.length})` : ''}</div>`;
+      if (!retard.length) return `${titre}
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;color:#16a34a;font-weight:600;text-align:center">
+          Aucun PDV sous 10 000 F de commission réelle agent et 300 000 F de montant NAFAMA. Excellent travail !
+        </div>`;
+      return `${titre}
+        <p style="color:#6b7280;font-size:13px;margin:0 0 14px">
+          Ces points de vente réunissent les <b>deux</b> conditions : une commission réelle agent
+          inférieure ou égale à <b>10 000 F</b> <b>et</b> un montant NAFAMA inférieur ou égal à
+          <b>300 000 F</b> sur le mois. Ce sont eux qui vous font perdre le plus de terrain :
+          à relancer en priorité.
+        </p>
+        <div class="alert-box">
+          <h3>PDV à relancer en priorité</h3>
+          <table>
+            <thead><tr><th>PDV</th><th>Numéro</th><th>Quartier</th><th>Téléconseillère</th><th style="text-align:right">Comm. réelle agent</th><th style="text-align:right">Montant NAFAMA</th></tr></thead>
+            <tbody>${retard.map(p => `
+              <tr>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:600">${p.nom || p.numero_pdv}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.numero_pdv || '—'}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.quartier || '—'}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.teleconseillere || '—'}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:#dc2626">${fn(p.commission_agent)} F</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:#d97706">${fn(p.montant_nafama)} F</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
     })()}
     <div class="footer">
       <p>Rapport généré le ${new Date().toLocaleDateString('fr-FR')} &nbsp;·&nbsp; Farouk Distribution &nbsp;·&nbsp; Système de Gestion Réseau</p>
