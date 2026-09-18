@@ -10,6 +10,15 @@ import useAuthStore from '../store/authStore';
 const MOIS_NOMS = ['','Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 function fmtN(v) { return v != null && v !== 0 ? new Intl.NumberFormat('fr-FR').format(Math.round(v)) : '—'; }
+// Format compact pour les étiquettes : 1,95 Md / 488 M / 13 k
+function fmtCourt(v) {
+  const n = Math.abs(Number(v) || 0);
+  const signe = Number(v) < 0 ? '-' : '';
+  if (n >= 1e9) return `${signe}${(n / 1e9).toFixed(2).replace('.', ',')} Md`;
+  if (n >= 1e6) return `${signe}${(n / 1e6).toFixed(1).replace('.', ',')} M`;
+  if (n >= 1e3) return `${signe}${Math.round(n / 1e3)} k`;
+  return `${signe}${Math.round(n)}`;
+}
 function fmtPct(v) { return v != null ? `${Math.round(v * 10) / 10}%` : '—'; }
 
 const now = new Date();
@@ -753,7 +762,7 @@ async function _buildReportHTML(evaluation, superviseur, mois, annee) {
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.quartier || '—'}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${p.teleconseillere || '—'}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">
-        ${p.raisons.map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;border-radius:12px;background:${(CAT_COUL[r.categorie] || '#dc2626')}1a;color:${CAT_COUL[r.categorie] || '#dc2626'};font-size:11px;font-weight:600">${r.label}</span>`).join('')}
+        ${p.raisons.map(r => `<span style="display:inline-block;margin:2px;padding:2px 8px;border-radius:12px;background:${(CAT_COUL[r.categorie] || '#dc2626')}1a;color:${CAT_COUL[r.categorie] || '#dc2626'};font-size:11px;font-weight:600">${r.label}${r.montant_avant != null && r.montant_apres != null ? ` (${fmtCourt(r.montant_avant)} → ${fmtCourt(r.montant_apres)} F)` : ''}</span>`).join('')}
       </td>
     </tr>`).join('');
 
@@ -2329,10 +2338,10 @@ export default function EvalSuperveursPage() {
                         </div>
 
                         {/* Liste des PDV, du plus pénalisant au moins pénalisant */}
-                        {((s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0)) > 0 && (
+                        {((s.nb_baisse_omy || 0) + (s.nb_baisse_nafama || 0)) > 0 && (
                           <div style={{ marginBottom: 12, fontSize: 12, color: '#ffa502', background: 'rgba(255,165,2,0.08)', border: '1px solid rgba(255,165,2,0.25)', borderRadius: 8, padding: '9px 12px' }}>
-                            📉 <b>{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0)} forte{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0) > 1 ? 's' : ''} baisse{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0) > 1 ? 's' : ''} détectée{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0) > 1 ? 's' : ''}</b>
-                            {' '}par rapport au mois précédent (≥ 30 %) — {s.nb_baisse_omy || 0} sur le CA OMY, {s.nb_baisse_kaabu || 0} sur le volume KAABU.
+                            📉 <b>{(s.nb_baisse_omy || 0) + (s.nb_baisse_nafama || 0)} forte{((s.nb_baisse_omy || 0) + (s.nb_baisse_nafama || 0)) > 1 ? 's' : ''} baisse{((s.nb_baisse_omy || 0) + (s.nb_baisse_nafama || 0)) > 1 ? 's' : ''} détectée{((s.nb_baisse_omy || 0) + (s.nb_baisse_nafama || 0)) > 1 ? 's' : ''}</b>
+                            {' '}par rapport à {MOIS_NOMS[s.mois_precedent] || 'M-1'} (&gt; 60 %) — {s.nb_baisse_omy || 0} sur le CA OMY, {s.nb_baisse_nafama || 0} sur les ventes NAFAMA.
                           </div>
                         )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -2346,9 +2355,12 @@ export default function EvalSuperveursPage() {
                                   </div>
                                   <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
                                     📍 {p.quartier} · 📞 {p.teleconseillere}
-                                    {p.ca_omy > 0 && <> · CA OMY : {fmtN(p.ca_omy)} F</>}
-                                    {p.volume_kaabu > 0 && <> · Vol. KAABU : {fmtN(p.volume_kaabu)}</>}
-                                    {p.montant_nafama > 0 && <> · NAFAMA : {fmtN(p.montant_nafama)} F</>}
+                                    {p.ca_omy_precedent > 0
+                                      ? <> · CA OMY : <b style={{ color: '#94a3b8' }}>{fmtN(p.ca_omy_precedent)}</b> → <b style={{ color: '#e2e8f0' }}>{fmtN(p.ca_omy)}</b> F</>
+                                      : (p.ca_omy > 0 && <> · CA OMY : {fmtN(p.ca_omy)} F</>)}
+                                    {p.montant_nafama_precedent > 0
+                                      ? <> · NAFAMA : <b style={{ color: '#94a3b8' }}>{fmtN(p.montant_nafama_precedent)}</b> → <b style={{ color: '#e2e8f0' }}>{fmtN(p.montant_nafama)}</b> F</>
+                                      : (p.montant_nafama > 0 && <> · NAFAMA : {fmtN(p.montant_nafama)} F</>)}
                                   </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -2358,6 +2370,11 @@ export default function EvalSuperveursPage() {
                                       <span key={r.code} title={r.detail}
                                         style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: `${c.color}22`, color: c.color, fontWeight: 700, cursor: 'help' }}>
                                         {c.icon} {r.label}
+                                        {r.montant_avant != null && r.montant_apres != null && (
+                                          <span style={{ fontWeight: 600, opacity: 0.9 }}>
+                                            {' '}({fmtCourt(r.montant_avant)} → {fmtCourt(r.montant_apres)} F)
+                                          </span>
+                                        )}
                                       </span>
                                     );
                                   })}

@@ -323,17 +323,18 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
     }
 
     semaines_prec = _get_semaines_mois(db, annee_prec, mois_prec)
-    kaabu_volume_prec = {}
-    if semaines_prec and numeros:
-        for num, vol in db.query(
-            KaabuTransaction.numero_pdv, KaabuTransaction.volume_kaabu
+
+    # NAFAMA du mois précédent (pour comparer les ventes)
+    nafama_montant_prec = {}
+    if numeros:
+        for num, mont in db.query(
+            NafamaTransaction.numero_pdv, func.sum(NafamaTransaction.montant)
         ).filter(
-            KaabuTransaction.annee == annee_prec,
-            KaabuTransaction.semaine.in_(semaines_prec),
-            KaabuTransaction.numero_pdv.in_(numeros),
-        ).all():
-            k = str(num).strip()
-            kaabu_volume_prec[k] = kaabu_volume_prec.get(k, 0) + (vol or 0)
+            NafamaTransaction.annee == annee_prec,
+            NafamaTransaction.mois == mois_prec,
+            NafamaTransaction.numero_pdv.in_(numeros),
+        ).group_by(NafamaTransaction.numero_pdv).all():
+            nafama_montant_prec[str(num).strip()] = float(mont or 0)
 
     # ── Appels mystères déjà enregistrés ─────────────────────────────────────
     from app.models.eval_superviseur import EvalSuperviseur
@@ -346,14 +347,17 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
 
     # ── Construction des raisons, PDV par PDV ───────────────────────────────
     lignes, nb_inactif_omy, nb_inactif_km, nb_sans_nafama = [], 0, 0, 0
-    nb_baisse_omy, nb_baisse_kaabu = 0, 0
+    nb_baisse_omy, nb_baisse_nafama = 0, 0
 
     for p in pdvs:
         num = str(p.numero_pdv).strip()
         raisons = []
 
         perf = perfs_omy.get(p.id)
-        ca_omy = float(perf.montant_ca or 0) if perf and perf.montant_ca else 0
+        # Même base que le KPI « CA OMY » de l'évaluation : montant_transaction
+        # (et non montant_ca, qui ne compte que le cashout et donne des
+        # montants incomparables avec la carte KPI).
+        ca_omy = float((perf.montant_transaction or perf.ca or 0)) if perf else 0
         if perf is None:
             nb_inactif_omy += 1
             raisons.append({
@@ -369,18 +373,20 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
                 "detail": "Aucune transaction OMY enregistrée ce mois-ci.",
             })
 
-        # Baisse importante du CA OMY par rapport au mois précédent
+        # Baisse importante du CA OMY par rapport au mois précédent (seuil 60 %)
         perf_prec = perfs_omy_prec.get(p.id)
-        ca_prec = float(perf_prec.montant_ca or 0) if perf_prec else 0
+        ca_prec = float((perf_prec.montant_transaction or perf_prec.ca or 0)) if perf_prec else 0
         if ca_prec > 0 and ca_omy < ca_prec:
             var_omy = (ca_omy - ca_prec) / ca_prec * 100
-            if var_omy <= -30:
+            if var_omy <= -60:
                 nb_baisse_omy += 1
                 raisons.append({
                     "code": "BAISSE_OMY", "categorie": "OMY",
                     "label": f"CA OMY en chute de {abs(round(var_omy))} %",
-                    "detail": f"CA OMY passé de {round(ca_prec):,} à {round(ca_omy):,} F "
-                              f"entre le mois précédent et ce mois.".replace(",", " "),
+                    "detail": f"CA OMY : {round(ca_prec)} F le mois précédent contre "
+                              f"{round(ca_omy)} F ce mois-ci.",
+                    "montant_avant": round(ca_prec),
+                    "montant_apres": round(ca_omy),
                 })
 
         if num and num not in kaabu_actifs:
@@ -391,20 +397,6 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
                 "detail": "Ce PDV n'apparaît pas dans la liste KAABU du mois.",
             })
 
-        # Baisse importante du volume KAABU par rapport au mois précédent
-        vol_km = kaabu_volume.get(num, 0)
-        vol_km_prec = kaabu_volume_prec.get(num, 0)
-        if vol_km_prec > 0 and vol_km < vol_km_prec:
-            var_km = (vol_km - vol_km_prec) / vol_km_prec * 100
-            if var_km <= -30:
-                nb_baisse_kaabu += 1
-                raisons.append({
-                    "code": "BAISSE_KAABU", "categorie": "KAABU",
-                    "label": f"Volume KAABU en chute de {abs(round(var_km))} %",
-                    "detail": f"Volume KAABU passé de {round(vol_km_prec)} à {round(vol_km)} "
-                              f"entre le mois précédent et ce mois.",
-                })
-
         if num and num not in nafama_pdvs:
             nb_sans_nafama += 1
             raisons.append({
@@ -412,6 +404,22 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
                 "label": "Aucune vente NAFAMA",
                 "detail": "Aucune vente NAFAMA enregistrée ce mois-ci.",
             })
+
+        # Baisse importante des ventes NAFAMA (seuil 60 %)
+        naf_prec = nafama_montant_prec.get(num, 0)
+        naf_act = nafama_montant.get(num, 0)
+        if naf_prec > 0 and naf_act < naf_prec:
+            var_naf = (naf_act - naf_prec) / naf_prec * 100
+            if var_naf <= -60:
+                nb_baisse_nafama += 1
+                raisons.append({
+                    "code": "BAISSE_NAFAMA", "categorie": "NAFAMA",
+                    "label": f"Ventes NAFAMA en chute de {abs(round(var_naf))} %",
+                    "detail": f"Ventes NAFAMA : {round(naf_prec)} F le mois précédent contre "
+                              f"{round(naf_act)} F ce mois-ci.",
+                    "montant_avant": round(naf_prec),
+                    "montant_apres": round(naf_act),
+                })
 
         # Appels TC : seules les notes faibles sont conservées.
         # L'injoignabilité est volontairement ignorée (peu exploitable ici).
@@ -434,8 +442,10 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
                 "teleconseillere": p.teleconseillere or '—',
                 "superviseur": p.superviseur,
                 "ca_omy": round(ca_omy) if ca_omy else 0,
+                "ca_omy_precedent": round(ca_prec),
                 "volume_kaabu": kaabu_volume.get(num, 0),
                 "montant_nafama": round(nafama_montant.get(num, 0)),
+                "montant_nafama_precedent": round(nafama_montant_prec.get(num, 0)),
                 "raisons": raisons,
                 "nb_raisons": len(raisons),
             })
@@ -459,7 +469,9 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
         "objectif_nafama": OBJECTIFS_PDV['taux_actif_nafama'],
         "manque_nafama": nb_sans_nafama,
         "nb_baisse_omy": nb_baisse_omy,
-        "nb_baisse_kaabu": nb_baisse_kaabu,
+        "nb_baisse_nafama": nb_baisse_nafama,
+        "mois_precedent": mois_prec,
+        "annee_precedente": annee_prec,
     }
     # Nombre de PDV à remettre en activité pour atteindre chaque objectif
     for cle, t, o in (("omy", synthese['taux_actif_omy'], synthese['objectif_omy']),
