@@ -57,7 +57,16 @@ function KPIsSection({ kpis, kpisPrecedent }) {
     { key: 'moy_commission',  label: 'Moy. Commission',  valeur: kpis.moy_commission,  objectif: null,                                     score: null,                   unite: 'F/PDV', icon: '📈', big: true },
     { key: 'taux_actif_omy',  label: 'Actif OMY',        valeur: kpis.taux_actif_omy,  objectif: OBJECTIFS.taux_actif_omy || 100,          score: SCORES.taux_actif_omy,  unite: '%',     icon: '✅', isPct: true },
     { key: 'taux_actif_km',   label: 'Taux Actif KM',    valeur: kpis.taux_actif_km,   objectif: OBJECTIFS.taux_actif_km || 90,            score: SCORES.taux_actif_km,   unite: '%',     icon: '🟠', isPct: true,
-      sousTexte: kpis.nb_actifs_km != null ? `${kpis.nb_actifs_km} PDV actifs KM` : null },
+      // Nombre de PDV actifs KM. Les évaluations enregistrées avant l'ajout de
+      // ce champ ne le contiennent pas : on le retrouve alors à partir du taux
+      // et du nombre de PDV (taux = actifs / nb_pdv × 100).
+      sousTexte: (() => {
+        if (kpis.nb_actifs_km != null) return kpis.nb_actifs_km;
+        if (kpis.taux_actif_km != null && kpis.nb_pdv) {
+          return Math.round((kpis.taux_actif_km * kpis.nb_pdv) / 100);
+        }
+        return null;
+      })() },
     { key: 'nb_actif_nafama', label: 'Nb Actif NAFAMA',  valeur: kpis.nb_actif_nafama, objectif: null,                                     score: null,                   unite: 'PDVs',  icon: '🟢' },
     { key: 'taux_actif_nafama', label: 'Taux Actif NAFAMA', valeur: kpis.taux_actif_nafama, objectif: OBJECTIFS.taux_actif_nafama || 85,    score: SCORES.taux_actif_nafama, unite: '%',   icon: '📊', isPct: true },
     { key: 'ca_nafama',       label: 'CA NAFAMA',        valeur: kpis.ca_nafama,       objectif: OBJECTIFS.ca_nafama || 6_000_000,         score: SCORES.ca_nafama,       unite: 'F',     icon: '💚', big: true },
@@ -81,6 +90,11 @@ function KPIsSection({ kpis, kpisPrecedent }) {
   const nbAtteints = items.filter(it => it.objectif != null && it.valeur != null && it.valeur >= it.objectif).length;
   const nbAvecObjectif = items.filter(it => it.objectif != null && it.valeur != null).length;
 
+  // Libellé du mois de comparaison (nom du mois, année seulement si différente)
+  const moisPrecLabel = (kpisPrecedent && kpisPrecedent.mois_precedent)
+    ? `${MOIS_NOMS[kpisPrecedent.mois_precedent]}${kpisPrecedent.annee_precedente && kpisPrecedent.annee_precedente !== kpis.annee ? ' ' + kpisPrecedent.annee_precedente : ''}`
+    : 'M-1';
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
@@ -102,7 +116,7 @@ function KPIsSection({ kpis, kpisPrecedent }) {
         <span><span style={{ color: '#22c55e', fontWeight: 800 }}>●</span> Objectif atteint</span>
         <span><span style={{ color: '#ffa502', fontWeight: 800 }}>●</span> Presque atteint (≥ 90 %)</span>
         <span><span style={{ color: '#ff4757', fontWeight: 800 }}>●</span> Pas atteint (&lt; 90 %)</span>
-        {kpisPrecedent && <span>↕ Comparaison avec {MOIS_NOMS[kpisPrecedent.mois_precedent]} {kpisPrecedent.annee_precedente}</span>}
+        {kpisPrecedent && <span>↕ Comparaison avec {moisPrecLabel}</span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
@@ -118,8 +132,11 @@ function KPIsSection({ kpis, kpisPrecedent }) {
               <div style={{ fontSize: 15, fontWeight: 900, color }}>
                 {item.isPct ? fmtPct(item.valeur) : item.big ? fmtN(item.valeur) + ' F' : fmtN(item.valeur)}
               </div>
-              {item.sousTexte && (
-                <div style={{ fontSize: 10, color: '#a29bfe', marginTop: 2, fontWeight: 700 }}>{item.sousTexte}</div>
+              {item.sousTexte != null && (
+                <div title="Nombre de PDV actifs KM"
+                  style={{ fontSize: 17, color: '#a29bfe', marginTop: 1, fontWeight: 900, lineHeight: 1.1 }}>
+                  {item.sousTexte}
+                </div>
               )}
               {item.objectif && (
                 <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
@@ -130,7 +147,7 @@ function KPIsSection({ kpis, kpisPrecedent }) {
               {ec && (
                 <div title={`Mois précédent : ${item.isPct ? fmtPct(kpisPrecedent[item.key]) : fmtN(kpisPrecedent[item.key])}`}
                   style={{ fontSize: 10, marginTop: 4, color: ecColor, fontWeight: 800, cursor: 'help' }}>
-                  {ecIcone} {ec.texte} <span style={{ color: '#64748b', fontWeight: 500 }}>vs M-1</span>
+                  {ecIcone} {ec.texte} <span style={{ color: '#64748b', fontWeight: 500 }}>vs {moisPrecLabel}</span>
                 </div>
               )}
               {item.score != null && (
