@@ -102,36 +102,44 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
     moy_ca_omy = round(ca_omy / nb_actif_omy, 0) if nb_actif_omy else 0
 
     # ── 3. COMMISSIONS OMY ────────────────────────────────────────────────────
-    # Commission Réelle PDG — identique à CommissionsPage.js TabRapportSuperviseur ligne 350+368
-    # svc.list_entries(limit=200) puis commReelle = Σ(montant_reseau × 30%) + Σ(montant_pdv × 30%)
+    # « Commission Réelle PDG » — EXACTEMENT la même que celle affichée dans
+    # Commissions → onglet Superviseurs :
+    #     Σ(montant_reseau × 30 %) + Σ(montant_pdv × 30 %)
+    #
+    # Le rattachement se fait sur le NOM COMPLET du superviseur. L'ancienne
+    # version cherchait par PRÉNOM puis retenait le superviseur ayant le plus
+    # d'entrées : tous les « MAMADOU … » récupéraient donc la commission d'un
+    # seul d'entre eux (MAMADOU KEITA affichait la valeur de MAMADOU TABOURE).
     try:
         from app.services import commission_service as comm_svc
         period_key = f"{annee}-{str(mois).zfill(2)}"
-        # Appel identique à CommissionsPage: entries limit=200, pas de filtre superviseur
-        # Charger TOUTES les entrées (limit=5000) pour ce superviseur
-        # Chercher par prénom pour tolérer les fautes de frappe (DIAARA vs DIARRA)
-        prenom_sup = superviseur.split()[0] if superviseur else superviseur
-        all_entries = comm_svc.list_entries(db, period_key, limit=5000)
-        
-        # Trouver le bon superviseur dans la table commissions
-        from collections import Counter
-        matched = [e for e in all_entries if prenom_sup.upper() in str(
-            (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
-        ).upper()]
-        
-        if matched:
-            # Prendre le superviseur qui a le plus d'entrées (le plus proche)
-            sup_counts = Counter(
-                (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
-                for e in matched
-            )
-            best_sup = sup_counts.most_common(1)[0][0]
-            entries_sup = [e for e in matched if (
-                (e.get('superviseur') or '') if isinstance(e, dict) else (getattr(e, 'superviseur', '') or '')
-            ) == best_sup]
-        else:
-            entries_sup = []
-        
+
+        def _norm_nom(nom):
+            return ' '.join(str(nom or '').upper().split())
+
+        def _sup_de(e):
+            return ((e.get('superviseur') if isinstance(e, dict) else getattr(e, 'superviseur', None)) or '')
+
+        all_entries = comm_svc.list_entries(db, period_key, limit=20000)
+
+        # Regrouper par nom de superviseur exact
+        par_sup = {}
+        for e in all_entries:
+            par_sup.setdefault(_norm_nom(_sup_de(e)), []).append(e)
+
+        cible = _norm_nom(superviseur)
+        entries_sup = par_sup.get(cible)
+        if entries_sup is None:
+            # Essayer l'ordre inverse (NOM PRÉNOM ↔ PRÉNOM NOM)
+            parties = cible.split()
+            if len(parties) >= 2:
+                entries_sup = par_sup.get(' '.join(reversed(parties)))
+        if entries_sup is None:
+            # Mêmes mots dans un ordre différent — seulement si un unique candidat
+            mots = set(cible.split())
+            candidats = [v for nom, v in par_sup.items() if set(nom.split()) == mots]
+            entries_sup = candidats[0] if len(candidats) == 1 else []
+
         commission_omy = 0.0
         nb_comm = 0
         for e in entries_sup:
