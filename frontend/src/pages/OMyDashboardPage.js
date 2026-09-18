@@ -5,6 +5,7 @@ import AppelTCModal from '../components/common/AppelTCModal';
 import { useNavigate } from 'react-router-dom';
 import { useHierarchicalFilters, HierarchicalFilters } from '../hooks/useHierarchicalFilters';
 import { Search } from 'lucide-react';
+import { trierLignes, Th } from '../components/common/TriTable';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area
@@ -116,6 +117,7 @@ const GRAPH_INDICATEURS = [
 // ============ TAB 1: Vue d'ensemble ============
 function TabOverview({ annee, mois }) {
   const [graphIndicateur, setGraphIndicateur] = useState('montant_transaction');
+  const [triSup, setTriSup] = useState({ col: null, dir: 'asc' });
 
   const { data: dashboard, isLoading } = useQuery(
     ['dashboard-monthly', annee, mois],
@@ -300,6 +302,17 @@ function TabOverview({ annee, mois }) {
 
           const indLabel = GRAPH_INDICATEURS.find(i => i.key === graphIndicateur)?.label || 'Montant Transactions';
 
+          const classementTrie = trierLignes(classement, triSup, {
+            superviseur: s => s.superviseur,
+            actifs: s => s.actifs ?? s.nb_pdvs ?? null,
+            inactifs: s => s.inactifs ?? null,
+            valeur: s => (supIndicData ? (s.valeur_indic || 0) : (s.ca_total ?? s.ca ?? 0)),
+            moyenne: s => {
+              const v = supIndicData ? (s.valeur_indic || 0) : (s.ca_total ?? s.ca ?? 0);
+              return v / (s.nb_pdvs || 1);
+            },
+          });
+
           return (
             <div className="card mb-16">
               <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>🏆 Classement Superviseurs par {indLabel} — {MOIS_NOMS[mois]} {annee}</h3>
@@ -308,15 +321,15 @@ function TabOverview({ annee, mois }) {
                   <thead>
                     <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
                       <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>{indLabel}</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Moy./PDV</th>
+                      <Th col="superviseur" label="Superviseur" tri={triSup} setTri={setTriSup} color="#8a8a9a" style={{ padding: '10px 12px' }} />
+                      <Th col="actifs" label="Actifs" tri={triSup} setTri={setTriSup} align="center" color="#00d68f" style={{ padding: '10px 12px' }} />
+                      <Th col="inactifs" label="Inactifs" tri={triSup} setTri={setTriSup} align="center" color="#ff4757" style={{ padding: '10px 12px' }} />
+                      <Th col="valeur" label={indLabel} tri={triSup} setTri={setTriSup} align="right" color="#FF6900" style={{ padding: '10px 12px' }} />
+                      <Th col="moyenne" label="Moy./PDV" tri={triSup} setTri={setTriSup} align="right" color="#8a8a9a" style={{ padding: '10px 12px' }} />
                     </tr>
                   </thead>
                   <tbody>
-                    {classement.map((s, i) => {
+                    {classementTrie.map((s, i) => {
                       const valeur = supIndicData ? (s.valeur_indic || 0) : (s.ca_total ?? s.ca ?? 0);
                       const nb = s.nb_pdvs || 1;
                       return (
@@ -353,6 +366,7 @@ function TabTopPDVs({ annee, mois, criterion }) {
   const [selectedPDVNom, setSelectedPDVNom] = useState('');
   const [historyData, setHistoryData] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [triPDV, setTriPDV] = useState({ col: null, dir: 'asc' });
 
   const { data: topPDVs, isLoading } = useQuery(
     ['classements', annee, mois, topN],
@@ -426,6 +440,17 @@ function TabTopPDVs({ annee, mois, criterion }) {
       return getMetricValue(b, criterion) - getMetricValue(a, criterion); // metric_desc par défaut
     })
     .slice(0, topN);
+
+  // Tri par clic sur les en-têtes de colonnes
+  const listeTriee = trierLignes(filteredList, triPDV, {
+    rang: p => getMetricValue(p, criterion),
+    pdv: p => p.nom || p.numero_pdv,
+    ca: p => getMetricValue(p, criterion),
+    quartier: p => p.quartier,
+    superviseur: p => p.superviseur,
+    gestionnaire: p => p.gestionnaire,
+    medaille: p => p.medaille,
+  });
 
   const exportExcel = () => {
     const selectedList = getTopListByCriterion();
@@ -528,13 +553,20 @@ function TabTopPDVs({ annee, mois, criterion }) {
         <table className="dashboard-table">
           <thead>
             <tr>
-              <th>Rang</th><th>PDV</th><th>CA</th><th>Quartier</th><th>Superviseur</th><th>Gestionnaire</th><th>Médaille</th><th>Evolution</th>
+              <th>Rang</th>
+              <Th col="pdv" label="PDV" tri={triPDV} setTri={setTriPDV} />
+              <Th col="ca" label="CA" tri={triPDV} setTri={setTriPDV} />
+              <Th col="quartier" label="Quartier" tri={triPDV} setTri={setTriPDV} />
+              <Th col="superviseur" label="Superviseur" tri={triPDV} setTri={setTriPDV} />
+              <Th col="gestionnaire" label="Gestionnaire" tri={triPDV} setTri={setTriPDV} />
+              <Th col="medaille" label="Médaille" tri={triPDV} setTri={setTriPDV} />
+              <th>Evolution</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-            ) : filteredList.map((pdv, idx) => {
+            ) : listeTriee.map((pdv, idx) => {
               const medal = pdv.medaille || '';
               const medalColor = medal === 'OR' ? '#FFD700' : medal === 'ARGENT' ? '#C0C0C0' : medal === 'BRONZE' ? '#CD7F32' : '#999';
               const medalIcon = medal === 'OR' ? '🥇' : medal === 'ARGENT' ? '🥈' : medal === 'BRONZE' ? '🥉' : '';
@@ -575,6 +607,7 @@ function TabPareto({ annee, mois, criterion }) {
   const [sortBy, setSortBy] = useState('rang');
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
+  const [triPareto, setTriPareto] = useState({ col: null, dir: 'asc' });
 
   const { data: pareto, isLoading } = useQuery(
     ['pareto', annee, mois],
@@ -624,6 +657,16 @@ function TabPareto({ annee, mois, criterion }) {
       return true;
     })
     .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
+
+  const displayedPdvsTries = trierLignes(displayedPdvs, triPareto, {
+    pdv: p => p.nom || p.numero_pdv,
+    zone: p => p.zone,
+    superviseur: p => p.superviseur,
+    valeur: p => getMetricValue(p, criterion),
+    pct: p => p.pourcentage ?? p.pct ?? null,
+    cumul: p => p.cumul_pct ?? p.cumul ?? null,
+    impact: p => p.dans_pareto ? 1 : 0,
+  });
 
   const fortImpact = filteredPDVs.filter(p => p.dans_pareto).reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
   const faibleImpact = filteredPDVs.filter(p => !p.dans_pareto).reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
@@ -680,11 +723,18 @@ function TabPareto({ annee, mois, criterion }) {
         <table className="dashboard-table">
           <thead>
             <tr>
-              <th>Rang</th><th>PDV</th><th>Zone</th><th>Superviseur</th><th>{getMetricLabel(criterion)}</th><th>% {getMetricLabel(criterion)}</th><th>Cumul %</th><th>Impact</th>
+              <th>Rang</th>
+              <Th col="pdv" label="PDV" tri={triPareto} setTri={setTriPareto} />
+              <Th col="zone" label="Zone" tri={triPareto} setTri={setTriPareto} />
+              <Th col="superviseur" label="Superviseur" tri={triPareto} setTri={setTriPareto} />
+              <Th col="valeur" label={getMetricLabel(criterion)} tri={triPareto} setTri={setTriPareto} />
+              <Th col="pct" label={`% ${getMetricLabel(criterion)}`} tri={triPareto} setTri={setTriPareto} />
+              <Th col="cumul" label="Cumul %" tri={triPareto} setTri={setTriPareto} />
+              <Th col="impact" label="Impact" tri={triPareto} setTri={setTriPareto} />
             </tr>
           </thead>
           <tbody>
-            {displayedPdvs.map((pdv, idx) => (
+            {displayedPdvsTries.map((pdv, idx) => (
               <tr key={idx}>
                 <td style={{ textAlign: 'center' }}>{idx + 1}</td>
                 <td>
@@ -725,6 +775,7 @@ function TabEvolution({ annee, mois, criterion }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [page, setPage] = useState(1);
+  const [triEvol, setTriEvol] = useState({ col: null, dir: 'asc' });
   const PAGE_SIZE = 20;
 
   const prevMonth = () => {
@@ -791,7 +842,14 @@ function TabEvolution({ annee, mois, criterion }) {
   const dataToShow = activeSub === 'pdvs' ? getPDVData() : activeSub === 'superviseurs' ? getSuperviseurData() : getGestionnaireData();
   const filteredData = dataToShow.filter(row => !search || (row.nom||'').toLowerCase().includes(search.toLowerCase()));
   const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-  const displayedData = filteredData.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+  const filteredDataTrie = trierLignes(filteredData, triEvol, {
+    nom: r => r.nom || r.numero_pdv,
+    actuel: r => r.actuel,
+    precedent: r => r.precedent,
+    variation: r => r.variation,
+    taux: r => r.taux,
+  });
+  const displayedData = filteredDataTrie.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
 
   const exportExcel = () => {
     const data = dataToShow.map((row, idx) => ({
@@ -875,10 +933,12 @@ function TabEvolution({ annee, mois, criterion }) {
         <table className="dashboard-table">
           <thead>
             <tr>
-              <th>Rang</th><th>Nom</th>
-              <th style={{ color: '#00d68f' }}>{getMetricLabel(criterion)} {MOIS_NOMS[mois]} {annee}</th>
-              <th style={{ color: '#ffa502' }}>{getMetricLabel(criterion)} {MOIS_NOMS[prevMois]} {prevAnnee}</th>
-              <th>Variation</th><th>Taux</th>
+              <th>Rang</th>
+              <Th col="nom" label="Nom" tri={triEvol} setTri={setTriEvol} />
+              <Th col="actuel" label={<>{getMetricLabel(criterion)} {MOIS_NOMS[mois]} {annee}</>} tri={triEvol} setTri={setTriEvol} color="#00d68f" />
+              <Th col="precedent" label={<>{getMetricLabel(criterion)} {MOIS_NOMS[prevMois]} {prevAnnee}</>} tri={triEvol} setTri={setTriEvol} color="#ffa502" />
+              <Th col="variation" label="Variation" tri={triEvol} setTri={setTriEvol} />
+              <Th col="taux" label="Taux" tri={triEvol} setTri={setTriEvol} />
             </tr>
           </thead>
           <tbody>
@@ -923,6 +983,7 @@ function TabInactivePDVs({
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const [appelPDV, setAppelPDV] = useState(null);
+  const [triInactifs, setTriInactifs] = useState({ col: null, dir: 'asc' });
   const tcUser = useAuthStore(s => s.user);
   const tcNom = ((tcUser?.prenom || '') + ' ' + (tcUser?.nom || '')).trim();
   const { data: rawAppels = [] } = useQuery(
@@ -978,6 +1039,17 @@ function TabInactivePDVs({
       return true;
     })
     .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()) || (p.superviseur||'').toLowerCase().includes(search.toLowerCase()));
+  const displayedPdvsTries = trierLignes(displayedPdvs, triInactifs, {
+    nom: p => p.nom || p.numero_pdv,
+    num_perso: p => p.numero_personnel,
+    superviseur: p => p.superviseur,
+    zone: p => p.zone,
+    sous_zone: p => p.sous_zone,
+    tele: p => p.teleconseillere,
+    valeur: p => getMetricValue(p, criterion),
+    alerte: p => p.nb_mois_consecutifs_inactif,
+    mois_inactif: p => p.nb_mois_consecutifs_inactif,
+  });
   const critique = pdvs.filter(p => p.nb_mois_consecutifs_inactif >= 3);
   const haute = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 2);
   const normale = pdvs.filter(p => p.nb_mois_consecutifs_inactif === 1);
@@ -1057,24 +1129,24 @@ function TabInactivePDVs({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Sous-Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Mois Inactif</th>
+                <Th col="nom" label="Nom PDV" tri={triInactifs} setTri={setTriInactifs} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="num_perso" label="N° Personnel" tri={triInactifs} setTri={setTriInactifs} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="superviseur" label="Superviseur" tri={triInactifs} setTri={setTriInactifs} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="zone" label="Zone" tri={triInactifs} setTri={setTriInactifs} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="sous_zone" label="Sous-Zone" tri={triInactifs} setTri={setTriInactifs} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="tele" label="Téléconseillère" tri={triInactifs} setTri={setTriInactifs} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="valeur" label={getMetricLabel(criterion)} tri={triInactifs} setTri={setTriInactifs} align="right" color="#FF6900" style={{ padding: '12px 14px' }} />
+                <Th col="alerte" label="Alerte" tri={triInactifs} setTri={setTriInactifs} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="mois_inactif" label="Mois Inactif" tri={triInactifs} setTri={setTriInactifs} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
                 <th style={{ padding: '12px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : displayedPdvs.length === 0 ? (
+              ) : displayedPdvsTries.length === 0 ? (
                 <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif ce mois</td></tr>
-              ) : displayedPdvs.map((p, i) => {
+              ) : displayedPdvsTries.map((p, i) => {
                 const alert = getAlertInfo(p.nb_mois_consecutifs_inactif || 1, 'inactif');
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -1130,6 +1202,7 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
   const [seuil, setSeuil] = useState(-10);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
+  const [triBaisse, setTriBaisse] = useState({ col: null, dir: 'asc' });
 
   const [appelPDV2, setAppelPDV2] = useState(null);
   const tcUser2 = useAuthStore(s => s.user);
@@ -1198,6 +1271,20 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
     const prec = getPrevMetric(pdv);
     return prec > 0 ? ((actuel - prec) / prec) * 100 : 0;
   };
+
+  const displayedPdvsTries = trierLignes(
+    displayedPdvs.map(p => ({ ...p, _tauxCritere: getTauxCritere(p) })),
+    triBaisse,
+    {
+      nom: p => p.nom || p.numero_pdv,
+      numero: p => p.numero_pdv,
+      superviseur: p => p.superviseur,
+      zone: p => p.zone,
+      actuel: p => getMetricValue(p, criterion),
+      precedent: p => getPrevMetric(p),
+      taux: p => p._tauxCritere,
+    }
+  );
 
   const pdvsAvecBaisse = pdvs.filter(p => {
     const actuel = getMetricValue(p, criterion);
@@ -1303,15 +1390,15 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} Actuel</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ffa502' }}>{getMetricLabel(criterion)} Précédent</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#ff4757' }}>Baisse</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <Th col="nom" label="Nom PDV" tri={triBaisse} setTri={setTriBaisse} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="numero" label="N° Personnel" tri={triBaisse} setTri={setTriBaisse} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="superviseur" label="Superviseur" tri={triBaisse} setTri={setTriBaisse} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="zone" label="Zone" tri={triBaisse} setTri={setTriBaisse} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="tele" label="Téléconseillère" tri={triBaisse} setTri={setTriBaisse} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="actuel" label={`${getMetricLabel(criterion)} Actuel`} tri={triBaisse} setTri={setTriBaisse} align="right" color="#00d68f" style={{ padding: '12px 14px' }} />
+                <Th col="precedent" label={`${getMetricLabel(criterion)} Précédent`} tri={triBaisse} setTri={setTriBaisse} align="right" color="#ffa502" style={{ padding: '12px 14px' }} />
+                <Th col="taux" label="Baisse" tri={triBaisse} setTri={setTriBaisse} align="center" color="#ff4757" style={{ padding: '12px 14px' }} />
+                <Th col="alerte" label="Alerte" tri={triBaisse} setTri={setTriBaisse} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Action</th>
                 <th style={{ padding: '12px 8px', textAlign: 'center', color: '#00d68f' }}>📞</th>
               </tr>
@@ -1319,9 +1406,9 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : displayedPdvs.length === 0 ? (
+              ) : displayedPdvsTries.length === 0 ? (
                 <tr><td colSpan={11} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse ce mois</td></tr>
-              ) : displayedPdvs.map((p, i) => {
+              ) : displayedPdvsTries.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
                 return (
@@ -1385,6 +1472,7 @@ function TabProgression({ annee, criterion }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
+  const [triProg, setTriProg] = useState({ col: null, dir: 'asc' });
   const PAGE_SIZE = 20;
 
   const toggleChart = (pdv) => {
@@ -1493,7 +1581,18 @@ function TabProgression({ annee, criterion }) {
     )
     .sort((a, b) => getMetricMax(b) - getMetricMax(a));
   const totalPages = Math.ceil(allSortedPDVs.length / PAGE_SIZE);
-  const sortedPDVs = allSortedPDVs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const allSortedPDVsTries = trierLignes(allSortedPDVs, triProg, {
+    pdv: p => p.nom || p.numero_pdv || p.numero_personnel,
+    zone: p => p.zone,
+    superviseur: p => p.superviseur,
+    top10: p => p.nb_fois_top10 || 0,
+    top50: p => p.nb_fois_top50 || 0,
+    max: p => getMetricMax(p),
+    min: p => getMetricValue({ ca: p.ca_min, montant_ca: p.montant_ca_min, commission_pdg: p.commission_pdg_min }, criterion),
+    meilleur: p => p.mois_meilleur_ca,
+    pire: p => p.mois_pire_ca,
+  });
+  const sortedPDVs = allSortedPDVsTries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const getChartData = (pdv) => [...(pdv?.historique_mensuel || [])]
     .sort((a, b) => a.annee !== b.annee ? a.annee - b.annee : a.mois - b.mois)
     .map(h => ({
@@ -1582,7 +1681,16 @@ function TabProgression({ annee, criterion }) {
         <table className="dashboard-table">
           <thead>
             <tr>
-              <th>PDV</th><th>Zone</th><th>Superviseur</th><th>Top 10</th><th>Top 50</th><th>{getMetricLabel(criterion)} Max</th><th>{getMetricLabel(criterion)} Min</th><th>Meilleur</th><th>Pire</th><th>Graphique</th>
+              <Th col="pdv" label="PDV" tri={triProg} setTri={setTriProg} />
+              <Th col="zone" label="Zone" tri={triProg} setTri={setTriProg} />
+              <Th col="superviseur" label="Superviseur" tri={triProg} setTri={setTriProg} />
+              <Th col="top10" label="Top 10" tri={triProg} setTri={setTriProg} />
+              <Th col="top50" label="Top 50" tri={triProg} setTri={setTriProg} />
+              <Th col="max" label={`${getMetricLabel(criterion)} Max`} tri={triProg} setTri={setTriProg} />
+              <Th col="min" label={`${getMetricLabel(criterion)} Min`} tri={triProg} setTri={setTriProg} />
+              <Th col="meilleur" label="Meilleur" tri={triProg} setTri={setTriProg} />
+              <Th col="pire" label="Pire" tri={triProg} setTri={setTriProg} />
+              <th>Graphique</th>
             </tr>
           </thead>
           <tbody>
@@ -1937,9 +2045,9 @@ function TabComparaisonOMY({ criterion = 'montant_transaction' }) {
               <thead>
                 <tr style={{ background:'rgba(255,255,255,0.04)' }}>
                   <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', width:30 }}>#</th>
-                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'nom',asc:s.col==='nom'?!s.asc:true}))}>PDV</th>
-                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left' }}>Zone</th>
-                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left' }}>Superviseur</th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'nom',asc:s.col==='nom'?!s.asc:true}))}>PDV {sort.col==='nom' ? (sort.asc ? '↑' : '↓') : '↕'}</th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'zone',asc:s.col==='zone'?!s.asc:true}))}>Zone {sort.col==='zone' ? (sort.asc ? '↑' : '↓') : '↕'}</th>
+                  <th style={{ padding:'10px 12px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'superviseur',asc:s.col==='superviseur'?!s.asc:true}))}>Superviseur {sort.col==='superviseur' ? (sort.asc ? '↑' : '↓') : '↕'}</th>
                   <th style={{ ...thS('ca_ref'), textAlign:'right', cursor:'pointer' }} onClick={()=>setSort(s=>({col:'ca_ref',asc:s.col==='ca_ref'?!s.asc:false}))}>
                     📌 {moisRefObj?.label || moisRef} {sort.col==='ca_ref' ? (sort.asc ? '↑' : '↓') : '↕'}
                   </th>

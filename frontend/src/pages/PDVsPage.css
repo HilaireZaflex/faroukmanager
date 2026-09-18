@@ -21,18 +21,22 @@
 .mini-stat-val { font-size: 28px; font-weight: 800; color: var(--color); line-height: 1; }
 .mini-stat-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
 
+/* Barre de filtres : tout sur UNE SEULE LIGNE (comme en Prospection).
+   En cas de manque de place on fait défiler horizontalement plutôt que de
+   passer à la ligne, pour garder un alignement constant d'un menu à l'autre. */
 .pdv-filters {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   padding: 14px 16px;
 }
 
 .filter-search {
   position: relative;
-  flex: 1;
-  min-width: 200px;
+  flex: 2 1 220px;
+  min-width: 180px;
 }
 .search-icon {
   position: absolute;
@@ -46,10 +50,12 @@
 
 .filter-selects {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-wrap: nowrap;
+  flex: 3 1 auto;
+  min-width: 0;
 }
-.filter-selects select { width: auto; min-width: 140px; }
+.filter-selects select { width: 100%; min-width: 0; flex: 1 1 120px; }
 
 .pdv-pagination {
   display: flex;

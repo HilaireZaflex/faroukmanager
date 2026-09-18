@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import AppelTCModal from '../components/common/AppelTCModal';
 import { Search } from 'lucide-react';
+import { trierLignes, Th } from '../components/common/TriTable';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, AreaChart, Area, Legend
@@ -96,6 +97,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 // ─── ONGLET 1 : VUE D'ENSEMBLE ───────────────────────────────────────────────
 function OngletVueEnsemble({ annee, semaine }) {
   const [graphIndicateur, setGraphIndicateur] = useState('montant_transaction');
+  const [triSupW, setTriSupW] = useState({ col: 'valeur', dir: 'desc' });
 
   const { data: dash, isLoading } = useQuery(
     ['weekly-overview', annee, semaine],
@@ -118,6 +120,28 @@ function OngletVueEnsemble({ annee, semaine }) {
   const caByType = dash?.ca_by_type ? Object.entries(dash.ca_by_type).map(([type, ca]) => ({ type, ca })) : [];
   const caBySup = Object.entries(getSupData()).map(([sup, ca]) => ({ sup, ca })).sort((a, b) => b.ca - a.ca).slice(0, 8);
   const indLabel = GRAPH_INDICATEURS_W.find(i => i.key === graphIndicateur)?.label || 'Valeur';
+
+  // Classement superviseurs (triable par clic sur les en-têtes)
+  const classementSupW = dash?.presence_par_superviseur
+    ? trierLignes(
+        Object.entries(dash.presence_par_superviseur).map(([sup, d]) => ({
+          sup, actifs: d.actifs, inactifs: d.inactifs,
+          valeur: graphIndicateur === 'montant_ca'
+            ? (caBySup.find(s => s.sup === sup)?.ca || 0)
+            : graphIndicateur === 'commission_pdg'
+            ? (dash?.commission_pdg_by_superviseur?.[sup] || 0)
+            : d.ca,
+        })),
+        triSupW,
+        {
+          sup: r => r.sup,
+          actifs: r => r.actifs,
+          inactifs: r => r.inactifs,
+          valeur: r => r.valeur,
+          moyenne: r => (r.actifs > 0 ? r.valeur / r.actifs : 0),
+        }
+      )
+    : [];
 
   return (
     <div>
@@ -193,34 +217,24 @@ function OngletVueEnsemble({ annee, semaine }) {
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
                 <th style={{ padding: '10px 12px', textAlign: 'center', color: '#8a8a9a' }}>#</th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>Actifs</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>Inactifs</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#FF6900' }}>{GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label}</th>
-                <th style={{ padding: '10px 12px', textAlign: 'right', color: '#8a8a9a' }}>Moy./PDV</th>
+                <Th col="sup" label="Superviseur" tri={triSupW} setTri={setTriSupW} color="#8a8a9a" style={{ padding: '10px 12px' }} />
+                <Th col="actifs" label="Actifs" tri={triSupW} setTri={setTriSupW} align="center" color="#00d68f" style={{ padding: '10px 12px' }} />
+                <Th col="inactifs" label="Inactifs" tri={triSupW} setTri={setTriSupW} align="center" color="#ff4757" style={{ padding: '10px 12px' }} />
+                <Th col="valeur" label={GRAPH_INDICATEURS_W.find(ind=>ind.key===graphIndicateur)?.label} tri={triSupW} setTri={setTriSupW} align="right" color="#FF6900" style={{ padding: '10px 12px' }} />
+                <Th col="moyenne" label="Moy./PDV" tri={triSupW} setTri={setTriSupW} align="right" color="#8a8a9a" style={{ padding: '10px 12px' }} />
               </tr>
             </thead>
             <tbody>
-              {dash?.presence_par_superviseur && Object.entries(dash.presence_par_superviseur)
-                .map(([sup, d]) => ({
-                  sup, actifs: d.actifs, inactifs: d.inactifs,
-                  valeur: graphIndicateur === 'montant_ca'
-                    ? (caBySup.find(s => s.sup === sup)?.ca || 0)
-                    : graphIndicateur === 'commission_pdg'
-                    ? (dash?.commission_pdg_by_superviseur?.[sup] || 0)
-                    : d.ca
-                }))
-                .sort((a, b) => b.valeur - a.valeur)
-                .map((row, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}>{row.sup}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{row.actifs}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{row.inactifs}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(row.valeur)}</td>
-                    <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(row.actifs > 0 ? row.valeur / row.actifs : 0)}</td>
-                  </tr>
-                ))}
+              {classementSupW.map((row, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6900' : '#aaa' }}>{i + 1}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 600 }}>{row.sup}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#00d68f' }}>{row.actifs}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', color: '#ff4757' }}>{row.inactifs}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#FF6900' }}>{formatCA(row.valeur)}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', color: '#aaa' }}>{formatCA(row.actifs > 0 ? row.valeur / row.actifs : 0)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -236,6 +250,7 @@ function OngletSuiviTop({ annee, semaine, criterion }) {
   const [search, setSearch] = useState('');
   const [zoneFilter, setZoneFilter] = useState('');
   const [sortBy, setSortBy] = useState('metric_desc');
+  const [triTopW, setTriTopW] = useState({ col: null, dir: 'asc' });
 
   const { data: weeklyDash, isLoading } = useQuery(
     ['weekly-dash-top', annee, semaine],
@@ -266,7 +281,14 @@ function OngletSuiviTop({ annee, semaine, criterion }) {
       return getMetricValue(b, criterion) - getMetricValue(a, criterion);
     })
     .slice(0, topN);
-  const displayPdvs = filteredPdvs;
+  const displayPdvs = trierLignes(filteredPdvs, triTopW, {
+    pdv: p => p.nom || p.numero_pdv,
+    ca: p => getMetricValue(p, criterion),
+    quartier: p => p.quartier,
+    superviseur: p => p.superviseur,
+    gestionnaire: p => p.gestionnaire,
+    medaille: p => p.medaille,
+  });
 
   const exportExcel = () => {
     const rows = displayPdvs.map((p, i) => ({
@@ -356,12 +378,12 @@ function OngletSuiviTop({ annee, semaine, criterion }) {
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Quartier</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Gestionnaire</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Médaille</th>
+                <Th col="pdv" label="PDV" tri={triTopW} setTri={setTriTopW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="ca" label={getMetricLabel(criterion)} tri={triTopW} setTri={setTriTopW} align="right" color="#FF6900" style={{ padding: '12px 14px' }} />
+                <Th col="quartier" label="Quartier" tri={triTopW} setTri={setTriTopW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="superviseur" label="Superviseur" tri={triTopW} setTri={setTriTopW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="gestionnaire" label="Gestionnaire" tri={triTopW} setTri={setTriTopW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="medaille" label="Médaille" tri={triTopW} setTri={setTriTopW} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
                 <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Évolution</th>
               </tr>
             </thead>
@@ -412,6 +434,7 @@ function OngletEvolution({ annee, semaine, criterion }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
+  const [triEvolW, setTriEvolW] = useState({ col: null, dir: 'asc' });
 
   const prevSemaine = semaine === 1 ? 52 : semaine - 1;
   const prevAnnee = semaine === 1 ? annee - 1 : annee;
@@ -436,21 +459,32 @@ function OngletEvolution({ annee, semaine, criterion }) {
   const variationCritere = actuelTotal - precedentTotal;
   const tauxCritereGlobal = precedentTotal > 0 ? (variationCritere / precedentTotal) * 100 : 0;
 
-  const renderTable = (rows, keyField) => (
+  const valActuel = (r) => getMetricValue({ ca: r.ca_actuel, montant_transaction: r.montant_transaction_actuel, montant_ca: r.montant_ca_actuel, commission_pdg: r.commission_pdg_actuel }, criterion);
+  const valPrec = (r) => getMetricValue({ ca: r.ca_precedent, montant_transaction: r.montant_transaction_precedent, montant_ca: r.montant_ca_precedent, commission_pdg: r.commission_pdg_precedent }, criterion);
+
+  const renderTable = (rows, keyField) => {
+    const lignes = trierLignes(rows, triEvolW, {
+      nom: r => r[keyField] || r.nom,
+      actuel: r => valActuel(r),
+      precedent: r => valPrec(r),
+      variation: r => r.variation,
+      taux: r => (valPrec(r) > 0 ? ((valActuel(r) - valPrec(r)) / valPrec(r)) * 100 : 0),
+    });
+    return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} S{semaine}</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ffa502' }}>{getMetricLabel(criterion)} S{prevSemaine}</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#8a8a9a' }}>Variation</th>
-              <th style={{ padding: '12px 14px', textAlign: 'right', color: '#8a8a9a' }}>Taux</th>
+              <Th col="nom" label="Nom" tri={triEvolW} setTri={setTriEvolW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+              <Th col="actuel" label={`${getMetricLabel(criterion)} S${semaine}`} tri={triEvolW} setTri={setTriEvolW} align="right" color="#00d68f" style={{ padding: '12px 14px' }} />
+              <Th col="precedent" label={`${getMetricLabel(criterion)} S${prevSemaine}`} tri={triEvolW} setTri={setTriEvolW} align="right" color="#ffa502" style={{ padding: '12px 14px' }} />
+              <Th col="variation" label="Variation" tri={triEvolW} setTri={setTriEvolW} align="right" color="#8a8a9a" style={{ padding: '12px 14px' }} />
+              <Th col="taux" label="Taux" tri={triEvolW} setTri={setTriEvolW} align="right" color="#8a8a9a" style={{ padding: '12px 14px' }} />
             </tr>
           </thead>
           <tbody>
-            {(rows || []).map((r, i) => (
+            {(lignes || []).map((r, i) => (
               <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <td style={{ padding: '10px 14px', fontWeight: 600 }}>
                   {keyField === 'nom' && r.numero_pdv ? (
@@ -487,7 +521,8 @@ function OngletEvolution({ annee, semaine, criterion }) {
         </table>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div>
@@ -607,12 +642,12 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
     { staleTime: 30000, refetchOnMount: true }
   );
   const [search, setSearch] = useState('');
+  const [triInactW, setTriInactW] = useState({ col: null, dir: 'asc' });
   const { data, isLoading } = useQuery(
     ['weekly-inactive', annee, semaine],
     () => api.get('/dashboard/weekly-inactive', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 60000 }
-  );
-  const allPdvsInact = data?.pdvs || [];
+  );  const allPdvsInact = data?.pdvs || [];
   // Filtrer par téléconseillère si rôle teleconseillere
   const pdvs = teleFilter
     ? allPdvsInact.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
@@ -628,6 +663,18 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
   const critique = pdvs.filter(p => p.alerte === 'CRITIQUE');
   const haute = pdvs.filter(p => p.alerte === 'HAUTE');
   const normale = pdvs.filter(p => p.alerte === 'NORMALE');
+
+  const displayedPdvsTries = trierLignes(displayedPdvs, triInactW, {
+    nom: p => p.nom || p.numero_pdv,
+    num_perso: p => p.numero_personnel,
+    superviseur: p => p.superviseur,
+    zone: p => p.zone,
+    sous_zone: p => p.sous_zone,
+    tele: p => p.teleconseillere,
+    valeur: p => getMetricValue(p, criterion),
+    alerte: p => p.alerte,
+    semaine_inactif: p => p.nb_semaines_consecutives_inactif,
+  });
 
   const exportExcel = () => {
     const rows = pdvs.map(p => ({
@@ -691,24 +738,24 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Sous-Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <Th col="nom" label="Nom PDV" tri={triInactW} setTri={setTriInactW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="num_perso" label="N° Personnel" tri={triInactW} setTri={setTriInactW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="superviseur" label="Superviseur" tri={triInactW} setTri={setTriInactW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="zone" label="Zone" tri={triInactW} setTri={setTriInactW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="sous_zone" label="Sous-Zone" tri={triInactW} setTri={setTriInactW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="tele" label="Téléconseillère" tri={triInactW} setTri={setTriInactW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="valeur" label={getMetricLabel(criterion)} tri={triInactW} setTri={setTriInactW} align="right" color="#FF6900" style={{ padding: '12px 14px' }} />
+                <Th col="alerte" label="Alerte" tri={triInactW} setTri={setTriInactW} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
                 <th style={{ padding: '12px 8px', textAlign: 'center', color: '#00d68f' }}>📞 Appel</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Sem. Inactif</th>
+                <Th col="semaine_inactif" label="Sem. Inactif" tri={triInactW} setTri={setTriInactW} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : displayedPdvs.length === 0 ? (
+              ) : displayedPdvsTries.length === 0 ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV inactif cette semaine</td></tr>
-              ) : displayedPdvs.map((p, i) => {
+              ) : displayedPdvsTries.map((p, i) => {
                 const alert = getAlertInfo(p.nb_semaines_consecutives_inactif || 1, 'inactif');
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -783,6 +830,7 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
   }, [rawAppelsB, appelsFaitsLocalB]);
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
+  const [triBaisseW, setTriBaisseW] = useState({ col: null, dir: 'asc' });
   const { data: appelsHistArrB2 = [] } = useQuery(
     'omy-w-baisse-appels-hist-b',
     () =>     async () => {
@@ -828,6 +876,21 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
     const prec = getPrevMetricW(pdv);
     return prec > 0 ? ((actuel - prec) / prec) * 100 : 0;
   };
+  const displayedPdvsTriesB = trierLignes(
+    displayedPdvs.map(p => ({ ...p, _taux: getTauxCritereW(p) })),
+    triBaisseW,
+    {
+      nom: p => p.nom || p.numero_pdv,
+      numero: p => p.numero_personnel,
+      superviseur: p => p.superviseur,
+      zone: p => p.zone,
+      tele: p => p.teleconseillere,
+      actuel: p => getMetricValue(p, criterion),
+      precedent: p => getPrevMetricW(p),
+      taux: p => p._taux,
+      alerte: p => p.alerte,
+    }
+  );
   const pdvsAvecBaisseW = pdvs.filter(p => {
     const actuel = getMetricValue(p, criterion);
     const prec = getPrevMetricW(p);
@@ -923,24 +986,24 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Nom PDV</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>N° Personnel</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Téléconseillère</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} Actuel</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ffa502' }}>{getMetricLabel(criterion)} Précédent</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#ff4757' }}>Baisse</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Alerte</th>
+                <Th col="nom" label="Nom PDV" tri={triBaisseW} setTri={setTriBaisseW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="numero" label="N° Personnel" tri={triBaisseW} setTri={setTriBaisseW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="superviseur" label="Superviseur" tri={triBaisseW} setTri={setTriBaisseW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="zone" label="Zone" tri={triBaisseW} setTri={setTriBaisseW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="tele" label="Téléconseillère" tri={triBaisseW} setTri={setTriBaisseW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="actuel" label={`${getMetricLabel(criterion)} Actuel`} tri={triBaisseW} setTri={setTriBaisseW} align="right" color="#00d68f" style={{ padding: '12px 14px' }} />
+                <Th col="precedent" label={`${getMetricLabel(criterion)} Précédent`} tri={triBaisseW} setTri={setTriBaisseW} align="right" color="#ffa502" style={{ padding: '12px 14px' }} />
+                <Th col="taux" label="Baisse" tri={triBaisseW} setTri={setTriBaisseW} align="center" color="#ff4757" style={{ padding: '12px 14px' }} />
+                <Th col="alerte" label="Alerte" tri={triBaisseW} setTri={setTriBaisseW} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
                 <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#8a8a9a' }}>Chargement...</td></tr>
-              ) : displayedPdvs.length === 0 ? (
+              ) : displayedPdvsTriesB.length === 0 ? (
                 <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32, color: '#00d68f' }}>✅ Aucun PDV en baisse cette semaine</td></tr>
-              ) : displayedPdvs.map((p, i) => {
+              ) : displayedPdvsTriesB.map((p, i) => {
                 const abs = Math.abs(p.taux_baisse || 0);
                 const alert = getAlertInfo(abs, 'baisse');
                 return (
@@ -999,6 +1062,7 @@ function OngletProgression({ annee, semaine, criterion }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState(null);
   const PAGE_SIZE = 20;
+  const [triProgW, setTriProgW] = useState({ col: null, dir: 'asc' });
 
   const { data, isLoading } = useQuery(
     ['weekly-dash-progression', annee],
@@ -1089,7 +1153,19 @@ function OngletProgression({ annee, semaine, criterion }) {
       (p.superviseur || '').toLowerCase().includes(search.toLowerCase())
     );
   const totalPages = Math.ceil(allPdvs.length / PAGE_SIZE);
-  const pdvs = allPdvs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const allPdvsTries = trierLignes(allPdvs, triProgW, {
+    pdv: p => p.nom || p.numero_pdv || p.numero_personnel,
+    zone: p => p.zone,
+    superviseur: p => p.superviseur,
+    top10: p => p.nb_fois_top10 || 0,
+    top50: p => p.nb_fois_top50 || 0,
+    meilleur: p => p.semaine_meilleure,
+    pire: p => p.semaine_pire,
+    max: p => getMetricValue({ ca: p.ca_max, montant_ca: p.montant_ca_max, commission_pdg: p.commission_pdg_max }, criterion),
+    min: p => getMetricValue({ ca: p.ca_min, montant_ca: p.montant_ca_min, commission_pdg: p.commission_pdg_min }, criterion),
+    evol: p => p.evolution,
+  });
+  const pdvs = allPdvsTries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const exportExcel = () => {
     const rows = pdvs.map(p => ({
@@ -1209,16 +1285,16 @@ function OngletProgression({ annee, semaine, criterion }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#FFD700' }}>Nb Top 10</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#a29bfe' }}>Nb Top 50</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#00d68f' }}>Sem. Meilleur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#ff4757' }}>Sem. Pire</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#00d68f' }}>{getMetricLabel(criterion)} Max</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#ff4757' }}>{getMetricLabel(criterion)} Min</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Évol.</th>
+                <Th col="pdv" label="PDV" tri={triProgW} setTri={setTriProgW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="zone" label="Zone" tri={triProgW} setTri={setTriProgW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="superviseur" label="Superviseur" tri={triProgW} setTri={setTriProgW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="top10" label="Nb Top 10" tri={triProgW} setTri={setTriProgW} align="center" color="#FFD700" style={{ padding: '12px 14px' }} />
+                <Th col="top50" label="Nb Top 50" tri={triProgW} setTri={setTriProgW} align="center" color="#a29bfe" style={{ padding: '12px 14px' }} />
+                <Th col="meilleur" label="Sem. Meilleur" tri={triProgW} setTri={setTriProgW} align="center" color="#00d68f" style={{ padding: '12px 14px' }} />
+                <Th col="pire" label="Sem. Pire" tri={triProgW} setTri={setTriProgW} align="center" color="#ff4757" style={{ padding: '12px 14px' }} />
+                <Th col="max" label={`${getMetricLabel(criterion)} Max`} tri={triProgW} setTri={setTriProgW} align="right" color="#00d68f" style={{ padding: '12px 14px' }} />
+                <Th col="min" label={`${getMetricLabel(criterion)} Min`} tri={triProgW} setTri={setTriProgW} align="right" color="#ff4757" style={{ padding: '12px 14px' }} />
+                <Th col="evol" label="Évol." tri={triProgW} setTri={setTriProgW} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
               </tr>
             </thead>
             <tbody>
@@ -1403,6 +1479,7 @@ export default function OMyWeeklyDashboardPage() {
 function OngletPareto({ annee, semaine, criterion }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [search, setSearch] = useState('');
+  const [triParetoW, setTriParetoW] = useState({ col: null, dir: 'asc' });
 
   const { data: weeklyDash } = useQuery(
     ['weekly-pareto-dash', annee, semaine],
@@ -1437,6 +1514,17 @@ function OngletPareto({ annee, semaine, criterion }) {
       return true;
     })
     .filter(p => !search || (p.numero_pdv||'').toLowerCase().includes(search.toLowerCase()) || (p.nom||'').toLowerCase().includes(search.toLowerCase()));
+
+  const displayedPdvsTriesP = trierLignes(displayedPdvs, triParetoW, {
+    rang: p => p.rang,
+    pdv: p => p.nom || p.numero_pdv,
+    zone: p => p.zone,
+    superviseur: p => p.superviseur,
+    valeur: p => getMetricValue(p, criterion),
+    pct: p => p.pct_ca,
+    cumul: p => p.cumul_pct,
+    impact: p => (p.dans_pareto ? 1 : 0),
+  });
 
   const fortImpact = paretoList.filter(p => p.dans_pareto);
   const faibleImpact = paretoList.filter(p => !p.dans_pareto);
@@ -1515,18 +1603,18 @@ function OngletPareto({ annee, semaine, criterion }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Rang</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>PDV</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Zone</th>
-                <th style={{ padding: '12px 14px', textAlign: 'left', color: '#8a8a9a' }}>Superviseur</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#FF6900' }}>{getMetricLabel(criterion)}</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#8a8a9a' }}>% CA</th>
-                <th style={{ padding: '12px 14px', textAlign: 'right', color: '#8a8a9a' }}>Cumul %</th>
-                <th style={{ padding: '12px 14px', textAlign: 'center', color: '#8a8a9a' }}>Impact</th>
+                <Th col="rang" label="Rang" tri={triParetoW} setTri={setTriParetoW} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="pdv" label="PDV" tri={triParetoW} setTri={setTriParetoW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="zone" label="Zone" tri={triParetoW} setTri={setTriParetoW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="superviseur" label="Superviseur" tri={triParetoW} setTri={setTriParetoW} color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="valeur" label={getMetricLabel(criterion)} tri={triParetoW} setTri={setTriParetoW} align="right" color="#FF6900" style={{ padding: '12px 14px' }} />
+                <Th col="pct" label="% CA" tri={triParetoW} setTri={setTriParetoW} align="right" color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="cumul" label="Cumul %" tri={triParetoW} setTri={setTriParetoW} align="right" color="#8a8a9a" style={{ padding: '12px 14px' }} />
+                <Th col="impact" label="Impact" tri={triParetoW} setTri={setTriParetoW} align="center" color="#8a8a9a" style={{ padding: '12px 14px' }} />
               </tr>
             </thead>
             <tbody>
-              {displayedPdvs.map((p, i) => (
+              {displayedPdvsTriesP.map((p, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: p.dans_pareto ? 'rgba(0,214,143,0.03)' : 'transparent' }}>
                   <td style={{ padding: '10px 14px', textAlign: 'center', color: '#FF6900', fontWeight: 700 }}>{p.rang}</td>
                   <td style={{ padding: '10px 14px' }}>
