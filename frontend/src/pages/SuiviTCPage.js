@@ -705,6 +705,7 @@ function TabMigrationAdmin() {
   const [statut, setStatut] = useState('');
   const [typePdv, setTypePdv] = useState('');
   const [tcId, setTcId] = useState('');
+  const [piecesF, setPiecesF] = useState('');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -714,9 +715,14 @@ function TabMigrationAdmin() {
     api.get('/tc/migration/stats').then(r => r.data), { staleTime: 60000 });
 
   const { data: list, isLoading } = useQuery(
-    ['mig-list', statut, typePdv, tcId],
+    ['mig-list', statut, typePdv, tcId, piecesF],
     () => api.get('/tc/migration', {
-      params: { statut: statut || undefined, type_pdv: typePdv || undefined, tc_user_id: tcId || undefined, limit: 500 },
+      params: {
+        statut: statut || undefined, type_pdv: typePdv || undefined,
+        tc_user_id: tcId || undefined,
+        pieces_au_bureau: piecesF === '' ? undefined : piecesF === 'OUI',
+        limit: 500,
+      },
     }).then(r => r.data),
     { staleTime: 30000 }
   );
@@ -729,17 +735,20 @@ function TabMigrationAdmin() {
         || (m.tc_nom || '').toLowerCase().includes(s);
   });
 
-  const exporter = async () => {
+  const exporter = async (piecesSeulement = false) => {
     setBusy(true); setMsg('');
     try {
       const r = await api.get('/tc/migration/export', {
-        params: { statut: statut || undefined, type_pdv: typePdv || undefined, tc_user_id: tcId || undefined },
+        params: {
+          statut: statut || undefined, type_pdv: typePdv || undefined, tc_user_id: tcId || undefined,
+          pieces_au_bureau: piecesSeulement ? true : (piecesF === '' ? undefined : piecesF === 'OUI'),
+        },
         responseType: 'blob',
       });
       const u = URL.createObjectURL(r.data);
       const a = document.createElement('a');
       a.href = u;
-      a.download = `appels_migration_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.download = `${piecesSeulement ? 'pieces_au_bureau' : 'appels_migration'}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(u);
       setMsg('✅ Export généré');
@@ -752,6 +761,8 @@ function TabMigrationAdmin() {
     { label: '✅ Éligibles', value: stats?.valides || 0, color: '#22c55e' },
     { label: '❌ Rejetés', value: stats?.rejetes || 0, color: '#ff4757' },
     { label: 'Taux d\'éligibilité', value: `${stats?.taux_validation || 0}%`, color: '#4a9eff' },
+    { label: '🤝 Ont accepté de migrer', value: stats?.acceptent || 0, color: '#a29bfe' },
+    { label: '📁 Pièces déposées au bureau', value: stats?.pieces_bureau || 0, color: '#00d68f' },
   ];
   const selStyle = (v) => ({ flex: '1 1 130px', padding: '9px 10px',
     background: v ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)',
@@ -760,7 +771,7 @@ function TabMigrationAdmin() {
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 18 }}>
         {lignes.map(k => (
           <div key={k.label} style={{ background: `${k.color}10`, border: `1px solid ${k.color}30`, borderRadius: 12, padding: '14px 18px', textAlign: 'center' }}>
             <div style={{ fontSize: 26, fontWeight: 900, color: k.color }}>{k.value}</div>
@@ -786,9 +797,19 @@ function TabMigrationAdmin() {
           <option value="">👤 Toutes les TC</option>
           {(stats?.par_tc || []).map(t => <option key={t.tc_user_id} value={t.tc_user_id}>{t.tc_nom}</option>)}
         </select>
-        <button onClick={exporter} disabled={busy}
+        <select value={piecesF} onChange={e => setPiecesF(e.target.value)} style={selStyle(piecesF)}>
+          <option value="">📁 Tous dépôts</option>
+          <option value="OUI">📁 Pièces au bureau</option>
+          <option value="NON">📭 Pièces non déposées</option>
+        </select>
+        <button onClick={() => exporter(false)} disabled={busy}
           style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#22c55e', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
           {busy ? '⏳…' : '⬇️ Exporter'}
+        </button>
+        <button onClick={() => exporter(true)} disabled={busy}
+          title="Exporter uniquement les PDV ayant déposé leurs pièces au bureau"
+          style={{ padding: '9px 16px', borderRadius: 10, border: '1px solid rgba(0,214,143,0.4)', background: 'rgba(0,214,143,0.1)', color: '#00d68f', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          📁 Exporter les pièces au bureau
         </button>
       </div>
       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
@@ -800,7 +821,7 @@ function TabMigrationAdmin() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-                {['Date', 'Téléconseillère', 'PDV', 'Type', 'Téléphones', 'Migrer', 'RCCM', 'Pièce', 'Résultat', 'Motif'].map(h => (
+                {['Date', 'Téléconseillère', 'PDV', 'Type', 'Téléphones', 'Migrer', 'RCCM', 'Pièce', 'Résultat', 'Motif', 'Pièces au bureau'].map(h => (
                   <th key={h} style={{ padding: '10px 12px', fontSize: 11, color: '#64748b', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -842,6 +863,19 @@ function TabMigrationAdmin() {
                   <td style={{ padding: '9px 12px', fontSize: 11, color: '#8a8a9a', maxWidth: 220 }}>
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.motif_rejet || '—'}</div>
                     <div style={{ fontSize: 10, color: '#FF6900', fontWeight: 700, marginTop: 2 }}>👁️ Voir les détails</div>
+                  </td>
+                  <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                    {m.pieces_au_bureau ? (
+                      <span title={m.depot_par_nom ? `Enregistré par ${m.depot_par_nom}` : ''}
+                        style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 8,
+                          background: 'rgba(0,214,143,0.15)', color: '#00d68f' }}>
+                        📁 OUI{m.date_depot_bureau ? ` · ${new Date(m.date_depot_bureau).toLocaleDateString('fr-FR')}` : ''}
+                      </span>
+                    ) : m.veut_migrer ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#ffa502' }}>⏳ en attente</span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#64748b' }}>—</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -902,6 +936,17 @@ function MigrationDetailModal({ ligne: m, onClose }) {
         {/* Détails */}
         <div style={{ marginBottom: 16 }}>
           <div style={ligneInfo}><span style={label}>Téléconseillère</span><span style={valeur}>{m.tc_nom}</span></div>
+          <div style={ligneInfo}>
+            <span style={label}>📁 Pièces déposées au bureau</span>
+            <span style={{ ...valeur, color: m.pieces_au_bureau ? '#00d68f' : (m.veut_migrer ? '#ffa502' : '#64748b') }}>
+              {m.pieces_au_bureau
+                ? `✅ Oui${m.date_depot_bureau ? ' · ' + new Date(m.date_depot_bureau).toLocaleDateString('fr-FR') : ''}`
+                : (m.veut_migrer ? '⏳ En attente' : '—')}
+            </span>
+          </div>
+          {m.pieces_au_bureau && m.depot_par_nom && (
+            <div style={ligneInfo}><span style={label}>Dépôt enregistré par</span><span style={valeur}>{m.depot_par_nom}</span></div>
+          )}
           <div style={ligneInfo}>
             <span style={label}>1. Souhaite migrer en commission directe</span>
             <span style={{ ...valeur, color: m.veut_migrer ? '#22c55e' : '#ff4757' }}>{m.veut_migrer ? '✅ Oui' : '❌ Non'}</span>

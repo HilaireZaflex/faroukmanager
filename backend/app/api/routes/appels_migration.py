@@ -72,6 +72,9 @@ def _fmt(m: AppelMigration) -> dict:
         "statut": m.statut,
         "motif_rejet": m.motif_rejet,
         "commentaire": m.commentaire,
+        "pieces_au_bureau": bool(getattr(m, "pieces_au_bureau", False)),
+        "date_depot_bureau": m.date_depot_bureau.isoformat() if getattr(m, "date_depot_bureau", None) else None,
+        "depot_par_nom": getattr(m, "depot_par_nom", None),
         "created_at": m.created_at.isoformat() if m.created_at else None,
     }
 
@@ -162,6 +165,17 @@ def list_pdv_migration(
             "deja_appele": m is not None,
             "dernier_statut": m.statut if m else None,
             "dernier_appel": m.created_at.isoformat() if m and m.created_at else None,
+            # Infos du dernier appel, utiles pour cocher le dépôt des pièces
+            "dernier_appel_id": m.id if m else None,
+            "veut_migrer": bool(m.veut_migrer) if m else None,
+            "a_rccm": bool(m.a_rccm) if m else None,
+            "a_piece_identite": bool(m.a_piece_identite) if m else None,
+            "type_piece": m.type_piece if m else None,
+            "pieces_au_bureau": bool(getattr(m, "pieces_au_bureau", False)) if m else False,
+            "date_depot_bureau": (
+                m.date_depot_bureau.isoformat()
+                if m and getattr(m, "date_depot_bureau", None) else None
+            ),
         })
 
     if deja_appeles is True:
@@ -252,6 +266,45 @@ def create_appel_migration(
     return _fmt(m)
 
 
+class DepotBureauIn(BaseModel):
+    pieces_au_bureau: bool = True
+
+
+@router.patch("/tc/migration/{appel_id}/pieces-bureau")
+def maj_pieces_bureau(
+    appel_id: int,
+    body: DepotBureauIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Coche (ou décoche) le dépôt des pièces au bureau pour un appel migration.
+
+    La TC qui a passé l'appel peut le faire, ainsi que l'encadrement.
+    La date du dépôt est enregistrée automatiquement lors du cochage.
+    """
+    m = db.query(AppelMigration).filter(AppelMigration.id == appel_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Appel migration introuvable")
+
+    role = _role(current_user)
+    if not (_est_encadrement(current_user) or m.tc_user_id == current_user.id):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez modifier que vos propres appels")
+
+    m.pieces_au_bureau = bool(body.pieces_au_bureau)
+    if m.pieces_au_bureau:
+        m.date_depot_bureau = datetime.utcnow()
+        m.depot_par_id = current_user.id
+        m.depot_par_nom = _full_name(current_user)
+    else:
+        m.date_depot_bureau = None
+        m.depot_par_id = None
+        m.depot_par_nom = None
+
+    db.commit()
+    db.refresh(m)
+    return _fmt(m)
+
+
 # ─── Liste / statistiques / export (encadrement) ─────────────────────────────
 
 @router.get("/tc/migration")
@@ -260,6 +313,7 @@ def list_appels_migration(
     tc_user_id: Optional[int] = Query(None),
     type_pdv: Optional[str] = Query(None, description="RS ou KIOSQUE"),
     type_piece: Optional[str] = Query(None),
+    pieces_au_bureau: Optional[bool] = Query(None, description="True = pièces déposées au bureau"),
     search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=1000),
@@ -283,6 +337,8 @@ def list_appels_migration(
         q = q.filter(AppelMigration.type_pdv == type_pdv.strip().upper())
     if type_piece:
         q = q.filter(AppelMigration.type_piece == type_piece.strip().upper())
+    if pieces_au_bureau is not None:
+        q = q.filter(AppelMigration.pieces_au_bureau == pieces_au_bureau)
     if search:
         like = f"%{search}%"
         q = q.filter(or_(
@@ -328,6 +384,9 @@ def stats_migration(
     total = base.count()
     valides = base.filter(AppelMigration.statut == 'VALIDE').count()
     rejetes = base.filter(AppelMigration.statut == 'REJETE').count()
+    # PDV ayant accepté de migrer et PDV ayant réellement apporté leurs pièces
+    acceptent = base.filter(AppelMigration.veut_migrer == True).count()
+    pieces_bureau = base.filter(AppelMigration.pieces_au_bureau == True).count()
 
     par_tc = []
     if _est_encadrement(current_user):
@@ -338,12 +397,24 @@ def stats_migration(
             AppelMigration.statut,
             func.count(AppelMigration.id),
         ).group_by(AppelMigration.tc_user_id, AppelMigration.statut).all():
-            d = agg.setdefault(uid, {"tc_user_id": uid, "tc_nom": nom, "total": 0, "valides": 0, "rejetes": 0})
+            d = agg.setdefault(uid, {"tc_user_id": uid, "tc_nom": nom, "total": 0, "valides": 0,
+                                     "rejetes": 0, "acceptent": 0, "pieces_bureau": 0})
             d["total"] += int(n)
             if st == 'VALIDE':
                 d["valides"] += int(n)
             else:
                 d["rejetes"] += int(n)
+        # Détail migrer / dépôt par TC
+        for uid, n in db.query(
+            AppelMigration.tc_user_id, func.count(AppelMigration.id)
+        ).filter(AppelMigration.veut_migrer == True).group_by(AppelMigration.tc_user_id).all():
+            if uid in agg:
+                agg[uid]["acceptent"] = int(n)
+        for uid, n in db.query(
+            AppelMigration.tc_user_id, func.count(AppelMigration.id)
+        ).filter(AppelMigration.pieces_au_bureau == True).group_by(AppelMigration.tc_user_id).all():
+            if uid in agg:
+                agg[uid]["pieces_bureau"] = int(n)
         par_tc = sorted(agg.values(), key=lambda x: -x["total"])
 
     par_type = [
@@ -363,6 +434,9 @@ def stats_migration(
         "total": total,
         "valides": valides,
         "rejetes": rejetes,
+        "acceptent": acceptent,
+        "pieces_bureau": pieces_bureau,
+        "taux_depot": round(pieces_bureau / acceptent * 100, 1) if acceptent else 0,
         "taux_validation": round(valides / total * 100, 1) if total else 0,
         "par_tc": sorted(par_tc, key=lambda x: -x["total"]),
         "par_type_pdv": par_type,
@@ -375,6 +449,7 @@ def export_migration(
     statut: Optional[str] = Query(None),
     tc_user_id: Optional[int] = Query(None),
     type_pdv: Optional[str] = Query(None),
+    pieces_au_bureau: Optional[bool] = Query(None, description="True = uniquement les pièces déposées au bureau"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -389,6 +464,8 @@ def export_migration(
         q = q.filter(AppelMigration.statut == statut.strip().upper())
     if type_pdv:
         q = q.filter(AppelMigration.type_pdv == type_pdv.strip().upper())
+    if pieces_au_bureau is not None:
+        q = q.filter(AppelMigration.pieces_au_bureau == pieces_au_bureau)
     rows = q.order_by(AppelMigration.created_at.desc()).all()
 
     from openpyxl import Workbook
@@ -402,6 +479,7 @@ def export_migration(
         "Téléphone flotte", "Téléphone personnel",
         "Souhaite migrer", "RCCM", "Pièce d'identité", "Type de pièce",
         "Résultat", "Motif du rejet", "Commentaire",
+        "Pièces au bureau", "Date dépôt bureau", "Dépôt enregistré par",
     ]
     ws.append(entetes)
     for c in ws[1]:
@@ -426,9 +504,12 @@ def export_migration(
             "OUI" if m.a_piece_identite else "NON",
             MIGRATION_TYPE_PIECE_LABELS.get(m.type_piece or "", "") if m.type_piece else "",
             m.statut, m.motif_rejet or "", m.commentaire or "",
+            "OUI" if getattr(m, "pieces_au_bureau", False) else "NON",
+            m.date_depot_bureau.strftime("%Y-%m-%d %H:%M") if getattr(m, "date_depot_bureau", None) else "",
+            getattr(m, "depot_par_nom", None) or "",
         ])
 
-    for i, largeur in enumerate([6, 17, 22, 14, 26, 10, 17, 18, 15, 8, 16, 18, 10, 45, 40], start=1):
+    for i, largeur in enumerate([6, 17, 22, 14, 26, 10, 17, 18, 15, 8, 16, 18, 10, 45, 40, 16, 18, 22], start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = largeur
 
     buffer = io.BytesIO()

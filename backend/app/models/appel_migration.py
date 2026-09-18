@@ -51,6 +51,14 @@ class AppelMigration(Base):
     motif_rejet = Column(Text, nullable=True)
     commentaire = Column(Text, nullable=True)
 
+    # ── Dépôt des pièces au bureau ──
+    # La TC coche cette case APRÈS l'appel, quand le PDV apporte réellement
+    # ses documents au bureau. La date est enregistrée automatiquement.
+    pieces_au_bureau = Column(Boolean, nullable=False, default=False, index=True)
+    date_depot_bureau = Column(DateTime, nullable=True)
+    depot_par_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    depot_par_nom = Column(String(200), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     __table_args__ = (

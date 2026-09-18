@@ -246,6 +246,12 @@ async def auto_migrate():
         "ALTER TABLE prospects ADD COLUMN IF NOT EXISTS qualification VARCHAR(20)",
         "CREATE INDEX IF NOT EXISTS ix_prospects_qualification ON prospects (qualification)",
         "ALTER TABLE prospect_history ADD COLUMN IF NOT EXISTS qualification VARCHAR(20)",
+        # ── Appels migration : dépôt des pièces au bureau (coché par la TC) ──
+        "ALTER TABLE appels_migration ADD COLUMN IF NOT EXISTS pieces_au_bureau BOOLEAN DEFAULT FALSE NOT NULL",
+        "ALTER TABLE appels_migration ADD COLUMN IF NOT EXISTS date_depot_bureau TIMESTAMP",
+        "ALTER TABLE appels_migration ADD COLUMN IF NOT EXISTS depot_par_id INTEGER",
+        "ALTER TABLE appels_migration ADD COLUMN IF NOT EXISTS depot_par_nom VARCHAR(200)",
+        "CREATE INDEX IF NOT EXISTS ix_appels_migration_pieces_bureau ON appels_migration (pieces_au_bureau)",
         # ── KAABU : colonnes déclarées dans le modèle mais absentes des tables anciennes ──
         # Sans elles, les requêtes chargeant l'entité complète (db.query(KaabuTransaction))
         # échouent en PostgreSQL : colonne inexistante → 500 sur les dashboards hebdo + mensuel.
@@ -291,6 +297,11 @@ async def auto_migrate():
                     "ALTER TABLE prospects ADD COLUMN activation_type_pdv VARCHAR(200)",
                     # KAABU : parité avec PostgreSQL (SQLite ne supporte pas IF NOT EXISTS)
                     "ALTER TABLE kaabu_transactions ADD COLUMN gestionnaire VARCHAR",
+                    # Appels migration : parité SQLite
+                    "ALTER TABLE appels_migration ADD COLUMN pieces_au_bureau BOOLEAN DEFAULT 0",
+                    "ALTER TABLE appels_migration ADD COLUMN date_depot_bureau TIMESTAMP",
+                    "ALTER TABLE appels_migration ADD COLUMN depot_par_id INTEGER",
+                    "ALTER TABLE appels_migration ADD COLUMN depot_par_nom VARCHAR(200)",
                     "ALTER TABLE kaabu_transactions ADD COLUMN sous_zone VARCHAR",
                     "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_gestionnaire ON kaabu_transactions (gestionnaire)",
                     "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_sous_zone ON kaabu_transactions (sous_zone)",

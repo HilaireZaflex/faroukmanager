@@ -649,6 +649,23 @@ function TabMigration() {
   const [typeF, setTypeF] = React.useState('');
   const [appelF, setAppelF] = React.useState('');
   const [modal, setModal] = React.useState(null);
+  const [depotEnCours, setDepotEnCours] = React.useState(null);
+
+  // Coche / décoche le dépôt des pièces au bureau pour le dernier appel du PDV
+  const togglePiecesBureau = async (p) => {
+    if (!p?.dernier_appel_id) return;
+    setDepotEnCours(p.dernier_appel_id);
+    try {
+      await api.patch(`/tc/migration/${p.dernier_appel_id}/pieces-bureau`, {
+        pieces_au_bureau: !p.pieces_au_bureau,
+      });
+      await refetch();
+    } catch (e) {
+      alert('Erreur : ' + (e?.response?.data?.detail || e.message));
+    } finally {
+      setDepotEnCours(null);
+    }
+  };
 
   const items = (data?.items || []).filter(p => {
     if (typeF && p.type_pdv !== typeF) return false;
@@ -691,6 +708,18 @@ function TabMigration() {
       </div>
       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
         {items.length} PDV affiché(s) — {(data?.deja_appeles || 0)} déjà appelé(s) sur {data?.total_pdv || 0}
+        {(() => {
+          const tous = data?.items || [];
+          const acceptent = tous.filter(p => p.veut_migrer).length;
+          const auBureau = tous.filter(p => p.pieces_au_bureau).length;
+          if (!acceptent) return null;
+          return (
+            <span style={{ marginLeft: 10 }}>
+              · <b style={{ color: '#22c55e' }}>{acceptent}</b> ont accepté de migrer
+              · <b style={{ color: '#4a9eff' }}>{auBureau}</b> ont déposé leurs pièces au bureau
+            </span>
+          );
+        })()}
       </div>
 
       {isLoading ? <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>⏳ Chargement…</div> : (
@@ -712,6 +741,31 @@ function TabMigration() {
                     {p.dernier_statut === 'VALIDE' ? '✅ Éligible' : '❌ Rejeté'} · {p.dernier_appel ? new Date(p.dernier_appel).toLocaleDateString('fr-FR') : ''}
                   </div>
                 )}
+
+                {/* Dépôt des pièces au bureau — proposé dès que le PDV accepte de migrer */}
+                {p.deja_appele && p.veut_migrer && p.dernier_appel_id && (
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer',
+                    background: p.pieces_au_bureau ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${p.pieces_au_bureau ? 'rgba(34,197,94,0.45)' : 'rgba(255,255,255,0.12)'}`,
+                    borderRadius: 9, padding: '8px 10px', touchAction: 'manipulation',
+                  }}>
+                    <input type="checkbox"
+                      checked={!!p.pieces_au_bureau}
+                      disabled={depotEnCours === p.dernier_appel_id}
+                      onChange={() => togglePiecesBureau(p)}
+                      style={{ width: 20, height: 20, accentColor: '#22c55e', cursor: 'pointer', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: p.pieces_au_bureau ? '#22c55e' : '#cbd5e1', lineHeight: 1.35 }}>
+                      📁 Pièces déposées au bureau
+                      {p.pieces_au_bureau && p.date_depot_bureau && (
+                        <span style={{ display: 'block', fontWeight: 500, color: '#64748b', fontSize: 10 }}>
+                          le {new Date(p.date_depot_bureau).toLocaleDateString('fr-FR')}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                )}
+
                 <button onClick={() => setModal(p)}
                   style={{ marginTop: 10, width: '100%', padding: '8px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 800,
                     background: p.deja_appele ? 'rgba(162,155,254,0.12)' : 'linear-gradient(135deg,#FF6900,#ff9500)',
