@@ -1028,10 +1028,13 @@ function TabInactivePDVs({
   );
 
   const allPdvs = inactifs?.pdvs || [];
+  // Filtres hiérarchiques Zone → Superviseur (même barre que les autres onglets)
+  const { zoneFilter, setZoneFilter, supFilter, setSupFilter, zoneList, supList, filterPDVs, hasFilters, resetFilters } = useHierarchicalFilters(allPdvs);
   // Filtrer par téléconseillère si rôle teleconseillere
-  const pdvs = teleFilter
+  const pdvsTele = teleFilter
     ? allPdvs.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
     : allPdvs;
+  const pdvs = filterPDVs(pdvsTele);
   const displayedPdvs = pdvs
     .filter(p => {
       if (activeFilter === 'critique') return p.nb_mois_consecutifs_inactif >= 3;
@@ -1120,6 +1123,15 @@ function TabInactivePDVs({
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ paddingLeft: 36 }}
+          />
+        </div>
+        <div className="filter-selects" style={{ alignItems: 'center' }}>
+          <HierarchicalFilters
+            zoneFilter={zoneFilter} setZoneFilter={setZoneFilter}
+            supFilter={supFilter} setSupFilter={setSupFilter}
+            zoneList={zoneList} supList={supList}
+            hasFilters={hasFilters} resetFilters={resetFilters}
+            style={{ flexWrap: 'nowrap', flex: '1 1 auto', minWidth: 0 }}
           />
         </div>
       </div>
@@ -1246,10 +1258,13 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
     { staleTime: 300000 }
   );
   const allPdvs = data?.pdvs || [];
+  // Filtres hiérarchiques Zone → Superviseur (même barre que les autres onglets)
+  const { zoneFilter, setZoneFilter, supFilter, setSupFilter, zoneList, supList, filterPDVs, hasFilters, resetFilters } = useHierarchicalFilters(allPdvs);
   // Filtrer par téléconseillère si rôle teleconseillere
-  const pdvs = teleFilter
+  const pdvsTele = teleFilter
     ? allPdvs.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
     : allPdvs;
+  const pdvs = filterPDVs(pdvsTele);
   const displayedPdvs = pdvs
     .filter(p => {
       const abs = Math.abs(p.taux_baisse || 0);
@@ -1381,6 +1396,15 @@ function TabDecliningPDVs({ annee, mois, criterion, teleFilter }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ paddingLeft: 36 }}
+          />
+        </div>
+        <div className="filter-selects" style={{ alignItems: 'center' }}>
+          <HierarchicalFilters
+            zoneFilter={zoneFilter} setZoneFilter={setZoneFilter}
+            supFilter={supFilter} setSupFilter={setSupFilter}
+            zoneList={zoneList} supList={supList}
+            hasFilters={hasFilters} resetFilters={resetFilters}
+            style={{ flexWrap: 'nowrap', flex: '1 1 auto', minWidth: 0 }}
           />
         </div>
       </div>

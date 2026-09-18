@@ -648,10 +648,13 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
     () => api.get('/dashboard/weekly-inactive', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 60000 }
   );  const allPdvsInact = data?.pdvs || [];
+  // Filtres hiérarchiques Zone → Superviseur (même barre que les autres onglets)
+  const { zoneFilter, setZoneFilter, supFilter, setSupFilter, zoneList, supList, filterPDVs, hasFilters, resetFilters } = useHierarchicalFilters(allPdvsInact);
   // Filtrer par téléconseillère si rôle teleconseillere
-  const pdvs = teleFilter
+  const pdvsTele = teleFilter
     ? allPdvsInact.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
     : allPdvsInact;
+  const pdvs = filterPDVs(pdvsTele);
   const displayedPdvs = pdvs
     .filter(p => {
       if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
@@ -730,6 +733,15 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ paddingLeft: 36 }}
+          />
+        </div>
+        <div className="filter-selects" style={{ alignItems: 'center' }}>
+          <HierarchicalFilters
+            zoneFilter={zoneFilter} setZoneFilter={setZoneFilter}
+            supFilter={supFilter} setSupFilter={setSupFilter}
+            zoneList={zoneList} supList={supList}
+            hasFilters={hasFilters} resetFilters={resetFilters}
+            style={{ flexWrap: 'nowrap', flex: '1 1 auto', minWidth: 0 }}
           />
         </div>
       </div>
@@ -852,10 +864,13 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
     { staleTime: 60000 }
   );
   const allPdvsBaisse = data?.pdvs || [];
+  // Filtres hiérarchiques Zone → Superviseur (même barre que les autres onglets)
+  const { zoneFilter, setZoneFilter, supFilter, setSupFilter, zoneList, supList, filterPDVs, hasFilters, resetFilters } = useHierarchicalFilters(allPdvsBaisse);
   // Filtrer par téléconseillère si rôle teleconseillere
-  const pdvs = teleFilter
+  const pdvsTele = teleFilter
     ? allPdvsBaisse.filter(p => (p.teleconseillere || '').toLowerCase().includes(teleFilter.toLowerCase()))
     : allPdvsBaisse;
+  const pdvs = filterPDVs(pdvsTele);
   const displayedPdvs = pdvs
     .filter(p => {
       if (activeFilter === 'critique') return p.alerte === 'CRITIQUE';
@@ -978,6 +993,15 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ paddingLeft: 36 }}
+          />
+        </div>
+        <div className="filter-selects" style={{ alignItems: 'center' }}>
+          <HierarchicalFilters
+            zoneFilter={zoneFilter} setZoneFilter={setZoneFilter}
+            supFilter={supFilter} setSupFilter={setSupFilter}
+            zoneList={zoneList} supList={supList}
+            hasFilters={hasFilters} resetFilters={resetFilters}
+            style={{ flexWrap: 'nowrap', flex: '1 1 auto', minWidth: 0 }}
           />
         </div>
       </div>
