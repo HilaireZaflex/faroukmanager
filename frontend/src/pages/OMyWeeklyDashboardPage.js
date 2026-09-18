@@ -1493,7 +1493,10 @@ function OngletPareto({ annee, semaine, criterion }) {
   
   // Fallback: si on n'a qu'un top/bottom partiel, utiliser l'endpoint weekly complet étendu si disponible plus tard.
 
-  const filtered = zoneFilter ? allPdvs.filter(p => p.zone === zoneFilter) : allPdvs;
+  const filtered = allPdvs.filter(p =>
+    (!zoneFilter || p.zone === zoneFilter) &&
+    (!supFilter || p.superviseur === supFilter)
+  );
   const sorted = [...filtered].sort((a, b) => getMetricValue(b, criterion) - getMetricValue(a, criterion));
   const totalMetric = filtered.reduce((sum, p) => sum + getMetricValue(p, criterion), 0);
 
@@ -1566,18 +1569,6 @@ function OngletPareto({ annee, semaine, criterion }) {
         </div>
       </div>
 
-      <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <HierarchicalFilters
-          zoneFilter={zoneFilter} setZoneFilter={(z) => { setZoneFilter(z); }}
-          supFilter={supFilter} setSupFilter={setSupFilter}
-          zoneList={zoneList} supList={supList}
-          hasFilters={hasFilters} resetFilters={resetFilters}
-        />
-        <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Download size={14} /> Export Excel
-        </button>
-      </div>
-
       {activeFilter && (
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
@@ -1585,6 +1576,7 @@ function OngletPareto({ annee, semaine, criterion }) {
         </div>
       )}
 
+      {/* Recherche + tris sur une seule ligne (comme Prospection → Demandes) */}
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
           <Search size={15} className="search-icon"/>
@@ -1596,6 +1588,18 @@ function OngletPareto({ annee, semaine, criterion }) {
             style={{ paddingLeft: 36 }}
           />
         </div>
+        <div className="filter-selects" style={{ alignItems: 'center' }}>
+          <HierarchicalFilters
+            zoneFilter={zoneFilter} setZoneFilter={(z) => { setZoneFilter(z); }}
+            supFilter={supFilter} setSupFilter={setSupFilter}
+            zoneList={zoneList} supList={supList}
+            hasFilters={hasFilters} resetFilters={resetFilters}
+            style={{ flexWrap: 'nowrap', flex: '1 1 auto', minWidth: 0 }}
+          />
+        </div>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Export Excel
+        </button>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

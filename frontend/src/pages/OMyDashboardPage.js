@@ -686,19 +686,6 @@ function TabPareto({ annee, mois, criterion }) {
         </div>
       </div>
 
-      <div style={{ marginBottom: 20, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Filter size={16} style={{ color: '#8a8a9a' }} />
-        <HierarchicalFilters
-          zoneFilter={zoneFilter} setZoneFilter={setZoneFilter}
-          supFilter={supFilter} setSupFilter={setSupFilter}
-          zoneList={zoneList} supList={supList}
-          hasFilters={hasFilters} resetFilters={resetFilters}
-        />
-        <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto' }}>
-          <Download size={14} /> Excel
-        </button>
-      </div>
-
       {activeFilter && (
         <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: '#FF6900', fontWeight: 600 }}>Filtre actif: {activeFilter}</span>
@@ -706,6 +693,7 @@ function TabPareto({ annee, mois, criterion }) {
         </div>
       )}
 
+      {/* Recherche + tris sur une seule ligne (comme Prospection → Demandes) */}
       <div className="pdv-filters card mb-16">
         <div className="filter-search">
           <Search size={15} className="search-icon"/>
@@ -717,6 +705,19 @@ function TabPareto({ annee, mois, criterion }) {
             style={{ paddingLeft: 36 }}
           />
         </div>
+        <div className="filter-selects" style={{ alignItems: 'center' }}>
+          <Filter size={16} style={{ color: '#8a8a9a', flexShrink: 0 }} />
+          <HierarchicalFilters
+            zoneFilter={zoneFilter} setZoneFilter={setZoneFilter}
+            supFilter={supFilter} setSupFilter={setSupFilter}
+            zoneList={zoneList} supList={supList}
+            hasFilters={hasFilters} resetFilters={resetFilters}
+            style={{ flexWrap: 'nowrap', flex: '1 1 auto', minWidth: 0 }}
+          />
+        </div>
+        <button className="btn btn-ghost" onClick={exportExcel} style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Download size={14} /> Excel
+        </button>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
