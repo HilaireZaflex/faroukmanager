@@ -31,38 +31,86 @@ function ScoreBadge({ score, size = 'sm' }) {
 }
 
 // ─── KPIs Display ─────────────────────────────────────────────────────────────
-function KPIsSection({ kpis }) {
+// Couleur d'un KPI selon l'ATTEINTE RÉELLE de l'objectif (et non le score,
+// qui est plafonné à 100) :
+//   vert   = objectif atteint (≥ 100 %)
+//   orange = presque atteint (≥ 90 %)
+//   rouge  = pas atteint (< 90 %)
+function couleurAtteinte(valeur, objectif) {
+  if (objectif == null || valeur == null) return '#8a8a9a';
+  const ratio = valeur / objectif;
+  if (ratio >= 1) return '#22c55e';
+  if (ratio >= 0.9) return '#ffa502';
+  return '#ff4757';
+}
+
+function KPIsSection({ kpis, kpisPrecedent }) {
   if (!kpis) return <div style={{ color: '#8a8a9a', textAlign: 'center', padding: 40 }}>Aucune donnée KPI disponible</div>;
   const OBJECTIFS = kpis.objectifs || {};
   const SCORES = kpis.scores_kpi || {};
 
   const items = [
-    { label: 'NB PDV', valeur: kpis.nb_pdv, objectif: OBJECTIFS.nb_pdv || 30, score: SCORES.nb_pdv, unite: 'PDVs', icon: '🏪' },
-    { label: 'CA OMY', valeur: kpis.ca_omy, objectif: OBJECTIFS.ca_omy || 800_000_000, score: SCORES.ca_omy, unite: 'F', icon: '💰', big: true },
-    { label: 'Moy. CA OMY', valeur: kpis.moy_ca_omy, objectif: null, score: null, unite: 'F/PDV', icon: '📊', big: true },
-    { label: 'Commission OMY', valeur: kpis.commission_omy, objectif: OBJECTIFS.commission_omy || 800_000, score: SCORES.commission_omy, unite: 'F', icon: '💵', big: true },
-    { label: 'Moy. Commission', valeur: kpis.moy_commission, objectif: null, score: null, unite: 'F/PDV', icon: '📈', big: true },
-    { label: 'Actif OMY', valeur: kpis.taux_actif_omy, objectif: OBJECTIFS.taux_actif_omy || 100, score: SCORES.taux_actif_omy, unite: '%', icon: '✅', isPct: true },
-    { label: 'Taux Actif KM', valeur: kpis.taux_actif_km, objectif: OBJECTIFS.taux_actif_km || 90, score: SCORES.taux_actif_km, unite: '%', icon: '🟠', isPct: true },
-    { label: 'Nb Actif NAFAMA', valeur: kpis.nb_actif_nafama, objectif: null, score: null, unite: 'PDVs', icon: '🟢' },
-    { label: 'Taux Actif NAFAMA', valeur: kpis.taux_actif_nafama, objectif: OBJECTIFS.taux_actif_nafama || 85, score: SCORES.taux_actif_nafama, unite: '%', icon: '📊', isPct: true },
-    { label: 'CA NAFAMA', valeur: kpis.ca_nafama, objectif: OBJECTIFS.ca_nafama || 6_000_000, score: SCORES.ca_nafama, unite: 'F', icon: '💚', big: true },
+    { key: 'nb_pdv',          label: 'NB PDV',           valeur: kpis.nb_pdv,          objectif: OBJECTIFS.nb_pdv || 30,                   score: SCORES.nb_pdv,          unite: 'PDVs',  icon: '🏪' },
+    { key: 'ca_omy',          label: 'CA OMY',           valeur: kpis.ca_omy,          objectif: OBJECTIFS.ca_omy || 800_000_000,          score: SCORES.ca_omy,          unite: 'F',     icon: '💰', big: true },
+    { key: 'moy_ca_omy',      label: 'Moy. CA OMY',      valeur: kpis.moy_ca_omy,      objectif: null,                                     score: null,                   unite: 'F/PDV', icon: '📊', big: true },
+    { key: 'commission_omy',  label: 'Commission OMY',   valeur: kpis.commission_omy,  objectif: OBJECTIFS.commission_omy || 800_000,      score: SCORES.commission_omy,  unite: 'F',     icon: '💵', big: true },
+    { key: 'moy_commission',  label: 'Moy. Commission',  valeur: kpis.moy_commission,  objectif: null,                                     score: null,                   unite: 'F/PDV', icon: '📈', big: true },
+    { key: 'taux_actif_omy',  label: 'Actif OMY',        valeur: kpis.taux_actif_omy,  objectif: OBJECTIFS.taux_actif_omy || 100,          score: SCORES.taux_actif_omy,  unite: '%',     icon: '✅', isPct: true },
+    { key: 'taux_actif_km',   label: 'Taux Actif KM',    valeur: kpis.taux_actif_km,   objectif: OBJECTIFS.taux_actif_km || 90,            score: SCORES.taux_actif_km,   unite: '%',     icon: '🟠', isPct: true,
+      sousTexte: kpis.nb_actifs_km != null ? `${kpis.nb_actifs_km} PDV actifs KM` : null },
+    { key: 'nb_actif_nafama', label: 'Nb Actif NAFAMA',  valeur: kpis.nb_actif_nafama, objectif: null,                                     score: null,                   unite: 'PDVs',  icon: '🟢' },
+    { key: 'taux_actif_nafama', label: 'Taux Actif NAFAMA', valeur: kpis.taux_actif_nafama, objectif: OBJECTIFS.taux_actif_nafama || 85,    score: SCORES.taux_actif_nafama, unite: '%',   icon: '📊', isPct: true },
+    { key: 'ca_nafama',       label: 'CA NAFAMA',        valeur: kpis.ca_nafama,       objectif: OBJECTIFS.ca_nafama || 6_000_000,         score: SCORES.ca_nafama,       unite: 'F',     icon: '💚', big: true },
   ];
+
+  // Écart par rapport au mois précédent.
+  //  - KPI en % → écart en POINTS
+  //  - KPI en valeur → écart en POURCENTAGE
+  const ecart = (item) => {
+    const prec = kpisPrecedent ? kpisPrecedent[item.key] : null;
+    if (prec == null || item.valeur == null) return null;
+    if (item.isPct) {
+      const pts = +(item.valeur - prec).toFixed(1);
+      return { valeur: pts, texte: `${pts > 0 ? '+' : ''}${pts} pts`, hausse: pts > 0, stable: Math.abs(pts) < 0.05 };
+    }
+    if (!prec) return { valeur: null, texte: 'nouveau', hausse: true, stable: false, neutre: true };
+    const pct = +(((item.valeur - prec) / prec) * 100).toFixed(1);
+    return { valeur: pct, texte: `${pct > 0 ? '+' : ''}${pct} %`, hausse: pct > 0, stable: Math.abs(pct) < 0.05 };
+  };
+
+  const nbAtteints = items.filter(it => it.objectif != null && it.valeur != null && it.valeur >= it.objectif).length;
+  const nbAvecObjectif = items.filter(it => it.objectif != null && it.valeur != null).length;
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <h3 style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>📊 KPIs — {MOIS_NOMS[kpis.mois]} {kpis.annee}</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: '#8a8a9a' }}>Score global KPIs :</span>
-          <ScoreBadge score={kpis.score_kpi_global} size="md" />
-          <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 80%</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: '#8a8a9a' }}>
+            Objectifs atteints : <b style={{ color: nbAtteints === nbAvecObjectif && nbAvecObjectif > 0 ? '#22c55e' : '#ffa502' }}>{nbAtteints}/{nbAvecObjectif}</b>
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#8a8a9a' }}>Score global KPIs :</span>
+            <ScoreBadge score={kpis.score_kpi_global} size="md" />
+            <span style={{ fontSize: 11, color: '#64748b' }}>/100 · Poids 80%</span>
+          </div>
         </div>
       </div>
+
+      {/* Légende des couleurs */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12, fontSize: 11, color: '#94a3b8' }}>
+        <span><span style={{ color: '#22c55e', fontWeight: 800 }}>●</span> Objectif atteint</span>
+        <span><span style={{ color: '#ffa502', fontWeight: 800 }}>●</span> Presque atteint (≥ 90 %)</span>
+        <span><span style={{ color: '#ff4757', fontWeight: 800 }}>●</span> Pas atteint (&lt; 90 %)</span>
+        {kpisPrecedent && <span>↕ Comparaison avec {MOIS_NOMS[kpisPrecedent.mois_precedent]} {kpisPrecedent.annee_precedente}</span>}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
         {items.map((item, i) => {
-          const atteinte = item.score != null ? item.score : null;
-          const color = atteinte == null ? '#8a8a9a' : atteinte >= 90 ? '#22c55e' : atteinte >= 70 ? '#ffa502' : '#ff4757';
+          const color = couleurAtteinte(item.valeur, item.objectif);
+          const ec = ecart(item);
+          const ecColor = !ec ? '#64748b' : ec.neutre ? '#64748b' : ec.stable ? '#94a3b8' : ec.hausse ? '#22c55e' : '#ff4757';
+          const ecIcone = !ec ? '' : ec.neutre ? '🆕' : ec.stable ? '＝' : ec.hausse ? '▲' : '▼';
           return (
             <div key={i} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}25`, borderTop: `3px solid ${color}`, borderRadius: 10 }}>
               <div style={{ fontSize: 18, marginBottom: 6 }}>{item.icon}</div>
@@ -70,14 +118,24 @@ function KPIsSection({ kpis }) {
               <div style={{ fontSize: 15, fontWeight: 900, color }}>
                 {item.isPct ? fmtPct(item.valeur) : item.big ? fmtN(item.valeur) + ' F' : fmtN(item.valeur)}
               </div>
+              {item.sousTexte && (
+                <div style={{ fontSize: 10, color: '#a29bfe', marginTop: 2, fontWeight: 700 }}>{item.sousTexte}</div>
+              )}
               {item.objectif && (
                 <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
                   Obj: {item.isPct ? item.objectif + '%' : item.big ? fmtN(item.objectif) + ' F' : item.objectif}
                 </div>
               )}
-              {atteinte != null && (
+              {/* Progression par rapport au mois précédent */}
+              {ec && (
+                <div title={`Mois précédent : ${item.isPct ? fmtPct(kpisPrecedent[item.key]) : fmtN(kpisPrecedent[item.key])}`}
+                  style={{ fontSize: 10, marginTop: 4, color: ecColor, fontWeight: 800, cursor: 'help' }}>
+                  {ecIcone} {ec.texte} <span style={{ color: '#64748b', fontWeight: 500 }}>vs M-1</span>
+                </div>
+              )}
+              {item.score != null && (
                 <div style={{ marginTop: 6, height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 4 }}>
-                  <div style={{ height: '100%', width: `${Math.min(atteinte, 100)}%`, background: color, borderRadius: 4 }} />
+                  <div style={{ height: '100%', width: `${Math.min(item.score, 100)}%`, background: color, borderRadius: 4 }} />
                 </div>
               )}
             </div>
@@ -1868,6 +1926,13 @@ export default function EvalSuperveursPage() {
     { enabled: !!selectedSup, staleTime: 60000, onError: () => {} }
   );
 
+  // KPIs du mois précédent — pour afficher la progression / la chute
+  const { data: kpisPrecedent } = useQuery(
+    ['eval-kpis-precedent', selectedSup, annee, mois],
+    () => api.get(`/eval-superviseurs/${encodeURIComponent(selectedSup)}/kpis-precedent`, { params: { annee, mois } }).then(r => r.data),
+    { enabled: !!selectedSup, staleTime: 300000, onError: () => {} }
+  );
+
   // Initialiser l'évaluation
   const initMutation = useMutation(
     () => api.post('/eval-superviseurs/initialiser', { superviseur: selectedSup, annee, mois }).then(r => r.data),
@@ -2143,7 +2208,7 @@ export default function EvalSuperveursPage() {
                 )}
               </div>
               {evaluation?.kpis_data ? (
-                <KPIsSection kpis={evaluation.kpis_data} />
+                <KPIsSection kpis={evaluation.kpis_data} kpisPrecedent={kpisPrecedent} />
               ) : (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#8a8a9a' }}>
                   <p>Cliquez sur "Démarrer l'évaluation" pour charger les KPIs</p>

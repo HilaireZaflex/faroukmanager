@@ -162,6 +162,7 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
 
     # ── 5. KAABU MOBILE ───────────────────────────────────────────────────────
     semaines_mois = _get_semaines_mois(db, annee, mois)
+    nb_actifs_km = 0
     try:
         if numeros_pdv and semaines_mois:
             from sqlalchemy import text
@@ -171,6 +172,7 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
                 KaabuTransaction.numero_pdv.in_(numeros_pdv)
             ).all()
             pdvs_actifs_km = len(set(r.numero_pdv for r in kaabu_rows if r.est_actif))
+            nb_actifs_km = pdvs_actifs_km
             taux_actif_km = round(pdvs_actifs_km / nb_pdv * 100, 1) if nb_pdv else 0
         else:
             taux_actif_km = 0
@@ -222,6 +224,7 @@ def get_kpis_superviseur(db: Session, superviseur: str, annee: int, mois: int) -
         'moy_commission': int(moy_commission),
         'taux_actif_omy': taux_actif_omy,
         'taux_actif_km': taux_actif_km,
+        'nb_actifs_km': nb_actifs_km,
         'nb_actif_nafama': pdvs_actifs_nafama,
         'taux_actif_nafama': taux_actif_nafama,
         'ca_nafama': int(ca_nafama),

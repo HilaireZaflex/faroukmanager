@@ -134,6 +134,26 @@ def calculer_tous_scores(
     }
 
 
+@router.get("/eval-superviseurs/{superviseur}/kpis-precedent")
+def get_kpis_mois_precedent(
+    superviseur: str,
+    annee: int = Query(...),
+    mois: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """KPIs du MOIS PRÉCÉDENT, pour mesurer la progression du superviseur.
+
+    Recalculés en direct (et non relus depuis l'enregistrement du mois
+    précédent) afin d'utiliser exactement la même méthode que les KPIs
+    affichés : c'est indispensable pour que l'écart affiché soit fiable.
+    """
+    mois_prec = mois - 1 if mois > 1 else 12
+    annee_prec = annee if mois > 1 else annee - 1
+    kpis = svc.get_kpis_superviseur(db, superviseur, annee_prec, mois_prec)
+    return {**kpis, "annee_precedente": annee_prec, "mois_precedent": mois_prec}
+
+
 @router.post("/eval-superviseurs/rafraichir-kpis")
 def rafraichir_kpis(
     annee: int = Query(...),
