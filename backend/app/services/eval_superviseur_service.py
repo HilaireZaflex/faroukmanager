@@ -309,6 +309,32 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
             nafama_pdvs.add(str(num).strip())
             nafama_montant[str(num).strip()] = float(mont or 0)
 
+    # ── Mois précédent : sert à détecter les BAISSES importantes ─────────────
+    mois_prec = mois - 1 if mois > 1 else 12
+    annee_prec = annee if mois > 1 else annee - 1
+
+    perfs_omy_prec = {
+        p.pdv_id: p for p in db.query(MonthlyPerformance).filter(
+            MonthlyPerformance.pdv_id.in_(pdv_ids),
+            MonthlyPerformance.annee == annee_prec,
+            MonthlyPerformance.mois == mois_prec,
+            MonthlyPerformance.indicateur == 'OMY',
+        ).all()
+    }
+
+    semaines_prec = _get_semaines_mois(db, annee_prec, mois_prec)
+    kaabu_volume_prec = {}
+    if semaines_prec and numeros:
+        for num, vol in db.query(
+            KaabuTransaction.numero_pdv, KaabuTransaction.volume_kaabu
+        ).filter(
+            KaabuTransaction.annee == annee_prec,
+            KaabuTransaction.semaine.in_(semaines_prec),
+            KaabuTransaction.numero_pdv.in_(numeros),
+        ).all():
+            k = str(num).strip()
+            kaabu_volume_prec[k] = kaabu_volume_prec.get(k, 0) + (vol or 0)
+
     # ── Appels mystères déjà enregistrés ─────────────────────────────────────
     from app.models.eval_superviseur import EvalSuperviseur
     ev = db.query(EvalSuperviseur).filter(
@@ -320,6 +346,7 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
 
     # ── Construction des raisons, PDV par PDV ───────────────────────────────
     lignes, nb_inactif_omy, nb_inactif_km, nb_sans_nafama = [], 0, 0, 0
+    nb_baisse_omy, nb_baisse_kaabu = 0, 0
 
     for p in pdvs:
         num = str(p.numero_pdv).strip()
@@ -342,6 +369,20 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
                 "detail": "Aucune transaction OMY enregistrée ce mois-ci.",
             })
 
+        # Baisse importante du CA OMY par rapport au mois précédent
+        perf_prec = perfs_omy_prec.get(p.id)
+        ca_prec = float(perf_prec.montant_ca or 0) if perf_prec else 0
+        if ca_prec > 0 and ca_omy < ca_prec:
+            var_omy = (ca_omy - ca_prec) / ca_prec * 100
+            if var_omy <= -30:
+                nb_baisse_omy += 1
+                raisons.append({
+                    "code": "BAISSE_OMY", "categorie": "OMY",
+                    "label": f"CA OMY en chute de {abs(round(var_omy))} %",
+                    "detail": f"CA OMY passé de {round(ca_prec):,} à {round(ca_omy):,} F "
+                              f"entre le mois précédent et ce mois.".replace(",", " "),
+                })
+
         if num and num not in kaabu_actifs:
             nb_inactif_km += 1
             raisons.append({
@@ -349,6 +390,20 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
                 "label": "Inactif KAABU",
                 "detail": "Ce PDV n'apparaît pas dans la liste KAABU du mois.",
             })
+
+        # Baisse importante du volume KAABU par rapport au mois précédent
+        vol_km = kaabu_volume.get(num, 0)
+        vol_km_prec = kaabu_volume_prec.get(num, 0)
+        if vol_km_prec > 0 and vol_km < vol_km_prec:
+            var_km = (vol_km - vol_km_prec) / vol_km_prec * 100
+            if var_km <= -30:
+                nb_baisse_kaabu += 1
+                raisons.append({
+                    "code": "BAISSE_KAABU", "categorie": "KAABU",
+                    "label": f"Volume KAABU en chute de {abs(round(var_km))} %",
+                    "detail": f"Volume KAABU passé de {round(vol_km_prec)} à {round(vol_km)} "
+                              f"entre le mois précédent et ce mois.",
+                })
 
         if num and num not in nafama_pdvs:
             nb_sans_nafama += 1
@@ -358,23 +413,18 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
                 "detail": "Aucune vente NAFAMA enregistrée ce mois-ci.",
             })
 
+        # Appels TC : seules les notes faibles sont conservées.
+        # L'injoignabilité est volontairement ignorée (peu exploitable ici).
         appel = appels.get(num)
-        if appel:
-            if appel.get('statut') == 'INJOIGNABLE':
+        if appel and appel.get('statut') != 'INJOIGNABLE':
+            notes = [appel.get('note_connaissance'), appel.get('note_visite'), appel.get('note_superviseur')]
+            notes = [n for n in notes if n is not None]
+            if notes and (sum(notes) / len(notes)) < 5:
                 raisons.append({
-                    "code": "MYSTERY_INJOIGNABLE", "categorie": "MYSTERE",
-                    "label": "Injoignable à l'appel mystère",
-                    "detail": "Le PDV n'a pas répondu lors du contrôle téléphonique.",
+                    "code": "MYSTERY_NOTES", "categorie": "MYSTERE",
+                    "label": f"Notes d'appel faibles ({round(sum(notes)/len(notes), 1)}/10)",
+                    "detail": "Ne connaît pas bien les produits ou ne voit pas son superviseur.",
                 })
-            else:
-                notes = [appel.get('note_connaissance'), appel.get('note_visite'), appel.get('note_superviseur')]
-                notes = [n for n in notes if n is not None]
-                if notes and (sum(notes) / len(notes)) < 5:
-                    raisons.append({
-                        "code": "MYSTERY_NOTES", "categorie": "MYSTERE",
-                        "label": f"Notes d'appel faibles ({round(sum(notes)/len(notes), 1)}/10)",
-                        "detail": "Ne connaît pas bien les produits ou ne voit pas son superviseur.",
-                    })
 
         if raisons:
             lignes.append({
@@ -408,6 +458,8 @@ def get_pdvs_a_risque(db: Session, superviseur: str, annee: int, mois: int) -> D
         "taux_actif_nafama": taux(nb_pdv - nb_sans_nafama),
         "objectif_nafama": OBJECTIFS_PDV['taux_actif_nafama'],
         "manque_nafama": nb_sans_nafama,
+        "nb_baisse_omy": nb_baisse_omy,
+        "nb_baisse_kaabu": nb_baisse_kaabu,
     }
     # Nombre de PDV à remettre en activité pour atteindre chaque objectif
     for cle, t, o in (("omy", synthese['taux_actif_omy'], synthese['objectif_omy']),

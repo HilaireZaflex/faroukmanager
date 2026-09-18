@@ -2329,6 +2329,12 @@ export default function EvalSuperveursPage() {
                         </div>
 
                         {/* Liste des PDV, du plus pénalisant au moins pénalisant */}
+                        {((s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0)) > 0 && (
+                          <div style={{ marginBottom: 12, fontSize: 12, color: '#ffa502', background: 'rgba(255,165,2,0.08)', border: '1px solid rgba(255,165,2,0.25)', borderRadius: 8, padding: '9px 12px' }}>
+                            📉 <b>{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0)} forte{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0) > 1 ? 's' : ''} baisse{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0) > 1 ? 's' : ''} détectée{(s.nb_baisse_omy || 0) + (s.nb_baisse_kaabu || 0) > 1 ? 's' : ''}</b>
+                            {' '}par rapport au mois précédent (≥ 30 %) — {s.nb_baisse_omy || 0} sur le CA OMY, {s.nb_baisse_kaabu || 0} sur le volume KAABU.
+                          </div>
+                        )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {pdvsRisque.pdvs.map((p, i) => (
                             <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '12px 16px', borderLeft: `3px solid ${p.nb_raisons >= 3 ? '#ff4757' : p.nb_raisons === 2 ? '#ffa502' : '#64748b'}` }}>
