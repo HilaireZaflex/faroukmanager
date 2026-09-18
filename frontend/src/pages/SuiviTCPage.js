@@ -706,6 +706,7 @@ function TabMigrationAdmin() {
   const [typePdv, setTypePdv] = useState('');
   const [tcId, setTcId] = useState('');
   const [piecesF, setPiecesF] = useState('');
+  const [accepteF, setAccepteF] = useState('');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -715,12 +716,13 @@ function TabMigrationAdmin() {
     api.get('/tc/migration/stats').then(r => r.data), { staleTime: 60000 });
 
   const { data: list, isLoading } = useQuery(
-    ['mig-list', statut, typePdv, tcId, piecesF],
+    ['mig-list', statut, typePdv, tcId, piecesF, accepteF],
     () => api.get('/tc/migration', {
       params: {
         statut: statut || undefined, type_pdv: typePdv || undefined,
         tc_user_id: tcId || undefined,
         pieces_au_bureau: piecesF === '' ? undefined : piecesF === 'OUI',
+        veut_migrer: accepteF === '' ? undefined : accepteF === 'OUI',
         limit: 500,
       },
     }).then(r => r.data),
@@ -756,13 +758,24 @@ function TabMigrationAdmin() {
     finally { setBusy(false); }
   };
 
+  // Clic sur une carte KPI → filtre la liste en dessous
+  const appliquerKpi = (cle) => {
+    setPiecesF(''); setAccepteF('');
+    if (cle === 'total') { setStatut(''); }
+    else if (cle === 'valides' || cle === 'taux') { setStatut('VALIDE'); }
+    else if (cle === 'rejetes') { setStatut('REJETE'); }
+    else if (cle === 'acceptent') { setStatut(''); setAccepteF('OUI'); }
+    else if (cle === 'bureau') { setStatut(''); setPiecesF('OUI'); }
+  };
+
+  const sansFiltreKpi = !statut && !piecesF && !accepteF;
   const lignes = [
-    { label: 'Appels migration', value: stats?.total || 0, color: '#FF6900' },
-    { label: '✅ Éligibles', value: stats?.valides || 0, color: '#22c55e' },
-    { label: '❌ Rejetés', value: stats?.rejetes || 0, color: '#ff4757' },
-    { label: 'Taux d\'éligibilité', value: `${stats?.taux_validation || 0}%`, color: '#4a9eff' },
-    { label: '🤝 Ont accepté de migrer', value: stats?.acceptent || 0, color: '#a29bfe' },
-    { label: '📁 Pièces déposées au bureau', value: stats?.pieces_bureau || 0, color: '#00d68f' },
+    { cle: 'total',     label: 'Appels migration',            value: stats?.total || 0,                color: '#FF6900', actif: sansFiltreKpi },
+    { cle: 'valides',   label: '✅ Éligibles',                 value: stats?.valides || 0,              color: '#22c55e', actif: statut === 'VALIDE' && !piecesF && !accepteF },
+    { cle: 'rejetes',   label: '❌ Rejetés',                   value: stats?.rejetes || 0,              color: '#ff4757', actif: statut === 'REJETE' && !piecesF && !accepteF },
+    { cle: 'taux',      label: 'Taux d\'éligibilité',          value: `${stats?.taux_validation || 0}%`, color: '#4a9eff', actif: false },
+    { cle: 'acceptent', label: '🤝 Ont accepté de migrer',     value: stats?.acceptent || 0,            color: '#a29bfe', actif: accepteF === 'OUI' },
+    { cle: 'bureau',    label: '📁 Pièces déposées au bureau', value: stats?.pieces_bureau || 0,        color: '#00d68f', actif: piecesF === 'OUI' },
   ];
   const selStyle = (v) => ({ flex: '1 1 130px', padding: '9px 10px',
     background: v ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)',
@@ -773,7 +786,15 @@ function TabMigrationAdmin() {
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginBottom: 18 }}>
         {lignes.map(k => (
-          <div key={k.label} style={{ background: `${k.color}10`, border: `1px solid ${k.color}30`, borderRadius: 12, padding: '14px 18px', textAlign: 'center' }}>
+          <div key={k.label} onClick={() => appliquerKpi(k.cle)}
+            title={k.cle === 'taux' ? 'Taux calculé — cliquez pour voir les éligibles' : 'Cliquer pour filtrer la liste'}
+            style={{
+              background: k.actif ? `${k.color}28` : `${k.color}10`,
+              border: `1px solid ${k.actif ? k.color : `${k.color}30`}`,
+              borderRadius: 12, padding: '14px 18px', textAlign: 'center',
+              cursor: 'pointer', transition: 'all 0.15s',
+              boxShadow: k.actif ? `0 0 0 2px ${k.color}55` : 'none',
+            }}>
             <div style={{ fontSize: 26, fontWeight: 900, color: k.color }}>{k.value}</div>
             <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{k.label}</div>
           </div>

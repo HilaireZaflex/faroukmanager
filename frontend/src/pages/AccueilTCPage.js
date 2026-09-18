@@ -648,6 +648,7 @@ function TabMigration() {
   const [search, setSearch] = React.useState('');
   const [typeF, setTypeF] = React.useState('');
   const [appelF, setAppelF] = React.useState('');
+  const [resultatF, setResultatF] = React.useState('');
   const [modal, setModal] = React.useState(null);
   const [depotEnCours, setDepotEnCours] = React.useState(null);
 
@@ -671,6 +672,9 @@ function TabMigration() {
     if (typeF && p.type_pdv !== typeF) return false;
     if (appelF === 'RESTE' && p.deja_appele) return false;
     if (appelF === 'FAIT' && !p.deja_appele) return false;
+    // Trier les éligibles des non éligibles
+    if (resultatF === 'ELIGIBLE' && p.dernier_statut !== 'VALIDE') return false;
+    if (resultatF === 'NON_ELIGIBLE' && p.dernier_statut === 'VALIDE') return false;
     if (search) {
       const s = search.toLowerCase();
       if (!(p.numero_pdv || '').toLowerCase().includes(s) &&
@@ -704,6 +708,11 @@ function TabMigration() {
           <option value="">📞 Tous</option>
           <option value="RESTE">⏳ À appeler</option>
           <option value="FAIT">✅ Déjà appelés</option>
+        </select>
+        <select value={resultatF} onChange={e => setResultatF(e.target.value)} style={{ ...SS, flex: '1 1 160px' }}>
+          <option value="">🎯 Tous résultats</option>
+          <option value="ELIGIBLE">✅ Éligibles</option>
+          <option value="NON_ELIGIBLE">❌ Non éligibles</option>
         </select>
       </div>
       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
@@ -742,8 +751,8 @@ function TabMigration() {
                   </div>
                 )}
 
-                {/* Dépôt des pièces au bureau — proposé dès que le PDV accepte de migrer */}
-                {p.deja_appele && p.veut_migrer && p.dernier_appel_id && (
+                {/* Dépôt des pièces au bureau — UNIQUEMENT pour les PDV ÉLIGIBLES */}
+                {p.deja_appele && p.dernier_statut === 'VALIDE' && p.dernier_appel_id && (
                   <label style={{
                     display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer',
                     background: p.pieces_au_bureau ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.04)',

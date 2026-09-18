@@ -313,6 +313,7 @@ def list_appels_migration(
     tc_user_id: Optional[int] = Query(None),
     type_pdv: Optional[str] = Query(None, description="RS ou KIOSQUE"),
     type_piece: Optional[str] = Query(None),
+    veut_migrer: Optional[bool] = Query(None, description="True = a accepté de migrer"),
     pieces_au_bureau: Optional[bool] = Query(None, description="True = pièces déposées au bureau"),
     search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
@@ -339,6 +340,8 @@ def list_appels_migration(
         q = q.filter(AppelMigration.type_piece == type_piece.strip().upper())
     if pieces_au_bureau is not None:
         q = q.filter(AppelMigration.pieces_au_bureau == pieces_au_bureau)
+    if veut_migrer is not None:
+        q = q.filter(AppelMigration.veut_migrer == veut_migrer)
     if search:
         like = f"%{search}%"
         q = q.filter(or_(
