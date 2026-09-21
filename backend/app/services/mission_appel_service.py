@@ -95,6 +95,9 @@ def _infos_pdv(db: Session, numeros: List[str]) -> Dict[str, Dict[str, Any]]:
             "gestionnaire": p.gestionnaire,
             "teleconseillere": p.teleconseillere,
             "telephone": p.telephone,
+            # Deuxième numéro utilisé par les TC : « Perso » (numéro personnel du gérant)
+            "numero_personnel": p.numero_personnel,
+            "nom_gerant": p.nom_gerant,
         }
     return out
 
@@ -263,6 +266,8 @@ def apercu_cibles(db: Session, filtres: Dict[str, Any],
             "superviseur": d.get("superviseur"),
             "gestionnaire": d.get("gestionnaire"),
             "telephone": d.get("telephone"),
+            "numero_personnel": d.get("numero_personnel"),
+            "nom_gerant": d.get("nom_gerant"),
             "motif": " · ".join(_libelles_situations(codes)) or "Sélection manuelle",
             "situation": codes[0] if codes else None,
             "situations": codes,
@@ -287,7 +292,8 @@ def apercu_cibles(db: Session, filtres: Dict[str, Any],
         "total": len(cibles),
         "total_pdv": sum(1 for c in cibles if c["type_cible"] == "PDV"),
         "total_personnes": sum(1 for c in cibles if c["type_cible"] == "PERSONNE"),
-        "sans_telephone": sum(1 for c in cibles if not c.get("telephone")),
+        "sans_telephone": sum(1 for c in cibles
+                              if not c.get("telephone") and not c.get("numero_personnel")),
         "mode": mode,
         "cibles": cibles,
         "annee": annee,
@@ -585,6 +591,8 @@ def _cible_to_dict(c: MissionCible, pdv_infos: Dict[str, Dict[str, Any]],
             "gestionnaire": d.get("gestionnaire"),
             "teleconseillere": d.get("teleconseillere"),
             "telephone": d.get("telephone"),
+            "numero_personnel": d.get("numero_personnel"),
+            "nom_gerant": d.get("nom_gerant"),
         })
     else:
         d = personnes.get(c.target_user_id) or {}

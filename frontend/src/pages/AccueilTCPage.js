@@ -901,15 +901,7 @@ function TabMesMissions({ onBadge }) {
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
-                  {c.telephone ? (
-                    <a href={`tel:${c.telephone}`} style={{
-                      fontSize: 15, fontWeight: 800, color: '#00d68f', textDecoration: 'none',
-                      background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.35)',
-                      borderRadius: 10, padding: '6px 12px', whiteSpace: 'nowrap',
-                    }}>📞 {c.telephone}</a>
-                  ) : (
-                    <span style={{ fontSize: 12, color: '#f59e0b' }}>⚠️ Sans téléphone</span>
-                  )}
+                  <NumerosAppel telephone={c.telephone} numeroPersonnel={c.numero_personnel} nomGerant={c.nom_gerant} />
                   <button className="btn btn-primary" style={{ fontSize: 12.5 }}
                     onClick={() => setAppelCible(c)}>
                     📝 {c.statut === 'APPELE' ? 'Rappeler' : 'Enregistrer l\'appel'}
