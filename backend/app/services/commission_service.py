@@ -399,6 +399,47 @@ def import_orange_export(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# GÉOGRAPHIE ACTUELLE DES PDV (source de vérité = table pdvs)
+# ─────────────────────────────────────────────────────────────────────────────
+# `commission_entries` stocke une COPIE de quartier / zone / sous_zone prise au
+# moment de l'import. Quand un quartier est corrigé dans « Points de vente »,
+# cette copie devient obsolète : la ventilation par quartier continuait donc
+# d'afficher les anciens libellés (et les filtres ne correspondaient plus).
+# On relit systématiquement la table PDV et on ne retombe sur la copie stockée
+# que si le PDV a disparu de la base.
+def _geo_pdv(db: Session, numeros: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
+    """Géographie actuelle, indexée par numéro de PDV."""
+    q = db.query(PDV.numero_pdv, PDV.nom, PDV.quartier, PDV.zone, PDV.sous_zone)
+    if numeros is not None:
+        nums = [str(n) for n in numeros if n]
+        if not nums:
+            return {}
+        q = q.filter(PDV.numero_pdv.in_(nums))
+    geo: Dict[str, Dict[str, Any]] = {}
+    for num, nom, quartier, zone, sous_zone in q.all():
+        geo[str(num)] = {
+            "nom": nom, "quartier": quartier, "zone": zone, "sous_zone": sous_zone,
+        }
+    return geo
+
+
+def _numeros_selon_geo(db: Session, quartier: Optional[str] = None,
+                       zone: Optional[str] = None,
+                       sous_zone: Optional[str] = None) -> Optional[List[str]]:
+    """Numéros de PDV correspondant aux filtres géographiques ACTUELS.
+
+    Retourne None quand aucun filtre géographique n'est demandé (pour ne pas
+    filtrer du tout)."""
+    if not any((quartier, zone, sous_zone)):
+        return None
+    q = db.query(PDV.numero_pdv)
+    if quartier:  q = q.filter(PDV.quartier == quartier)
+    if zone:      q = q.filter(PDV.zone == zone)
+    if sous_zone: q = q.filter(PDV.sous_zone == sous_zone)
+    return [str(r[0]) for r in q.all()]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # DASHBOARD GLOBAL
 # ─────────────────────────────────────────────────────────────────────────────
 def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
@@ -429,11 +470,22 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     if gestionnaire:
         q = q.filter(CommissionEntry.gestionnaire.ilike(f"%{gestionnaire}%"))
     if zone:
-        q = q.filter(CommissionEntry.zone == zone)
+        # Filtre sur la zone ACTUELLE du PDV, pas sur la copie stockée à l'import
+        nums = _numeros_selon_geo(db, zone=zone)
+        q = q.filter(CommissionEntry.pdv_numero.in_(nums or []))
 
     entries = q.all()
     if not entries:
         return _empty_dashboard(period_key)
+
+    # Géographie actuelle (table PDV) pour les ventilations ci-dessous
+    geo = _geo_pdv(db, [e.pdv_numero for e in entries])
+
+    def _quartier(e):
+        return (geo.get(str(e.pdv_numero)) or {}).get("quartier") or e.quartier or "Non renseigné"
+
+    def _zone(e):
+        return (geo.get(str(e.pdv_numero)) or {}).get("zone") or e.zone or "Non renseigné"
 
     # ── Séparation RNS/RSF vs RS/KIOSQUE ──────────────────────────────────────
     ents_directs = [e for e in entries if not e.gere_reversement]   # RNS + RSF
@@ -522,7 +574,7 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     # ── Ventilation par quartier (top 15) ─────────────────────────────────────
     by_quartier: Dict[str, Any] = {}
     for e in entries:
-        q_key = e.quartier or "Non renseigné"
+        q_key = _quartier(e)
         if q_key not in by_quartier:
             by_quartier[q_key] = {"quartier": q_key, "n_pdv": 0, "brut": 0, "reseau": 0, "pdv": 0, "commission_nette": 0}
         by_quartier[q_key]["n_pdv"]  += 1
@@ -541,7 +593,7 @@ def dashboard(db: Session, period_key: str, pdv_type: Optional[PDVType] = None,
     # ── Ventilation par zone ──────────────────────────────────────────────────
     by_zone: Dict[str, Any] = {}
     for e in entries:
-        z_key = e.zone or "Non renseigné"
+        z_key = _zone(e)
         if z_key not in by_zone:
             by_zone[z_key] = {"zone": z_key, "n_pdv": 0, "brut": 0, "reseau": 0, "pdv": 0, "commission_nette": 0}
         by_zone[z_key]["n_pdv"]  += 1
@@ -649,44 +701,53 @@ def list_entries(
 ) -> List[Dict[str, Any]]:
     q = db.query(CommissionEntry).filter(CommissionEntry.period_key == period_key)
     if pdv_type: q = q.filter(CommissionEntry.pdv_type == pdv_type)
-    if quartier: q = q.filter(CommissionEntry.quartier == quartier)
-    if zone: q = q.filter(CommissionEntry.zone == zone)
+    # Quartier / zone : on filtre sur les valeurs ACTUELLES des PDV
+    nums_geo = _numeros_selon_geo(db, quartier=quartier, zone=zone)
+    if nums_geo is not None:
+        q = q.filter(CommissionEntry.pdv_numero.in_(nums_geo))
     if superviseur: q = q.filter(CommissionEntry.superviseur.ilike(f"%{superviseur}%"))
     if gestionnaire: q = q.filter(CommissionEntry.gestionnaire.ilike(f"%{gestionnaire}%"))
     if reversement_status: q = q.filter(CommissionEntry.reversement_status == reversement_status)
     if gere_reversement is not None: q = q.filter(CommissionEntry.gere_reversement == gere_reversement)
     if search:
         like = f"%{search}%"
+        # Inclure les PDV dont le quartier / la zone a changé depuis l'import
+        nums_search = [r[0] for r in db.query(PDV.numero_pdv).filter(or_(
+            PDV.quartier.ilike(like), PDV.zone.ilike(like),
+            PDV.sous_zone.ilike(like), PDV.nom.ilike(like),
+        )).all()]
         q = q.filter(or_(
             CommissionEntry.pdv_numero.ilike(like),
             CommissionEntry.pdv_nom.ilike(like),
-            CommissionEntry.quartier.ilike(like),
+            CommissionEntry.pdv_numero.in_(nums_search),
         ))
     entries = q.order_by(CommissionEntry.montant_brut.desc()).offset(skip).limit(limit).all()
 
-    # Récupérer les vrais noms depuis la table PDV
-    numeros = [e.pdv_numero for e in entries if e.pdv_numero]
-    pdv_names = {
-        str(p.numero_pdv): p.nom
-        for p in db.query(PDV).filter(PDV.numero_pdv.in_(numeros)).all()
-    }
-    return [_entry_to_dict(e, pdv_names) for e in entries]
+    # Géographie actuelle + vrai nom depuis la table PDV
+    geo = _geo_pdv(db, [e.pdv_numero for e in entries])
+    return [_entry_to_dict(e, geo) for e in entries]
 
 
-def _entry_to_dict(e: CommissionEntry, pdv_names: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def _entry_to_dict(e: CommissionEntry,
+                   geo: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     montant_pdv    = e.montant_pdv or 0
     montant_reverse = e.montant_reverse or 0
     reste = round(montant_pdv - montant_reverse, 2) if e.gere_reversement else 0
 
-    # Vrai nom du PDV depuis la table PDV (pas le nom du PDG)
-    pdv_nom = (pdv_names or {}).get(str(e.pdv_numero), e.pdv_nom)
+    # Nom + géographie ACTUELS du PDV (la copie stockée sert de repli si le PDV
+    # n'existe plus dans la base)
+    g = (geo or {}).get(str(e.pdv_numero)) or {}
+    pdv_nom  = g.get("nom") or e.pdv_nom
+    quartier = g.get("quartier") or e.quartier
+    zone     = g.get("zone") or e.zone
+    sous_zone = g.get("sous_zone") or e.sous_zone
 
     commission_nette = round((e.montant_reseau or 0) + reste, 2)
 
     return {
         "id": e.id, "pdv_numero": e.pdv_numero, "pdv_nom": pdv_nom,
-        "pdv_type": e.pdv_type.value, "quartier": e.quartier,
-        "zone": e.zone, "sous_zone": e.sous_zone,
+        "pdv_type": e.pdv_type.value, "quartier": quartier,
+        "zone": zone, "sous_zone": sous_zone,
         "gestionnaire": e.gestionnaire, "superviseur": e.superviseur,
         "period_key": e.period_key,
         # Montants bruts
@@ -728,9 +789,10 @@ def evolution(db: Session, n_periods: int = 6,
         if pdv_type: q = q.filter(CommissionEntry.pdv_type == pdv_type)
         if superviseur: q = q.filter(CommissionEntry.superviseur.ilike(f"%{superviseur}%"))
         if gestionnaire: q = q.filter(CommissionEntry.gestionnaire.ilike(f"%{gestionnaire}%"))
-        if zone: q = q.filter(CommissionEntry.zone == zone)
-        if sous_zone: q = q.filter(CommissionEntry.sous_zone == sous_zone)
-        if quartier: q = q.filter(CommissionEntry.quartier == quartier)
+        # Zone / sous-zone / quartier : valeurs ACTUELLES des PDV
+        nums_geo = _numeros_selon_geo(db, quartier=quartier, zone=zone, sous_zone=sous_zone)
+        if nums_geo is not None:
+            q = q.filter(CommissionEntry.pdv_numero.in_(nums_geo))
         r = q.first()
         out.append({
             "period_key": pk,
@@ -753,11 +815,12 @@ def top_pdvs(db: Session, period_key: str, n: int = 20,
     if pdv_type: q = q.filter(CommissionEntry.pdv_type == pdv_type)
     if superviseur: q = q.filter(CommissionEntry.superviseur.ilike(f"%{superviseur}%"))
     if gestionnaire: q = q.filter(CommissionEntry.gestionnaire.ilike(f"%{gestionnaire}%"))
-    if zone: q = q.filter(CommissionEntry.zone == zone)
+    if zone:
+        nums = _numeros_selon_geo(db, zone=zone)
+        q = q.filter(CommissionEntry.pdv_numero.in_(nums or []))
     entries = q.order_by(CommissionEntry.montant_brut.desc()).limit(n).all()
-    numeros = [e.pdv_numero for e in entries if e.pdv_numero]
-    pdv_names = {str(p.numero_pdv): p.nom for p in db.query(PDV).filter(PDV.numero_pdv.in_(numeros)).all()}
-    return [_entry_to_dict(e, pdv_names) for e in entries]
+    geo = _geo_pdv(db, [e.pdv_numero for e in entries])
+    return [_entry_to_dict(e, geo) for e in entries]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
