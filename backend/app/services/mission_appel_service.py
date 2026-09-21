@@ -24,7 +24,7 @@ from app.models.mission_appel import (
     TypeMission, PrioriteMission, StatutMission, CibleType, StatutCible,
     TYPE_MISSION_LABELS, PRIORITE_LABELS, STATUT_MISSION_LABELS,
 )
-from app.models.pdv import PDV
+from app.models.pdv import PDV, PDVStatut
 from app.models.user import User
 from app.models.performance import MonthlyPerformance
 from app.models.appel_tc import AppelTC, StatutAppel, STATUT_LABELS
@@ -317,6 +317,44 @@ def _enum_ou_defaut(enum_cls, valeur, defaut):
             return enum_cls(valeur)
         except ValueError:
             return defaut
+
+
+def liste_pdv_candidats(db: Session, annee: Optional[int] = None,
+                        mois: Optional[int] = None) -> Dict[str, Any]:
+    """TOUS les PDV actifs, avec leur motif de sélection.
+
+    Alimente l'écran « Qui appeler » : la liste complète est affichée puis
+    filtrée côté interface (recherche par numéro/nom, superviseur, gestionnaire,
+    quartier, situation) — plus besoin de bouton « Aperçu ».
+    """
+    auj = date.today()
+    annee = annee or auj.year
+    mois = mois or auj.month
+
+    pdvs = db.query(PDV).filter(PDV.statut == PDVStatut.ACTIF).order_by(PDV.numero_pdv).all()
+    infos = _infos_pdv(db, [p.numero_pdv for p in pdvs])
+    sit = _situations_par_pdv(db, {p.id: p.numero_pdv for p in pdvs}, annee, mois, None)
+
+    out = []
+    for p in pdvs:
+        d = infos.get(str(p.numero_pdv), {})
+        codes = sit.get(p.id, [])
+        out.append({
+            "pdv_id": p.id,
+            "pdv_numero": p.numero_pdv,
+            "nom": d.get("nom") or p.nom,
+            "quartier": d.get("quartier"),
+            "zone": d.get("zone"),
+            "superviseur": d.get("superviseur"),
+            "gestionnaire": d.get("gestionnaire"),
+            "telephone": d.get("telephone"),
+            "numero_personnel": d.get("numero_personnel"),
+            "nom_gerant": d.get("nom_gerant"),
+            "situations": codes,
+            "situation": codes[0] if codes else None,
+            "motif": " · ".join(_libelles_situations(codes)) or "Sélection manuelle",
+        })
+    return {"total": len(out), "annee": annee, "mois": mois, "pdvs": out}
 
 
 def creer_mission(db: Session, payload: Dict[str, Any], user: User) -> MissionAppel:

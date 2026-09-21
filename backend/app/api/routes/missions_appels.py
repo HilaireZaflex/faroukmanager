@@ -109,6 +109,14 @@ def personnes_cibles(role: Optional[str] = None, q: Optional[str] = None,
     return out
 
 
+@router.get("/missions-appels/pdv-candidats")
+def pdv_candidats(annee: Optional[int] = None, mois: Optional[int] = None,
+                  db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Tous les PDV actifs (liste simple affichée dans l'assistant)."""
+    svc.exige_createur(current_user)
+    return svc.liste_pdv_candidats(db, annee, mois)
+
+
 @router.post("/missions-appels/apercu")
 def apercu(payload: dict = Body(...), db: Session = Depends(get_db),
            current_user: User = Depends(get_current_user)):

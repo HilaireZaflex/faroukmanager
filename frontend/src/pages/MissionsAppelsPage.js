@@ -53,143 +53,136 @@ function Barre({ pct, color = ORANGE }) {
   );
 }
 
-/** Liste déroulante à cases à cocher avec recherche (superviseurs, quartiers…) */
-function MultiSelect({ label, options, value, onChange, placeholder = 'Rechercher…', height = 150 }) {
-  const [q, setQ] = useState('');
-  const [ouvert, setOuvert] = useState(false);
-  const filtres = useMemo(
-    () => (options || []).filter(o => !q || String(o).toLowerCase().includes(q.toLowerCase())),
-    [options, q],
-  );
-  const toggle = (o) => onChange(value.includes(o) ? value.filter(v => v !== o) : [...value, o]);
-  return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>
-        {label}{value.length > 0 && <span style={{ color: ORANGE }}> · {value.length} sélectionné(s)</span>}
-      </div>
-      <button type="button" onClick={() => setOuvert(o => !o)}
-        style={{
-          width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
-          background: value.length ? 'rgba(255,105,0,0.1)' : 'rgba(255,255,255,0.05)',
-          border: `1px solid ${value.length ? 'rgba(255,105,0,0.4)' : 'rgba(255,255,255,0.1)'}`,
-          color: value.length ? ORANGE : '#94a3b8', fontSize: 13,
-        }}>
-        {value.length ? value.slice(0, 2).join(', ') + (value.length > 2 ? ` +${value.length - 2}` : '') : 'Tous'}
-        <span style={{ float: 'right', opacity: 0.6 }}>▾</span>
-      </button>
-      {ouvert && (
-        <div style={{
-          position: 'absolute', zIndex: 60, marginTop: 4, width: '100%', background: '#161622',
-          border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10, padding: 8,
-          boxShadow: '0 12px 30px rgba(0,0,0,0.5)',
-        }}>
-          <div style={{ position: 'relative', marginBottom: 6 }}>
-            <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder}
-              style={{ width: '100%', padding: '7px 8px 7px 28px', fontSize: 12, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }} />
-          </div>
-          <div style={{ maxHeight: height, overflowY: 'auto' }}>
-            {filtres.length === 0 && <div style={{ fontSize: 12, color: '#64748b', padding: 6 }}>Aucun résultat</div>}
-            {filtres.map(o => (
-              <label key={o} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px', fontSize: 12.5, cursor: 'pointer', borderRadius: 6 }}>
-                <input type="checkbox" checked={value.includes(o)} onChange={() => toggle(o)} />
-                <span>{o}</span>
-              </label>
-            ))}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 6 }}>
-            <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '3px 8px' }}
-              onClick={() => onChange(filtres.slice())}>Tout cocher</button>
-            <button type="button" className="btn btn-ghost" style={{ fontSize: 11, padding: '3px 8px' }}
-              onClick={() => onChange([])}>Tout décocher</button>
-            <button type="button" className="btn btn-primary" style={{ fontSize: 11, padding: '3px 8px' }}
-              onClick={() => setOuvert(false)}>Fermer</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Assistant de création (4 étapes) ─────────────────────────────────────────
 
 const ETAPES = ['L\'appel', 'Qui appeler', 'Objectifs', 'Attribution'];
-
 function AssistantMission({ refs, onClose, onCree }) {
   const [etape, setEtape] = useState(0);
   const [envoi, setEnvoi] = useState(false);
-  const [apercu, setApercu] = useState(null);
-  const [chargementApercu, setChargementApercu] = useState(false);
-  const [exclus, setExclus] = useState([]);   // clés des cibles décochées dans l'aperçu
 
-  const [f, setF] = useState({
-    titre: '',
-    type_mission: 'RELANCE_ACTIVITE',
-    priorite: 'NORMALE',
-    echeance: '',
-    consigne: '',
-    objectif_texte: '',
-    mode: 'PDV',
-    superviseurs: [], gestionnaires: [], zones: [], quartiers: [],
-    situations: [], jours_sans_appel: '',
-    roles_personnes: ['superviseur', 'gestionnaire'],
-    user_ids: [],
-    annee: refs.annee_defaut, mois: refs.mois_defaut,
-    objectif_nb_appels: '', objectif_nb_promesses: '', objectif_taux_joignabilite: '',
-    commentaire_obligatoire: true, statuts_autorises: [],
-    tcs: [], strategy: 'balanced', attribuer_maintenant: true,
-  });
-  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  // ── Étape 1 : l'appel ──
+  const [titre, setTitre] = useState('');
+  const [typeMission, setTypeMission] = useState('RELANCE_ACTIVITE');
+  const [priorite, setPriorite] = useState('NORMALE');
+  const [echeance, setEcheance] = useState('');
+  const [consigne, setConsigne] = useState('');
+  const [objectifTexte, setObjectifTexte] = useState('');
 
-  const filtresPayload = () => ({
-    mode: f.mode,
-    superviseurs: f.superviseurs, gestionnaires: f.gestionnaires,
-    zones: f.zones, quartiers: f.quartiers,
-    situations: f.situations,
-    jours_sans_appel: f.jours_sans_appel ? parseInt(f.jours_sans_appel) : null,
-    roles_personnes: f.roles_personnes,
-    user_ids: f.user_ids,
-  });
+  // ── Étape 2 : qui appeler (simple) ──
+  const [mode, setMode] = useState('PDV');          // PDV | PERSONNE
+  const [annee, setAnnee] = useState(refs.annee_defaut);
+  const [mois, setMois] = useState(refs.mois_defaut);
+  const [q, setQ] = useState('');                   // recherche PDV (numéro ou nom)
+  const [fSup, setFSup] = useState('');
+  const [fGest, setFGest] = useState('');
+  const [fQuartier, setFQuartier] = useState('');
+  const [fSituation, setFSituation] = useState('');
+  const [selPdv, setSelPdv] = useState([]);         // numéros de PDV cochés
+  const [qPers, setQPers] = useState('');
+  const [fRole, setFRole] = useState('superviseur');
+  const [selPers, setSelPers] = useState([]);       // ids utilisateurs cochés
 
-  const lancerApercu = async () => {
-    setChargementApercu(true);
-    try {
-      const r = await missionService.apercu({ filtres: filtresPayload(), annee: f.annee, mois: f.mois });
-      setApercu(r);
-      setExclus([]);
-      toast.success(`${r.total} cible(s) trouvée(s)`);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || e.message);
-    } finally { setChargementApercu(false); }
-  };
+  // ── Étape 3 : objectifs ──
+  const [objAppels, setObjAppels] = useState('');
+  const [objPromesses, setObjPromesses] = useState('');
+  const [objJoignabilite, setObjJoignabilite] = useState('');
+  const [commentaireObligatoire, setCommentaireObligatoire] = useState(true);
+  const [statutsAutorises, setStatutsAutorises] = useState([]);
 
-  const cleCible = (c) => c.type_cible === 'PDV' ? `P${c.pdv_numero}` : `U${c.target_user_id}`;
-  const ciblesGardees = (apercu?.cibles || []).filter(c => !exclus.includes(cleCible(c)));
+  // ── Étape 4 : attribution ──
+  const [tcs, setTcs] = useState([]);
+  const [strategy, setStrategy] = useState('balanced');
+  const [attribuerMaintenant, setAttribuerMaintenant] = useState(true);
 
+  // La liste complète des PDV (chargée une fois, filtrée côté navigateur)
+  const chargerPdv = etape === 1 && mode === 'PDV';
+  const { data: pdvData, isLoading: chargementPdv } = useQuery(
+    ['pdv-candidats', annee, mois],
+    () => missionService.pdvCandidats(annee, mois),
+    { enabled: chargerPdv, staleTime: 60000 },
+  );
+  const tousPdv = pdvData?.pdvs || [];
+
+  // Les personnes (superviseurs, gestionnaires…) filtrées par rôle
+  const chargerPers = etape === 1 && mode === 'PERSONNE';
+  const { data: personnes = [], isLoading: chargementPers } = useQuery(
+    ['personnes-candidats', fRole],
+    () => missionService.personnes({ role: fRole || undefined }),
+    { enabled: chargerPers, staleTime: 120000 },
+  );
+
+  // ── Filtrage de la liste des PDV ──
+  const pdvFiltres = useMemo(() => {
+    const terme = q.trim().toLowerCase();
+    return tousPdv.filter(p => {
+      if (fSup && p.superviseur !== fSup) return false;
+      if (fGest && p.gestionnaire !== fGest) return false;
+      if (fQuartier && p.quartier !== fQuartier) return false;
+      if (fSituation && !(p.situations || []).includes(fSituation)) return false;
+      if (!terme) return true;
+      return String(p.pdv_numero || '').toLowerCase().includes(terme)
+          || String(p.nom || '').toLowerCase().includes(terme);
+    });
+  }, [tousPdv, q, fSup, fGest, fQuartier, fSituation]);
+
+  // Toute la liste est affichée (le patron veut voir l'ensemble des PDV) :
+  // le filtre par recherche/superviseur/gestionnaire/quartier suffit à réduire.
+
+  const persFiltrees = useMemo(() => {
+    const terme = qPers.trim().toLowerCase();
+    if (!terme) return personnes;
+    return personnes.filter(u => String(u.nom || '').toLowerCase().includes(terme));
+  }, [personnes, qPers]);
+
+  const basculerPdv = (num) =>
+    setSelPdv(prev => prev.includes(num) ? prev.filter(x => x !== num) : [...prev, num]);
+  const basculerPers = (id) =>
+    setSelPers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const toutCocherPdv = () => setSelPdv(prev =>
+    [...new Set([...prev, ...pdvFiltres.map(p => p.pdv_numero)])]);
+  const toutDecocherPdv = () => setSelPdv([]);
+  const toutCocherPers = () => setSelPers(prev =>
+    [...new Set([...prev, ...persFiltrees.map(u => u.user_id)])]);
+
+  const nbSelection = selPdv.length + selPers.length;
+
+  // ── Création ──
   const creer = async () => {
-    if (!f.titre.trim()) { toast.error('Le titre est obligatoire'); setEtape(0); return; }
-    if (!ciblesGardees.length) { toast.error('Aucune cible sélectionnée'); setEtape(1); return; }
-    if (f.attribuer_maintenant && !f.tcs.length) { toast.error('Sélectionnez au moins une téléconseillère'); return; }
+    if (!titre.trim()) { toast.error('Le titre est obligatoire'); setEtape(0); return; }
+    if (nbSelection === 0) { toast.error('Cochez au moins un PDV ou une personne'); setEtape(1); return; }
+    if (attribuerMaintenant && !tcs.length) { toast.error('Sélectionnez au moins une téléconseillère'); return; }
+
+    const cibles = [
+      ...tousPdv.filter(p => selPdv.includes(p.pdv_numero)).map(p => ({
+        type_cible: 'PDV', pdv_id: p.pdv_id, pdv_numero: p.pdv_numero,
+        motif: p.motif, situation: p.situation,
+      })),
+      ...personnes.filter(u => selPers.includes(u.user_id)).map(u => ({
+        type_cible: 'PERSONNE', target_user_id: u.user_id,
+        motif: `Appel direct — ${roleLabel(u.role)}`,
+      })),
+    ];
+
     setEnvoi(true);
     try {
       const { id } = await missionService.creer({
-        titre: f.titre, type_mission: f.type_mission, priorite: f.priorite,
-        echeance: f.echeance || null, consigne: f.consigne, objectif_texte: f.objectif_texte,
-        objectif_nb_appels: f.objectif_nb_appels, objectif_nb_promesses: f.objectif_nb_promesses,
-        objectif_taux_joignabilite: f.objectif_taux_joignabilite,
-        commentaire_obligatoire: f.commentaire_obligatoire,
-        statuts_autorises: f.statuts_autorises.length ? f.statuts_autorises : null,
-        annee: f.annee, mois: f.mois,
-        filtres: filtresPayload(),
-        cibles: ciblesGardees.map(c => ({
-          type_cible: c.type_cible, pdv_id: c.pdv_id, pdv_numero: c.pdv_numero,
-          target_user_id: c.target_user_id, motif: c.motif, situation: c.situation,
-        })),
+        titre, type_mission: typeMission, priorite,
+        echeance: echeance || null, consigne, objectif_texte: objectifTexte,
+        objectif_nb_appels: objAppels, objectif_nb_promesses: objPromesses,
+        objectif_taux_joignabilite: objJoignabilite,
+        commentaire_obligatoire: commentaireObligatoire,
+        statuts_autorises: statutsAutorises.length ? statutsAutorises : null,
+        annee, mois,
+        filtres: { mode, superviseur: fSup || null, gestionnaire: fGest || null,
+                   quartier: fQuartier || null, situation: fSituation || null,
+                   recherche: q || null, role_personne: mode === 'PERSONNE' ? fRole : null },
+        cibles,
       });
-      if (f.attribuer_maintenant) {
-        await missionService.attribuer(id, { user_ids: f.tcs, strategy: f.strategy });
+      if (attribuerMaintenant) {
+        await missionService.attribuer(id, { user_ids: tcs, strategy });
       }
-      toast.success('✅ Mission créée' + (f.attribuer_maintenant ? ' et attribuée' : ''));
+      toast.success('✅ Mission créée' + (attribuerMaintenant ? ' et attribuée' : ''));
       onCree();
     } catch (e) {
       toast.error(e.response?.data?.detail || e.message);
@@ -201,11 +194,17 @@ function AssistantMission({ refs, onClose, onCree }) {
     background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
     color: '#e2e8f0', fontSize: 13, outline: 'none',
   };
+  const sel = { ...inp, cursor: 'pointer' };
   const lab = { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600, display: 'block' };
+
+  // Valeurs distinctes pour les listes déroulantes
+  const listeSup = useMemo(() => [...new Set(tousPdv.map(p => p.superviseur).filter(Boolean))].sort(), [tousPdv]);
+  const listeGest = useMemo(() => [...new Set(tousPdv.map(p => p.gestionnaire).filter(Boolean))].sort(), [tousPdv]);
+  const listeQuartiers = useMemo(() => [...new Set(tousPdv.map(p => p.quartier).filter(Boolean))].sort(), [tousPdv]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 900, maxHeight: '92vh', overflowY: 'auto' }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 980, maxHeight: '92vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h2 style={{ margin: 0 }}>📣 Nouvelle mission d'appels</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X size={20} /></button>
@@ -226,194 +225,271 @@ function AssistantMission({ refs, onClose, onCree }) {
           ))}
         </div>
 
-        {/* ── Étape 1 ── */}
+        {/* ── Étape 1 : l'appel ── */}
         {etape === 0 && (
           <div className="modal-section">
             <div className="form-grid">
               <label className="full"><span style={lab}>Titre de la mission *</span>
-                <input style={inp} value={f.titre} onChange={e => set('titre', e.target.value)}
+                <input style={inp} value={titre} onChange={e => setTitre(e.target.value)}
                   placeholder="Ex : Relance des PDV OMY inactifs — Août 2026" />
               </label>
               <label><span style={lab}>Type d'appel</span>
-                <select style={inp} value={f.type_mission} onChange={e => set('type_mission', e.target.value)}>
+                <select style={sel} value={typeMission} onChange={e => setTypeMission(e.target.value)}>
                   {refs.type_missions.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
                 </select>
               </label>
               <label><span style={lab}>Priorité</span>
-                <select style={inp} value={f.priorite} onChange={e => set('priorite', e.target.value)}>
+                <select style={sel} value={priorite} onChange={e => setPriorite(e.target.value)}>
                   {refs.priorites.map(p => <option key={p.code} value={p.code}>{p.label}</option>)}
                 </select>
               </label>
               <label><span style={lab}>Échéance</span>
-                <input type="date" style={inp} value={f.echeance} onChange={e => set('echeance', e.target.value)} />
+                <input type="date" style={inp} value={echeance} onChange={e => setEcheance(e.target.value)} />
               </label>
               <label className="full"><span style={lab}>Consigne à lire à la téléconseillère</span>
-                <textarea style={{ ...inp, minHeight: 70 }} value={f.consigne}
-                  onChange={e => set('consigne', e.target.value)}
+                <textarea style={{ ...inp, minHeight: 70 }} value={consigne} onChange={e => setConsigne(e.target.value)}
                   placeholder="Ex : Se présenter, demander pourquoi le PDV n'a pas transacté, proposer un accompagnement…" />
               </label>
               <label className="full"><span style={lab}>Objectif de l'appel (en clair)</span>
-                <input style={inp} value={f.objectif_texte} onChange={e => set('objectif_texte', e.target.value)}
+                <input style={inp} value={objectifTexte} onChange={e => setObjectifTexte(e.target.value)}
                   placeholder="Ex : Obtenir une promesse de reprise d'activité" />
               </label>
             </div>
           </div>
         )}
 
-        {/* ── Étape 2 ── */}
+        {/* ── Étape 2 : qui appeler (SIMPLE) ── */}
         {etape === 1 && (
           <div className="modal-section">
-            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-              {[['PDV', '🏪 Appeler des PDV'], ['PERSONNE', '👤 Appeler des personnes'], ['MIXTE', '🔀 Les deux']].map(([code, lbl]) => (
-                <button key={code} type="button" onClick={() => set('mode', code)}
+            {/* Choix : PDV ou personnes */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {[['PDV', '🏪 Appeler des PDV'], ['PERSONNE', '👤 Appeler des personnes']].map(([code, lbl]) => (
+                <button key={code} type="button" onClick={() => setMode(code)}
                   style={{
-                    padding: '8px 14px', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                    background: f.mode === code ? 'rgba(255,105,0,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${f.mode === code ? ORANGE : 'rgba(255,255,255,0.1)'}`,
-                    color: f.mode === code ? ORANGE : '#94a3b8',
+                    flex: 1, padding: '11px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 800,
+                    background: mode === code ? 'rgba(255,105,0,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${mode === code ? ORANGE : 'rgba(255,255,255,0.1)'}`,
+                    color: mode === code ? ORANGE : '#94a3b8',
                   }}>{lbl}</button>
               ))}
             </div>
 
-            {f.mode !== 'PERSONNE' && (
+            {mode === 'PDV' ? (
               <>
-                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-                  Période de référence pour détecter les alertes :
-                  <select value={f.mois} onChange={e => set('mois', parseInt(e.target.value))}
-                    style={{ ...inp, width: 'auto', display: 'inline-block', marginLeft: 8, padding: '4px 8px' }}>
-                    {['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
-                      .map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                  </select>
-                  <select value={f.annee} onChange={e => set('annee', parseInt(e.target.value))}
-                    style={{ ...inp, width: 'auto', display: 'inline-block', marginLeft: 6, padding: '4px 8px' }}>
-                    {[refs.annee_defaut - 1, refs.annee_defaut, refs.annee_defaut + 1].map(a => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                </div>
-                <div className="form-grid">
-                  <MultiSelect label="Superviseurs" options={refs.superviseurs} value={f.superviseurs} onChange={v => set('superviseurs', v)} />
-                  <MultiSelect label="Gestionnaires" options={refs.gestionnaires} value={f.gestionnaires} onChange={v => set('gestionnaires', v)} />
-                  <MultiSelect label="Zones" options={refs.zones} value={f.zones} onChange={v => set('zones', v)} height={120} />
-                  <MultiSelect label="Quartiers" options={refs.quartiers} value={f.quartiers} onChange={v => set('quartiers', v)} />
-                  <label><span style={lab}>Pas appelé depuis (jours)</span>
-                    <input type="number" style={inp} value={f.jours_sans_appel}
-                      onChange={e => set('jours_sans_appel', e.target.value)} placeholder="Ex : 30" />
+                {/* Recherche + listes déroulantes */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  <label style={{ gridColumn: '1 / -1' }}>
+                    <span style={lab}>Rechercher un PDV (numéro ou nom)</span>
+                    <div style={{ position: 'relative' }}>
+                      <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                      <input style={{ ...inp, paddingLeft: 32 }} value={q} onChange={e => setQ(e.target.value)}
+                        placeholder="Tapez un numéro de PDV, ex : 9450…" autoFocus />
+                    </div>
+                  </label>
+                  <label><span style={lab}>Superviseur</span>
+                    <select style={sel} value={fSup} onChange={e => setFSup(e.target.value)}>
+                      <option value="">Tous les superviseurs</option>
+                      {listeSup.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </label>
+                  <label><span style={lab}>Gestionnaire</span>
+                    <select style={sel} value={fGest} onChange={e => setFGest(e.target.value)}>
+                      <option value="">Tous les gestionnaires</option>
+                      {listeGest.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </label>
+                  <label><span style={lab}>Quartier</span>
+                    <select style={sel} value={fQuartier} onChange={e => setFQuartier(e.target.value)}>
+                      <option value="">Tous les quartiers</option>
+                      {listeQuartiers.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </label>
+                  <label><span style={lab}>Situation</span>
+                    <select style={sel} value={fSituation} onChange={e => setFSituation(e.target.value)}>
+                      <option value="">Toutes les situations</option>
+                      {refs.situations.map(s => <option key={s.code} value={s.code}>{s.label}</option>)}
+                    </select>
+                  </label>
+                  <label><span style={lab}>Mois de référence</span>
+                    <select style={sel} value={`${annee}-${mois}`}
+                      onChange={e => { const [a, m] = e.target.value.split('-'); setAnnee(parseInt(a)); setMois(parseInt(m)); }}>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const d = new Date(refs.annee_defaut, refs.mois_defaut - 1 - i, 1);
+                        const a = d.getFullYear(), m = d.getMonth() + 1;
+                        return <option key={`${a}-${m}`} value={`${a}-${m}`}>
+                          {d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                        </option>;
+                      })}
+                    </select>
                   </label>
                 </div>
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6 }}>
-                    Situations détectées {f.situations.length === 0 && <span style={{ color: '#64748b' }}>(aucune = tous les PDV des filtres ci-dessus)</span>}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {refs.situations.map(s => {
-                      const on = f.situations.includes(s.code);
-                      return (
-                        <button key={s.code} type="button"
-                          onClick={() => set('situations', on ? f.situations.filter(x => x !== s.code) : [...f.situations, s.code])}
-                          style={{
-                            padding: '6px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-                            background: on ? 'rgba(255,71,87,0.15)' : 'rgba(255,255,255,0.04)',
-                            border: `1px solid ${on ? '#ff4757' : 'rgba(255,255,255,0.1)'}`,
-                            color: on ? '#ff4757' : '#94a3b8',
-                          }}>{s.label}</button>
-                      );
-                    })}
-                  </div>
+
+                {/* Barre de sélection */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13 }}>
+                    <b style={{ color: ORANGE }}>{nbSelection}</b> PDV/personne(s) sélectionné(s)
+                    <span style={{ color: '#64748b' }}> · {pdvFiltres.length} affiché(s) sur {tousPdv.length}</span>
+                  </span>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }}
+                    onClick={toutCocherPdv} disabled={!pdvFiltres.length}>
+                    ✅ Tout sélectionner ({pdvFiltres.length})
+                  </button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }}
+                    onClick={toutDecocherPdv} disabled={!nbSelection}>
+                    ✕ Tout décocher
+                  </button>
+                </div>
+
+                {/* Liste complète des PDV */}
+                <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#1a1a28', zIndex: 2 }}>
+                      <tr>
+                        <th style={{ padding: 8, width: 34 }}></th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>N° PDV</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Nom du PDV</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Quartier</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Superviseur</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Situation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chargementPdv && (
+                        <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>⏳ Chargement des PDV…</td></tr>
+                      )}
+                      {!chargementPdv && pdvFiltres.map(p => {
+                        const coche = selPdv.includes(p.pdv_numero);
+                        return (
+                          <tr key={p.pdv_numero} onClick={() => basculerPdv(p.pdv_numero)}
+                            style={{ borderTop: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
+                                     background: coche ? 'rgba(255,105,0,0.10)' : 'transparent' }}>
+                            <td style={{ padding: 8, textAlign: 'center' }}>
+                              <input type="checkbox" checked={coche} onChange={() => basculerPdv(p.pdv_numero)} onClick={e => e.stopPropagation()} />
+                            </td>
+                            <td style={{ padding: 8, fontWeight: 700, color: ORANGE }}>{p.pdv_numero}</td>
+                            <td style={{ padding: 8, fontWeight: 600 }}>{p.nom}</td>
+                            <td style={{ padding: 8, color: '#94a3b8' }}>{p.quartier || '—'}</td>
+                            <td style={{ padding: 8, color: '#94a3b8' }}>{p.superviseur || '—'}</td>
+                            <td style={{ padding: 8, color: '#ff8a94', fontSize: 11.5 }}>{p.motif}</td>
+                          </tr>
+                        );
+                      })}
+                      {!chargementPdv && pdvFiltres.length === 0 && (
+                        <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
+                          Aucun PDV ne correspond à votre recherche.
+                        </td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </>
-            )}
+            ) : (
+              <>
+                {/* Cible PERSONNE : recherche + rôle */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  <label><span style={lab}>Rechercher une personne</span>
+                    <div style={{ position: 'relative' }}>
+                      <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                      <input style={{ ...inp, paddingLeft: 32 }} value={qPers} onChange={e => setQPers(e.target.value)}
+                        placeholder="Nom de la personne…" autoFocus />
+                    </div>
+                  </label>
+                  <label><span style={lab}>Rôle</span>
+                    <select style={sel} value={fRole} onChange={e => setFRole(e.target.value)}>
+                      {refs.roles_personnes.map(r => <option key={r} value={r}>{roleLabel(r)}</option>)}
+                    </select>
+                  </label>
+                </div>
 
-            {f.mode !== 'PDV' && (
-              <div style={{ marginTop: 14 }}>
-                <MultiSelect label="Rôles à appeler" options={refs.roles_personnes.map(roleLabel)} value={f.roles_personnes.map(roleLabel)}
-                  onChange={v => set('roles_personnes', v.map(x => (refs.roles_personnes.find(r => roleLabel(r) === x) || x)))} height={130} />
-                {f.mode === 'PERSONNE' && (
-                  <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 6 }}>
-                    ⚠️ Le numéro doit être renseigné sur la fiche de la personne (champ « Téléphone »).
-                  </div>
-                )}
-              </div>
-            )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <span style={{ fontSize: 13 }}>
+                    <b style={{ color: ORANGE }}>{selPers.length}</b> personne(s) sélectionnée(s)
+                    <span style={{ color: '#64748b' }}> · {persFiltrees.length} affichée(s)</span>
+                  </span>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }}
+                    onClick={toutCocherPers} disabled={!persFiltrees.length}>
+                    ✅ Tout sélectionner ({persFiltrees.length})
+                  </button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }}
+                    onClick={() => setSelPers([])} disabled={!selPers.length}>✕ Tout décocher</button>
+                </div>
 
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16 }}>
-              <button type="button" className="btn btn-primary" onClick={lancerApercu} disabled={chargementApercu}>
-                {chargementApercu ? '⏳ Calcul…' : '🔍 Aperçu des cibles'}
-              </button>
-              {apercu && (
-                <span style={{ fontSize: 13, color: '#94a3b8' }}>
-                  <b style={{ color: ORANGE }}>{apercu.total}</b> cible(s) ·
-                  {' '}{apercu.total_pdv} PDV · {apercu.total_personnes} personne(s)
-                  {apercu.sans_telephone > 0 && <span style={{ color: '#f59e0b' }}> · {apercu.sans_telephone} sans téléphone</span>}
-                </span>
-              )}
-            </div>
-
-            {apercu && (
-              <div style={{ marginTop: 12, maxHeight: 260, overflowY: 'auto', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                  <thead style={{ position: 'sticky', top: 0, background: '#1a1a28' }}>
-                    <tr>
-                      <th style={{ padding: 8 }}></th>
-                      <th style={{ padding: 8, textAlign: 'left' }}>Cible</th>
-                      <th style={{ padding: 8, textAlign: 'left' }}>Quartier / Rôle</th>
-                      <th style={{ padding: 8, textAlign: 'left' }}>Téléphone</th>
-                      <th style={{ padding: 8, textAlign: 'left' }}>Motif</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {apercu.cibles.map(c => {
-                      const k = cleCible(c);
-                      return (
-                        <tr key={k} style={{ borderTop: '1px solid rgba(255,255,255,0.06)', opacity: exclus.includes(k) ? 0.35 : 1 }}>
-                          <td style={{ padding: 8, textAlign: 'center' }}>
-                            <input type="checkbox" checked={!exclus.includes(k)}
-                              onChange={() => setExclus(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])} />
-                          </td>
-                          <td style={{ padding: 8, fontWeight: 600 }}>{c.nom}</td>
-                          <td style={{ padding: 8, color: '#94a3b8' }}>{c.quartier || roleLabel(c.role) || '—'}</td>
-                          <td style={{ padding: 8, color: c.telephone ? '#e2e8f0' : '#f59e0b' }}>{c.telephone || '—'}</td>
-                          <td style={{ padding: 8, color: '#94a3b8', fontSize: 11.5 }}>{c.motif}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#1a1a28' }}>
+                      <tr>
+                        <th style={{ padding: 8, width: 34 }}></th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Nom</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Rôle</th>
+                        <th style={{ padding: 8, textAlign: 'left' }}>Téléphone</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chargementPers && (
+                        <tr><td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>⏳ Chargement…</td></tr>
+                      )}
+                      {!chargementPers && persFiltrees.map(u => {
+                        const coche = selPers.includes(u.user_id);
+                        return (
+                          <tr key={u.user_id} onClick={() => basculerPers(u.user_id)}
+                            style={{ borderTop: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer',
+                                     background: coche ? 'rgba(255,105,0,0.10)' : 'transparent' }}>
+                            <td style={{ padding: 8, textAlign: 'center' }}>
+                              <input type="checkbox" checked={coche} onChange={() => basculerPers(u.user_id)} onClick={e => e.stopPropagation()} />
+                            </td>
+                            <td style={{ padding: 8, fontWeight: 600 }}>{u.nom}</td>
+                            <td style={{ padding: 8, color: '#94a3b8' }}>{roleLabel(u.role)}</td>
+                            <td style={{ padding: 8, color: u.telephone ? '#e2e8f0' : '#f59e0b' }}>
+                              {u.telephone || 'aucun — à renseigner sur la fiche'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!chargementPers && persFiltrees.length === 0 && (
+                        <tr><td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
+                          Aucune personne pour ce rôle.
+                        </td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ fontSize: 11.5, color: '#f59e0b', marginTop: 8 }}>
+                  ⚠️ Le numéro doit être renseigné sur la fiche de la personne pour pouvoir l'appeler.
+                </div>
+              </>
             )}
           </div>
         )}
 
-        {/* ── Étape 3 ── */}
+        {/* ── Étape 3 : objectifs ── */}
         {etape === 2 && (
           <div className="modal-section">
             <div className="form-grid">
               <label><span style={lab}>Nombre d'appels à passer</span>
-                <input type="number" style={inp} value={f.objectif_nb_appels}
-                  onChange={e => set('objectif_nb_appels', e.target.value)} placeholder="Ex : 40" />
+                <input type="number" style={inp} value={objAppels} onChange={e => setObjAppels(e.target.value)} placeholder="Ex : 40" />
               </label>
               <label><span style={lab}>Nombre de promesses visées</span>
-                <input type="number" style={inp} value={f.objectif_nb_promesses}
-                  onChange={e => set('objectif_nb_promesses', e.target.value)} placeholder="Ex : 10" />
+                <input type="number" style={inp} value={objPromesses} onChange={e => setObjPromesses(e.target.value)} placeholder="Ex : 10" />
               </label>
               <label><span style={lab}>Taux de joignabilité visé (%)</span>
-                <input type="number" style={inp} value={f.objectif_taux_joignabilite}
-                  onChange={e => set('objectif_taux_joignabilite', e.target.value)} placeholder="Ex : 60" />
+                <input type="number" style={inp} value={objJoignabilite} onChange={e => setObjJoignabilite(e.target.value)} placeholder="Ex : 60" />
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20 }}>
-                <input type="checkbox" checked={f.commentaire_obligatoire}
-                  onChange={e => set('commentaire_obligatoire', e.target.checked)} />
+                <input type="checkbox" checked={commentaireObligatoire}
+                  onChange={e => setCommentaireObligatoire(e.target.checked)} />
                 <span style={{ fontSize: 13 }}>Commentaire obligatoire sur chaque appel</span>
               </label>
             </div>
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6 }}>
-                Statuts d'appel autorisés {f.statuts_autorises.length === 0 && <span style={{ color: '#64748b' }}>(aucun = tous autorisés)</span>}
+                Statuts d'appel autorisés {statutsAutorises.length === 0 && <span style={{ color: '#64748b' }}>(aucun = tous autorisés)</span>}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {refs.statuts_appel.map(s => {
-                  const on = f.statuts_autorises.includes(s.code);
+                  const on = statutsAutorises.includes(s.code);
                   return (
                     <button key={s.code} type="button"
-                      onClick={() => set('statuts_autorises', on ? f.statuts_autorises.filter(x => x !== s.code) : [...f.statuts_autorises, s.code])}
+                      onClick={() => setStatutsAutorises(on ? statutsAutorises.filter(x => x !== s.code) : [...statutsAutorises, s.code])}
                       style={{
                         padding: '6px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
                         background: on ? 'rgba(0,214,143,0.15)' : 'rgba(255,255,255,0.04)',
@@ -427,26 +503,29 @@ function AssistantMission({ refs, onClose, onCree }) {
           </div>
         )}
 
-        {/* ── Étape 4 ── */}
+        {/* ── Étape 4 : attribution ── */}
         {etape === 3 && (
           <div className="modal-section">
+            <div style={{ fontSize: 13, marginBottom: 12, color: '#94a3b8' }}>
+              <b style={{ color: ORANGE }}>{nbSelection}</b> cible(s) · répartition entre les téléconseillères.
+            </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <input type="checkbox" checked={f.attribuer_maintenant}
-                onChange={e => set('attribuer_maintenant', e.target.checked)} />
+              <input type="checkbox" checked={attribuerMaintenant}
+                onChange={e => setAttribuerMaintenant(e.target.checked)} />
               <span style={{ fontSize: 13 }}>Attribuer la mission maintenant aux téléconseillères</span>
             </label>
 
-            {f.attribuer_maintenant && (
+            {attribuerMaintenant && (
               <>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6 }}>
-                  Téléconseillères * ({f.tcs.length} sélectionnée(s))
+                  Téléconseillères * ({tcs.length} sélectionnée(s))
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
                   {refs.teleconseilleres.map(t => {
-                    const on = f.tcs.includes(t.id);
+                    const on = tcs.includes(t.id);
                     return (
                       <button key={t.id} type="button"
-                        onClick={() => set('tcs', on ? f.tcs.filter(x => x !== t.id) : [...f.tcs, t.id])}
+                        onClick={() => setTcs(on ? tcs.filter(x => x !== t.id) : [...tcs, t.id])}
                         style={{
                           padding: '8px 14px', borderRadius: 20, fontSize: 13, cursor: 'pointer', fontWeight: on ? 700 : 400,
                           background: on ? 'rgba(255,105,0,0.18)' : 'rgba(255,255,255,0.04)',
@@ -456,23 +535,21 @@ function AssistantMission({ refs, onClose, onCree }) {
                     );
                   })}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6 }}>
-                  Répartition
-                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600, marginBottom: 6 }}>Répartition</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {[['balanced', '⚖️ Équilibrée'], ['by_zone', '🌍 Par quartier']].map(([code, lbl]) => (
-                    <button key={code} type="button" onClick={() => set('strategy', code)}
+                    <button key={code} type="button" onClick={() => setStrategy(code)}
                       style={{
                         padding: '8px 14px', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                        background: f.strategy === code ? 'rgba(255,105,0,0.15)' : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${f.strategy === code ? ORANGE : 'rgba(255,255,255,0.1)'}`,
-                        color: f.strategy === code ? ORANGE : '#94a3b8',
+                        background: strategy === code ? 'rgba(255,105,0,0.15)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${strategy === code ? ORANGE : 'rgba(255,255,255,0.1)'}`,
+                        color: strategy === code ? ORANGE : '#94a3b8',
                       }}>{lbl}</button>
                   ))}
                 </div>
-                {f.tcs.length > 1 && apercu && (
+                {tcs.length > 1 && (
                   <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 8 }}>
-                    ≈ {Math.floor(ciblesGardees.length / f.tcs.length)} à {Math.ceil(ciblesGardees.length / f.tcs.length)} cible(s) par téléconseillère.
+                    ≈ {Math.floor(nbSelection / tcs.length)} à {Math.ceil(nbSelection / tcs.length)} cible(s) par téléconseillère.
                   </div>
                 )}
               </>
@@ -484,7 +561,10 @@ function AssistantMission({ refs, onClose, onCree }) {
           <button type="button" className="btn btn-ghost" onClick={() => etape === 0 ? onClose() : setEtape(etape - 1)}>
             {etape === 0 ? 'Annuler' : '← Retour'}
           </button>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {etape === 1 && <span style={{ fontSize: 12, color: nbSelection ? '#00d68f' : '#f59e0b' }}>
+              {nbSelection ? `${nbSelection} cible(s) cochée(s)` : 'Cochez au moins une cible'}
+            </span>}
             {etape < 3 && (
               <button type="button" className="btn btn-primary" onClick={() => setEtape(etape + 1)}>Suivant →</button>
             )}

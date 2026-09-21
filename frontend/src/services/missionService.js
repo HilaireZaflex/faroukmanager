@@ -12,6 +12,7 @@ export const missionService = {
   // ── Référentiels ──
   filtres:   ()            => api.get(`${base}/filtres`).then(r => r.data),
   personnes: (params)      => api.get(`${base}/personnes`, { params }).then(r => r.data),
+  pdvCandidats: (annee, mois) => api.get(`${base}/pdv-candidats`, { params: { annee, mois } }).then(r => r.data),
   apercu:    (payload)     => api.post(`${base}/apercu`, payload).then(r => r.data),
 
   // ── Encadrement ──
