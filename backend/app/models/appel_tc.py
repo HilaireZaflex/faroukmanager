@@ -65,6 +65,10 @@ class AppelTC(Base):
     commentaire = Column(Text, nullable=True)
     date_rappel = Column(Date, nullable=True)  # Si RAPPEL_PROGRAMME
 
+    # Rattachement optionnel à une « mission d'appels » créée par l'encadrement.
+    # NULL = appel spontané (file d'appels unifiée), non lié à une mission.
+    mission_cible_id = Column(Integer, ForeignKey("mission_cibles.id"), nullable=True, index=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 

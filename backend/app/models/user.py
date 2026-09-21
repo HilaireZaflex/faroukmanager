@@ -25,6 +25,9 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String(100), default="superviseur")
     zone = Column(String, nullable=True)
+    # Numéro utilisé par les « Missions d'appels » quand la cible est une PERSONNE
+    # (superviseur, gestionnaire, autre). Les PDV ont déjà leur propre téléphone.
+    telephone = Column(String(50), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)

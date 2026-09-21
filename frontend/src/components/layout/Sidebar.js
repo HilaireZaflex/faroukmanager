@@ -4,7 +4,7 @@ import {
   Home, LayoutDashboard, CalendarDays, Store, Bell,
   Brain, RefreshCw, FileText, Settings,
   LogOut, ChevronLeft, ChevronRight, Users, Upload,
-  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy
+  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy, PhoneCall
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import './Sidebar.css';
@@ -174,6 +174,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {can('prospection_energia') && nl('/prospection-energia', Activity, '☀️ Prospection ENERGIA')}
             {can('reclamations') && nl('/reclamations', AlertTriangle, '📣 Réclamations')}
             {can('suivi_tc')     && nl('/suivi-tc',    Bell,        '📞 Suivi TC')}
+            {can('missions_appels') && nl('/missions-appels', PhoneCall, '📣 Missions d\'appels')}
             {can('indicateurs') && nl('/indicateurs',  Activity,    'Indicateurs')}
             {can('commissions') && nl('/commissions',  DollarSign,  'Commissions')}
             {can('evaluations') && nl('/evaluations/superviseurs', Star, '⭐ Éval. Superviseurs')}

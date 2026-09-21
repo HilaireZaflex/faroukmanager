@@ -52,3 +52,8 @@ from app.models.indicator import (
     IndicatorTicket, TicketStatus,
     IndicatorAlertRule,
 )
+from app.models.mission_appel import (
+    MissionAppel, MissionCible,
+    TypeMission, PrioriteMission, StatutMission, CibleType, StatutCible,
+    TYPE_MISSION_LABELS, PRIORITE_LABELS, STATUT_MISSION_LABELS,
+)

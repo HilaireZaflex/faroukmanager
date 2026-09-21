@@ -2,12 +2,13 @@
  * AccueilTCPage — Page d'accueil dédiée aux Téléconseillères
  * Affiche uniquement leurs KPIs, rappels et historique d'appels
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
 import AppelTCModal from '../components/common/AppelTCModal';
+import missionService from '../services/missionService';
 
 const COLOR = '#00d68f';
 
@@ -798,6 +799,184 @@ function TabMigration() {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 📣 MES MISSIONS D'APPELS — lots d'appels créés par l'encadrement
+// ─────────────────────────────────────────────────────────────────────────────
+function TabMesMissions({ onBadge }) {
+  const [ouverte, setOuverte] = useState(null);   // mission sélectionnée
+  const [appelCible, setAppelCible] = useState(null);
+
+  const { data: missions = [], isLoading, refetch } = useQuery(
+    'mes-missions-file', () => missionService.mesMissions(), { staleTime: 15000 });
+
+  // Badge affiché dans les onglets = nombre de cibles restantes
+  useEffect(() => {
+    const n = (missions || []).reduce((s, m) => s + (m.mes_cibles || 0), 0);
+    onBadge?.(n);
+  }, [missions, onBadge]);
+
+  const { data: detail } = useQuery(
+    ['mission-detail', ouverte], () => missionService.detail(ouverte),
+    { enabled: !!ouverte, staleTime: 10000 });
+
+  const cibles = detail?.cibles || [];
+  const mission = detail?.mission;
+
+  if (isLoading) return <div className="loading-state">Chargement de vos missions…</div>;
+
+  if (!missions.length) {
+    return (
+      <div className="empty-state" style={{ padding: 40 }}>
+        <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
+        Aucune mission d'appels ne vous est attribuée pour le moment.
+        <br /><small>Continuez avec votre file d'appels unifiée habituelle.</small>
+      </div>
+    );
+  }
+
+  if (ouverte) {
+    const av = detail?.avancement || {};
+    return (
+      <div>
+        <button onClick={() => setOuverte(null)} className="btn btn-ghost" style={{ marginBottom: 14 }}>
+          ← Retour à mes missions
+        </button>
+
+        <div style={{ background: 'rgba(255,105,0,0.08)', border: '1px solid rgba(255,105,0,0.3)',
+                      borderRadius: 14, padding: 18, marginBottom: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 6 }}>📣 {mission?.titre}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11.5, color: '#94a3b8', marginBottom: 10 }}>
+            <span>{mission?.type_mission_label}</span>
+            <span>· Priorité : <b style={{ color: (mission?.priorite === 'URGENTE') ? '#ef4444' : (mission?.priorite === 'HAUTE' ? '#f59e0b' : '#94a3b8') }}>{mission?.priorite_label}</b></span>
+            {mission?.echeance && <span>· Échéance : <b>{new Date(mission.echeance).toLocaleDateString('fr-FR')}</b></span>}
+            <span>· Par {mission?.created_by_nom || '—'}</span>
+          </div>
+          {mission?.consigne && (
+            <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 10, padding: 12, fontSize: 13, whiteSpace: 'pre-wrap', marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#FF6900', marginBottom: 4 }}>CONSIGNE</div>
+              {mission.consigne}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5 }}>
+            {mission?.objectif_texte && <span>🎯 {mission.objectif_texte}</span>}
+            {mission?.objectif_nb_appels ? <span>📞 {av.termines || 0}/{mission.objectif_nb_appels} appels</span> : null}
+            {mission?.objectif_nb_promesses ? <span>✅ {av.promesses || 0}/{mission.objectif_nb_promesses} promesses</span> : null}
+            {mission?.objectif_taux_joignabilite ? <span>📶 {av.taux_joignabilite || 0}% / {mission.objectif_taux_joignabilite}% joignabilité</span> : null}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+            <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ width: `${av.taux_avancement || 0}%`, height: '100%', background: '#FF6900' }} />
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#FF6900' }}>{av.taux_avancement || 0}%</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {cibles.map(c => (
+            <div key={c.id} style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14,
+              borderLeft: `4px solid ${c.statut === 'APPELE' ? '#00d68f' : c.statut === 'INJOIGNABLE' ? '#f59e0b' : c.statut === 'ABANDONNE' ? '#ef4444' : '#FF6900'}`,
+              opacity: c.statut === 'APPELE' ? 0.75 : 1,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, marginBottom: 4 }}>
+                    {c.type_cible === 'PERSONNE' ? '👤 ' : '🏪 '}{c.nom}
+                    {c.pdv_numero && <span style={{ color: '#64748b', fontWeight: 500, fontSize: 12 }}> · {c.pdv_numero}</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
+                    {c.quartier ? `${c.quartier} · ` : ''}{c.superviseur ? `Sup. ${c.superviseur}` : (c.role || '')}
+                  </div>
+                  {c.motif && (
+                    <div style={{ fontSize: 11.5, color: '#ff8a94', background: 'rgba(255,71,87,0.08)',
+                                  borderRadius: 8, padding: '5px 9px', display: 'inline-block' }}>
+                      {c.motif}
+                    </div>
+                  )}
+                  {c.dernier_appel_at && (
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                      Dernier appel : {new Date(c.dernier_appel_at).toLocaleDateString('fr-FR')} — {c.dernier_statut_label || '—'}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+                  {c.telephone ? (
+                    <a href={`tel:${c.telephone}`} style={{
+                      fontSize: 15, fontWeight: 800, color: '#00d68f', textDecoration: 'none',
+                      background: 'rgba(0,214,143,0.1)', border: '1px solid rgba(0,214,143,0.35)',
+                      borderRadius: 10, padding: '6px 12px', whiteSpace: 'nowrap',
+                    }}>📞 {c.telephone}</a>
+                  ) : (
+                    <span style={{ fontSize: 12, color: '#f59e0b' }}>⚠️ Sans téléphone</span>
+                  )}
+                  <button className="btn btn-primary" style={{ fontSize: 12.5 }}
+                    onClick={() => setAppelCible(c)}>
+                    📝 {c.statut === 'APPELE' ? 'Rappeler' : 'Enregistrer l\'appel'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {cibles.length === 0 && <div className="empty-state">Aucune cible attribuée.</div>}
+        </div>
+
+        {appelCible && (
+          <AppelTCModal
+            pdv={{ numero_pdv: appelCible.pdv_numero, nom: appelCible.nom, zone: appelCible.zone, superviseur: appelCible.superviseur }}
+            indicateur="OMY"
+            missionCible={appelCible}
+            missionTitre={mission?.titre}
+            motif={appelCible.motif}
+            statutsAutorises={mission?.statuts_autorises}
+            commentaireObligatoire={mission?.commentaire_obligatoire}
+            onClose={() => setAppelCible(null)}
+            onSaved={() => { setAppelCible(null); refetch(); }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {missions.map(m => {
+        const av = m.avancement || {};
+        const prio = m.priorite === 'URGENTE' ? '#ef4444' : m.priorite === 'HAUTE' ? '#f59e0b' : '#64748b';
+        const enRetard = m.echeance && new Date(m.echeance) < new Date(new Date().toDateString()) && (av.restants || 0) > 0;
+        return (
+          <div key={m.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)',
+                                   borderRadius: 12, padding: 16, borderLeft: `4px solid ${prio}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>📣 {m.titre}</div>
+                <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
+                  {m.type_mission_label} · {m.priorite_label}
+                  {m.echeance && <> · 📅 {new Date(m.echeance).toLocaleDateString('fr-FR')}{enRetard ? ' ⚠️ en retard' : ''}</>}
+                  {' '}· Par {m.created_by_nom || '—'}
+                </div>
+                {m.objectif_texte && <div style={{ fontSize: 12.5, color: '#cbd5e1', marginTop: 6 }}>🎯 {m.objectif_texte}</div>}
+              </div>
+              <div style={{ textAlign: 'right', minWidth: 130 }}>
+                <div style={{ fontSize: 22, fontWeight: 900, color: '#FF6900' }}>{m.mes_cibles}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>à traiter</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+              <div style={{ flex: 1, height: 7, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ width: `${av.taux_avancement || 0}%`, height: '100%', background: '#FF6900' }} />
+              </div>
+              <span style={{ fontSize: 11.5, color: '#94a3b8' }}>{av.termines}/{av.total}</span>
+              <button className="btn btn-primary" style={{ fontSize: 12.5, padding: '6px 14px' }}
+                onClick={() => setOuverte(m.id)}>Ouvrir</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AccueilTCPage() {
   const navigate = useNavigate();
   const user = useAuthStore(s => s.user);
@@ -805,6 +984,7 @@ export default function AccueilTCPage() {
   const prenom = user?.prenom || user?.nom || 'Téléconseillère';
   const [appelPDV, setAppelPDV] = useState(null);
   const [activeTab, setActiveTab] = useState('kpis');
+  const [missionsOuvertes, setMissionsOuvertes] = useState(0);
 
   const now = new Date();
   const heures = now.getHours();
@@ -922,6 +1102,7 @@ export default function AccueilTCPage() {
       <div style={{ display:'flex', gap:6, marginBottom:20, flexWrap:'wrap', background:'rgba(255,255,255,0.02)', borderRadius:12, padding:6 }}>
         {[
           { id:'unifie',  icon:'📞', label:"File d'appels unifi\u00e9e", badge: totalAAppeler },
+          { id:'missions', icon:'📣', label:'Mes missions', badge: missionsOuvertes || null },
           { id:'migration', icon:'🚀', label:'Appels Migration' },
           { id:'kpis',    icon:'📊', label:'Mes KPIs' },
           { id:'rappels', icon:'📅', label:'Rappels', badge: rappelsAFaire.length || null },
@@ -947,11 +1128,14 @@ export default function AccueilTCPage() {
       {/* ── Tab: File d'appels unifiée ── */}
       {activeTab === 'unifie' && <TabFileUnifiee />}
 
+      {/* ── Tab: Mes missions d'appels ── */}
+      {activeTab === 'missions' && <TabMesMissions onBadge={setMissionsOuvertes} />}
+
       {/* ── Tab: Appels Migration ── */}
       {activeTab === 'migration' && <TabMigration />}
 
       {/* ── Tab: KPIs + Historique ── */}
-      {activeTab !== 'unifie' && activeTab !== 'migration' && (
+      {activeTab !== 'unifie' && activeTab !== 'migration' && activeTab !== 'missions' && (
 
       <div>
       {/* ── KPIs ── */}

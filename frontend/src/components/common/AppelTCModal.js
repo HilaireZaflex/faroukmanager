@@ -1,10 +1,16 @@
 /**
  * AppelTCModal — Modal de suivi d'appel téléphonique pour les Téléconseillères
  * S'affiche depuis le bas quand une TC clique sur un PDV dans les onglets Inactifs/En Baisse
+ *
+ * Sert aussi aux « Missions d'appels » : dans ce cas on passe `missionCible`
+ * (la cible de la mission), `statutsAutorises` et `commentaireObligatoire`.
+ * L'appel est alors enregistré via l'API des missions, qui l'écrit dans le
+ * même journal `appels_tc` et met à jour l'avancement de la mission.
  */
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import api from '../../services/api';
+import missionService from '../../services/missionService';
 
 const STATUTS = [
   { value: 'JOIGNABLE_PROMESSE',        icon: '✅', label: 'Joignable — Promesse de reprise',  color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
@@ -17,12 +23,20 @@ const STATUTS = [
   { value: 'RAPPEL_PROGRAMME',          icon: '📅', label: 'Rappel programmé',                  color: '#a29bfe', bg: 'rgba(162,155,254,0.12)' },
 ];
 
-export default function AppelTCModal({ pdv, indicateur, onClose, onSaved }) {
+export default function AppelTCModal({ pdv, indicateur, onClose, onSaved,
+  missionCible, statutsAutorises, commentaireObligatoire, missionTitre, motif }) {
   const queryClient = useQueryClient();
   const [statut, setStatut] = useState('');
   const [commentaire, setCommentaire] = useState('');
   const [dateRappel, setDateRappel] = useState('');
   const [activeSection, setActiveSection] = useState('form'); // 'form' | 'historique'
+
+  const estMission = !!missionCible;
+  const estPersonne = missionCible?.type_cible === 'PERSONNE';
+  // Une mission peut restreindre les statuts d'appel autorisés
+  const listeStatuts = (statutsAutorises && statutsAutorises.length)
+    ? STATUTS.filter(s => statutsAutorises.includes(s.value))
+    : STATUTS;
 
   // Charger l'historique des appels pour ce PDV (mes appels seulement)
   const { data: historique, isLoading: loadHist } = useQuery(
@@ -45,16 +59,43 @@ export default function AppelTCModal({ pdv, indicateur, onClose, onSaved }) {
     }
   );
 
+  // Mutation « mission » : écrit dans le même journal + avance l'avancement
+  const missionMutation = useMutation(
+    (data) => missionService.enregistrerAppel(missionCible.id, data),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries('mission-detail');
+        queryClient.invalidateQueries('missions');
+        queryClient.invalidateQueries('mes-missions');
+        queryClient.invalidateQueries('mes-missions-file');
+        onSaved?.();
+        onClose();
+      },
+    }
+  );
+
+  const enCours = estMission ? missionMutation.isLoading : mutation.isLoading;
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!statut) return alert('Veuillez sélectionner un statut d\'appel');
+    if (commentaireObligatoire && !commentaire.trim()) {
+      return alert('Le commentaire est obligatoire pour cette mission.');
+    }
+    const commun = {
+      statut,
+      commentaire: commentaire.trim() || null,
+      date_rappel: statut === 'RAPPEL_PROGRAMME' ? dateRappel || null : null,
+    };
+    if (estMission) {
+      missionMutation.mutate({ ...commun, indicateur: indicateur || 'OMY' });
+      return;
+    }
     mutation.mutate({
       numero_pdv: pdv.numero_pdv,
       nom_pdv: pdv.nom || pdv.numero_pdv,
       indicateur,
-      statut,
-      commentaire: commentaire.trim() || null,
-      date_rappel: statut === 'RAPPEL_PROGRAMME' ? dateRappel || null : null,
+      ...commun,
     });
   };
 
@@ -90,11 +131,18 @@ export default function AppelTCModal({ pdv, indicateur, onClose, onSaved }) {
         <div style={{ padding: '12px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <div>
+              {estMission && (
+                <div style={{
+                  display: 'inline-block', marginBottom: 6, padding: '3px 10px', borderRadius: 20,
+                  background: 'rgba(255,105,0,0.18)', border: '1px solid rgba(255,105,0,0.45)',
+                  color: '#FF6900', fontSize: 11, fontWeight: 800,
+                }}>📣 {missionTitre || 'Mission d\'appels'}</div>
+              )}
               <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 3 }}>
                 📞 Suivi d'Appel — {pdv?.nom || pdv?.numero_pdv}
               </div>
               <div style={{ fontSize: 11, color: '#8a8a9a' }}>
-                {pdv?.numero_pdv} · {pdv?.zone || '—'} · {pdv?.superviseur || '—'}
+                {pdv?.numero_pdv ? `${pdv.numero_pdv} · ` : ''}{pdv?.zone || '—'} · {pdv?.superviseur || '—'}
                 <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 6, fontSize: 10,
                   background: indicateur === 'OMY' ? 'rgba(255,105,0,0.2)' : indicateur === 'NAFAMA' ? 'rgba(0,214,143,0.2)' : 'rgba(162,155,254,0.2)',
                   color: indicateur === 'OMY' ? '#FF6900' : indicateur === 'NAFAMA' ? '#00d68f' : '#a29bfe',
@@ -104,9 +152,25 @@ export default function AppelTCModal({ pdv, indicateur, onClose, onSaved }) {
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#8a8a9a', cursor: 'pointer', fontSize: 18, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
           </div>
 
+          {estMission && motif && (
+            <div style={{
+              marginTop: 10, padding: '8px 12px', borderRadius: 8,
+              background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.25)',
+              fontSize: 12, color: '#ff8a94',
+            }}>
+              <b>Pourquoi ce PDV :</b> {motif}
+            </div>
+          )}
+
+          {commentaireObligatoire && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#f59e0b' }}>
+              ⚠️ Le commentaire est obligatoire pour cette mission.
+            </div>
+          )}
+
           {/* Onglets Form / Historique */}
           <div style={{ display: 'flex', gap: 6, marginTop: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: 4 }}>
-            {[['form','📋 Nouvel Appel'], ['historique',`📜 Historique (${historique?.length || 0})`]].map(([key, label]) => (
+            {(estPersonne ? [['form','📋 Nouvel Appel']] : [['form','📋 Nouvel Appel'], ['historique',`📜 Historique (${historique?.length || 0})`]]).map(([key, label]) => (
               <button key={key} onClick={() => setActiveSection(key)}
                 style={{ flex: 1, padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
                   background: activeSection === key ? '#FF6900' : 'transparent',
@@ -127,7 +191,7 @@ export default function AppelTCModal({ pdv, indicateur, onClose, onSaved }) {
                 Résultat de l'appel *
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                {STATUTS.map(s => (
+                {listeStatuts.map(s => (
                   <button key={s.value} type="button" onClick={() => setStatut(s.value)}
                     style={{
                       padding: '10px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
@@ -167,15 +231,15 @@ export default function AppelTCModal({ pdv, indicateur, onClose, onSaved }) {
             </div>
 
             {/* Bouton */}
-            <button type="submit" disabled={!statut || mutation.isLoading}
+            <button type="submit" disabled={!statut || enCours}
               style={{
                 width: '100%', padding: '14px', borderRadius: 12, border: 'none', cursor: statut ? 'pointer' : 'not-allowed',
                 background: statut ? `linear-gradient(135deg, ${selectedStatut?.color || '#FF6900'}, ${selectedStatut?.color || '#ff9500'})` : 'rgba(255,255,255,0.1)',
                 color: statut ? '#fff' : '#555', fontWeight: 800, fontSize: 15,
-                transition: 'all 0.2s', opacity: mutation.isLoading ? 0.7 : 1,
+                transition: 'all 0.2s', opacity: enCours ? 0.7 : 1,
                 boxShadow: statut ? `0 4px 20px ${selectedStatut?.color || '#FF6900'}40` : 'none',
               }}>
-              {mutation.isLoading ? '⏳ Enregistrement...' : `💾 Enregistrer l'appel`}
+              {enCours ? '⏳ Enregistrement...' : `💾 Enregistrer l'appel`}
             </button>
           </form>
         )}

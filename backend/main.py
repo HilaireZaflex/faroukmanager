@@ -75,6 +75,7 @@ from app.api.routes.nafama import router as nafama_router
 from app.api.routes.energia import router as energia_router
 from app.api.routes.indicateurs_award import router as award_router
 from app.api.routes.appels_tc import router as appels_tc_router
+from app.api.routes.missions_appels import router as missions_appels_router
 from app.api.routes.appels_migration import router as appels_migration_router
 from app.api.routes.reclamations import router as reclamations_router
 from app.api.routes.eval_superviseurs import router as eval_sup_router
@@ -84,6 +85,7 @@ app.include_router(nafama_router, prefix="/api", tags=["NAFAMA"])
 app.include_router(energia_router, prefix="/api", tags=["Vente Energia"])
 app.include_router(award_router, prefix="/api", tags=["Indicateurs Award"])
 app.include_router(appels_tc_router, prefix="/api", tags=["Appels TC"])
+app.include_router(missions_appels_router, prefix="/api", tags=["Missions d'appels"])
 app.include_router(appels_migration_router, prefix="/api", tags=["Appels Migration"])
 app.include_router(reclamations_router, prefix="/api", tags=["Reclamations"])
 app.include_router(eval_sup_router, prefix="/api", tags=["Evaluation Superviseurs"])
@@ -259,6 +261,62 @@ async def auto_migrate():
         "ALTER TABLE kaabu_transactions ADD COLUMN IF NOT EXISTS sous_zone VARCHAR",
         "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_gestionnaire ON kaabu_transactions (gestionnaire)",
         "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_sous_zone ON kaabu_transactions (sous_zone)",
+        # ── Missions d'appels TC (créées par l'encadrement, exécutées par les TC) ──
+        # Téléphone sur la fiche utilisateur : indispensable pour cibler une PERSONNE
+        # (les PDV ont déjà leur propre téléphone).
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS telephone VARCHAR(50)",
+        # Tables de la fonctionnalité (filet de sécurité : create_all fait déjà le travail)
+        """CREATE TABLE IF NOT EXISTS missions_appels (
+            id SERIAL PRIMARY KEY,
+            titre VARCHAR(250) NOT NULL,
+            type_mission VARCHAR(40) DEFAULT 'AUTRE',
+            consigne TEXT,
+            objectif_texte TEXT,
+            objectif_nb_appels INTEGER,
+            objectif_nb_promesses INTEGER,
+            objectif_taux_joignabilite DOUBLE PRECISION,
+            commentaire_obligatoire BOOLEAN DEFAULT FALSE NOT NULL,
+            statuts_autorises JSONB,
+            date_debut DATE,
+            echeance DATE,
+            priorite VARCHAR(20) DEFAULT 'NORMALE',
+            statut VARCHAR(20) DEFAULT 'ACTIVE',
+            filtres JSONB,
+            created_by_id INTEGER REFERENCES users(id),
+            created_by_nom VARCHAR(200),
+            created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            closed_at TIMESTAMP
+        )""",
+        """CREATE TABLE IF NOT EXISTS mission_cibles (
+            id SERIAL PRIMARY KEY,
+            mission_id INTEGER NOT NULL REFERENCES missions_appels(id) ON DELETE CASCADE,
+            type_cible VARCHAR(20) DEFAULT 'PDV' NOT NULL,
+            pdv_id INTEGER REFERENCES pdvs(id),
+            pdv_numero VARCHAR(50),
+            target_user_id INTEGER REFERENCES users(id),
+            motif TEXT,
+            situation VARCHAR(200),
+            assigned_to_id INTEGER REFERENCES users(id),
+            assigned_to_nom VARCHAR(200),
+            assigned_at TIMESTAMP,
+            statut VARCHAR(20) DEFAULT 'A_APPELER' NOT NULL,
+            nb_appels INTEGER DEFAULT 0 NOT NULL,
+            dernier_appel_at TIMESTAMP,
+            dernier_statut VARCHAR(60),
+            abandon_motif TEXT,
+            ordre INTEGER DEFAULT 0 NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+            updated_at TIMESTAMP DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_missions_appels_statut_echeance ON missions_appels (statut, echeance)",
+        "CREATE INDEX IF NOT EXISTS ix_missions_appels_createur ON missions_appels (created_by_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS ix_mission_cibles_mission_statut ON mission_cibles (mission_id, statut)",
+        "CREATE INDEX IF NOT EXISTS ix_mission_cibles_assigned ON mission_cibles (assigned_to_id, statut)",
+        "CREATE INDEX IF NOT EXISTS ix_mission_cibles_pdv_numero ON mission_cibles (pdv_numero)",
+        # Journal des appels : rattachement optionnel à une cible de mission
+        "ALTER TABLE appels_tc ADD COLUMN IF NOT EXISTS mission_cible_id INTEGER REFERENCES mission_cibles(id)",
+        "CREATE INDEX IF NOT EXISTS ix_appels_tc_mission_cible ON appels_tc (mission_cible_id)",
     ]
     try:
         with engine.connect() as conn:
@@ -305,6 +363,58 @@ async def auto_migrate():
                     "ALTER TABLE kaabu_transactions ADD COLUMN sous_zone VARCHAR",
                     "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_gestionnaire ON kaabu_transactions (gestionnaire)",
                     "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_sous_zone ON kaabu_transactions (sous_zone)",
+                    # ── Missions d'appels (parité SQLite : JSON au lieu de JSONB) ──
+                    "ALTER TABLE users ADD COLUMN telephone VARCHAR(50)",
+                    """CREATE TABLE IF NOT EXISTS missions_appels (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        titre VARCHAR(250) NOT NULL,
+                        type_mission VARCHAR(40) DEFAULT 'AUTRE',
+                        consigne TEXT,
+                        objectif_texte TEXT,
+                        objectif_nb_appels INTEGER,
+                        objectif_nb_promesses INTEGER,
+                        objectif_taux_joignabilite FLOAT,
+                        commentaire_obligatoire BOOLEAN DEFAULT 0 NOT NULL,
+                        statuts_autorises JSON,
+                        date_debut DATE,
+                        echeance DATE,
+                        priorite VARCHAR(20) DEFAULT 'NORMALE',
+                        statut VARCHAR(20) DEFAULT 'ACTIVE',
+                        filtres JSON,
+                        created_by_id INTEGER REFERENCES users(id),
+                        created_by_nom VARCHAR(200),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                        updated_at TIMESTAMP,
+                        closed_at TIMESTAMP
+                    )""",
+                    """CREATE TABLE IF NOT EXISTS mission_cibles (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        mission_id INTEGER NOT NULL REFERENCES missions_appels(id) ON DELETE CASCADE,
+                        type_cible VARCHAR(20) DEFAULT 'PDV' NOT NULL,
+                        pdv_id INTEGER REFERENCES pdvs(id),
+                        pdv_numero VARCHAR(50),
+                        target_user_id INTEGER REFERENCES users(id),
+                        motif TEXT,
+                        situation VARCHAR(200),
+                        assigned_to_id INTEGER REFERENCES users(id),
+                        assigned_to_nom VARCHAR(200),
+                        assigned_at TIMESTAMP,
+                        statut VARCHAR(20) DEFAULT 'A_APPELER' NOT NULL,
+                        nb_appels INTEGER DEFAULT 0 NOT NULL,
+                        dernier_appel_at TIMESTAMP,
+                        dernier_statut VARCHAR(60),
+                        abandon_motif TEXT,
+                        ordre INTEGER DEFAULT 0 NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                        updated_at TIMESTAMP
+                    )""",
+                    "CREATE INDEX IF NOT EXISTS ix_missions_appels_statut_echeance ON missions_appels (statut, echeance)",
+                    "CREATE INDEX IF NOT EXISTS ix_missions_appels_createur ON missions_appels (created_by_id, created_at)",
+                    "CREATE INDEX IF NOT EXISTS ix_mission_cibles_mission_statut ON mission_cibles (mission_id, statut)",
+                    "CREATE INDEX IF NOT EXISTS ix_mission_cibles_assigned ON mission_cibles (assigned_to_id, statut)",
+                    "CREATE INDEX IF NOT EXISTS ix_mission_cibles_pdv_numero ON mission_cibles (pdv_numero)",
+                    "ALTER TABLE appels_tc ADD COLUMN mission_cible_id INTEGER REFERENCES mission_cibles(id)",
+                    "CREATE INDEX IF NOT EXISTS ix_appels_tc_mission_cible ON appels_tc (mission_cible_id)",
                 ]:
                     try:
                         conn.execute(text(sql))
@@ -316,6 +426,12 @@ async def auto_migrate():
                     conn.commit()
                 except Exception:
                     pass  # remplissage non bloquant
+        # ── Accès « Missions d'appels » pour l'encadrement (+ accès Conformité) ──
+        try:
+            from app.api.routes.role_permissions import ensure_missions_menu
+            ensure_missions_menu()
+        except Exception as e:
+            print(f"⚠️ ensure_missions_menu : {e}")
         print("✅ Auto-migration prospects OK")
     except Exception as e:
         print(f"⚠️ Auto-migration prospects: {e}")
