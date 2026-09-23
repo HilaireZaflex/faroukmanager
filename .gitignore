@@ -8,8 +8,9 @@ venv/
 dist/
 build/
 
-# Base de données locale
-# *.db  -- on inclut la base de données pour Render
+# Base de données locale — NE JAMAIS committer
+# La production utilise PostgreSQL (Railway), pas ces fichiers SQLite.
+*.db
 *.sqlite3
 
 # Node
@@ -21,6 +22,7 @@ frontend/.env.test.local
 
 # Logs
 *.log
+*.pid
 /tmp/
 
 # OS
