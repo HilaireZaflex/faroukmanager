@@ -527,7 +527,6 @@ const MAIN_TABS = [
   { id: 'dashboard', label: '\uD83C\uDFC6 Score Global' },
   { id: 'telco',     label: '\uD83D\uDD35 Challenge PDG TELCO', color: '#0ea5e9' },
   { id: 'om',        label: '\uD83D\uDFE0 Challenge Orange Money', color: '#FF6900' },
-  { id: 'classement', label: '\uD83C\uDFC5 Classement' },
   { id: 'simulation', label: '\uD83D\uDD2E Simulation' },
   { id: 'projection', label: '\uD83D\uDCC8 Projection' },
   { id: 'alertes',   label: '\uD83D\uDEA8 Alertes' },
@@ -571,7 +570,7 @@ export default function ChallengePage() {
     { staleTime: 60000 }
   );
 
-  const { data: alertes } = useQuery('challenge-alertes',
+  const { data: alertesData } = useQuery('challenge-alertes',
     () => api.get('/challenge/alertes').then(r => r.data),
     { staleTime: 60000 }
   );
@@ -683,7 +682,7 @@ export default function ChallengePage() {
             />}
             {activeSubTab === 'telco_croissance' && <TabIndicateurs filter="TELCO_ENERGIE" />}
             {activeSubTab === 'telco_evaluation' && <TabCarteAvecDetail
-              carte={{ id: 'note_dz', icon: '⭐', label: 'Note DZ', poids: 15, color: '#0ea5e9', objectif_desc: "Les DZ évaluent les partenaires sur la base du déploiement des supports de visibilité et animation", taux: (dashboard?.['NOTE_DZ']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0]?.taux_orange ?? null, realise: (dashboard?.['NOTE_DZ']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0]?.realisation ?? null, objectif_val: 20, unite: '/20' }}
+              carte={{ id: 'note_dz', icon: '⭐', label: 'Note DZ', poids: 15, color: '#0ea5e9', objectif_desc: "Les DZ évaluent les partenaires sur la base du déploiement des supports de visibilité et animation", taux: (awardDataMain?.['NOTE_DZ']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0]?.taux_orange ?? null, realise: (awardDataMain?.['NOTE_DZ']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null).slice(-1)[0]?.realisation ?? null, objectif_val: 20, unite: '/20' }}
               challengeLabel="PDG TELCO" challengeColor="#0ea5e9"
               detail={<div className="ch-card" style={{ borderTop: '3px solid #0ea5e9' }}><div style={{ textAlign: 'center', padding: 40, color: '#475569', fontSize: 13 }}>{"Crit\u00e8re \u00e9valu\u00e9 directement par Orange Mali / DZ. Les notes seront communiqu\u00e9es en fin de p\u00e9riode."}</div></div>}
             />}
@@ -703,8 +702,7 @@ export default function ChallengePage() {
             {/* Projection fin de challenge */}
             {activeTab === 'projection' && <TabProjection dashboard={dashboard} />}
             {/* Commun */}
-            {activeTab === 'classement' && <TabClassement />}
-            {activeTab === 'alertes' && <TabAlertes alertes={alertes} dashboard={dashboard} />}
+            {activeTab === 'alertes' && <TabAlertes alertes={alertesData?.alertes || []} dashboard={dashboard} />}
           </>
         )}
       </div>
@@ -1386,7 +1384,7 @@ function TabOMQualite({ kpis }) {
       poids: 10,
       color: '#FF6900',
       objectif_desc: 'Au minimum 90% des PDV actifs avant le challenge doivent demeurer actifs et productifs avec un CA Cash out minimum de 1000F par mois',
-      taux: pdvActifTotal?.taux_orange ?? kpis?.pdv_actifs?.taux ?? null,
+      taux: pdvActifTotal?.taux_orange ?? (kpis?.pdv_actifs?.taux != null ? kpis.pdv_actifs.taux / 100 : null),
       realise: pdvActifTotal?.realisation != null ? Math.round(pdvActifTotal.realisation) : (kpis?.pdv_actifs?.realise ?? null),
       objectif_val: pdvActifTotal?.objectif_orange ?? kpis?.pdv_actifs?.total_pdvs ?? 1016,
       unite: 'PDVs',
@@ -2217,7 +2215,6 @@ function TabPointsControles() {
   );
 }
 
-// ── Tab Classement ────────────────────────────────────────────────────────────
 // ── 🔮 Simulateur What-If ─────────────────────────────────────────────────────
 function TabSimulation({ dashboard }) {
   const { data: awardData } = useQuery('award-dashboard', () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 });
@@ -2241,7 +2238,7 @@ function TabSimulation({ dashboard }) {
     { key: 'recrutement', label: '👥 Recrutement OMY', poids: 15, current: kpis.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux/100 : null },
     { key: 'kaabu', label: '💳 Adoption Kaabu', poids: 15, current: getIndTaux('KAABU MOBILE') },
     { key: 'fintech', label: '🔒 Risque Fintech', poids: 15, current: 0 },
-    { key: 'plv', label: '📦 Déploiement PLV', poids: 15, current: kpis.deploiement_plv?.taux || null },
+    { key: 'plv', label: '📦 Déploiement PLV', poids: 15, current: kpis.deploiement_plv?.taux != null ? kpis.deploiement_plv.taux / 100 : null },
   ];
 
   const initSimValues = (criteres) => Object.fromEntries(criteres.map(c => [c.key, Math.round((c.current || 0) * 100)]));
@@ -2400,7 +2397,7 @@ function TabProjection({ dashboard }) {
             const effortHebdo = gap > 0 ? Math.round(gap / (moisRestants * 4) * 100 * 10) / 10 : 0;
 
             return (
-              <div key={c.ind} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${atteindra ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}`, borderRadius: 12, padding: '14px 16px' }}>
+              <div key={c.label} style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${atteindra ? 'rgba(34,197,94,0.2)' : 'rgba(255,165,2,0.2)'}`, borderRadius: 12, padding: '14px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{c.label}</div>
@@ -2486,7 +2483,7 @@ function TabProjection({ dashboard }) {
             const hebiReq = gap > 0 ? Math.round(gap / (moisRestants * 4) * 100 * 10) / 10 : 0;
             const statutColor = atteint ? '#22c55e' : hebiReq < 5 ? '#ffa502' : '#ff4757';
             return (
-              <div key={c.ind} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: atteint ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${statutColor}25`, borderRadius: 12 }}>
+              <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: atteint ? 'rgba(34,197,94,0.06)' : 'rgba(255,255,255,0.02)', border: `1px solid ${statutColor}25`, borderRadius: 12 }}>
                 <div style={{ fontSize: 24, flexShrink: 0 }}>{c.emoji || '📊'}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 2 }}>{c.label}</div>
@@ -2521,84 +2518,28 @@ function TabProjection({ dashboard }) {
   );
 }
 
-function ClassementSection({ title, icon, color, data, unite, objLabel }) {
-  if (!data || data.length === 0) return (
-    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
-      <h3 className="ch-section-title">{icon} {title}</h3>
-      <div style={{ textAlign: 'center', color: '#475569', padding: 20 }}>{"Aucune donn\u00e9e disponible"}</div>
-    </div>
-  );
-  return (
-    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
-      <h3 className="ch-section-title">{icon} {title}</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-        {data.map((r, i) => {
-          const c = r.taux != null ? getColor(r.taux) : color;
-          const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : `${i + 1}.`;
-          return (
-            <div key={r.superviseur || r.zone || i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 10, border: `1px solid ${c}22` }}>
-              <div style={{ fontSize: 20, width: 32, textAlign: 'center' }}>{medal}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>{r.superviseur || r.zone}</div>
-                {r.taux != null && (
-                  <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, marginTop: 6, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(r.taux, 100)}%`, background: c, borderRadius: 3 }}/>
-                  </div>
-                )}
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 16, fontWeight: 900, color: c }}>{r.total}</div>
-                <div style={{ fontSize: 10, color: '#64748b' }}>{objLabel ? `/ ${r.objectif_cumule || '-'} ${unite}` : unite}</div>
-                {r.taux != null && <div style={{ fontSize: 11, fontWeight: 700, color: c }}>{fmtPct(r.taux)}</div>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TabClassement() {
-  const { data } = useQuery('challenge-classement',
-    () => api.get('/challenge/classement').then(r => r.data),
-    { staleTime: 60000 }
-  );
-
-  const recrutement = data?.recrutement || [];
-  const plv = data?.plv || [];
-  const pointsControles = data?.points_controles || [];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Section Challenge Orange Money */}
-      <div style={{ background: 'rgba(255,105,0,0.05)', border: '1px solid rgba(255,105,0,0.15)', borderRadius: 12, padding: '10px 14px', marginBottom: 4 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#FF6900' }}>{"\uD83D\uDFE0"} Challenge Orange Money</div>
-      </div>
-      <ClassementSection title="Recrutement OMY" icon={"\uD83D\uDC65"} color="#FF6900" data={recrutement} unite="clients" objLabel />
-      <ClassementSection title={"D\u00e9ploiement PLV / Support Visibilit\u00e9"} icon={"\uD83D\uDCE6"} color="#FF6900" data={plv} unite={"PLV d\u00e9ploy\u00e9es"} />
-
-      {/* Section Challenge PDG TELCO */}
-      <div style={{ background: 'rgba(14,165,233,0.05)', border: '1px solid rgba(14,165,233,0.15)', borderRadius: 12, padding: '10px 14px', marginBottom: 4, marginTop: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#0ea5e9' }}>{"\uD83D\uDD35"} Challenge PDG TELCO</div>
-      </div>
-      <ClassementSection title={"Points Contr\u00f4l\u00e9s Cr\u00e9\u00e9s"} icon={"\uD83D\uDCCD"} color="#0ea5e9" data={pointsControles} unite="points" objLabel />
-    </div>
-  );
-}
-
 // ── Tab Alertes ───────────────────────────────────────────────────────────────
 function TabAlertes({ alertes, dashboard }) {
+  // Charger les indicateurs Award pour analyses
+  const { data: awardData } = useQuery('award-dashboard',
+    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
+  );
+
   // Résumé WhatsApp hebdomadaire
   const envoyerResumeWhatsApp = () => {
-    const { data: awardDataLocal } = { data: null }; // sera remplacé par les vraies données
     const periode = dashboard?.periode || {};
-    const kpis = dashboard?.kpis || {};
     const now = new Date();
     const semaine = `S${Math.ceil((now - new Date(now.getFullYear(), 0, 1)) / 604800000)}`;
 
-    const nbCrit = (alertes || []).filter(a => a.niveau === 'CRITIQUE').length;
-    const nbHaute = (alertes || []).filter(a => a.niveau === 'HAUTE').length;
+    const pctInd = (ind) => {
+      const d = awardData?.[ind] || {};
+      const last = (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0];
+      return last?.taux_orange != null ? Math.round(last.taux_orange * 100) : null;
+    };
+    const aff = (v) => (v != null ? `${v}%` : '—');
+
+    const nbCrit = (alertes || []).filter(a => a.niveau === 'critique').length;
+    const nbHaute = (alertes || []).filter(a => a.niveau === 'attention').length;
 
     const msg = `📊 *RÉSUMÉ CHALLENGE ORANGE AWARDS 2026*
 🗓️ Semaine ${semaine} — ${now.toLocaleDateString('fr-FR')}
@@ -2606,10 +2547,10 @@ function TabAlertes({ alertes, dashboard }) {
 ━━━━━━━━━━━━━━━━━━
 📈 *INDICATEURS CLÉ :*
 
-📱 OMY Cash-out : *${kpis.recrutement_omy?.taux ? (kpis.recrutement_omy.taux).toFixed(1) : '—'}%*
-🟢 NAFAMA Sell-out : *Voir dashboard*
-💳 Kaabu : *Voir dashboard*
-☀️ Orange Énergie : *175%* 🚀
+📱 OMY Cash-out : *${aff(pctInd('OMY'))}*
+🟢 NAFAMA Sell-out : *${aff(pctInd('NAFAMA'))}*
+💳 Kaabu : *${aff(pctInd('KAABU MOBILE'))}*
+☀️ Orange Énergie : *${aff(pctInd('ORANGE ENERGIE'))}*
 🔒 Risque Fintech : *4%* ⚠️
 
 ━━━━━━━━━━━━━━━━━━
@@ -2622,11 +2563,6 @@ _Farouk Distribution — Système Orange Awards_`;
     if (!tel) return;
     window.open(`https://wa.me/${tel.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
   };
-  // Charger les indicateurs Award pour analyses
-  const { data: awardData } = useQuery('award-dashboard',
-    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
-  );
-
   const kpis = dashboard?.kpis || {};
   const scores = dashboard?.scores || {};
   const periode = dashboard?.periode || {};
@@ -2704,7 +2640,7 @@ _Farouk Distribution — Système Orange Awards_`;
   });
 
   // ── KPIs Challenge OM ──────────────────────────────────────────────────────
-  const tauxRecrut = kpis?.recrutement_omy?.taux || 0;
+  const tauxRecrut = kpis?.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux / 100 : 0;
   const manqRecr = kpis?.recrutement_omy
     ? Math.max(0, Math.round((kpis.recrutement_omy.objectif_cumule || 0) - (kpis.recrutement_omy.realise || 0)))
     : 0;
@@ -2726,7 +2662,7 @@ _Farouk Distribution — Système Orange Awards_`;
     });
   }
 
-  const tauxPLV = kpis?.deploiement_plv?.taux || 0;
+  const tauxPLV = kpis?.deploiement_plv?.taux != null ? kpis.deploiement_plv.taux / 100 : 0;
   if (tauxPLV < 0.95) {
     actions.push({
       source: 'PLV',
@@ -2744,7 +2680,7 @@ _Farouk Distribution — Système Orange Awards_`;
     });
   }
 
-  const tauxPoints = kpis?.points_controles?.taux || 0;
+  const tauxPoints = kpis?.points_controles?.taux != null ? kpis.points_controles.taux / 100 : 0;
   if (tauxPoints < 0.95) {
     actions.push({
       source: 'Points Contrôle',
