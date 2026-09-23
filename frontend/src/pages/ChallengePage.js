@@ -843,6 +843,14 @@ function TabDashboard({ dashboard }) {
     return dernier?.taux_orange != null ? Math.min(1, dernier.taux_orange) : null;
   };
 
+  // Pénétration fintech (risque) : dernier mois renseigné (donnée Orange)
+  const fintechValeur = (() => {
+    const dispo = (awardData?.['FINTECH']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
+    const dernier = dispo[dispo.length - 1];
+    return dernier?.realisation != null ? Number(dernier.realisation) : null;
+  })();
+  const fintechOk = fintechValeur != null && fintechValeur <= 2;
+
   const indData = INDICATEURS_LIST.map(ind => ({
     nom: ind,
     cfg: INDICATEUR_CONFIG[ind],
@@ -864,7 +872,7 @@ function TabDashboard({ dashboard }) {
     { key: 'pdv_actif',      label: '\uD83C\uDFEA PDV actif (nouveaut\u00e9)',      poids: 10, taux: getIndTaux('PDV_ACTIF') ?? (kpis?.pdv_actifs?.taux != null ? kpis.pdv_actifs.taux / 100 : null),  objectif: '>= 90% PDV actifs, CA >= 1000F/mois' },
     { key: 'recrutement',    label: '\uD83D\uDC65 Recrutement Orange Money',        poids: 15, taux: kpis?.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux / 100 : null, objectif: '1000 clients actifs / DZ (250/mois)' },
     { key: 'adoption_kaabu', label: '\uD83D\uDCB3 Adoption Kaabu',                  poids: 15, taux: getIndTaux('KAABU MOBILE'),     objectif: 'Min 10 tx/PDV/mois, taux actif atteint' },
-    { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: null,    objectif: 'P\u00e9n\u00e9tration fintech < 2% \u2014 non mesur\u00e9 pour l\u2019instant' },
+    { key: 'risque_fintech', label: '\uD83D\uDD12 Ma\u00eetrise risque fintech',     poids: 15, taux: fintechValeur == null ? null : (fintechOk ? 1 : 0), objectif: 'P\u00e9n\u00e9tration fintech < 2%' },
     { key: 'deploiement_plv', label: '\uD83D\uDCE6 D\u00e9ploiement support visibilit\u00e9', poids: 15, taux: kpis?.deploiement_plv?.taux != null ? kpis.deploiement_plv.taux / 100 : null, objectif: 'Min 100 PLV / DZ (25/mois)' },
   ];
 
@@ -1017,10 +1025,10 @@ function TabDashboard({ dashboard }) {
               </div>
             )}
             {/* Fintech */}
-            <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.2)' }}>
+            <div style={{ padding: '10px 14px', borderRadius: 10, background: fintechOk ? 'rgba(34,197,94,0.08)' : 'rgba(255,71,87,0.08)', border: `1px solid ${fintechOk ? 'rgba(34,197,94,0.2)' : 'rgba(255,71,87,0.2)'}` }}>
               <div style={{ fontSize: 11, color: '#64748b', marginBottom: 2 }}>🔒 Risque Fintech</div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#ff4757' }}>4%</div>
-              <div style={{ fontSize: 10, color: '#ff4757' }}>🔴 Objectif non atteint (&lt;2%)</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: fintechOk ? '#22c55e' : '#ff4757' }}>{fintechValeur != null ? `${fintechValeur}%` : '—'}</div>
+              <div style={{ fontSize: 10, color: fintechOk ? '#22c55e' : '#ff4757' }}>{fintechValeur == null ? 'Non mesuré' : fintechOk ? '✅ Objectif atteint (<2%)' : '🔴 Objectif non atteint (<2%)'}</div>
             </div>
             {/* Orange Énergie */}
             {getIndTaux('ORANGE ENERGIE') != null && (
@@ -1092,198 +1100,6 @@ function TabDashboard({ dashboard }) {
       </div>
 
       <PanneauObjectifs />
-    </div>
-  );
-}
-
-// ── Tab KPIs ──────────────────────────────────────────────────────────────────
-function TabKPIs({ dashboard, moisSelectionne, setMoisSelectionne, filter }) {
-  const { data: kpisMois } = useQuery(['challenge-kpis', moisSelectionne],
-    () => api.get(`/challenge/objectifs/${moisSelectionne}`).then(r => r.data),
-    { staleTime: 60000 }
-  );
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Sélecteur mois */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {MOIS_CHALLENGE.map(m => (
-          <button key={m} onClick={() => setMoisSelectionne(m)}
-            style={{ padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
-              background: moisSelectionne === m ? '#FF6900' : 'rgba(255,255,255,0.06)',
-              color: moisSelectionne === m ? '#fff' : '#94a3b8',
-              boxShadow: moisSelectionne === m ? '0 2px 8px rgba(255,105,0,0.4)' : 'none',
-            }}>
-            {MOIS_LABELS[m]}
-          </button>
-        ))}
-      </div>
-
-      {/* KPIs du mois — filtrés par challenge */}
-      <div className="ch-card" style={{ borderLeft: `4px solid ${filter === 'TELCO' ? '#0ea5e9' : '#FF6900'}` }}>
-        <h3 className="ch-section-title">{filter === 'TELCO' ? '🔵' : '🟠'} KPIs {filter === 'TELCO' ? 'PDG TELCO' : 'Orange Money'} — {MOIS_LABELS[moisSelectionne]} 2026</h3>
-        {kpisMois ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
-            {(kpisMois.kpis || [])
-              .filter(kpi => filter === 'TELCO'
-                ? ['CA Sell out', 'NAFAMA', 'Vente terminaux', 'TERMINAUX', 'Points', 'controles', 'Energie', 'ENERGIE', 'Note DZ'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
-                : ['Cash-out', 'OMY', 'PDV actif', 'Recrutement', 'Kaabu', 'KAABU', 'fintech', 'PLV', 'visibilit'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
-              )
-              .map(kpi => (
-                <KPIBar key={kpi.kpi} label={kpi.kpi} realise={kpi.realise} objectif={kpi.objectif} taux={kpi.taux} unite={kpi.unite} poids={filter === 'TELCO' ? kpi.poids_telco : kpi.poids_om}/>
-              ))
-            }
-            {(kpisMois.kpis || []).filter(kpi => filter === 'TELCO'
-              ? ['CA Sell out', 'NAFAMA', 'Vente terminaux', 'TERMINAUX', 'Points', 'controles', 'Energie', 'ENERGIE', 'Note DZ'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
-              : ['Cash-out', 'OMY', 'PDV actif', 'Recrutement', 'Kaabu', 'KAABU', 'fintech', 'PLV', 'visibilit'].some(k => (kpi.kpi || '').toUpperCase().includes(k.toUpperCase()))
-            ).length === 0 && (
-              <div style={{ textAlign: 'center', color: '#475569', padding: 20, fontSize: 13 }}>
-                {"Aucune donn\u00e9e KPI disponible pour ce mois. Les donn\u00e9es appara\u00eetront apr\u00e8s import des indicateurs."}
-              </div>
-            )}
-          </div>
-        ) : <div className="ch-loading">Chargement…</div>}
-      </div>
-
-      {/* Tableau TELCO */}
-      {filter === 'TELCO' && <KPITable color="#0ea5e9" title={"Challenge PDG TELCO"} icon={"🔵"} rows={[
-        { label: '🟢 CA Sell out (NAFAMA)', poids: '40%', obj_par_mois: '95%', total: '95%', unite: '' },
-        { label: '🖥️ Vente terminaux', poids: '15%', obj_par_mois: 25, total: 100, unite: 'terminaux' },
-        { label: '📍 Points contrôlés', poids: '15%', obj_par_mois: '5-10', total: 25, unite: 'points' },
-        { label: '☀️ Kit Orange Énergie', poids: '15%', obj_par_mois: '80%', total: '80%', unite: '' },
-        { label: '⭐ Note DZ', poids: '15%', obj_par_mois: '-', total: '-', unite: '' },
-      ]} />}
-
-      {/* Tableau OM */}
-      {filter === 'OM' && <KPITable color="#FF6900" title={"Challenge Orange Money"} icon={"🟠"} rows={[
-        { label: '📱 CA Cash-out (OMY)', poids: '30%', obj_par_mois: '95%', total: '95%', unite: '' },
-        { label: '🏪 PDV actif', poids: '10%', obj_par_mois: '90%', total: '90%', unite: '' },
-        { label: '👥 Recrutement OMY', poids: '15%', obj_par_mois: 250, total: 1000, unite: 'clients' },
-        { label: '💳 Adoption Kaabu', poids: '15%', obj_par_mois: '10 tx/PDV', total: '40 tx/PDV', unite: '' },
-        { label: '🔒 Risque fintech', poids: '15%', obj_par_mois: '< 2%', total: '< 2%', unite: '' },
-        { label: '📦 Support visibilité', poids: '15%', obj_par_mois: 25, total: 100, unite: 'PLV' },
-      ]} />}
-    </div>
-  );
-}
-
-function KPITable({ color, title, icon, rows }) {
-  return (
-    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
-      <h3 className="ch-section-title">{icon} {title} — Objectifs par mois</h3>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <th style={{ textAlign: 'left', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{"Sous-crit\u00e8re"}</th>
-              <th style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>Poids</th>
-              {MOIS_CHALLENGE.map(m => (
-                <th key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#64748b', fontWeight: 700 }}>{MOIS_LABELS[m]}</th>
-              ))}
-              <th style={{ textAlign: 'center', padding: '10px 12px', color, fontWeight: 700 }}>{"Total P\u00e9riode"}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <td style={{ padding: '10px 12px', fontWeight: 600, color: '#e2e8f0' }}>{row.label}</td>
-                <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color }}>{row.poids}</td>
-                {MOIS_CHALLENGE.map(m => (
-                  <td key={m} style={{ textAlign: 'center', padding: '10px 12px', color: '#94a3b8', fontSize: 11 }}>{row.obj_par_mois}</td>
-                ))}
-                <td style={{ textAlign: 'center', padding: '10px 12px', fontWeight: 800, color }}>{row.total} {row.unite}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab Critere Detail (composant g\u00e9n\u00e9rique pour chaque cat\u00e9gorie de crit\u00e8re) ──
-function TabCritereDetail({ challenge, categorie, color, criteres, dashboard }) {
-  const { data: awardData } = useQuery('award-dashboard',
-    () => api.get('/award/dashboard').then(r => r.data), { staleTime: 60000 }
-  );
-
-  const getIndTaux = (ind) => {
-    if (!ind) return null;
-    const d = awardData?.[ind] || {};
-    const total = (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
-    return total?.taux_orange != null ? Math.min(1, total.taux_orange) : null;
-  };
-
-  const getIndTotal = (ind) => {
-    if (!ind) return null;
-    const d = awardData?.[ind] || {};
-    return (d.totaux || []).filter(t => t.realisation !== null).slice(-1)[0] || null;
-  };
-
-  const totalPoids = criteres.reduce((s, c) => s + c.poids, 0);
-
-  return (
-    <div className="ch-card" style={{ borderLeft: `4px solid ${color}` }}>
-      <h3 className="ch-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>{challenge === 'TELCO' ? '\uD83D\uDD35' : '\uD83D\uDFE0'} {categorie}</span>
-        <span style={{ fontSize: 13, color: '#64748b' }}>Poids total : <strong style={{ color, fontSize: 15 }}>{totalPoids}%</strong></span>
-      </h3>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
-        {criteres.map((c, i) => {
-          const taux = c.indicateur ? getIndTaux(c.indicateur) : null;
-          const total = c.indicateur ? getIndTotal(c.indicateur) : null;
-          const pct = taux != null ? Math.round(taux * 100) : null;
-
-          return (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: '16px 18px' }}>
-              {/* En-t\u00eate crit\u00e8re */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>{c.label}</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, lineHeight: 1.5 }}>{c.objectif}</div>
-                </div>
-                <div style={{ textAlign: 'center', padding: '8px 14px', background: `${color}15`, borderRadius: 10, marginLeft: 12 }}>
-                  <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Poids</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color }}>{c.poids}%</div>
-                </div>
-              </div>
-
-              {/* Donn\u00e9es indicateur (si li\u00e9) */}
-              {c.indicateur && total ? (
-                <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 10, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 10 }}>
-                    <div>
-                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Objectif Orange</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{total.objectif_orange != null ? fmtNum(total.objectif_orange) : '\u2014'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>{"R\u00e9alisation"}</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color }}>{total.realisation != null ? fmtNum(total.realisation) : '\u2014'}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 2 }}>Taux</div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757' }}>
-                        {pct != null ? `${pct}%` : '\u2014'}
-                      </div>
-                    </div>
-                  </div>
-                  <BarreProg taux={taux} color={pct >= 95 ? '#22c55e' : pct >= 80 ? '#ffa502' : '#ff4757'} />
-                  {total.mois && <div style={{ fontSize: 10, color: '#475569', marginTop: 6 }}>Dernier mois : {total.mois}</div>}
-                </div>
-              ) : c.indicateur ? (
-                <div style={{ textAlign: 'center', color: '#475569', padding: 12, fontSize: 12 }}>
-                  {"\u23F3"} {"Donn\u00e9es en attente d'import pour "}  {c.indicateur}
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', color: '#475569', padding: 12, fontSize: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                  {"Crit\u00e8re \u00e9valu\u00e9 manuellement par Orange"}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -1650,6 +1466,10 @@ function TabOMDigital({ kpis }) {
   const kaabuTotal = getLastTotal('KAABU MOBILE');
   const kaabuTaux = kaabuTotal?.taux_orange != null ? Math.min(1, kaabuTotal.taux_orange) : null;
 
+  const fintechTotal = getLastTotal('FINTECH');
+  const fintechValeur = fintechTotal?.realisation != null ? Number(fintechTotal.realisation) : null;
+  const fintechOk = fintechValeur != null && fintechValeur <= 2;
+
   const cartes = [
     {
       id: 'kaabu',
@@ -1669,9 +1489,9 @@ function TabOMDigital({ kpis }) {
       label: 'Ma\u00eetrise du risque Fintech',
       poids: 15,
       color: '#a29bfe',
-      objectif_desc: 'Taux de p\u00e9n\u00e9tration fintech < 2% — Notre taux actuel : 4% (\u26a0\uFE0F Au-dessus du seuil)',
-      taux: 0,  // Non atteint car 4% > 2%
-      realise: 4,
+      objectif_desc: `Taux de p\u00e9n\u00e9tration fintech < 2% \u2014 Notre taux actuel : ${fintechValeur != null ? fintechValeur + '%' : 'non mesur\u00e9'}`,
+      taux: fintechTotal == null ? null : (fintechOk ? 1 : 0),
+      realise: fintechValeur,
       objectif_val: '< 2',
       unite: '%',
     },
@@ -1710,11 +1530,11 @@ function TabOMDigital({ kpis }) {
               <div style={{ background: 'rgba(255,71,87,0.08)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: '#ff4757', marginBottom: 6 }}>{"⚠️ Objectif non atteint"}</div>
-                    <div style={{ fontSize: 13, color: '#94a3b8' }}>{"Notre taux de p\u00e9n\u00e9tration fintech est \u00e0 4% — L'objectif Orange exige < 2%"}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: fintechOk ? '#22c55e' : '#ff4757', marginBottom: 6 }}>{fintechOk ? '✅ Objectif atteint' : '⚠️ Objectif non atteint'}</div>
+                    <div style={{ fontSize: 13, color: '#94a3b8' }}>{`Notre taux de p\u00e9n\u00e9tration fintech est \u00e0 ${fintechValeur != null ? fintechValeur + '%' : 'non mesur\u00e9'} \u2014 L'objectif Orange exige < 2%`}</div>
                   </div>
-                  <div style={{ textAlign: 'center', padding: '12px 20px', background: 'rgba(255,71,87,0.1)', borderRadius: 10 }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: '#ff4757' }}>4%</div>
+                  <div style={{ textAlign: 'center', padding: '12px 20px', background: fintechOk ? 'rgba(34,197,94,0.1)' : 'rgba(255,71,87,0.1)', borderRadius: 10 }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: fintechOk ? '#22c55e' : '#ff4757' }}>{fintechValeur != null ? `${fintechValeur}%` : '\u2014'}</div>
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{"Taux actuel"}</div>
                   </div>
                 </div>
@@ -1726,11 +1546,11 @@ function TabOMDigital({ kpis }) {
                 </div>
                 <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '14px', textAlign: 'center' }}>
                   <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{"Notre taux"}</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: '#ff4757' }}>{"4%"}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: fintechOk ? '#22c55e' : '#ff4757' }}>{fintechValeur != null ? `${fintechValeur}%` : '\u2014'}</div>
                 </div>
                 <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '14px', textAlign: 'center' }}>
                   <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{"Score"}</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: '#ff4757' }}>{"0%"}</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: fintechOk ? '#22c55e' : '#ff4757' }}>{fintechOk ? '100%' : '0%'}</div>
                   <div style={{ fontSize: 10, color: '#475569', marginTop: 2 }}>{"Poids : 15%"}</div>
                 </div>
               </div>
@@ -2225,6 +2045,11 @@ function TabSimulation({ dashboard }) {
   };
 
   const kpis = dashboard?.kpis || {};
+  const fintechVal = (() => {
+    const dispo = (awardData?.['FINTECH']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
+    const last = dispo[dispo.length - 1];
+    return last?.realisation != null ? Number(last.realisation) : null;
+  })();
   const CRITERES_TELCO = [
     { key: 'nafama', label: '🟢 CA Sell out (NAFAMA)', poids: 40, current: getIndTaux('NAFAMA') },
     { key: 'terminaux', label: '🖥️ Vente terminaux', poids: 15, current: getIndTaux('TERMINAUX') },
@@ -2237,7 +2062,7 @@ function TabSimulation({ dashboard }) {
     { key: 'pdv_actif', label: '🏪 PDV actif', poids: 10, current: getIndTaux('PDV_ACTIF') },
     { key: 'recrutement', label: '👥 Recrutement OMY', poids: 15, current: kpis.recrutement_omy?.taux != null ? kpis.recrutement_omy.taux/100 : null },
     { key: 'kaabu', label: '💳 Adoption Kaabu', poids: 15, current: getIndTaux('KAABU MOBILE') },
-    { key: 'fintech', label: '🔒 Risque Fintech', poids: 15, current: 0 },
+    { key: 'fintech', label: '🔒 Risque Fintech', poids: 15, current: fintechVal == null ? null : (fintechVal <= 2 ? 1 : 0) },
     { key: 'plv', label: '📦 Déploiement PLV', poids: 15, current: kpis.deploiement_plv?.taux != null ? kpis.deploiement_plv.taux / 100 : null },
   ];
 
@@ -2360,6 +2185,11 @@ function TabProjection({ dashboard }) {
   const avancement = (periode.avancement_pct || 25) / 100;
 
   const kpisProj = dashboard?.kpis || {};
+  const fintechVal = (() => {
+    const dispo = (awardData?.['FINTECH']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
+    const last = dispo[dispo.length - 1];
+    return last?.realisation != null ? Number(last.realisation) : null;
+  })();
   const CRITERES = [
     // Challenge PDG TELCO
     { label: '🟢 CA Sell-out (NAFAMA)', ind: 'NAFAMA', objectif: 0.95, poids: '40% TELCO', color: '#22c55e', challenge: 'TELCO', emoji: '🟢' },
@@ -2374,7 +2204,7 @@ function TabProjection({ dashboard }) {
     { label: '👥 Recrutement OMY', ind: null, objectif: 1.0, poids: '15% OM', color: '#8b5cf6', challenge: 'OM', emoji: '👥',
       customTaux: kpisProj.recrutement_omy?.taux != null ? kpisProj.recrutement_omy.taux / 100 : null },
     { label: '💳 Adoption Kaabu', ind: 'KAABU MOBILE', objectif: 0.85, poids: '15% OM', color: '#00d68f', challenge: 'OM', emoji: '💳' },
-    { label: '🔒 Risque Fintech', ind: null, objectif: 1.0, poids: '15% OM', color: '#ff4757', challenge: 'OM', emoji: '🔒', customTaux: 0 },
+    { label: '🔒 Risque Fintech', ind: null, objectif: 1.0, poids: '15% OM', color: '#ff4757', challenge: 'OM', emoji: '🔒', customTaux: fintechVal == null ? null : (fintechVal <= 2 ? 1 : 0) },
     { label: '📦 Déploiement PLV', ind: null, objectif: 1.0, poids: '15% OM', color: '#6366f1', challenge: 'OM', emoji: '📦',
       customTaux: kpisProj.deploiement_plv?.taux != null ? kpisProj.deploiement_plv.taux / 100 : null },
   ];
@@ -2537,6 +2367,11 @@ function TabAlertes({ alertes, dashboard }) {
       return last?.taux_orange != null ? Math.round(last.taux_orange * 100) : null;
     };
     const aff = (v) => (v != null ? `${v}%` : '—');
+    const fintechVal = (() => {
+      const dispo = (awardData?.['FINTECH']?.totaux || []).filter(t => t.mois !== 'GLOBAL' && t.realisation !== null);
+      const last = dispo[dispo.length - 1];
+      return last?.realisation != null ? Number(last.realisation) : null;
+    })();
 
     const nbCrit = (alertes || []).filter(a => a.niveau === 'critique').length;
     const nbHaute = (alertes || []).filter(a => a.niveau === 'attention').length;
@@ -2551,7 +2386,7 @@ function TabAlertes({ alertes, dashboard }) {
 🟢 NAFAMA Sell-out : *${aff(pctInd('NAFAMA'))}*
 💳 Kaabu : *${aff(pctInd('KAABU MOBILE'))}*
 ☀️ Orange Énergie : *${aff(pctInd('ORANGE ENERGIE'))}*
-🔒 Risque Fintech : *4%* ⚠️
+🔒 Risque Fintech : *${fintechVal != null ? fintechVal + '%' : '—'}* ${fintechVal != null && fintechVal <= 2 ? '✅' : '⚠️'}
 
 ━━━━━━━━━━━━━━━━━━
 🚨 *ALERTES :* ${nbCrit} critique${nbCrit !== 1 ? 's' : ''}, ${nbHaute} haute${nbHaute !== 1 ? 's' : ''}
