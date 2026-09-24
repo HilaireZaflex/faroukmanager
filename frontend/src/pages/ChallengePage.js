@@ -863,7 +863,7 @@ function TabDashboard({ dashboard }) {
     { key: 'vente_term',    label: '\uD83D\uDDA5\uFE0F Vente terminaux',    poids: 15, taux: getIndTaux('TERMINAUX'),      objectif: 'Min 100 terminaux / DZ' },
     { key: 'creation_pts',  label: '\uD83D\uDCCD Cr\u00e9ation Points contr\u00f4l\u00e9s', poids: 15, taux: (kpis?.points_controles?.objectif_cumule ? Math.min(1, (kpis.points_controles.realise || 0) / kpis.points_controles.objectif_cumule) : null), objectif: 'Min 25 / DZ, activer >= 80%' },
     { key: 'kit_energie',   label: '\u2600\uFE0F Kit Orange \u00c9nergie',   poids: 15, taux: getIndTaux('ORANGE ENERGIE'), objectif: '>= 80% objectif + >= 80% utilisation' },
-    { key: 'note_dz',       label: '\u2B50 Note DZ',                         poids: 15, taux: null,                        objectif: '\u00c9valuation visibilit\u00e9 & animation' },
+    { key: 'note_dz',       label: '\u2B50 Note DZ',                         poids: 15, taux: getIndTaux('NOTE_DZ'),        objectif: '\u00c9valuation visibilit\u00e9 & animation' },
   ];
 
   // === CHALLENGE 2 : ORANGE MONEY (100%) ===
@@ -2055,7 +2055,7 @@ function TabSimulation({ dashboard }) {
     { key: 'terminaux', label: '🖥️ Vente terminaux', poids: 15, current: getIndTaux('TERMINAUX') },
     { key: 'points', label: '📍 Points contrôlés', poids: 15, current: kpis.points_controles?.realise != null ? Math.min(1, kpis.points_controles.realise/25) : null },
     { key: 'energie', label: '☀️ Kit Orange Énergie', poids: 15, current: getIndTaux('ORANGE ENERGIE') },
-    { key: 'note_dz', label: '⭐ Note DZ', poids: 15, current: null },
+    { key: 'note_dz', label: '⭐ Note DZ', poids: 15, current: getIndTaux('NOTE_DZ') },
   ];
   const CRITERES_OM = [
     { key: 'omy', label: '📱 CA Cash-out (OMY)', poids: 30, current: getIndTaux('OMY') },
@@ -2197,7 +2197,7 @@ function TabProjection({ dashboard }) {
     { label: '📍 Points contrôlés', ind: null, objectif: 1.0, poids: '15% TELCO', color: '#3742fa', challenge: 'TELCO', emoji: '📍',
       customTaux: kpisProj.points_controles?.realise != null ? Math.min(1, kpisProj.points_controles.realise / 25) : null },
     { label: '☀️ Kit Orange Énergie', ind: 'ORANGE ENERGIE', objectif: 0.80, poids: '15% TELCO', color: '#f59e0b', challenge: 'TELCO', emoji: '☀️' },
-    { label: '⭐ Note DZ', ind: null, objectif: 1.0, poids: '15% TELCO', color: '#a29bfe', challenge: 'TELCO', emoji: '⭐', customTaux: null },
+    { label: '⭐ Note DZ', ind: 'NOTE_DZ', objectif: 1.0, poids: '15% TELCO', color: '#a29bfe', challenge: 'TELCO', emoji: '⭐' },
     // Challenge Orange Money
     { label: '📱 CA Cash-out (OMY)', ind: 'OMY', objectif: 0.95, poids: '30% OM', color: '#FF6900', challenge: 'OM', emoji: '📱' },
     { label: '🏪 PDV actif', ind: 'PDV_ACTIF', objectif: 0.90, poids: '10% OM', color: '#ffa502', challenge: 'OM', emoji: '🏪' },
