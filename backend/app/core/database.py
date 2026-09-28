@@ -7,6 +7,11 @@ from app.core.config import settings
 DATABASE_URL = settings.DATABASE_URL
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# SQLAlchemy >= 2.1 sélectionne le driver psycopg (v3) pour postgresql://.
+# Le projet embarque psycopg2-binary : on force donc explicitement ce driver
+# pour éviter « ModuleNotFoundError: No module named 'psycopg' ».
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 engine = create_engine(
     DATABASE_URL,
