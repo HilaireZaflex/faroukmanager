@@ -507,6 +507,7 @@ def list_pdvs(
     type_pdv: Optional[str] = Query(None),
     statut: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    quartier: Optional[str] = Query(None),
     nouvelle_activation: Optional[bool] = Query(None),
     inactif_performance: Optional[bool] = Query(None),
     date_debut: Optional[str] = Query(None),

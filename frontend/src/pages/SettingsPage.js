@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Users, Database, Shield, Bell, RefreshCw, UserPlus, Trash2, Edit3, Check, X, Eye, EyeOff, Key, Lock, Save, User, Phone } from 'lucide-react';
+import { Users, Database, Shield, Bell, RefreshCw, UserPlus, Trash2, Edit3, Check, X, Eye, EyeOff, Key, Lock, Save, User, Phone, MapPin } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
@@ -1069,6 +1069,122 @@ function SectionNotifications() {
   );
 }
 
+// ─── Section : Zones & Localités (référentiel géographique) ───────────────────
+const LOCALITE_TYPES = [
+  { key: 'ZONE',      label: 'Zones',                 icon: '🗺️', color: '#4a9eff', placeholder: 'Ex: BAMAKO RG' },
+  { key: 'SOUS_ZONE', label: 'Sous-zones',            icon: '📍', color: '#FF6900', placeholder: 'Ex: BAMAKO RG CENTRE' },
+  { key: 'QUARTIER',  label: 'Quartiers / Localités', icon: '🏘️', color: '#00d68f', placeholder: 'Ex: Badalabougou' },
+];
+
+function SectionLocalites() {
+  const qc = useQueryClient();
+  const { data: localites = [], isLoading } = useQuery('localites',
+    () => api.get('/localites').then(r => r.data), { staleTime: 30000 }
+  );
+  const [nouveau, setNouveau] = useState({});
+  const [edits, setEdits] = useState({});
+  const [busy, setBusy] = useState(false);
+
+  const invalider = () => {
+    qc.invalidateQueries('localites');
+    qc.invalidateQueries('pdvs');
+    qc.invalidateQueries('pdv-stats');
+  };
+
+  const creer = async (type) => {
+    const nom = (nouveau[type] || '').trim();
+    if (!nom) return toast.error('Saisissez un nom');
+    setBusy(true);
+    try {
+      const res = await api.post('/localites', { type, nom });
+      setNouveau(n => ({ ...n, [type]: '' }));
+      invalider();
+      toast.success(res.data?.action === 'existe_deja' ? 'Existe déjà' : 'Ajouté');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
+    finally { setBusy(false); }
+  };
+
+  const renommer = async (l) => {
+    const nom = (edits[l.id] ?? '').trim();
+    if (!nom || nom === l.nom) return;
+    setBusy(true);
+    try {
+      const res = await api.put(`/localites/${l.id}`, { nom });
+      const nb = res.data?.pdvs_mis_a_jour || 0;
+      setEdits(e => { const c = { ...e }; delete c[l.id]; return c; });
+      invalider();
+      toast.success(nb > 0 ? `Renommé · ${nb} PDV mis à jour` : 'Renommé');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
+    finally { setBusy(false); }
+  };
+
+  const supprimer = async (l) => {
+    if (!window.confirm(`Supprimer « ${l.nom} » ?`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/localites/${l.id}`);
+      invalider();
+      toast.success('Supprimé');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Erreur'); }
+    finally { setBusy(false); }
+  };
+
+  const inputStyle = { flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <p style={{ color: '#8a8a9a', fontSize: 13 }}>
+        Gérez les zones, sous-zones et quartiers du réseau. Toute modification (ajout, renommage, suppression)
+        est immédiatement reportée dans le menu <strong style={{ color: '#FF6900' }}>Point de vente</strong>.
+      </p>
+
+      {isLoading ? <div style={{ color: '#8a8a9a' }}>Chargement…</div> : LOCALITE_TYPES.map(t => {
+        const items = (localites || []).filter(l => l.type === t.key);
+        return (
+          <div key={t.key} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderLeft: `4px solid ${t.color}`, borderRadius: 14, padding: '18px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: t.color, margin: 0 }}>{t.icon} {t.label}</h3>
+              <span style={{ fontSize: 12, color: '#8a8a9a' }}>{items.length} entrée{items.length > 1 ? 's' : ''}</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <input value={nouveau[t.key] || ''} onChange={e => setNouveau(n => ({ ...n, [t.key]: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter') creer(t.key); }}
+                placeholder={t.placeholder} style={inputStyle} />
+              <button onClick={() => creer(t.key)} disabled={busy}
+                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: t.color, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                + Ajouter
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+              {items.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#64748b', padding: '8px 0' }}>Aucune entrée</div>
+              ) : items.map(l => {
+                const modifie = edits[l.id] !== undefined && edits[l.id] !== l.nom;
+                return (
+                  <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input value={edits[l.id] !== undefined ? edits[l.id] : l.nom}
+                      onChange={e => setEdits(ed => ({ ...ed, [l.id]: e.target.value }))}
+                      onKeyDown={e => { if (e.key === 'Enter') renommer(l); }}
+                      style={{ ...inputStyle, borderColor: modifie ? t.color : 'rgba(255,255,255,0.1)' }} />
+                    {modifie && (
+                      <button onClick={() => renommer(l)} disabled={busy} title="Enregistrer"
+                        style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 6, color: '#22c55e', padding: '6px 9px', cursor: 'pointer' }}>💾</button>
+                    )}
+                    <button onClick={() => supprimer(l)} disabled={busy} title="Supprimer"
+                      style={{ background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '6px 9px', cursor: 'pointer' }}>🗑️</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -1080,6 +1196,7 @@ export default function SettingsPage() {
     { id:'roles',          label:'Roles & Permissions',      icon: Shield,   color:'#a855f7', adminOnly: true },
     { id:'database',       label:'Base de Donnees',          icon: Database, color:'#00d68f' },
     { id:'notifications',  label:'Notifications',            icon: Bell,     color:'#ffaa00' },
+    { id:'localites',      label:'Zones & Localités',        icon: MapPin,   color:'#4a9eff' },
   ].filter(s => !s.adminOnly || ['admin', 'ADMIN', 'manager', 'MANAGER'].includes(user?.role));
 
   return (
@@ -1116,6 +1233,7 @@ export default function SettingsPage() {
           {activeSection === 'roles'         && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Roles & Permissions</h2><p style={{ color:'#8a8a9a', fontSize:13, marginBottom:20 }}>Definissez ce que chaque role peut voir, ajouter, modifier ou supprimer dans l\'application.</p><SectionRoles /></>}
           {activeSection === 'database'      && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Base de Donnees</h2><SectionDatabase /></>}
           {activeSection === 'notifications' && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Notifications & Alertes</h2><SectionNotifications /></>}
+          {activeSection === 'localites'     && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Zones & Localités</h2><SectionLocalites /></>}
         </div>
       </div>
     </div>

@@ -20,7 +20,7 @@ def set_cache(key, value):
     _APP_CACHE_TIME[key] = time.time()
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications
+from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications, localites
 import app.models  # noqa - ensures all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -92,6 +92,7 @@ app.include_router(eval_sup_router, prefix="/api", tags=["Evaluation Superviseur
 app.include_router(kaabu_router, prefix="/api", tags=["KAABU Mobile"])
 app.include_router(auth.router, prefix="/api", tags=["Authentification"])
 app.include_router(pdv.router, prefix="/api", tags=["PDV"])
+app.include_router(localites.router, prefix="/api", tags=["Référentiel géographique"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(alerts.router, prefix="/api", tags=["Alertes"])
 app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
@@ -317,6 +318,12 @@ async def auto_migrate():
         # Journal des appels : rattachement optionnel à une cible de mission
         "ALTER TABLE appels_tc ADD COLUMN IF NOT EXISTS mission_cible_id INTEGER REFERENCES mission_cibles(id)",
         "CREATE INDEX IF NOT EXISTS ix_appels_tc_mission_cible ON appels_tc (mission_cible_id)",
+        # ── Référentiel géographique (Zones / Sous-zones / Quartiers) ──
+        "CREATE TABLE IF NOT EXISTS localites (id SERIAL PRIMARY KEY, type VARCHAR(20) NOT NULL, nom VARCHAR(200) NOT NULL, created_at TIMESTAMP DEFAULT NOW())",
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_localite_type_nom ON localites (type, nom)",
+        "INSERT INTO localites (type, nom) SELECT DISTINCT 'ZONE', zone FROM pdvs WHERE zone IS NOT NULL AND TRIM(zone) <> '' ON CONFLICT (type, nom) DO NOTHING",
+        "INSERT INTO localites (type, nom) SELECT DISTINCT 'SOUS_ZONE', sous_zone FROM pdvs WHERE sous_zone IS NOT NULL AND TRIM(sous_zone) <> '' ON CONFLICT (type, nom) DO NOTHING",
+        "INSERT INTO localites (type, nom) SELECT DISTINCT 'QUARTIER', quartier FROM pdvs WHERE quartier IS NOT NULL AND TRIM(quartier) <> '' ON CONFLICT (type, nom) DO NOTHING",
     ]
     try:
         with engine.connect() as conn:
@@ -415,6 +422,12 @@ async def auto_migrate():
                     "CREATE INDEX IF NOT EXISTS ix_mission_cibles_pdv_numero ON mission_cibles (pdv_numero)",
                     "ALTER TABLE appels_tc ADD COLUMN mission_cible_id INTEGER REFERENCES mission_cibles(id)",
                     "CREATE INDEX IF NOT EXISTS ix_appels_tc_mission_cible ON appels_tc (mission_cible_id)",
+                    # Référentiel géographique (parité SQLite)
+                    "CREATE TABLE IF NOT EXISTS localites (id INTEGER PRIMARY KEY AUTOINCREMENT, type VARCHAR(20) NOT NULL, nom VARCHAR(200) NOT NULL, created_at TIMESTAMP)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_localite_type_nom ON localites (type, nom)",
+                    "INSERT OR IGNORE INTO localites (type, nom) SELECT DISTINCT 'ZONE', zone FROM pdvs WHERE zone IS NOT NULL AND TRIM(zone) <> ''",
+                    "INSERT OR IGNORE INTO localites (type, nom) SELECT DISTINCT 'SOUS_ZONE', sous_zone FROM pdvs WHERE sous_zone IS NOT NULL AND TRIM(sous_zone) <> ''",
+                    "INSERT OR IGNORE INTO localites (type, nom) SELECT DISTINCT 'QUARTIER', quartier FROM pdvs WHERE quartier IS NOT NULL AND TRIM(quartier) <> ''",
                 ]:
                     try:
                         conn.execute(text(sql))

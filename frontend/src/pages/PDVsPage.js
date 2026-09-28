@@ -8,13 +8,6 @@ import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
 import './PDVsPage.css';
 
-const STATUT_CONFIG = {
-  ACTIF: { label: 'Actif', className: 'badge-success' },
-  INACTIF: { label: 'Inactif', className: 'badge-danger' },
-  RECUPERATION: { label: 'Récup.', className: 'badge-warning' },
-  DESACTIVE: { label: 'Désactivé', className: 'badge-neutral' },
-};
-
 const TYPE_CONFIG = {
   RS: { label: 'RS', className: 'badge-info' },
   RSF: { label: 'RSF', className: 'badge-orange' },
@@ -317,6 +310,7 @@ export default function PDVsPage() {
   const [search, setSearch] = useState('');
   const [zone, setZone] = useState('');
   const [statut, setStatut] = useState('');
+  const [quartier, setQuartier] = useState('');
   const [typePdv, setTypePdv] = useState('');
   const [nouvelleActivation, setNouvelleActivation] = useState(false);
   const [inactifPerf, setInactifPerf] = useState(false);
@@ -332,6 +326,7 @@ export default function PDVsPage() {
   if (search) params.search = search;
   if (zone) params.zone = zone;
   if (statut) params.statut = statut;
+  if (quartier) params.quartier = quartier;
   if (typePdv) params.type_pdv = typePdv;
   if (nouvelleActivation) params.nouvelle_activation = true;
   if (inactifPerf) params.inactif_performance = true;
@@ -457,13 +452,23 @@ export default function PDVsPage() {
     nouvelles_activations: dynamicStatsRaw?.nouvelles_activations ?? 0,
   };
 
-  const zones = statsBase?.pdvs_par_zone ? Object.keys(statsBase.pdvs_par_zone) : [];
+  // Référentiel géographique (Paramètres → Zones & Localités) : alimente les filtres
+  const { data: refLocalites = [] } = useQuery('localites',
+    () => api.get('/localites').then(r => r.data).catch(() => []), { staleTime: 60000 }
+  );
+  const zonesRef = React.useMemo(() => (refLocalites || []).filter(l => l.type === 'ZONE').map(l => l.nom), [refLocalites]);
+  const quartiersRef = React.useMemo(() => (refLocalites || []).filter(l => l.type === 'QUARTIER').map(l => l.nom), [refLocalites]);
+  const zones = React.useMemo(() => {
+    const fromStats = statsBase?.pdvs_par_zone ? Object.keys(statsBase.pdvs_par_zone) : [];
+    return Array.from(new Set([...fromStats, ...zonesRef])).sort((a, b) => String(a).localeCompare(String(b)));
+  }, [statsBase, zonesRef]);
 
   const handleExportExcel = async () => {
     try {
       // Construire les params identiques à la liste (respecte tous les filtres actifs)
       const exportParams = { limit: 10000 };
       if (zone) exportParams.zone = zone;
+      if (quartier) exportParams.quartier = quartier;
       if (statut) exportParams.statut = statut;
       if (typePdv) exportParams.type_pdv = typePdv;
       if (search) exportParams.search = search;
@@ -675,7 +680,7 @@ export default function PDVsPage() {
           <Search size={15} className="search-icon"/>
           <input
             type="text"
-            placeholder="Rechercher un PDV, numéro, superviseur..."
+            placeholder="Rechercher un PDV, numéro, quartier, superviseur..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(0); }}
             style={{ paddingLeft: 36 }}
@@ -685,6 +690,10 @@ export default function PDVsPage() {
           <select value={zone} onChange={e => { setZone(e.target.value); setPage(0); }}>
             <option value="">Toutes les zones</option>
             {zones.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+          <select value={quartier} onChange={e => { setQuartier(e.target.value); setPage(0); }}>
+            <option value="">Tous les quartiers</option>
+            {quartiersRef.map(q => <option key={q} value={q}>{q}</option>)}
           </select>
           <select value={statut} onChange={e => { setStatut(e.target.value); setPage(0); }}>
             <option value="">Tous les statuts</option>
@@ -712,7 +721,7 @@ export default function PDVsPage() {
                 <th>Zone</th>
                 <th>Type</th>
                 <th>Single Wallet</th>
-                <th>Statut</th>
+                <th>Quartier / Localité</th>
                 <th>Superviseur</th>
                 <th>Médaille</th>
                 <th></th>
@@ -750,16 +759,12 @@ export default function PDVsPage() {
                       </span>
                     </td>
                     <td>
-                      <span className={`badge ${STATUT_CONFIG[pdv.statut]?.className || 'badge-neutral'}`}>
-                        {STATUT_CONFIG[pdv.statut]?.label || pdv.statut}
-                      </span>
-                    </td>
-                    <td>
                       <span className={`badge ${pdv.single_wallet ? 'badge-success' : 'badge-neutral'}`}
                         style={{ fontSize: 11 }}>
                         {pdv.single_wallet ? '✓ OUI' : '✗ NON'}
                       </span>
                     </td>
+                    <td><span style={{ fontSize: 12 }}>{clean(pdv.quartier) || '—'}</span></td>
                     <td><span style={{ fontSize: 12 }}>{clean(pdv.superviseur) || '—'}</span></td>
                     <td style={{ fontSize: 18 }}>{MEDAILLE[pdv.medaille] || ''}</td>
                     <td><ChevronRight size={16} style={{ color: 'var(--text-muted)' }}/></td>
