@@ -8,6 +8,7 @@ import api from '../services/api';
 import pdvService from '../services/pdvService';
 import alertService from '../services/alertService';
 import toast from 'react-hot-toast';
+import { useLocalites, avecValeur } from '../components/common/localites';
 import './PDVDetailPage.css';
 
 // ── Composants UI du formulaire ────────────────────────────────────────────
@@ -99,14 +100,7 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
     api.get('/reseau/equipe').then(r => r.data).catch(() => ({ superviseurs:[], gestionnaires:[], developpeurs:[], teleconseilleres:[] })),
     { staleTime: 300000 }
   );
-  const { data: zones = [] } = useQuery('zones-edit', () =>
-    api.get('/pdvs/zones').then(r => r.data).catch(() => []),
-    { staleTime: 300000 }
-  );
-  const { data: sousZones = [] } = useQuery(['sous-zones-edit', form.zone], () =>
-    api.get(`/pdvs/sous-zones${form.zone ? `?zone=${encodeURIComponent(form.zone)}` : ''}`).then(r => r.data).catch(() => []),
-    { staleTime: 60000 }
-  );
+  const { zones, sousZones, quartiers } = useLocalites();
 
   // Filtrer superviseurs selon la zone sélectionnée
   const superviseursFiltres = form.zone
@@ -192,7 +186,12 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
                 <input type="date" style={IS} value={form.date_activation} onChange={e => set('date_activation', e.target.value)} />
               </FL>
               <FL label="Adresse PDV" span={2}><input style={IS} placeholder="Adresse complète du PDV" value={form.adresse} onChange={e => set('adresse', e.target.value)} /></FL>
-              <FL label="Quartier / Localité"><input style={IS} placeholder="Quartier ou commune" value={form.quartier} onChange={e => set('quartier', e.target.value)} /></FL>
+              <FL label="Quartier / Localité">
+                <select style={SS} value={form.quartier} onChange={e => set('quartier', e.target.value)}>
+                  <option value="">Sélectionner un quartier</option>
+                  {avecValeur(quartiers, form.quartier).map(q => <option key={q} value={q}>{q}</option>)}
+                </select>
+              </FL>
             </div>
           </div>
 
@@ -202,13 +201,13 @@ function EditPDVModal({ pdv, onClose, onSuccess }) {
               <FL label="Zone" required>
                 <select style={SS} value={form.zone} onChange={e => { set('zone', e.target.value); set('sous_zone', ''); set('superviseur', ''); }} required>
                   <option value="">Sélectionner une zone</option>
-                  {zones.map(z => <option key={z} value={z}>{z}</option>)}
+                  {avecValeur(zones, form.zone).map(z => <option key={z} value={z}>{z}</option>)}
                 </select>
               </FL>
               <FL label="Sous-zone">
                 <select style={SS} value={form.sous_zone} onChange={e => set('sous_zone', e.target.value)}>
                   <option value="">Sélectionner une sous-zone</option>
-                  {sousZones.map(sz => <option key={sz} value={sz}>{sz}</option>)}
+                  {avecValeur(sousZones, form.sous_zone).map(sz => <option key={sz} value={sz}>{sz}</option>)}
                 </select>
               </FL>
             </div>

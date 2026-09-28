@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
+import { useLocalites, avecValeur } from '../components/common/localites';
 import './PDVsPage.css';
 
 const TYPE_CONFIG = {
@@ -90,6 +91,11 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [loading, setLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Référentiel géographique (Paramètres → Zones & Localités)
+  const { zones: zonesRef, sousZones, quartiers } = useLocalites();
+  const zoneOptions = Array.from(new Set([...(zones || []), ...zonesRef]))
+    .sort((a, b) => String(a).localeCompare(String(b)));
 
   // Charger l'équipe réseau depuis le backend
   const { data: equipe } = useQuery('equipe-reseau',
@@ -210,10 +216,21 @@ function NouveauPDVModal({ onClose, onSuccess, zones }) {
             <FL label="Zone *" required>
               <FS value={form.zone} onChange={e=>set('zone',e.target.value)} required>
                 <option value="">Sélectionner une zone</option>
-                {zones.map(z => <option key={z} value={z}>{z}</option>)}
+                {avecValeur(zoneOptions, form.zone).map(z => <option key={z} value={z}>{z}</option>)}
               </FS>
             </FL>
-            <FL label="Quartier"><FI placeholder="Quartier / Commune" value={form.quartier} onChange={e=>set('quartier',e.target.value)} /></FL>
+            <FL label="Sous-zone">
+              <FS value={form.sous_zone} onChange={e=>set('sous_zone',e.target.value)}>
+                <option value="">Sélectionner une sous-zone</option>
+                {avecValeur(sousZones, form.sous_zone).map(sz => <option key={sz} value={sz}>{sz}</option>)}
+              </FS>
+            </FL>
+            <FL label="Quartier / Localité">
+              <FS value={form.quartier} onChange={e=>set('quartier',e.target.value)}>
+                <option value="">Sélectionner un quartier</option>
+                {avecValeur(quartiers, form.quartier).map(q => <option key={q} value={q}>{q}</option>)}
+              </FS>
+            </FL>
             <FL label="Adresse PDV" required><FI placeholder="Adresse complète du PDV" value={form.adresse_pdv} onChange={e=>set('adresse_pdv',e.target.value)} /></FL>
             <FL label="Date d'activation"><FI type="date" value={form.date_activation} onChange={e=>set('date_activation',e.target.value)} /></FL>
             <FL label="Montant d'activation (FCFA)"><FI type="number" placeholder="0" value={form.montant_activation} onChange={e=>set('montant_activation',e.target.value)} /></FL>
