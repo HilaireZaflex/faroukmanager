@@ -24,6 +24,25 @@ const scoreColor = (s) => (s >= 70 ? '#ff4757' : s >= 50 ? '#ffa502' : s >= 30 ?
 
 const varColor = (v) => (v == null ? '#64748b' : v < 0 ? '#ff4757' : '#22c55e');
 
+// ── Encadré pédagogique « Comment lire cet écran » ────────────────────────────
+function Legende({ titre = 'Comment lire cet écran', points = [], defautOuvert = true }) {
+  const [open, setOpen] = useState(defautOuvert);
+  return (
+    <div style={{ background: 'rgba(74,158,255,0.06)', border: '1px solid rgba(74,158,255,0.25)', borderRadius: 12, padding: '12px 16px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setOpen(o => !o)}>
+        <span style={{ fontSize: 16 }}>💡</span>
+        <strong style={{ fontSize: 13, color: '#4a9eff' }}>{titre}</strong>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a8a9a' }}>{open ? 'Masquer ▲' : 'Afficher ▼'}</span>
+      </div>
+      {open && (
+        <ul style={{ margin: '10px 0 0 0', paddingLeft: 18, fontSize: 12.5, color: '#cbd5e1', lineHeight: 1.7 }}>
+          {points.map((p, i) => <li key={i} style={{ marginBottom: 3 }}>{p}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const METRIQUES = [
   { id: 'volume', label: 'Volume (CI+CO)' },
   { id: 'real', label: 'REAL TTC (commission réelle agent)' },
@@ -64,6 +83,15 @@ function TabConfig({ config, onSaved }) {
   const sc = cfg.score || {};
   return (
     <div>
+      <Legende titre="💡 À quoi sert cet écran de configuration" points={[
+        <>Ici on règle <strong>tous les paramètres</strong> de l'Analyse Performance — <strong>aucune ligne de code</strong>, tout se sauvegarde en base.</>,
+        <><strong>Périodes glissantes</strong> = combien de mois/semaines on analyse (ex. 4). <strong>Métrique</strong> = ce qu'on mesure (volume, REAL, rendement).</>,
+        <><strong>Source du REAL TTC</strong> = quelle commission on considère comme le « REAL ». À confirmer avec la direction.</>,
+        <><strong>Paliers P1/P2/P3</strong> = à partir de quel score un PDV devient urgent / à récupérer / à surveiller.</>,
+        <><strong>Score</strong> = les seuils et les points de chaque composante (intensité, persistance, baisse récente, financier).</>,
+        <><strong>Seuils opérationnels</strong> = gisement (volume mini + rendement maxi), rupture (nb de périodes), objectif de croissance.</>,
+        <>👉 Après modification, cliquez sur <strong>💾 Enregistrer les paramètres</strong>. Les autres onglets se mettent à jour.</>,
+      ]} />
       <Card title="⚙️ Périodes & métrique">
         <div><L>Mode par défaut</L>
           <select style={inp} value={cfg.mode || 'mensuel'} onChange={e => set('mode', e.target.value)}>
@@ -137,8 +165,8 @@ const Var = ({ v }) => {
   return <span style={{ color: v >= 0 ? '#22c55e' : '#ff4757', fontWeight: 700 }}>{v > 0 ? '+' : ''}{fmtN(v, 1)} %</span>;
 };
 
-const SynKPI = ({ label, value, sub, color, varPrev, var4 }) => (
-  <div className="card" style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px' }}>
+const SynKPI = ({ label, value, sub, color, varPrev, var4, title }) => (
+  <div className="card" title={title} style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px', cursor: title ? 'help' : 'default' }}>
     <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
     <div style={{ fontSize: 22, fontWeight: 900, color, marginTop: 4 }}>{value}</div>
     <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap', fontSize: 11, color: '#64748b' }}>
@@ -210,15 +238,25 @@ function TabSynthese() {
       {isLoading ? <div className="card">Chargement…</div> : (
         <>
           {/* 8 KPI DG */}
+          <Legende titre="💡 Comment lire la Synthèse DG" points={[
+            <><strong>REAL TTC</strong> = la commission réellement gagnée sur la période (l'argent que le réseau rapporte).</>,
+            <><strong>Rendement (REAL/million)</strong> = combien de FCFA on gagne pour 1 million de volume. Plus c'est élevé, mieux on monétise.</>,
+            <><strong>Volume</strong> = total des dépôts (Cash-in) + retraits (Cash-out), c'est-à-dire tout l'argent qui circule.</>,
+            <><strong>Activation</strong> = part des PDV qui ont réellement travaillé (au moins une opération).</>,
+            <><strong>Volume/actif</strong> = volume moyen par PDV actif (productivité). <strong>VCPA</strong> = REAL moyen par PDV actif (valeur créée).</>,
+            <><strong>Gisements</strong> = PDV à gros volume mais faible rendement → principal potentiel de gain.</>,
+            <><strong>Ruptures Top 100</strong> = meilleurs PDV qui ne travaillent plus. Cible : 0.</>,
+            <>🖱️ <strong>Cliquez sur une ligne</strong> du tableau pour descendre : Zone → Superviseur → PDV.</>,
+          ]} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 16 }}>
-            <SynKPI label="REAL TTC" value={fmtF(k.real)} color="#FF6900" varPrev={k.var_real} var4={k.var_real_4} sub={data?.source_real === 'pdg' ? 'Commission PDG (réseau)' : data?.source_real === 'totale' ? 'Commission totale (PDG + agent)' : 'Commission réelle agent'} />
-            <SynKPI label="Rendement (REAL / million)" value={fmtN(k.real_par_million)} color="#00d68f" varPrev={k.var_rendement} sub={`${fmtN((k.rendement || 0) * 100, 3)} % du volume`} />
-            <SynKPI label="Volume total" value={fmtF(k.volume)} color="#4a9eff" varPrev={k.var_volume} var4={k.var_volume_4} sub="CI + CO" />
-            <SynKPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" varPrev={k.var_activation} sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)} PDV actifs`} />
-            <SynKPI label="Volume / actif" value={fmtF(k.volume_par_actif)} color="#0ea5e9" sub="Productivité par PDV actif" />
-            <SynKPI label="VCPA (REAL / actif)" value={fmtF(k.real_par_actif)} color="#22c55e" sub="Valeur créée par PDV actif" />
-            <SynKPI label="Gisements de profit" value={fmtN(k.nb_gisements)} color="#ffa502" sub={`${fmtN(k.pct_volume_gisements, 1)} % du volume réseau`} />
-            <SynKPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" sub={`${fmtN(k.nb_ruptures)} ruptures au total`} />
+            <SynKPI label="REAL TTC" value={fmtF(k.real)} color="#FF6900" varPrev={k.var_real} var4={k.var_real_4} title="Commission réellement gagnée par les PDV sur la période. C'est l'argent que le réseau rapporte." sub={data?.source_real === 'pdg' ? 'Commission PDG (réseau)' : data?.source_real === 'totale' ? 'Commission totale (PDG + agent)' : 'Commission réelle agent'} />
+            <SynKPI label="Rendement (REAL / million)" value={fmtN(k.real_par_million)} color="#00d68f" varPrev={k.var_rendement} title="Combien de FCFA de REAL on gagne pour 1 million de volume. Plus c'est élevé, mieux l'activité est monétisée." sub={`${fmtN((k.rendement || 0) * 100, 3)} % du volume`} />
+            <SynKPI label="Volume total" value={fmtF(k.volume)} color="#4a9eff" varPrev={k.var_volume} var4={k.var_volume_4} title="Total des dépôts (Cash-in) + retraits (Cash-out). C'est tout l'argent qui circule dans le réseau." sub="CI + CO" />
+            <SynKPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" varPrev={k.var_activation} title="Part des PDV qui ont réellement travaillé (au moins une opération) sur la période." sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)} PDV actifs`} />
+            <SynKPI label="Volume / actif" value={fmtF(k.volume_par_actif)} color="#0ea5e9" title="Volume moyen produit par chaque PDV actif : mesure la productivité du réseau." sub="Productivité par PDV actif" />
+            <SynKPI label="VCPA (REAL / actif)" value={fmtF(k.real_par_actif)} color="#22c55e" title="Valeur créée par PDV actif = REAL ÷ nombre de PDV actifs. Permet de comparer des superviseurs de tailles différentes." sub="Valeur créée par PDV actif" />
+            <SynKPI label="Gisements de profit" value={fmtN(k.nb_gisements)} color="#ffa502" title="PDV qui font beaucoup de volume mais rapportent peu (rendement sous le seuil) : principal potentiel d'amélioration." sub={`${fmtN(k.pct_volume_gisements, 1)} % du volume réseau`} />
+            <SynKPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" title="Nombre de nos 100 meilleurs PDV qui n'ont plus aucune opération. Cible : 0." sub={`${fmtN(k.nb_ruptures)} ruptures au total`} />
           </div>
 
           {/* Objectif + flux */}
@@ -347,8 +385,8 @@ function TabAnalyses() {
   const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 };
   const th = { textAlign: 'left', padding: '9px 10px', color: '#8a8a9a', fontWeight: 700, whiteSpace: 'nowrap', fontSize: 11 };
   const td = { padding: '9px 10px', fontSize: 12, whiteSpace: 'nowrap' };
-  const Card = ({ label, value, color, sub }) => (
-    <div className="card" style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px' }}>
+  const Card = ({ label, value, color, sub, title }) => (
+    <div className="card" title={title} style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px', cursor: title ? 'help' : 'default' }}>
       <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase' }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 900, color, marginTop: 4 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{sub}</div>}
@@ -382,6 +420,16 @@ function TabAnalyses() {
       {/* ── ZONES ── */}
       {sous === 'zones' && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 16px 0' }}>
+            <Legende titre="💡 Comment lire l'analyse par zone" points={[
+              <>Chaque ligne = une <strong>zone</strong>. On compare les zones entre elles.</>,
+              <><strong>Activation</strong> = part des PDV de la zone qui ont travaillé. <strong>Objectif</strong> (case violette) = la cible ; <strong>Écart</strong> = la différence (vert = au-dessus de la cible).</>,
+              <>✏️ Vous pouvez <strong>modifier l'objectif</strong> directement dans la case violette : il se sauvegarde tout seul.</>,
+              <><strong>Rendement / REAL par million</strong> = ce que la zone gagne pour 1 million de volume (sa monétisation).</>,
+              <><strong>Vol/actif</strong> et <strong>VCPA</strong> = productivité et valeur créée par PDV actif.</>,
+              <><strong>Gisements</strong> = nombre de PDV de la zone à gros volume mais faible rendement.</>,
+            ]} />
+          </div>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
             🧭 Analyse par zone — {zonesData?.periode_courante || '…'}
           </div>
@@ -427,6 +475,13 @@ function TabAnalyses() {
       {/* ── SEGMENTS ── */}
       {sous === 'segments' && (
         <div>
+          <Legende titre="💡 Comment lire les segments" points={[
+            <>On range les PDV en <strong>5 groupes</strong> : <strong>Diamant</strong> (les meilleurs) → <strong>Argent</strong> → <strong>Or</strong> → <strong>Cuivre</strong> → <strong>Fer</strong> (les plus faibles).</>,
+            <>Le classement se fait selon le <strong>critère choisi en haut à droite</strong> (Rendement, Volume ou REAL TTC).</>,
+            <>« <strong>% volume</strong> » et « <strong>% REAL</strong> » = la part de chaque groupe dans le total du réseau (voir où se trouve l'argent).</>,
+            <><strong>Sous-classification du Fer</strong> : <strong>dormant</strong> (ne travaille plus), <strong>rentable</strong> (bon rendement), <strong>à potentiel</strong> (gros volume), <strong>faible</strong> (les autres).</>,
+            <>👉 Un bon réseau a beaucoup de Diamant/Argent et peu de Fer.</>,
+          ]} />
           <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
               🎖️ Segmentation dynamique par <strong style={{ color: '#FF6900' }}>{segData?.critere}</strong> — {segData?.periode_courante || '…'}
@@ -473,6 +528,13 @@ function TabAnalyses() {
       {/* ── GISEMENTS ── */}
       {sous === 'gisements' && (
         <div>
+          <Legende titre="💡 Comment lire les gisements de profit" points={[
+            <>Un <strong>gisement</strong> = un PDV qui fait <strong>beaucoup de volume mais gagne peu</strong> (volume ≥ seuil ET rendement &lt; seuil).</>,
+            <>C'est le <strong>principal potentiel de gain</strong> : si on améliore leur rendement, on gagne de l'argent sans vendre plus.</>,
+            <><strong>% du volume réseau</strong> = la part de tout le réseau qui passe par ces PDV (plus c'est élevé, plus l'enjeu est grand).</>,
+            <>📈 Le graphique montre l'<strong>évolution du nombre de gisements</strong> dans le temps : l'objectif est de le <strong>faire baisser</strong>.</>,
+            <>👉 Le tableau liste les PDV concernés, classés du plus gros volume au plus petit.</>,
+          ]} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
             <Card label="Gisements" value={gisData?.kpis?.nb_gisements ?? 0} color="#ffa502" sub={`Volume ≥ ${fmtN(gisData?.seuil_volume)} & rendement < ${gisData?.seuil_rendement}%`} />
             <Card label="Volume des gisements" value={fmtF(gisData?.kpis?.volume_gisements)} color="#4a9eff" sub="fort volume, faible rendement" />
@@ -532,6 +594,13 @@ function TabAnalyses() {
       {/* ── RUPTURES ── */}
       {sous === 'ruptures' && (
         <div>
+          <Legende titre="💡 Comment lire les ruptures" points={[
+            <>Une <strong>rupture</strong> = un PDV qui n'a fait <strong>aucune opération</strong> depuis plus de {ruptData?.seuil_periodes || 2} périodes.</>,
+            <><strong>Taux de rupture</strong> = nombre de ruptures ÷ nombre total de PDV.</>,
+            <><strong>Ruptures Top 100</strong> = combien de nos 100 meilleurs PDV sont en rupture. <strong>Cible : 0</strong> (les perdre coûte très cher).</>,
+            <>La liste indique la <strong>dernière activité</strong> connue et le <strong>REAL de référence</strong> (ce que le PDV rapportait avant).</>,
+            <>👉 Ces PDV doivent être <strong>rappelés et réactivés en priorité</strong>.</>,
+          ]} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
             <Card label="PDV en rupture" value={ruptData?.nb_ruptures ?? 0} color="#ff4757" sub={`> ${ruptData?.seuil_periodes || 2} périodes sans opération`} />
             <Card label="Taux de rupture" value={`${fmtN(ruptData?.taux_rupture, 2)} %`} color="#ffa502" sub={`sur ${fmtN(ruptData?.nb_pdv_total)} PDV`} />
@@ -617,6 +686,15 @@ function TabSuperviseurs() {
           Cibles : rendement <strong style={{ color: '#00d68f' }}>{data?.cible_rendement}%</strong> · activation <strong style={{ color: '#a29bfe' }}>{data?.cible_activation}%</strong> · rupture max <strong style={{ color: '#ff4757' }}>{data?.cible_rupture}%</strong>
         </div>
       </div>
+      <Legende titre="💡 Comment lire le classement des superviseurs" points={[
+        <>Chaque superviseur reçoit un <strong>score sur 100</strong>, classé du meilleur au moins bon.</>,
+        <>Le score mélange : <strong>Objectif atteint</strong> (25 %) · <strong>Rendement</strong> (25 %) · <strong>Productivité</strong> (20 %) · <strong>Activation + Rétention</strong> (15 %) · <strong>Ruptures</strong> (10 %) · <strong>Qualité du portefeuille</strong> (5 %).</>,
+        <><strong>Obj. %</strong> = part de l'objectif REAL atteinte. <strong>Rendement</strong> = REAL par million. <strong>Vol/actif</strong> = volume moyen par PDV actif.</>,
+        <><strong>Rétention</strong> = capacité à <em>garder</em> ses PDV actifs (actifs conservés ÷ actifs précédents).</>,
+        <><strong>Solde</strong> = nouveaux PDV actifs − PDV perdus. Un solde positif = le portefeuille grandit.</>,
+        <><strong>Ruptures</strong> = PDV qui ne travaillent plus (cible 0). <strong>Qualité</strong> = part de PDV bien monétisés.</>,
+        <>👉 Un bon superviseur = à la fois <strong>résultat + efficacité + régularité</strong>.</>,
+      ]} />
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto', maxHeight: '70vh' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -697,6 +775,14 @@ function TabMoteurs() {
         </select>
         <span style={{ fontSize: 12, color: '#8a8a9a' }}>{data?.periode_precedente} → <strong style={{ color: '#FF6900' }}>{data?.periode_courante}</strong></span>
       </div>
+
+      <Legende titre="💡 Comment lire les moteurs (pourquoi ça change ?)" points={[
+        <>Cet écran explique <strong>POURQUOI</strong> le volume ou le REAL a augmenté/baissé entre 2 périodes.</>,
+        <><strong>Volume = PDV actifs × Transactions/PDV × Ticket moyen</strong> : si le volume change, c'est forcément l'un de ces 3 moteurs.</>,
+        <><strong>Effet actifs</strong> = plus ou moins de PDV qui travaillent · <strong>Effet transactions</strong> = plus ou moins d'opérations par PDV · <strong>Effet ticket</strong> = panier moyen plus ou moins gros.</>,
+        <><strong>REAL TTC = Volume × Rendement</strong> : on gagne plus soit parce qu'on fait plus de volume, soit parce qu'on le monétise mieux.</>,
+        <>Les barres vertes = contribution positive, rouges = contribution négative. 👉 La plus grande barre = la vraie cause.</>,
+      ]} />
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: '#4a9eff', marginBottom: 12 }}>📦 Décomposition du VOLUME</div>
@@ -805,8 +891,8 @@ export default function AnalysePerformancePage() {
   const th = { textAlign: 'left', padding: '9px 10px', color: '#8a8a9a', fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer', fontSize: 11 };
   const td = { padding: '9px 10px', fontSize: 12, whiteSpace: 'nowrap' };
 
-  const KPI = ({ label, value, color, sub }) => (
-    <div className="card" style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px' }}>
+  const KPI = ({ label, value, color, sub, title }) => (
+    <div className="card" title={title} style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px', cursor: title ? 'help' : 'default' }}>
       <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 900, color, marginTop: 4 }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{sub}</div>}
@@ -823,6 +909,17 @@ export default function AnalysePerformancePage() {
           </p>
         </div>
       </div>
+
+      <Legende titre="💡 Qu'est-ce que l'Analyse Performance ? (guide rapide)" points={[
+        <>Ce menu sert à <strong>piloter la performance économique du réseau</strong> : combien il rapporte, où sont les pertes, et qui doit agir.</>,
+        <>📊 <strong>Synthèse DG</strong> = les indicateurs clés à regarder en premier (vue direction générale).</>,
+        <>🎯 <strong>PDV à récupérer</strong> = les PDV qui baissent, classés par urgence (P1 → P4).</>,
+        <>🧭 <strong>Analyses</strong> = comparaison par <strong>zone</strong>, par <strong>segment</strong>, <strong>gisements de profit</strong> et <strong>ruptures</strong>.</>,
+        <>🏆 <strong>Superviseurs</strong> = classement des superviseurs sur 100 (résultat + efficacité + régularité).</>,
+        <>🧩 <strong>Moteurs</strong> = comprendre <strong>pourquoi</strong> le volume / le REAL change.</>,
+        <>⚙️ <strong>Configuration</strong> = régler les seuils, poids et objectifs (aucun code à toucher).</>,
+        <>💡 Sur chaque écran, un encadré bleu « Comment lire » explique les colonnes. Survolez les cartes pour une info-bulle.</>,
+      ]} />
 
       {/* Onglets */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
@@ -883,15 +980,24 @@ export default function AnalysePerformancePage() {
             </button>
           </div>
 
+          <Legende titre="💡 Comment lire « PDV à récupérer »" points={[
+            <>On analyse les <strong>{periodes.length} dernières périodes</strong> (glissant) pour repérer les PDV qui <strong>baissent</strong>.</>,
+            <><strong>Score /100</strong> = gravité du PDV. Il combine 4 choses : intensité de la baisse (30) + répétition des baisses (25) + baisse la plus récente (20) + argent réellement perdu (25).</>,
+            <><strong>🔴 P1</strong> ≥70 : intervention immédiate · <strong>🟠 P2</strong> 50-69 : plan de récupération · <strong>🟡 P3</strong> 30-49 : surveillance · <strong>🟢 P4</strong> &lt;30 : stable.</>,
+            <><strong>Var réc.</strong> = évolution entre les 2 dernières périodes. <strong>Var glob.</strong> = évolution sur toute la période analysée.</>,
+            <><strong>Baisses</strong> = nombre de périodes où le PDV a baissé (le chiffre entre parenthèses = baisses consécutives).</>,
+            <><strong>Perte</strong> = <em>meilleur CA − CA actuel</em> : l'argent qu'on ne gagne plus. <strong>Potentiel récupérable</strong> = ce qu'on peut regagner.</>,
+            <>👉 Classez par <strong>Score</strong> (urgence) ou par <strong>Perte</strong> (où est l'argent).</>,
+          ]} />
           {/* KPI */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
-            <KPI label="PDV analysés" value={kpis.nb_pdv_analyses ?? 0} color="#4a9eff" sub={`${periodes.length} périodes : ${periodes.join(' → ')}`} />
-            <KPI label="🔴 P1 Urgence" value={kpis.nb_p1 ?? 0} color="#ff4757" sub="intervention immédiate" />
-            <KPI label="🟠 P2 À récupérer" value={kpis.nb_p2 ?? 0} color="#ffa502" sub="plan de récupération" />
-            <KPI label="🟡 P3 À surveiller" value={kpis.nb_p3 ?? 0} color="#ffc107" sub="surveillance" />
-            <KPI label="🟢 P4 Stable" value={kpis.nb_p4 ?? 0} color="#22c55e" sub="faible priorité" />
-            <KPI label="Perte totale" value={fmtF(kpis.perte_totale)} color="#ff4757" sub={`sur ${metrique === 'real' ? 'REAL' : metrique === 'rendement' ? 'rendement' : 'volume'}`} />
-            <KPI label="Potentiel récupérable" value={fmtF(kpis.potentiel_total)} color="#00d68f" sub="meilleur − actuel" />
+            <KPI label="PDV analysés" value={kpis.nb_pdv_analyses ?? 0} color="#4a9eff" sub={`${periodes.length} périodes : ${periodes.join(' → ')}`} title="Nombre de PDV pris en compte dans l'analyse." />
+            <KPI label="🔴 P1 Urgence" value={kpis.nb_p1 ?? 0} color="#ff4757" sub="intervention immédiate" title="PDV dont le score de risque est ≥ 70 : à traiter en priorité absolue." />
+            <KPI label="🟠 P2 À récupérer" value={kpis.nb_p2 ?? 0} color="#ffa502" sub="plan de récupération" title="PDV avec un score entre 50 et 69 : à récupérer rapidement." />
+            <KPI label="🟡 P3 À surveiller" value={kpis.nb_p3 ?? 0} color="#ffc107" sub="surveillance" title="PDV avec un score entre 30 et 49 : à surveiller." />
+            <KPI label="🟢 P4 Stable" value={kpis.nb_p4 ?? 0} color="#22c55e" sub="faible priorité" title="PDV avec un score < 30 : pas de problème significatif." />
+            <KPI label="Perte totale" value={fmtF(kpis.perte_totale)} color="#ff4757" sub={`sur ${metrique === 'real' ? 'REAL' : metrique === 'rendement' ? 'rendement' : 'volume'}`} title="Somme de l'argent perdu par tous les PDV par rapport à leur meilleure période." />
+            <KPI label="Potentiel récupérable" value={fmtF(kpis.potentiel_total)} color="#00d68f" sub="meilleur − actuel" title="Total de ce que le réseau peut regagner en ramenant les PDV à leur meilleur niveau." />
           </div>
 
           {/* Tableau */}
