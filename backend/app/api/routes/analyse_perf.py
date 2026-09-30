@@ -61,6 +61,14 @@ CONFIG_DEFAUT: Dict[str, Any] = {
     "segments_critere": "rendement",      # volume | real | rendement
     "segments_noms": ["Diamant", "Argent", "Or", "Cuivre", "Fer"],
     "segments_paliers": [95, 80, 60, 30],  # percentiles décroissants
+    # Score superviseur /100
+    "score_superviseur": {
+        "poids": {"objectif": 25, "rendement": 25, "productivite": 20,
+                  "activation_retention": 15, "ruptures": 10, "qualite": 5},
+        "cible_rendement": 0.26,   # en %
+        "cible_activation": 90,    # en %
+        "cible_rupture": 2,        # en % max
+    },
 }
 
 
@@ -949,4 +957,300 @@ def analyse_gisements(
         "evolution": evolution,
         "pdvs": liste,
         "zones": sorted({x["zone"] for x in liste if x["zone"]}),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RUPTURES · SUPERVISEURS · RÉTENTION · MOTEURS
+# ══════════════════════════════════════════════════════════════════════════════
+def _actif(p) -> bool:
+    if p is None:
+        return False
+    return (int(getattr(p, "nb_operations", None) or 0) > 0) or \
+           (float(getattr(p, "montant_transaction", None) or getattr(p, "ca", None) or 0) > 0)
+
+
+def _en_rupture_ids(perf, ids, i_cur, m):
+    """PDV sans aucune opération sur les m dernières périodes, mais actif avant."""
+    res = set()
+    for pid in ids:
+        serie = perf.get(pid, {})
+        if not serie:
+            continue
+        indices = [i_cur - k for k in range(min(m, i_cur + 1))]
+        ops_recentes = sum(int(getattr(serie.get(i), "nb_operations", None) or 0) for i in indices if serie.get(i))
+        plus_ancien = min(indices) if indices else 0
+        ops_avant = sum(int(getattr(serie.get(i), "nb_operations", None) or 0) for i in range(0, plus_ancien) if serie.get(i))
+        if ops_recentes == 0 and ops_avant > 0:
+            res.add(pid)
+    return res
+
+
+@router.get("/analyse-perf/ruptures")
+def analyse_ruptures(
+    mode: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """PDV sans opération sur plus de N périodes (global, Top 100, zone, superviseur)."""
+    cfg = _get_config(db)
+    mode = (mode or cfg.get("mode") or "mensuel").lower()
+    if mode not in ("mensuel", "hebdo"):
+        mode = "mensuel"
+    source_real = cfg.get("source_real", "agent")
+    m = max(int(cfg.get("seuil_rupture_periodes", 2)), 1)
+    periodes, perf = _charger(db, mode, max(int(cfg.get("nb_periodes", 4)), m + 1, 4))
+    if not periodes:
+        return {"pdvs": [], "seuil_periodes": m}
+    i_cur = len(periodes) - 1
+    pdvs = _pdvs_scope(db, current_user)
+    pdv_map = {p.id: p for p in pdvs}
+    ids = list(pdv_map.keys())
+
+    rupt = _en_rupture_ids(perf, ids, i_cur, m)
+    reals = {pid: _real(perf.get(pid, {}).get(i_cur), source_real) for pid in ids}
+    top100 = sorted(ids, key=lambda x: reals.get(x, 0), reverse=True)[:100]
+
+    liste = []
+    for pid in rupt:
+        pdv = pdv_map[pid]
+        serie = perf.get(pid, {})
+        derniere = None
+        for i in range(len(periodes) - 1, -1, -1):
+            if _actif(serie.get(i)):
+                derniere = _label_periode(periodes[i])
+                break
+        real_perdu = reals.get(pid, 0)
+        liste.append({
+            "pdv_id": pid, "numero_pdv": pdv.numero_pdv, "nom": pdv.nom,
+            "zone": pdv.zone, "superviseur": pdv.superviseur, "quartier": pdv.quartier,
+            "derniere_activite": derniere, "real_reference": round(real_perdu, 2),
+        })
+    liste.sort(key=lambda x: x["real_reference"], reverse=True)
+
+    def _grouper(champ):
+        g = {}
+        for pid in rupt:
+            k = getattr(pdv_map[pid], champ) or "—"
+            g[k] = g.get(k, 0) + 1
+        return sorted([{"nom": k, "nb_ruptures": v} for k, v in g.items()], key=lambda x: -x["nb_ruptures"])
+
+    actifs = len([pid for pid in ids if _actif(perf.get(pid, {}).get(i_cur))])
+    return {
+        "mode": mode, "seuil_periodes": m,
+        "periode_courante": _label_periode(periodes[i_cur]),
+        "nb_pdv_total": len(ids), "nb_actifs": actifs,
+        "nb_ruptures": len(rupt),
+        "taux_rupture": round(len(rupt) / len(ids) * 100, 2) if ids else 0,
+        "ruptures_top100": len([x for x in top100 if x in rupt]),
+        "pdvs": liste,
+        "par_zone": _grouper("zone"),
+        "par_superviseur": _grouper("superviseur"),
+    }
+
+
+@router.get("/analyse-perf/superviseurs")
+def analyse_superviseurs(
+    mode: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Score Superviseur /100 : objectif, rendement, productivité, activation+rétention, ruptures, qualité."""
+    cfg = _get_config(db)
+    mode = (mode or cfg.get("mode") or "mensuel").lower()
+    if mode not in ("mensuel", "hebdo"):
+        mode = "mensuel"
+    source_real = cfg.get("source_real", "agent")
+    n = max(int(cfg.get("nb_periodes", 4)), 2)
+    m = max(int(cfg.get("seuil_rupture_periodes", 2)), 1)
+    periodes, perf = _charger(db, mode, max(n + 1, m + 1, 4))
+    if not periodes:
+        return {"lignes": []}
+    i_cur = len(periodes) - 1
+    i_prev = i_cur - 1 if i_cur >= 1 else None
+    pkey_cur = _period_key(periodes[i_cur])
+    pdvs = _pdvs_scope(db, current_user)
+
+    sc = cfg.get("score_superviseur") or {}
+    poids = sc.get("poids") or {"objectif": 25, "rendement": 25, "productivite": 20,
+                                "activation_retention": 15, "ruptures": 10, "qualite": 5}
+    cible_rend = float(sc.get("cible_rendement", 0.26))
+    cible_act = float(sc.get("cible_activation", 90))
+    cible_rupt = float(sc.get("cible_rupture", 2))
+    seuil_gr = float(cfg.get("seuil_gisement_rendement", 0.20))
+
+    reseau = _agg(perf, [p.id for p in pdvs], i_cur, source_real)
+    cible_vol_actif = reseau["volume_par_actif"] or 1
+
+    groupes: Dict[str, List[int]] = {}
+    for p in pdvs:
+        groupes.setdefault(p.superviseur or "—", []).append(p.id)
+
+    objectifs_cfg = cfg.get("objectifs") or {}
+    lignes = []
+    for sup, ids in groupes.items():
+        mcur = _agg(perf, ids, i_cur, source_real)
+        mprev = _agg(perf, ids, i_prev, source_real) if i_prev is not None else None
+        act = round(mcur["actifs"] / len(ids) * 100, 2) if ids else 0
+
+        prev_actifs = set(pid for pid in ids if _actif(perf.get(pid, {}).get(i_prev))) if i_prev is not None else set()
+        cur_actifs = set(pid for pid in ids if _actif(perf.get(pid, {}).get(i_cur)))
+        retention = round(len(prev_actifs & cur_actifs) / len(prev_actifs) * 100, 2) if prev_actifs else None
+        nouveaux = len(cur_actifs - prev_actifs)
+        perdus = len(prev_actifs - cur_actifs)
+
+        rupt = _en_rupture_ids(perf, ids, i_cur, m)
+        taux_rupt = round(len(rupt) / mcur["actifs"] * 100, 2) if mcur["actifs"] else 0
+
+        best = max(_agg(perf, ids, i, source_real)["real"] for i in range(max(0, i_cur - n + 1), i_cur + 1))
+        obj_auto = round(best * (1 + float(cfg.get("objectif_taux_croissance", 0.05))), 2)
+        manuel = (objectifs_cfg.get(f"SUPERVISEUR:{sup}") or {}).get(pkey_cur)
+        objectif = float(manuel) if manuel is not None else obj_auto
+
+        qualite = round(len([pid for pid in cur_actifs
+                             if _valeur_critere(perf.get(pid, {}).get(i_cur), "rendement", source_real) * 100 >= seuil_gr
+                             ]) / len(cur_actifs) * 100, 2) if cur_actifs else 0
+
+        s_obj = min(1.0, mcur["real"] / objectif) * poids["objectif"] if objectif > 0 else 0
+        s_rend = min(1.0, (mcur["rendement"] * 100) / cible_rend) * poids["rendement"] if cible_rend > 0 else 0
+        s_prod = min(1.0, mcur["volume_par_actif"] / cible_vol_actif) * poids["productivite"]
+        s_act = (min(1.0, act / cible_act) * 0.6 +
+                 (min(1.0, (retention or 0) / 100) * 0.4)) * poids["activation_retention"]
+        s_rupt = max(0.0, 1 - taux_rupt / cible_rupt) * poids["ruptures"] if cible_rupt > 0 else poids["ruptures"]
+        s_qual = (qualite / 100) * poids["qualite"]
+        score = round(s_obj + s_rend + s_prod + s_act + s_rupt + s_qual, 1)
+
+        lignes.append({
+            "nom": sup, "nb_pdv": len(ids), "nb_actifs": mcur["actifs"], "activation": act,
+            "retention": retention, "nouveaux": nouveaux, "perdus": perdus, "solde": nouveaux - perdus,
+            "volume": mcur["volume"], "real": mcur["real"], "rendement": mcur["rendement"],
+            "real_par_million": mcur["real_par_million"], "volume_par_actif": mcur["volume_par_actif"],
+            "real_par_actif": mcur["real_par_actif"],
+            "objectif": objectif, "taux_realisation": round(mcur["real"] / objectif * 100, 2) if objectif > 0 else 0,
+            "nb_ruptures": len(rupt), "taux_rupture": taux_rupt, "qualite": qualite,
+            "score": score,
+            "score_detail": {"objectif": round(s_obj, 1), "rendement": round(s_rend, 1),
+                             "productivite": round(s_prod, 1), "activation_retention": round(s_act, 1),
+                             "ruptures": round(s_rupt, 1), "qualite": round(s_qual, 1)},
+        })
+    lignes.sort(key=lambda x: x["score"], reverse=True)
+    return {
+        "mode": mode, "periodes": [_label_periode(p) for p in periodes],
+        "periode_courante": _label_periode(periodes[i_cur]),
+        "poids": poids, "cible_rendement": cible_rend,
+        "cible_activation": cible_act, "cible_rupture": cible_rupt,
+        "cible_volume_par_actif": round(cible_vol_actif, 2),
+        "reseau": {"activation": round(reseau["actifs"] / len(pdvs) * 100, 2) if pdvs else 0,
+                   "volume_par_actif": reseau["volume_par_actif"], "rendement": reseau["rendement"]},
+        "lignes": lignes,
+    }
+
+
+@router.get("/analyse-perf/retention")
+def analyse_retention(
+    mode: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Rétention, réactivation et solde d'activation (réseau et par superviseur)."""
+    cfg = _get_config(db)
+    mode = (mode or cfg.get("mode") or "mensuel").lower()
+    if mode not in ("mensuel", "hebdo"):
+        mode = "mensuel"
+    periodes, perf = _charger(db, mode, max(int(cfg.get("nb_periodes", 4)), 3))
+    if len(periodes) < 2:
+        return {"lignes": []}
+    i_cur = len(periodes) - 1
+    i_prev = i_cur - 1
+    pdvs = _pdvs_scope(db, current_user)
+
+    def _stats(ids):
+        cur = set(pid for pid in ids if _actif(perf.get(pid, {}).get(i_cur)))
+        prev = set(pid for pid in ids if _actif(perf.get(pid, {}).get(i_prev)))
+        conserves = cur & prev
+        nouveaux = cur - prev
+        perdus = prev - cur
+        retention = round(len(conserves) / len(prev) * 100, 2) if prev else None
+        reactivation = round(len(nouveaux) / len(prev), 4) if prev else None  # ratio vs inactifs
+        inactifs_prev = len(ids) - len(prev)
+        taux_reactiv = round(len(nouveaux) / inactifs_prev * 100, 2) if inactifs_prev else None
+        return {
+            "actifs_prec": len(prev), "actifs_cur": len(cur),
+            "conserves": len(conserves), "nouveaux": len(nouveaux), "perdus": len(perdus),
+            "solde": len(nouveaux) - len(perdus),
+            "retention": retention, "taux_reactivation": taux_reactiv,
+        }
+
+    groupes: Dict[str, List[int]] = {}
+    for p in pdvs:
+        groupes.setdefault(p.superviseur or "—", []).append(p.id)
+
+    lignes = []
+    for sup, ids in groupes.items():
+        st = _stats(ids)
+        st["nom"] = sup
+        st["nb_pdv"] = len(ids)
+        lignes.append(st)
+    lignes.sort(key=lambda x: (x["solde"]), reverse=True)
+
+    return {
+        "mode": mode,
+        "periode_courante": _label_periode(periodes[i_cur]),
+        "periode_precedente": _label_periode(periodes[i_prev]),
+        "reseau": _stats([p.id for p in pdvs]),
+        "lignes": lignes,
+    }
+
+
+@router.get("/analyse-perf/moteurs")
+def analyse_moteurs(
+    mode: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Décomposition : Volume = actifs × tx/PDV × ticket moyen ; REAL = Volume × rendement."""
+    cfg = _get_config(db)
+    mode = (mode or cfg.get("mode") or "mensuel").lower()
+    if mode not in ("mensuel", "hebdo"):
+        mode = "mensuel"
+    source_real = cfg.get("source_real", "agent")
+    periodes, perf = _charger(db, mode, 3)
+    if len(periodes) < 2:
+        return {}
+    i_cur = len(periodes) - 1
+    i_prev = i_cur - 1
+    pdvs = _pdvs_scope(db, current_user)
+    ids = [p.id for p in pdvs]
+
+    c = _agg(perf, ids, i_cur, source_real)
+    p = _agg(perf, ids, i_prev, source_real)
+
+    A0, A1 = p["actifs"], c["actifs"]
+    T0 = p["operations"] / A0 if A0 else 0
+    T1 = c["operations"] / A1 if A1 else 0
+    P0 = p["volume"] / p["operations"] if p["operations"] else 0
+    P1 = c["volume"] / c["operations"] if c["operations"] else 0
+    R0, R1 = p["rendement"], c["rendement"]
+    V0, V1 = p["volume"], c["volume"]
+    REAL0, REAL1 = p["real"], c["real"]
+
+    eff_a = (A1 - A0) * T0 * P0
+    eff_t = A1 * (T1 - T0) * P0
+    eff_p = A1 * T1 * (P1 - P0)
+    eff_v = (V1 - V0) * R0
+    eff_r = V1 * (R1 - R0)
+
+    return {
+        "mode": mode, "source_real": source_real,
+        "periode_courante": _label_periode(periodes[i_cur]),
+        "periode_precedente": _label_periode(periodes[i_prev]),
+        "volume": {"prec": V0, "cur": V1, "delta": round(V1 - V0, 2),
+                   "actifs": {"prec": A0, "cur": A1},
+                   "transactions_par_actif": {"prec": round(T0, 2), "cur": round(T1, 2)},
+                   "ticket_moyen": {"prec": round(P0, 2), "cur": round(P1, 2)},
+                   "effet_actifs": round(eff_a, 2), "effet_transactions": round(eff_t, 2),
+                   "effet_ticket": round(eff_p, 2)},
+        "real": {"prec": REAL0, "cur": REAL1, "delta": round(REAL1 - REAL0, 2),
+                 "rendement_prec": round(R0, 6), "rendement_cur": round(R1, 6),
+                 "effet_volume": round(eff_v, 2), "effet_rendement": round(eff_r, 2)},
     }

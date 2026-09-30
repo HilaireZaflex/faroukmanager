@@ -331,6 +331,8 @@ function TabAnalyses() {
     () => api.get('/analyse-perf/segments', { params: { mode, critere } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'segments' });
   const { data: gisData } = useQuery(['analyse-perf-gisements', mode],
     () => api.get('/analyse-perf/gisements', { params: { mode } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'gisements' });
+  const { data: ruptData } = useQuery(['analyse-perf-ruptures', mode],
+    () => api.get('/analyse-perf/ruptures', { params: { mode } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'ruptures' });
 
   const modifierObjectifZone = async (zone, valeur) => {
     try {
@@ -356,7 +358,7 @@ function TabAnalyses() {
   return (
     <div>
       <div className="card" style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-        {[{ id: 'zones', label: '🧭 Zones' }, { id: 'segments', label: '🎖️ Segments' }, { id: 'gisements', label: '💎 Gisements' }].map(s => (
+        {[{ id: 'zones', label: '🧭 Zones' }, { id: 'segments', label: '🎖️ Segments' }, { id: 'gisements', label: '💎 Gisements' }, { id: 'ruptures', label: '🚱 Ruptures' }].map(s => (
           <button key={s.id} onClick={() => setSous(s.id)}
             style={{ padding: '8px 16px', borderRadius: 9, border: `1px solid ${sous === s.id ? '#FF6900' : 'rgba(255,255,255,0.08)'}`, background: sous === s.id ? 'rgba(255,105,0,0.12)' : 'rgba(255,255,255,0.03)', color: sous === s.id ? '#FF6900' : '#8a8a9a', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
             {s.label}
@@ -526,6 +528,216 @@ function TabAnalyses() {
           </div>
         </div>
       )}
+
+      {/* ── RUPTURES ── */}
+      {sous === 'ruptures' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
+            <Card label="PDV en rupture" value={ruptData?.nb_ruptures ?? 0} color="#ff4757" sub={`> ${ruptData?.seuil_periodes || 2} périodes sans opération`} />
+            <Card label="Taux de rupture" value={`${fmtN(ruptData?.taux_rupture, 2)} %`} color="#ffa502" sub={`sur ${fmtN(ruptData?.nb_pdv_total)} PDV`} />
+            <Card label="Ruptures Top 100" value={ruptData?.ruptures_top100 ?? 0} color="#FF6900" sub="cible : 0" />
+            <Card label="PDV actifs" value={fmtN(ruptData?.nb_actifs)} color="#22c55e" sub={ruptData?.periode_courante} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="card">
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#e2e8f0', marginBottom: 10 }}>Par zone</div>
+              {(ruptData?.par_zone || []).length === 0 ? <div style={{ color: '#64748b', fontSize: 12 }}>Aucune rupture 🎉</div> :
+                (ruptData.par_zone).map((z, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ color: '#cbd5e1' }}>{z.nom}</span><strong style={{ color: '#ff4757' }}>{z.nb_ruptures}</strong>
+                  </div>
+                ))}
+            </div>
+            <div className="card">
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#e2e8f0', marginBottom: 10 }}>Par superviseur</div>
+              {(ruptData?.par_superviseur || []).length === 0 ? <div style={{ color: '#64748b', fontSize: 12 }}>Aucune rupture 🎉</div> :
+                (ruptData.par_superviseur).slice(0, 10).map((z, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ color: '#cbd5e1' }}>{z.nom}</span><strong style={{ color: '#ffa502' }}>{z.nb_ruptures}</strong>
+                  </div>
+                ))}
+            </div>
+          </div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
+              🚱 PDV en rupture — {ruptData?.periode_courante || '…'}
+            </div>
+            <div style={{ overflowX: 'auto', maxHeight: '50vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <th style={th}>PDV</th><th style={th}>Zone</th><th style={th}>Superviseur</th>
+                    <th style={th}>Quartier</th><th style={{ ...th, textAlign: 'right' }}>Dernière activité</th>
+                    <th style={{ ...th, textAlign: 'right' }}>REAL de référence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(ruptData?.pdvs || []).map((p, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={td}><div style={{ fontWeight: 700, color: '#e2e8f0' }}>{p.numero_pdv}</div><div style={{ fontSize: 11, color: '#8a8a9a' }}>{p.nom}</div></td>
+                      <td style={{ ...td, color: '#94a3b8' }}>{p.zone || '—'}</td>
+                      <td style={{ ...td, color: '#94a3b8' }}>{p.superviseur || '—'}</td>
+                      <td style={{ ...td, color: '#94a3b8' }}>{p.quartier || '—'}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#ffa502' }}>{p.derniere_activite || '—'}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#FF6900' }}>{fmtN(p.real_reference)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Onglet Superviseurs & Rétention ───────────────────────────────────────────
+function TabSuperviseurs() {
+  const [mode, setMode] = useState('hebdo');
+  const { data } = useQuery(['analyse-perf-superviseurs', mode],
+    () => api.get('/analyse-perf/superviseurs', { params: { mode } }).then(r => r.data), { staleTime: 30000 });
+  const lignes = data?.lignes || [];
+  const th = { textAlign: 'left', padding: '9px 8px', color: '#8a8a9a', fontWeight: 700, whiteSpace: 'nowrap', fontSize: 11 };
+  const td = { padding: '9px 8px', fontSize: 12, whiteSpace: 'nowrap' };
+  const cScore = (s) => (s >= 70 ? '#22c55e' : s >= 50 ? '#ffa502' : '#ff4757');
+  const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 };
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 14, display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select style={inp} value={mode} onChange={e => setMode(e.target.value)}>
+          <option value="hebdo">Hebdomadaire</option>
+          <option value="mensuel">Mensuel</option>
+        </select>
+        <div style={{ fontSize: 12, color: '#8a8a9a' }}>
+          Score /100 — poids : <strong style={{ color: '#e2e8f0' }}>{Object.entries(data?.poids || {}).map(([k, v]) => `${k} ${v}%`).join(' · ')}</strong>
+        </div>
+        <div style={{ fontSize: 12, color: '#8a8a9a' }}>
+          Cibles : rendement <strong style={{ color: '#00d68f' }}>{data?.cible_rendement}%</strong> · activation <strong style={{ color: '#a29bfe' }}>{data?.cible_activation}%</strong> · rupture max <strong style={{ color: '#ff4757' }}>{data?.cible_rupture}%</strong>
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto', maxHeight: '70vh' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th style={th}>#</th><th style={th}>Superviseur</th><th style={{ ...th, textAlign: 'center' }}>Score</th>
+                <th style={{ ...th, textAlign: 'right' }}>Obj. %</th><th style={{ ...th, textAlign: 'right' }}>Rendement</th>
+                <th style={{ ...th, textAlign: 'right' }}>Vol/actif</th><th style={{ ...th, textAlign: 'right' }}>Activation</th>
+                <th style={{ ...th, textAlign: 'right' }}>Rétention</th><th style={{ ...th, textAlign: 'right' }}>Solde</th>
+                <th style={{ ...th, textAlign: 'right' }}>Ruptures</th><th style={{ ...th, textAlign: 'right' }}>Qualité</th>
+                <th style={{ ...th, textAlign: 'right' }}>REAL TTC</th><th style={{ ...th, textAlign: 'right' }}>PDV</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lignes.length === 0 ? (
+                <tr><td colSpan={13} style={{ textAlign: 'center', padding: 30, color: '#8a8a9a' }}>Chargement…</td></tr>
+              ) : lignes.map((l, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ ...td, color: '#64748b' }}>{i + 1}</td>
+                  <td style={{ ...td, fontWeight: 700, color: '#e2e8f0' }}>{l.nom}</td>
+                  <td style={{ ...td, textAlign: 'center' }}>
+                    <span style={{ fontWeight: 900, color: cScore(l.score) }}>{l.score}</span>
+                  </td>
+                  <td style={{ ...td, textAlign: 'right', color: l.taux_realisation >= 100 ? '#22c55e' : '#ffa502' }}>{fmtN(l.taux_realisation, 1)}</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#00d68f' }}>{fmtN(l.rendement * 100, 3)} %</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmtN(l.volume_par_actif)}</td>
+                  <td style={{ ...td, textAlign: 'right', color: l.activation >= 90 ? '#22c55e' : '#ffa502' }}>{fmtN(l.activation, 1)} %</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#a29bfe' }}>{l.retention != null ? `${fmtN(l.retention, 1)} %` : '—'}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: l.solde >= 0 ? '#22c55e' : '#ff4757' }}>{l.solde > 0 ? '+' : ''}{l.solde}</td>
+                  <td style={{ ...td, textAlign: 'right', color: l.nb_ruptures > 0 ? '#ff4757' : '#475569' }}>{l.nb_ruptures}</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmtN(l.qualite, 0)} %</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#FF6900' }}>{fmtN(l.real)}</td>
+                  <td style={{ ...td, textAlign: 'right', color: '#8a8a9a' }}>{l.nb_pdv}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Onglet Moteurs (décomposition) ────────────────────────────────────────────
+function TabMoteurs() {
+  const [mode, setMode] = useState('hebdo');
+  const { data } = useQuery(['analyse-perf-moteurs', mode],
+    () => api.get('/analyse-perf/moteurs', { params: { mode } }).then(r => r.data), { staleTime: 30000 });
+  const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 };
+  const v = data?.volume || {};
+  const rl = data?.real || {};
+
+  const EffetBar = ({ label, valeur, max }) => {
+    const pct = max ? Math.min(100, Math.abs(valeur) / max * 100) : 0;
+    const positif = valeur >= 0;
+    return (
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+          <span style={{ color: '#cbd5e1' }}>{label}</span>
+          <strong style={{ color: positif ? '#22c55e' : '#ff4757' }}>{positif ? '+' : ''}{fmtN(valeur)}</strong>
+        </div>
+        <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: positif ? '#22c55e' : '#ff4757', borderRadius: 4 }} />
+        </div>
+      </div>
+    );
+  };
+
+  const maxV = Math.max(Math.abs(v.effet_actifs || 0), Math.abs(v.effet_transactions || 0), Math.abs(v.effet_ticket || 0), 1);
+  const maxR = Math.max(Math.abs(rl.effet_volume || 0), Math.abs(rl.effet_rendement || 0), 1);
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 14, display: 'flex', gap: 12, alignItems: 'center' }}>
+        <select style={inp} value={mode} onChange={e => setMode(e.target.value)}>
+          <option value="hebdo">Hebdomadaire</option>
+          <option value="mensuel">Mensuel</option>
+        </select>
+        <span style={{ fontSize: 12, color: '#8a8a9a' }}>{data?.periode_precedente} → <strong style={{ color: '#FF6900' }}>{data?.periode_courante}</strong></span>
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#4a9eff', marginBottom: 12 }}>📦 Décomposition du VOLUME</div>
+        <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 12 }}>Volume = PDV actifs × Transactions/PDV × Ticket moyen</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
+          {[['Actifs', v.actifs?.prec, v.actifs?.cur], ['Tx / actif', v.transactions_par_actif?.prec, v.transactions_par_actif?.cur], ['Ticket moyen', v.ticket_moyen?.prec, v.ticket_moyen?.cur], ['Volume', v.prec, v.cur]].map(([lab, a, b], i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, color: '#8a8a9a' }}>{lab}</div>
+              <div style={{ fontSize: 13, color: '#94a3b8' }}>{fmtN(a)}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>→ {fmtN(b)}</div>
+            </div>
+          ))}
+        </div>
+        <EffetBar label="Effet nombre de PDV actifs" valeur={v.effet_actifs || 0} max={maxV} />
+        <EffetBar label="Effet transactions / PDV" valeur={v.effet_transactions || 0} max={maxV} />
+        <EffetBar label="Effet ticket moyen" valeur={v.effet_ticket || 0} max={maxV} />
+        <div style={{ textAlign: 'right', fontSize: 13, marginTop: 6, color: '#8a8a9a' }}>Variation totale du volume : <strong style={{ color: (v.delta || 0) >= 0 ? '#22c55e' : '#ff4757' }}>{(v.delta || 0) > 0 ? '+' : ''}{fmtN(v.delta)}</strong></div>
+      </div>
+
+      <div className="card">
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#FF6900', marginBottom: 12 }}>💰 Décomposition du REAL TTC</div>
+        <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 12 }}>REAL TTC = Volume × Rendement</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: '#8a8a9a' }}>Rendement</div>
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>{fmtN((rl.rendement_prec || 0) * 100, 3)} %</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>→ {fmtN((rl.rendement_cur || 0) * 100, 3)} %</div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: '#8a8a9a' }}>REAL TTC</div>
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>{fmtN(rl.prec)}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>→ {fmtN(rl.cur)}</div>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: '#8a8a9a' }}>Variation</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: (rl.delta || 0) >= 0 ? '#22c55e' : '#ff4757' }}>{(rl.delta || 0) > 0 ? '+' : ''}{fmtN(rl.delta)}</div>
+          </div>
+        </div>
+        <EffetBar label="Effet volume" valeur={rl.effet_volume || 0} max={maxR} />
+        <EffetBar label="Effet rendement" valeur={rl.effet_rendement || 0} max={maxR} />
+      </div>
     </div>
   );
 }
@@ -618,6 +830,8 @@ export default function AnalysePerformancePage() {
           { id: 'synthese', label: '📊 Synthèse DG' },
           { id: 'recuperation', label: '🎯 PDV à récupérer' },
           { id: 'analyses', label: '🧭 Analyses' },
+          { id: 'superviseurs', label: '🏆 Superviseurs' },
+          { id: 'moteurs', label: '🧩 Moteurs' },
           { id: 'config', label: '⚙️ Configuration' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -633,6 +847,8 @@ export default function AnalysePerformancePage() {
 
       {tab === 'synthese' && <TabSynthese />}
       {tab === 'analyses' && <TabAnalyses />}
+      {tab === 'superviseurs' && <TabSuperviseurs />}
+      {tab === 'moteurs' && <TabMoteurs />}
 
       {tab === 'recuperation' && (
         <div>
