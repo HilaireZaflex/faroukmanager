@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from 'react-query';
+import { useNavigate } from 'react-router-dom';
 import { Download, RefreshCw, Settings, Target } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -123,10 +124,197 @@ function TabConfig({ config, onSaved }) {
   );
 }
 
+// ── Onglet Synthèse Direction Générale ────────────────────────────────────────
+const Var = ({ v }) => {
+  if (v === null || v === undefined) return <span style={{ color: '#475569' }}>—</span>;
+  return <span style={{ color: v >= 0 ? '#22c55e' : '#ff4757', fontWeight: 700 }}>{v > 0 ? '+' : ''}{fmtN(v, 1)} %</span>;
+};
+
+const SynKPI = ({ label, value, sub, color, varPrev, var4 }) => (
+  <div className="card" style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px' }}>
+    <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
+    <div style={{ fontSize: 22, fontWeight: 900, color, marginTop: 4 }}>{value}</div>
+    <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap', fontSize: 11, color: '#64748b' }}>
+      {varPrev !== undefined && <span>vs préc. <Var v={varPrev} /></span>}
+      {var4 !== undefined && var4 !== null && <span>réf. <Var v={var4} /></span>}
+    </div>
+    {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{sub}</div>}
+  </div>
+);
+
+function TabSynthese() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [mode, setMode] = useState('hebdo');
+  const [niveau, setNiveau] = useState('zone');
+  const [zone, setZone] = useState('');
+  const [superviseur, setSuperviseur] = useState('');
+  const [objInput, setObjInput] = useState('');
+
+  const { data, isLoading } = useQuery(['analyse-perf-synthese', mode, niveau, zone, superviseur],
+    () => api.get('/analyse-perf/synthese', { params: { mode, niveau, zone: zone || undefined, superviseur: superviseur || undefined } }).then(r => r.data),
+    { staleTime: 30000 }
+  );
+  const k = data?.kpis || {};
+  const lignes = data?.lignes || [];
+  const scopeKey = zone ? `ZONE:${zone}` : superviseur ? `SUPERVISEUR:${superviseur}` : 'RESEAU';
+
+  const enregistrerObjectif = async (valeur) => {
+    try {
+      await api.put('/analyse-perf/objectif', { scope: scopeKey, period_key: data.period_key_courante, valeur });
+      qc.invalidateQueries('analyse-perf-synthese');
+      toast.success(valeur === null ? 'Objectif remis en automatique' : 'Objectif enregistré');
+      setObjInput('');
+    } catch (e) { toast.error('Erreur'); }
+  };
+
+  const ouvrirLigne = (l) => {
+    if (niveau === 'zone') { setZone(l.nom === '—' ? '' : l.nom); setNiveau('superviseur'); }
+    else if (niveau === 'superviseur') { setSuperviseur(l.nom === '—' ? '' : l.nom); setNiveau('pdv'); }
+    else if (l.pdv_id) { navigate(`/pdvs/${l.pdv_id}`); }
+  };
+
+  const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 };
+  const th = { textAlign: 'left', padding: '9px 10px', color: '#8a8a9a', fontWeight: 700, whiteSpace: 'nowrap', fontSize: 11 };
+  const td = { padding: '9px 10px', fontSize: 12, whiteSpace: 'nowrap' };
+  const realColor = k.taux_realisation >= 100 ? '#22c55e' : k.taux_realisation >= 90 ? '#ffa502' : '#ff4757';
+
+  return (
+    <div>
+      {/* Barre scope + breadcrumb */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <select style={inp} value={mode} onChange={e => setMode(e.target.value)}>
+            <option value="hebdo">Hebdomadaire</option>
+            <option value="mensuel">Mensuel</option>
+          </select>
+          <button onClick={() => qc.invalidateQueries('analyse-perf-synthese')} style={{ ...inp, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <RefreshCw size={14} /> Actualiser
+          </button>
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: '#8a8a9a' }}>
+            <span style={{ cursor: 'pointer', color: '#4a9eff' }} onClick={() => { setZone(''); setSuperviseur(''); setNiveau('zone'); }}>Réseau</span>
+            {zone && <> › <span style={{ cursor: 'pointer', color: '#4a9eff' }} onClick={() => { setSuperviseur(''); setNiveau('superviseur'); }}>{zone}</span></>}
+            {superviseur && <> › <span style={{ color: '#e2e8f0' }}>{superviseur}</span></>}
+            <span style={{ marginLeft: 12, color: '#64748b' }}>Période : <strong style={{ color: '#FF6900' }}>{data?.periode_courante || '—'}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {isLoading ? <div className="card">Chargement…</div> : (
+        <>
+          {/* 8 KPI DG */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 16 }}>
+            <SynKPI label="REAL TTC" value={fmtF(k.real)} color="#FF6900" varPrev={k.var_real} var4={k.var_real_4} sub="Commission réelle agent" />
+            <SynKPI label="Rendement (REAL / million)" value={fmtN(k.real_par_million)} color="#00d68f" varPrev={k.var_rendement} sub={`${fmtN((k.rendement || 0) * 100, 3)} % du volume`} />
+            <SynKPI label="Volume total" value={fmtF(k.volume)} color="#4a9eff" varPrev={k.var_volume} var4={k.var_volume_4} sub="CI + CO" />
+            <SynKPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" varPrev={k.var_activation} sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)} PDV actifs`} />
+            <SynKPI label="Volume / actif" value={fmtF(k.volume_par_actif)} color="#0ea5e9" sub="Productivité par PDV actif" />
+            <SynKPI label="VCPA (REAL / actif)" value={fmtF(k.real_par_actif)} color="#22c55e" sub="Valeur créée par PDV actif" />
+            <SynKPI label="Gisements de profit" value={fmtN(k.nb_gisements)} color="#ffa502" sub={`${fmtN(k.pct_volume_gisements, 1)} % du volume réseau`} />
+            <SynKPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" sub={`${fmtN(k.nb_ruptures)} ruptures au total`} />
+          </div>
+
+          {/* Objectif + flux */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div className="card" style={{ borderLeft: '4px solid #FF6900' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6900' }}>
+                  🎯 Objectif REAL TTC — {k.objectif_source === 'manuel' ? 'saisi' : 'auto (meilleure période + croissance)'}
+                </div>
+                <div style={{ fontSize: 12, color: '#8a8a9a' }}>Réalisation : <strong style={{ color: realColor, fontSize: 15 }}>{fmtN(k.taux_realisation, 1)} %</strong></div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#94a3b8', margin: '8px 0 4px' }}>
+                <span>Réalisé : <strong style={{ color: '#fff' }}>{fmtF(k.real)}</strong></span>
+                <span>Objectif : <strong style={{ color: '#fff' }}>{fmtF(k.objectif)}</strong></span>
+              </div>
+              <div style={{ height: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 5, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.min(100, k.taux_realisation || 0)}%`, background: realColor, borderRadius: 5 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="number" placeholder="Objectif manuel (FCFA)" value={objInput} onChange={e => setObjInput(e.target.value)} style={{ ...inp, width: 200 }} />
+                <button onClick={() => objInput !== '' && enregistrerObjectif(parseFloat(objInput))}
+                  style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: '#FF6900', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Définir</button>
+                {k.objectif_source === 'manuel' && (
+                  <button onClick={() => enregistrerObjectif(null)}
+                    style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#8a8a9a', fontSize: 12, cursor: 'pointer' }}>Revenir à l'auto</button>
+                )}
+              </div>
+            </div>
+            <div className="card" style={{ borderLeft: '4px solid #0ea5e9' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#0ea5e9', marginBottom: 10 }}>💧 Flux net CI − CO</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}><span style={{ color: '#8a8a9a' }}>Cash-in</span><strong>{fmtF(k.ci)}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}><span style={{ color: '#8a8a9a' }}>Cash-out</span><strong>{fmtF(k.co)}</strong></div>
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                <span style={{ color: '#8a8a9a' }}>Net</span>
+                <strong style={{ color: k.flux_net < 0 ? '#ffa502' : '#22c55e' }}>{fmtF(k.flux_net)}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Tableau de drill-down */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
+              {niveau === 'zone' ? '🧭 Répartition par zone' : niveau === 'superviseur' ? `👤 Superviseurs — ${zone}` : `🏪 PDV — ${superviseur}`}
+              {niveau !== 'pdv' && <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400 }}> · cliquez sur une ligne pour descendre</span>}
+            </div>
+            <div style={{ overflowX: 'auto', maxHeight: '55vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <th style={th}>{niveau === 'pdv' ? 'PDV' : 'Nom'}</th>
+                    <th style={{ ...th, textAlign: 'right' }}>PDV</th>
+                    <th style={{ ...th, textAlign: 'right' }}>REAL TTC</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Var</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Volume</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Rendement</th>
+                    <th style={{ ...th, textAlign: 'right' }}>REAL/M</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Activation</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Vol/actif</th>
+                    <th style={{ ...th, textAlign: 'right' }}>VCPA</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Gisements</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Ruptures</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lignes.length === 0 ? (
+                    <tr><td colSpan={12} style={{ textAlign: 'center', padding: 30, color: '#8a8a9a' }}>Aucune donnée</td></tr>
+                  ) : lignes.map((l, i) => (
+                    <tr key={i} onClick={() => ouvrirLigne(l)} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer' }}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                      <td style={{ ...td, fontWeight: 700, color: '#e2e8f0' }}>{l.nom}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#8a8a9a' }}>{l.nb_pdv}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#FF6900', fontWeight: 700 }}>{fmtN(l.real)}</td>
+                      <td style={{ ...td, textAlign: 'right' }}><Var v={l.var_real} /></td>
+                      <td style={{ ...td, textAlign: 'right', color: '#cbd5e1' }}>{fmtN(l.volume)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmtN(l.rendement * 100, 3)} %</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#00d68f' }}>{fmtN(l.real_par_million)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: l.activation >= 90 ? '#22c55e' : '#ffa502' }}>{fmtN(l.activation, 1)} %</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmtN(l.volume_par_actif)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#22c55e' }}>{fmtN(l.real_par_actif)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: l.nb_gisements > 0 ? '#ffa502' : '#475569' }}>{l.nb_gisements}</td>
+                      <td style={{ ...td, textAlign: 'right', color: l.nb_ruptures > 0 ? '#ff4757' : '#475569' }}>{l.nb_ruptures}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, fontSize: 11, color: '#64748b' }}>
+            REAL TTC = commission réelle agent · Rendement = REAL ÷ Volume · VCPA = REAL ÷ PDV actifs ·
+            Gisement = volume ≥ seuil et rendement &lt; seuil · Rupture = aucune opération sur {k.nb_ruptures != null ? 'les dernières périodes' : ''}.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Page principale ───────────────────────────────────────────────────────────
 export default function AnalysePerformancePage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState('recuperation');
+  const [tab, setTab] = useState('synthese');
   const [mode, setMode] = useState('mensuel');
   const [metrique, setMetrique] = useState('volume');
   const [search, setSearch] = useState('');
@@ -208,6 +396,7 @@ export default function AnalysePerformancePage() {
       {/* Onglets */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
         {[
+          { id: 'synthese', label: '📊 Synthèse DG' },
           { id: 'recuperation', label: '🎯 PDV à récupérer' },
           { id: 'config', label: '⚙️ Configuration' },
         ].map(t => (
@@ -221,6 +410,8 @@ export default function AnalysePerformancePage() {
       {tab === 'config' && (
         <TabConfig config={config} onSaved={() => { qc.invalidateQueries('analyse-perf-config'); qc.invalidateQueries('analyse-perf'); }} />
       )}
+
+      {tab === 'synthese' && <TabSynthese />}
 
       {tab === 'recuperation' && (
         <div>
