@@ -318,6 +318,218 @@ function TabSynthese() {
   );
 }
 
+// ── Onglet Analyses : Zones · Segments · Gisements ────────────────────────────
+function TabAnalyses() {
+  const qc = useQueryClient();
+  const [sous, setSous] = useState('zones');
+  const [mode, setMode] = useState('hebdo');
+  const [critere, setCritere] = useState('rendement');
+
+  const { data: zonesData } = useQuery(['analyse-perf-zones', mode],
+    () => api.get('/analyse-perf/zones', { params: { mode } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'zones' });
+  const { data: segData } = useQuery(['analyse-perf-segments', mode, critere],
+    () => api.get('/analyse-perf/segments', { params: { mode, critere } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'segments' });
+  const { data: gisData } = useQuery(['analyse-perf-gisements', mode],
+    () => api.get('/analyse-perf/gisements', { params: { mode } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'gisements' });
+
+  const modifierObjectifZone = async (zone, valeur) => {
+    try {
+      const cfg = (await api.get('/analyse-perf/config')).data;
+      const obj = { ...(cfg.objectifs_activation || {}), [zone]: valeur };
+      await api.put('/analyse-perf/config', { ...cfg, objectifs_activation: obj });
+      qc.invalidateQueries('analyse-perf-zones');
+      toast.success(`Objectif ${zone} : ${valeur} %`);
+    } catch (e) { toast.error('Erreur'); }
+  };
+
+  const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 };
+  const th = { textAlign: 'left', padding: '9px 10px', color: '#8a8a9a', fontWeight: 700, whiteSpace: 'nowrap', fontSize: 11 };
+  const td = { padding: '9px 10px', fontSize: 12, whiteSpace: 'nowrap' };
+  const Card = ({ label, value, color, sub }) => (
+    <div className="card" style={{ borderLeft: `4px solid ${color}`, padding: '14px 16px' }}>
+      <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 900, color, marginTop: 4 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        {[{ id: 'zones', label: '🧭 Zones' }, { id: 'segments', label: '🎖️ Segments' }, { id: 'gisements', label: '💎 Gisements' }].map(s => (
+          <button key={s.id} onClick={() => setSous(s.id)}
+            style={{ padding: '8px 16px', borderRadius: 9, border: `1px solid ${sous === s.id ? '#FF6900' : 'rgba(255,255,255,0.08)'}`, background: sous === s.id ? 'rgba(255,105,0,0.12)' : 'rgba(255,255,255,0.03)', color: sous === s.id ? '#FF6900' : '#8a8a9a', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+            {s.label}
+          </button>
+        ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <select style={inp} value={mode} onChange={e => setMode(e.target.value)}>
+            <option value="hebdo">Hebdomadaire</option>
+            <option value="mensuel">Mensuel</option>
+          </select>
+          {sous === 'segments' && (
+            <select style={inp} value={critere} onChange={e => setCritere(e.target.value)}>
+              <option value="rendement">Critère : Rendement</option>
+              <option value="volume">Critère : Volume</option>
+              <option value="real">Critère : REAL TTC</option>
+            </select>
+          )}
+        </div>
+      </div>
+
+      {/* ── ZONES ── */}
+      {sous === 'zones' && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
+            🧭 Analyse par zone — {zonesData?.periode_courante || '…'}
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th style={th}>Zone</th><th style={{ ...th, textAlign: 'right' }}>PDV</th><th style={{ ...th, textAlign: 'right' }}>Actifs</th>
+                <th style={{ ...th, textAlign: 'right' }}>Activation</th><th style={{ ...th, textAlign: 'right' }}>Objectif</th><th style={{ ...th, textAlign: 'right' }}>Écart</th>
+                <th style={{ ...th, textAlign: 'right' }}>Volume</th><th style={{ ...th, textAlign: 'right' }}>REAL TTC</th><th style={{ ...th, textAlign: 'right' }}>Rendement</th>
+                <th style={{ ...th, textAlign: 'right' }}>REAL/M</th><th style={{ ...th, textAlign: 'right' }}>Vol/actif</th><th style={{ ...th, textAlign: 'right' }}>VCPA</th>
+                <th style={{ ...th, textAlign: 'right' }}>Gisements</th>
+              </tr></thead>
+              <tbody>
+                {(zonesData?.lignes || []).map((l, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <td style={{ ...td, fontWeight: 700, color: '#e2e8f0' }}>{l.nom}</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#8a8a9a' }}>{l.nb_pdv}</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{l.nb_actifs}</td>
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: l.activation >= l.objectif_activation ? '#22c55e' : '#ffa502' }}>{fmtN(l.activation, 1)} %</td>
+                    <td style={{ ...td, textAlign: 'right' }}>
+                      <input type="number" defaultValue={l.objectif_activation} onBlur={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v !== l.objectif_activation) modifierObjectifZone(l.nom, v); }}
+                        style={{ width: 58, padding: '3px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#a29bfe', fontSize: 12, textAlign: 'right' }} />
+                    </td>
+                    <td style={{ ...td, textAlign: 'right', color: l.ecart_activation >= 0 ? '#22c55e' : '#ff4757' }}>{l.ecart_activation > 0 ? '+' : ''}{fmtN(l.ecart_activation, 1)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#cbd5e1' }}>{fmtN(l.volume)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#FF6900', fontWeight: 700 }}>{fmtN(l.real)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmtN(l.rendement * 100, 3)} %</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#00d68f' }}>{fmtN(l.real_par_million)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{fmtN(l.volume_par_actif)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: '#22c55e' }}>{fmtN(l.real_par_actif)}</td>
+                    <td style={{ ...td, textAlign: 'right', color: l.nb_gisements > 0 ? '#ffa502' : '#475569' }}>{l.nb_gisements}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding: '9px 16px', fontSize: 11, color: '#64748b', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            L'objectif d'activation est modifiable directement dans le tableau (il se sauvegarde automatiquement).
+          </div>
+        </div>
+      )}
+
+      {/* ── SEGMENTS ── */}
+      {sous === 'segments' && (
+        <div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 12 }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
+              🎖️ Segmentation dynamique par <strong style={{ color: '#FF6900' }}>{segData?.critere}</strong> — {segData?.periode_courante || '…'}
+              <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400 }}> · percentiles { (segData?.paliers || []).join(' / ') }</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <th style={th}>Segment</th><th style={{ ...th, textAlign: 'right' }}>Nb PDV</th><th style={{ ...th, textAlign: 'right' }}>Activation</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Volume</th><th style={{ ...th, textAlign: 'right' }}>% volume</th>
+                  <th style={{ ...th, textAlign: 'right' }}>REAL TTC</th><th style={{ ...th, textAlign: 'right' }}>% REAL</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Rendement</th><th style={{ ...th, textAlign: 'right' }}>REAL/M</th>
+                </tr></thead>
+                <tbody>
+                  {(segData?.lignes || []).map((l, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ ...td, fontWeight: 800, color: '#e2e8f0' }}>{l.segment}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#8a8a9a' }}>{l.nb_pdv}</td>
+                      <td style={{ ...td, textAlign: 'right', color: l.activation >= 90 ? '#22c55e' : '#ffa502' }}>{fmtN(l.activation, 1)} %</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#cbd5e1' }}>{fmtN(l.volume)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#4a9eff' }}>{fmtN(l.pct_volume, 1)} %</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#FF6900', fontWeight: 700 }}>{fmtN(l.real)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#4a9eff' }}>{fmtN(l.pct_real, 1)} %</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#00d68f' }}>{fmtN(l.rendement * 100, 3)} %</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#00d68f' }}>{fmtN(l.real_par_million)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+            <Card label={`${segData?.sous_segment?.nom || 'Fer'} — dormant`} value={segData?.sous_segment?.dormant ?? 0} color="#64748b" sub="0 opération" />
+            <Card label={`${segData?.sous_segment?.nom || 'Fer'} — rentable`} value={segData?.sous_segment?.rentable ?? 0} color="#22c55e" sub="bon rendement" />
+            <Card label={`${segData?.sous_segment?.nom || 'Fer'} — à potentiel`} value={segData?.sous_segment?.a_potentiel ?? 0} color="#ffa502" sub="gros volume" />
+            <Card label={`${segData?.sous_segment?.nom || 'Fer'} — structurellement faible`} value={segData?.sous_segment?.faible ?? 0} color="#ff4757" sub="à corriger" />
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: '#64748b' }}>
+            Segmentation calculée par percentiles sur les PDV (paramétrable dans Configuration). L'objectif Orange peut différer : fournir la règle exacte pour la reproduire à l'identique.
+          </div>
+        </div>
+      )}
+
+      {/* ── GISEMENTS ── */}
+      {sous === 'gisements' && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 14 }}>
+            <Card label="Gisements" value={gisData?.kpis?.nb_gisements ?? 0} color="#ffa502" sub={`Volume ≥ ${fmtN(gisData?.seuil_volume)} & rendement < ${gisData?.seuil_rendement}%`} />
+            <Card label="Volume des gisements" value={fmtF(gisData?.kpis?.volume_gisements)} color="#4a9eff" sub="fort volume, faible rendement" />
+            <Card label="% du volume réseau" value={`${fmtN(gisData?.kpis?.pct_volume_reseau, 1)} %`} color="#ff4757" sub="poids dans le réseau" />
+            <Card label="REAL des gisements" value={fmtF(gisData?.kpis?.real_gisements)} color="#FF6900" sub={`rendement moyen ${fmtN((gisData?.kpis?.rendement_moyen || 0), 3)} %`} />
+          </div>
+
+          {/* Évolution */}
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#e2e8f0', marginBottom: 12 }}>📈 Évolution du nombre de gisements</div>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', height: 120 }}>
+              {(gisData?.evolution || []).map((e, i) => {
+                const max = Math.max(...(gisData?.evolution || []).map(x => x.nb), 1);
+                return (
+                  <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#ffa502', marginBottom: 4 }}>{e.nb}</div>
+                    <div style={{ height: `${(e.nb / max) * 80}px`, background: 'linear-gradient(180deg,#FF6900,#ffa502)', borderRadius: 6, minHeight: 4 }} />
+                    <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 6 }}>{e.periode}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 800, color: '#e2e8f0' }}>
+              💎 PDV gisements de profit — {gisData?.periode_courante || '…'}
+            </div>
+            <div style={{ overflowX: 'auto', maxHeight: '55vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <th style={th}>PDV</th><th style={th}>Zone</th><th style={th}>Superviseur</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Volume</th><th style={{ ...th, textAlign: 'right' }}>REAL TTC</th>
+                    <th style={{ ...th, textAlign: 'right' }}>Rendement</th><th style={{ ...th, textAlign: 'right' }}>Opérations</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(gisData?.pdvs || []).map((p, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={td}><div style={{ fontWeight: 700, color: '#e2e8f0' }}>{p.numero_pdv}</div><div style={{ fontSize: 11, color: '#8a8a9a' }}>{p.nom}</div></td>
+                      <td style={{ ...td, color: '#94a3b8' }}>{p.zone || '—'}</td>
+                      <td style={{ ...td, color: '#94a3b8' }}>{p.superviseur || '—'}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#4a9eff', fontWeight: 700 }}>{fmtN(p.volume)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#FF6900' }}>{fmtN(p.real)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#ffa502' }}>{fmtN(p.rendement, 3)} %</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#8a8a9a' }}>{fmtN(p.operations)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page principale ───────────────────────────────────────────────────────────
 export default function AnalysePerformancePage() {
   const qc = useQueryClient();
@@ -405,6 +617,7 @@ export default function AnalysePerformancePage() {
         {[
           { id: 'synthese', label: '📊 Synthèse DG' },
           { id: 'recuperation', label: '🎯 PDV à récupérer' },
+          { id: 'analyses', label: '🧭 Analyses' },
           { id: 'config', label: '⚙️ Configuration' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -419,6 +632,7 @@ export default function AnalysePerformancePage() {
       )}
 
       {tab === 'synthese' && <TabSynthese />}
+      {tab === 'analyses' && <TabAnalyses />}
 
       {tab === 'recuperation' && (
         <div>

@@ -54,6 +54,13 @@ CONFIG_DEFAUT: Dict[str, Any] = {
     "seuil_rupture_periodes": 2,
     "objectif_taux_croissance": 0.05,
     "objectif_source": "auto",            # auto | manuel
+    # Objectifs d'activation par zone (%, différenciés)
+    "objectif_activation_defaut": 90,
+    "objectifs_activation": {},
+    # Segmentation dynamique
+    "segments_critere": "rendement",      # volume | real | rendement
+    "segments_noms": ["Diamant", "Argent", "Or", "Cuivre", "Fer"],
+    "segments_paliers": [95, 80, 60, 30],  # percentiles décroissants
 }
 
 
@@ -653,3 +660,293 @@ def set_objectif(body: Dict[str, Any], db: Session = Depends(get_db),
     cfg["objectifs"] = objectifs
     _save_config(db, cfg)
     return {"success": True, "scope": scope, "period_key": pkey, "valeur": valeur}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ANALYSES : Zones · Segments · Gisements de profit
+# ══════════════════════════════════════════════════════════════════════════════
+def _charger(db: Session, mode: str, nb: int):
+    """Charge les performances des nb dernières périodes → {pdv_id: {index: perf}}."""
+    periodes = _periodes(db, mode, max(2, nb))
+    if not periodes:
+        return periodes, {}
+    if mode == "hebdo":
+        conds = [and_(WeeklyPerformance.annee == p[1], WeeklyPerformance.semaine == p[2]) for p in periodes]
+        rows = db.query(WeeklyPerformance).filter(or_(*conds)).all()
+        def pkey(p): return (p.annee, p.semaine)
+    else:
+        conds = [and_(MonthlyPerformance.annee == p[1], MonthlyPerformance.mois == p[2]) for p in periodes]
+        rows = db.query(MonthlyPerformance).filter(or_(*conds)).all()
+        def pkey(p): return (p.annee, p.mois)
+    idx = {(p[1], p[2]): i for i, p in enumerate(periodes)}
+    data: Dict[int, Dict[int, Any]] = {}
+    for r in rows:
+        i = idx.get(pkey(r))
+        if i is None:
+            continue
+        data.setdefault(r.pdv_id, {})[i] = r
+    return periodes, data
+
+
+def _pdvs_scope(db: Session, current_user: User, zone=None, superviseur=None, type_pdv=None):
+    f = get_pdv_filters(current_user)
+    z = f.get("zone") or zone
+    s = f.get("superviseur") or superviseur
+    q = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+    if z:
+        q = q.filter(PDV.zone == z)
+    if s:
+        q = q.filter(PDV.superviseur.ilike(f"%{s}%"))
+    if type_pdv:
+        q = q.filter(PDV.type_pdv == type_pdv)
+    return q.all()
+
+
+def _valeur_critere(p, critere: str, source_real: str):
+    if p is None:
+        return 0.0
+    v = float(getattr(p, "montant_transaction", None) or getattr(p, "ca", None) or 0)
+    r = _real(p, source_real)
+    if critere == "real":
+        return r
+    if critere == "rendement":
+        return (r / v) if v > 0 else 0.0
+    return v
+
+
+def _bandes_percentile(valeurs, paliers):
+    """Seuils correspondant aux percentiles décroissants (ex: [95,80,60,30])."""
+    vals = sorted([v for v in valeurs if v and v > 0], reverse=True)
+    n = len(vals)
+    if n == 0:
+        return [0 for _ in paliers]
+    seuils = []
+    for pct in paliers:
+        i = int(round(n * (100 - pct) / 100.0))
+        i = max(0, min(n - 1, i))
+        seuils.append(vals[i])
+    return seuils
+
+
+def _bande_de(valeur, seuils):
+    for k, s in enumerate(seuils):
+        if valeur >= s:
+            return k
+    return len(seuils)
+
+
+@router.get("/analyse-perf/zones")
+def analyse_zones(
+    mode: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Tableau par zone : activation, volume, REAL, rendement + objectif d'activation."""
+    cfg = _get_config(db)
+    mode = (mode or cfg.get("mode") or "mensuel").lower()
+    if mode not in ("mensuel", "hebdo"):
+        mode = "mensuel"
+    source_real = cfg.get("source_real", "agent")
+    periodes, perf = _charger(db, mode, max(int(cfg.get("nb_periodes", 4)), 2))
+    if not periodes:
+        return {"lignes": [], "periodes": []}
+    i_cur = len(periodes) - 1
+    pdvs = _pdvs_scope(db, current_user)
+
+    par_zone: Dict[str, List[int]] = {}
+    for p in pdvs:
+        par_zone.setdefault(p.zone or "—", []).append(p.id)
+
+    obj_def = float(cfg.get("objectif_activation_defaut", 90))
+    obj_zones = cfg.get("objectifs_activation") or {}
+    seuil_gv = float(cfg.get("seuil_gisement_volume", 10000000))
+    seuil_gr = float(cfg.get("seuil_gisement_rendement", 0.20))
+
+    lignes = []
+    for z, ids in par_zone.items():
+        m = _agg(perf, ids, i_cur, source_real)
+        act = round(m["actifs"] / len(ids) * 100, 2) if ids else 0
+        obj = float(obj_zones.get(z, obj_def))
+        gis = 0
+        for pid in ids:
+            p = perf.get(pid, {}).get(i_cur)
+            v = float(getattr(p, "montant_transaction", None) or getattr(p, "ca", None) or 0) if p else 0
+            r = _real(p, source_real)
+            if v >= seuil_gv and (r / v * 100 if v > 0 else 0) < seuil_gr:
+                gis += 1
+        lignes.append({
+            "nom": z, "nb_pdv": len(ids), "nb_actifs": m["actifs"], "inactifs": len(ids) - m["actifs"],
+            "activation": act, "objectif_activation": obj, "ecart_activation": round(act - obj, 2),
+            "volume": m["volume"], "real": m["real"], "rendement": m["rendement"],
+            "real_par_million": m["real_par_million"], "volume_par_actif": m["volume_par_actif"],
+            "real_par_actif": m["real_par_actif"], "flux_net": m["flux_net"],
+            "nb_gisements": gis,
+        })
+    lignes.sort(key=lambda x: x["volume"], reverse=True)
+
+    total = _agg(perf, [p.id for p in pdvs], i_cur, source_real)
+    return {
+        "mode": mode, "source_real": source_real,
+        "periode_courante": _label_periode(periodes[i_cur]),
+        "periodes": [_label_periode(p) for p in periodes],
+        "objectif_activation_defaut": obj_def,
+        "lignes": lignes,
+        "total": {
+            "nb_pdv": len(pdvs), "nb_actifs": total["actifs"],
+            "activation": round(total["actifs"] / len(pdvs) * 100, 2) if pdvs else 0,
+            "volume": total["volume"], "real": total["real"],
+            "rendement": total["rendement"], "real_par_million": total["real_par_million"],
+            "volume_par_actif": total["volume_par_actif"], "real_par_actif": total["real_par_actif"],
+        },
+    }
+
+
+@router.get("/analyse-perf/segments")
+def analyse_segments(
+    mode: Optional[str] = Query(None),
+    critere: Optional[str] = Query(None, description="volume | real | rendement"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Segmentation dynamique (percentiles) selon le critère choisi."""
+    cfg = _get_config(db)
+    mode = (mode or cfg.get("mode") or "mensuel").lower()
+    if mode not in ("mensuel", "hebdo"):
+        mode = "mensuel"
+    critere = (critere or cfg.get("segments_critere") or "rendement").lower()
+    if critere not in ("volume", "real", "rendement"):
+        critere = "rendement"
+    source_real = cfg.get("source_real", "agent")
+    noms = cfg.get("segments_noms") or ["Diamant", "Argent", "Or", "Cuivre", "Fer"]
+    paliers = cfg.get("segments_paliers") or [95, 80, 60, 30]
+
+    periodes, perf = _charger(db, mode, max(int(cfg.get("nb_periodes", 4)), 2))
+    if not periodes:
+        return {"lignes": [], "sous_segment": {}}
+    i_cur = len(periodes) - 1
+    pdvs = _pdvs_scope(db, current_user)
+    seuil_gv = float(cfg.get("seuil_gisement_volume", 10000000))
+    seuil_gr = float(cfg.get("seuil_gisement_rendement", 0.20))
+
+    valeurs = {p.id: _valeur_critere(perf.get(p.id, {}).get(i_cur), critere, source_real) for p in pdvs}
+    seuils = _bandes_percentile(list(valeurs.values()), paliers)
+
+    par_bande: Dict[int, List[int]] = {i: [] for i in range(len(noms))}
+    for pid, val in valeurs.items():
+        par_bande[_bande_de(val, seuils)].append(pid)
+
+    total_vol = _agg(perf, [p.id for p in pdvs], i_cur, source_real)["volume"] or 1
+    total_real = _agg(perf, [p.id for p in pdvs], i_cur, source_real)["real"] or 1
+
+    lignes = []
+    for i, nom in enumerate(noms):
+        ids = par_bande.get(i, [])
+        m = _agg(perf, ids, i_cur, source_real)
+        act = round(m["actifs"] / len(ids) * 100, 2) if ids else 0
+        lignes.append({
+            "segment": nom, "nb_pdv": len(ids), "activation": act,
+            "volume": m["volume"], "real": m["real"], "rendement": m["rendement"],
+            "real_par_million": m["real_par_million"],
+            "pct_volume": round(m["volume"] / total_vol * 100, 2),
+            "pct_real": round(m["real"] / total_real * 100, 2),
+            "valeur_critere": round(seuils[i], 4) if i < len(seuils) else 0,
+        })
+
+    # Sous-classification du DERNIER segment (ex : « Fer »)
+    dernier = noms[-1] if noms else "Fer"
+    fer_ids = par_bande.get(len(noms) - 1, [])
+    sous = {"dormant": 0, "rentable": 0, "a_potentiel": 0, "faible": 0}
+    for pid in fer_ids:
+        p = perf.get(pid, {}).get(i_cur)
+        v = float(getattr(p, "montant_transaction", None) or getattr(p, "ca", None) or 0) if p else 0
+        r = _real(p, source_real)
+        ops = int(getattr(p, "nb_operations", None) or 0) if p else 0
+        rend = (r / v * 100) if v > 0 else 0
+        if ops == 0 and v == 0:
+            sous["dormant"] += 1
+        elif rend >= seuil_gr:
+            sous["rentable"] += 1
+        elif v >= seuil_gv:
+            sous["a_potentiel"] += 1
+        else:
+            sous["faible"] += 1
+
+    return {
+        "mode": mode, "critere": critere, "source_real": source_real,
+        "periode_courante": _label_periode(periodes[i_cur]),
+        "paliers": paliers, "seuils": seuils,
+        "lignes": lignes,
+        "sous_segment": {"nom": dernier, **sous},
+    }
+
+
+@router.get("/analyse-perf/gisements")
+def analyse_gisements(
+    mode: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """PDV à fort volume mais faible rendement + évolution dans le temps."""
+    cfg = _get_config(db)
+    mode = (mode or cfg.get("mode") or "mensuel").lower()
+    if mode not in ("mensuel", "hebdo"):
+        mode = "mensuel"
+    source_real = cfg.get("source_real", "agent")
+    seuil_gv = float(cfg.get("seuil_gisement_volume", 10000000))
+    seuil_gr = float(cfg.get("seuil_gisement_rendement", 0.20))
+
+    periodes, perf = _charger(db, mode, max(int(cfg.get("nb_periodes", 4)), 2))
+    if not periodes:
+        return {"pdvs": [], "evolution": []}
+    i_cur = len(periodes) - 1
+    pdvs = _pdvs_scope(db, current_user)
+    pdv_map = {p.id: p for p in pdvs}
+
+    def est_gisement(p):
+        v = float(getattr(p, "montant_transaction", None) or getattr(p, "ca", None) or 0) if p else 0
+        r = _real(p, source_real)
+        return v >= seuil_gv and ((r / v * 100) if v > 0 else 0) < seuil_gr
+
+    liste = []
+    for p in pdvs:
+        pc = perf.get(p.id, {}).get(i_cur)
+        if est_gisement(pc):
+            v = float(getattr(pc, "montant_transaction", None) or getattr(pc, "ca", None) or 0)
+            r = _real(pc, source_real)
+            liste.append({
+                "pdv_id": p.id, "numero_pdv": p.numero_pdv, "nom": p.nom,
+                "zone": p.zone, "sous_zone": p.sous_zone, "quartier": p.quartier,
+                "superviseur": p.superviseur, "type_pdv": p.type_pdv.value if p.type_pdv else None,
+                "volume": round(v, 2), "real": round(r, 2),
+                "rendement": round((r / v * 100) if v > 0 else 0, 4),
+                "operations": int(getattr(pc, "nb_operations", None) or 0),
+            })
+    liste.sort(key=lambda x: x["volume"], reverse=True)
+
+    evolution = []
+    for i in range(len(periodes)):
+        nb = vol = 0.0
+        for p in pdvs:
+            pp = perf.get(p.id, {}).get(i)
+            if est_gisement(pp):
+                nb += 1
+                vol += float(getattr(pp, "montant_transaction", None) or getattr(pp, "ca", None) or 0)
+        evolution.append({"periode": _label_periode(periodes[i]), "nb": int(nb), "volume": round(vol, 2)})
+
+    total_vol_reseau = _agg(perf, [p.id for p in pdvs], i_cur, source_real)["volume"] or 1
+    vol_gis = sum(x["volume"] for x in liste)
+    return {
+        "mode": mode, "source_real": source_real,
+        "periode_courante": _label_periode(periodes[i_cur]),
+        "seuil_volume": seuil_gv, "seuil_rendement": seuil_gr,
+        "kpis": {
+            "nb_gisements": len(liste),
+            "volume_gisements": round(vol_gis, 2),
+            "pct_volume_reseau": round(vol_gis / total_vol_reseau * 100, 2),
+            "real_gisements": round(sum(x["real"] for x in liste), 2),
+            "rendement_moyen": round(sum(x["rendement"] for x in liste) / len(liste), 4) if liste else 0,
+        },
+        "evolution": evolution,
+        "pdvs": liste,
+        "zones": sorted({x["zone"] for x in liste if x["zone"]}),
+    }
