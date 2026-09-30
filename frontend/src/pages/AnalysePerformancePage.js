@@ -279,6 +279,7 @@ function TabSynthese() {
             <><strong>Volume / actif</strong> = volume moyen par PDV actif (productivité). <strong>Valeur / actif</strong> = gain moyen par PDV actif (valeur créée).</>,
             <><strong>Gisements</strong> = PDV à gros volume mais faible rendement → principal potentiel de gain.</>,
             <><strong>Ruptures Top 100</strong> = meilleurs PDV qui ne travaillent plus. Cible : 0.</>,
+            <><strong>Dépendance Top 100</strong> = part du gain qui vient de nos 100 meilleurs PDV. Plus c'est élevé, plus on dépend d'un petit nombre de PDV.</>,
             <>🖱️ <strong>Cliquez sur une ligne</strong> du tableau pour descendre : Zone → Superviseur → PDV.</>,
           ]} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 16 }}>
@@ -290,6 +291,7 @@ function TabSynthese() {
             <SynKPI label="Valeur par PDV actif" value={fmtF(k.real_par_actif)} color="#22c55e" title="Valeur créée par PDV actif = gain réel ÷ nombre de PDV actifs. Permet de comparer des superviseurs de tailles différentes." sub="Gain moyen par PDV actif" />
             <SynKPI label="Gisements de profit" value={fmtN(k.nb_gisements)} color="#ffa502" title="PDV qui font beaucoup de volume mais rapportent peu (rendement sous le seuil) : principal potentiel d'amélioration." sub={`${fmtN(k.pct_volume_gisements, 1)} % du volume réseau`} />
             <SynKPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" title="Nombre de nos 100 meilleurs PDV qui n'ont plus aucune opération. Cible : 0." sub={`${fmtN(k.nb_ruptures)} ruptures au total`} />
+            <SynKPI label="Dépendance Top 100" value={`${fmtN(k.concentration_top100, 1)} %`} color="#a29bfe" title="Part du gain réalisée par nos 100 meilleurs PDV. Mesure notre dépendance : plus c'est élevé, plus le réseau dépend d'un petit nombre de PDV." sub="part du gain réseau" />
           </div>
 
           {/* Objectif + flux */}
@@ -1058,6 +1060,8 @@ export default function AnalysePerformancePage() {
             <><strong>Var. récente</strong> = évolution entre les 2 dernières périodes. <strong>Var. totale</strong> = évolution sur toute la période analysée.</>,
             <><strong>Baisses</strong> = nombre de périodes où le PDV a baissé (le chiffre entre parenthèses = baisses consécutives).</>,
             <><strong>Perte</strong> = <em>meilleur CA − CA actuel</em> : l'argent qu'on ne gagne plus. <strong>Potentiel récupérable</strong> = ce qu'on peut regagner.</>,
+            <><strong>Meilleur</strong> = le meilleur niveau atteint par le PDV. <strong>Moyenne</strong> = sa moyenne sur les périodes.</>,
+            <>Sous chaque période, la petite ligne <span style={{ color: '#22c55e' }}>verte</span> / <span style={{ color: '#ff4757' }}>rouge</span> = la <strong>variation par rapport à la période précédente</strong>.</>,
             <>👉 Classez par <strong>Score</strong> (urgence) ou par <strong>Perte</strong> (où est l'argent).</>,
           ]} />
           {/* KPI */}
@@ -1085,6 +1089,8 @@ export default function AnalysePerformancePage() {
                     <ThTri k="var_recente" label="Var. récente" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
                     <ThTri k="var_globale" label="Var. totale" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
                     <ThTri k="nb_baisses" label="Baisses" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="meilleur" label="Meilleur" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="moyenne" label="Moyenne" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
                     <ThTri k="perte_valeur" label="Perte" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
                     <ThTri k="pct_perte" label="% perte" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
                     <ThTri k="score" label="Score" align="center" tri={tri} sortKey={sortKey} sortDir={sortDir} />
@@ -1093,9 +1099,9 @@ export default function AnalysePerformancePage() {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan={12 + periodes.length} style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement…</td></tr>
+                    <tr><td colSpan={14 + periodes.length} style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Chargement…</td></tr>
                   ) : lignes.length === 0 ? (
-                    <tr><td colSpan={12 + periodes.length} style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Aucun PDV trouvé</td></tr>
+                    <tr><td colSpan={14 + periodes.length} style={{ textAlign: 'center', padding: 40, color: '#8a8a9a' }}>Aucun PDV trouvé</td></tr>
                   ) : lignes.map(r => (
                     <tr key={r.pdv_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ ...td, color: '#64748b', fontWeight: 700 }}>{r.rang_risque}</td>
@@ -1105,14 +1111,22 @@ export default function AnalysePerformancePage() {
                       </td>
                       <td style={{ ...td, color: '#94a3b8' }}>{r.zone || '—'}</td>
                       <td style={{ ...td, color: '#94a3b8' }}>{r.superviseur || '—'}</td>
-                      {(r.serie || []).map((v, i) => (
-                        <td key={i} style={{ ...td, textAlign: 'right', color: '#cbd5e1' }}>
-                          {metrique === 'rendement' ? `${fmtN(v * 100, 3)} %` : fmtN(v)}
-                        </td>
-                      ))}
+                      {(r.serie || []).map((v, i) => {
+                        const varP = i > 0 ? (r.variations || [])[i - 1] : null;
+                        return (
+                          <td key={i} style={{ ...td, textAlign: 'right', color: '#cbd5e1' }}>
+                            {metrique === 'rendement' ? `${fmtN(v * 100, 3)} %` : fmtN(v)}
+                            {varP != null && (
+                              <div style={{ fontSize: 10, color: varColor(varP) }}>{varP > 0 ? '+' : ''}{fmtN(varP, 1)} %</div>
+                            )}
+                          </td>
+                        );
+                      })}
                       <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: varColor(r.var_recente) }}>{fmtPct(r.var_recente)}</td>
                       <td style={{ ...td, textAlign: 'right', color: varColor(r.var_globale) }}>{fmtPct(r.var_globale)}</td>
                       <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{r.nb_baisses}{r.baisse_consecutive > 1 ? ` (${r.baisse_consecutive}✓)` : ''}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{metrique === 'rendement' ? fmtN(r.meilleur * 100, 3) + ' %' : fmtN(r.meilleur)}</td>
+                      <td style={{ ...td, textAlign: 'right', color: '#94a3b8' }}>{metrique === 'rendement' ? fmtN(r.moyenne * 100, 3) + ' %' : fmtN(r.moyenne)}</td>
                       <td style={{ ...td, textAlign: 'right', color: '#ff4757' }}>{metrique === 'rendement' ? fmtN(r.perte_valeur * 100, 3) + ' pt' : fmtN(r.perte_valeur)}</td>
                       <td style={{ ...td, textAlign: 'right', color: '#ffa502', fontWeight: 700 }}>{fmtN(r.pct_perte, 1)} %</td>
                       <td style={{ ...td, textAlign: 'center' }}>

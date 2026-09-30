@@ -283,6 +283,7 @@ def _construire_analyse(db: Session, cfg: Dict[str, Any], mode: str, metrique: s
         meilleur = max(serie) if serie else 0.0
         actuel = serie[-1] if serie else 0.0
         premier = serie[0] if serie else 0.0
+        moyenne = (sum(serie) / len(serie)) if serie else 0.0
         perte = max(0.0, meilleur - actuel)
         pct_perte = (perte / meilleur * 100.0) if meilleur > 0 else 0.0
         var_globale = _variation(premier, actuel)
@@ -312,6 +313,7 @@ def _construire_analyse(db: Session, cfg: Dict[str, Any], mode: str, metrique: s
             "nb_baisses": nb_baisses,
             "baisse_consecutive": cons,
             "meilleur": round(meilleur, 4) if metrique == "rendement" else round(meilleur, 2),
+            "moyenne": round(moyenne, 4) if metrique == "rendement" else round(moyenne, 2),
             "actuel": round(actuel, 4) if metrique == "rendement" else round(actuel, 2),
             "perte_valeur": round(perte, 4) if metrique == "rendement" else round(perte, 2),
             "pct_perte": round(pct_perte, 2),
@@ -403,7 +405,7 @@ def export_analyse(
     for lab in data.get("periodes", []):
         entetes.append(lab)
     entetes += ["Var récente %", "Var globale %", "Nb baisses", "Baisses consécutives",
-                "Meilleur", "Actuel", "Perte valeur", "% perte", "Score /100",
+                "Meilleur", "Moyenne", "Actuel", "Perte valeur", "% perte", "Score /100",
                 "Intensité", "Persistance", "Récente", "Financier", "Priorité", "Potentiel récupérable"]
     ws.append(entetes)
     for r in data.get("pdvs", []):
@@ -413,7 +415,7 @@ def export_analyse(
         ligne += list(r.get("serie") or [])
         sd = r.get("score_detail") or {}
         ligne += [r.get("var_recente"), r.get("var_globale"), r.get("nb_baisses"),
-                  r.get("baisse_consecutive"), r.get("meilleur"), r.get("actuel"),
+                  r.get("baisse_consecutive"), r.get("meilleur"), r.get("moyenne"), r.get("actuel"),
                   r.get("perte_valeur"), r.get("pct_perte"), r.get("score"),
                   sd.get("intensite"), sd.get("persistance"), sd.get("recente"), sd.get("financier"),
                   r.get("priorite_label"), r.get("potentiel_recuperable")]
