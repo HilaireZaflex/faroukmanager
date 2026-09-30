@@ -35,7 +35,7 @@ CONFIG_DEFAUT: Dict[str, Any] = {
     "mode": "mensuel",              # mensuel | hebdo
     "nb_periodes": 4,               # périodes glissantes analysées
     "metrique": "volume",           # volume | real | rendement
-    "source_real": "agent",         # agent (commission réelle PDV) | pdg | totale
+    "source_real": "totale",        # agent (commission réelle PDV) | pdg | totale
     "paliers": {"p1": 70, "p2": 50, "p3": 30},
     "score": {
         "intensite": {"seuils": [40, 30, 20, 10], "points": [30, 25, 20, 10, 0]},

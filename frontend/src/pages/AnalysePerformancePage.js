@@ -118,7 +118,7 @@ function TabConfig({ config, onSaved }) {
       <Legende titre="💡 À quoi sert cet écran de configuration" points={[
         <>Ici on règle <strong>tous les paramètres</strong> de l'Analyse Performance — <strong>aucune ligne de code</strong>, tout se sauvegarde en base.</>,
         <><strong>Périodes glissantes</strong> = combien de mois/semaines on analyse (ex. 4). <strong>Métrique</strong> = ce qu'on mesure (volume, REAL, rendement).</>,
-        <><strong>Source du REAL TTC</strong> = quelle commission on considère comme le « REAL ». À confirmer avec la direction.</>,
+        <><strong>Source du gain réel :</strong> « <strong>Agent</strong> » = ce que le PDV encaisse (70 % de la commission) · « <strong>PDG</strong> » = la part du réseau (30 %) · « <strong>Totale</strong> » = les deux réunis (100 %). <strong>C'est ce réglage qui fixe l'échelle du rendement.</strong></>,
         <><strong>Paliers P1/P2/P3</strong> = à partir de quel score un PDV devient urgent / à récupérer / à surveiller.</>,
         <><strong>Score</strong> = les seuils et les points de chaque composante (intensité, persistance, baisse récente, financier).</>,
         <><strong>Seuils opérationnels</strong> = gisement (volume mini + rendement maxi), rupture (nb de périodes), objectif de croissance.</>,
@@ -271,15 +271,17 @@ function TabSynthese() {
       {isLoading ? <div className="card">Chargement…</div> : (
         <>
           {/* 8 KPI DG */}
-          <Legende titre="💡 Comment lire la Synthèse DG" points={[
-            <><strong>REAL TTC</strong> = la commission réellement gagnée sur la période (l'argent que le réseau rapporte).</>,
-            <><strong>Rendement (REAL/million)</strong> = combien de FCFA on gagne pour 1 million de volume. Plus c'est élevé, mieux on monétise.</>,
-            <><strong>Volume</strong> = total des dépôts (Cash-in) + retraits (Cash-out), c'est-à-dire tout l'argent qui circule.</>,
-            <><strong>Activation</strong> = part des PDV qui ont réellement travaillé (au moins une opération).</>,
-            <><strong>Volume / actif</strong> = volume moyen par PDV actif (productivité). <strong>Valeur / actif</strong> = gain moyen par PDV actif (valeur créée).</>,
-            <><strong>Gisements</strong> = PDV à gros volume mais faible rendement → principal potentiel de gain.</>,
-            <><strong>Ruptures Top 100</strong> = meilleurs PDV qui ne travaillent plus. Cible : 0.</>,
-            <><strong>Dépendance Top 100</strong> = part du gain qui vient de nos 100 meilleurs PDV. Plus c'est élevé, plus on dépend d'un petit nombre de PDV.</>,
+          <Legende titre="💡 Comment lire la Synthèse DG (vue Direction Générale)" points={[
+            <><strong>Ce que vous voyez :</strong> la photo de la santé économique du réseau sur la dernière période (semaine ou mois).</>,
+            <><strong>Gain réel (REAL TTC)</strong> = l'argent que le réseau a <em>réellement gagné</em> (les commissions). C'est le chiffre le plus important.</>,
+            <><strong>Gain par million</strong> = pour 1 million FCFA de volume traité, combien on gagne. <em>Exemple : 2 900 F → chaque million qui circule rapporte 2 900 F.</em> Plus c'est haut, mieux c'est.</>,
+            <><strong>Volume</strong> = tout l'argent qui circule : dépôts (Cash-in) + retraits (Cash-out).</>,
+            <><strong>Activation</strong> = sur 100 PDV, combien travaillent vraiment. <em>Exemple : 89 % = 89 PDV actifs sur 100.</em></>,
+            <><strong>Volume / actif</strong> = ce que produit un PDV actif en moyenne. <strong>Valeur / actif</strong> = ce qu'il rapporte au réseau en moyenne.</>,
+            <><strong>Gisements</strong> = PDV qui font beaucoup de chiffre mais rapportent peu → <strong>le plus gros potentiel de gain</strong>.</>,
+            <><strong>Dépendance Top 100</strong> = sur 100 F gagnés, combien viennent des 100 meilleurs PDV (risque si ce petit groupe baisse).</>,
+            <><strong>Ruptures Top 100</strong> = nos meilleurs PDV qui ne travaillent plus. <strong>Cible : 0.</strong></>,
+            <>💡 <strong>Source du gain réel :</strong> « Commission totale (PDG + agent) ». Modifiable dans <strong>Configuration</strong>.</>,
             <>🖱️ <strong>Cliquez sur une ligne</strong> du tableau pour descendre : Zone → Superviseur → PDV.</>,
           ]} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 16 }}>
@@ -1054,15 +1056,15 @@ export default function AnalysePerformancePage() {
           </div>
 
           <Legende titre="💡 Comment lire « PDV à récupérer »" points={[
-            <>On analyse les <strong>{periodes.length} dernières périodes</strong> (glissant) pour repérer les PDV qui <strong>baissent</strong>.</>,
-            <><strong>Score /100</strong> = gravité du PDV. Il combine 4 choses : intensité de la baisse (30) + répétition des baisses (25) + baisse la plus récente (20) + argent réellement perdu (25).</>,
-            <><strong>🔴 P1</strong> ≥70 : intervention immédiate · <strong>🟠 P2</strong> 50-69 : plan de récupération · <strong>🟡 P3</strong> 30-49 : surveillance · <strong>🟢 P4</strong> &lt;30 : stable.</>,
-            <><strong>Var. récente</strong> = évolution entre les 2 dernières périodes. <strong>Var. totale</strong> = évolution sur toute la période analysée.</>,
+            <><strong>But :</strong> repérer les PDV qui baissent et savoir <strong>lesquels traiter en premier</strong>. On analyse les <strong>{periodes.length} dernières périodes</strong> (glissant).</>,
+            <><strong>Exemple concret :</strong> un PDV passe de 20 M → 18 M → 15 M → 11 M. Il a baissé <strong>3 fois de suite</strong> et a perdu <strong>9 M</strong> → son score est élevé → il est classé <strong>🔴 P1</strong>.</>,
+            <><strong>Score /100</strong> = la gravité. 4 ingrédients : <strong>ampleur</strong> de la baisse (30 pts) + <strong>nombre</strong> de baisses (25) + <strong>baisse la plus récente</strong> (20) + <strong>argent perdu</strong> (25).</>,
+            <><strong>🔴 P1 ≥ 70</strong> = on y va tout de suite · <strong>🟠 P2 50-69</strong> = plan de récupération · <strong>🟡 P3 30-49</strong> = on surveille · <strong>🟢 P4 &lt; 30</strong> = ça va.</>,
+            <><strong>Var. récente</strong> = dernière évolution · <strong>Var. totale</strong> = évolution sur toute la période. La <strong>petite ligne verte/rouge sous chaque période</strong> = la variation par rapport à la période précédente.</>,
             <><strong>Baisses</strong> = nombre de périodes où le PDV a baissé (le chiffre entre parenthèses = baisses consécutives).</>,
             <><strong>Perte</strong> = <em>meilleur CA − CA actuel</em> : l'argent qu'on ne gagne plus. <strong>Potentiel récupérable</strong> = ce qu'on peut regagner.</>,
-            <><strong>Meilleur</strong> = le meilleur niveau atteint par le PDV. <strong>Moyenne</strong> = sa moyenne sur les périodes.</>,
-            <>Sous chaque période, la petite ligne <span style={{ color: '#22c55e' }}>verte</span> / <span style={{ color: '#ff4757' }}>rouge</span> = la <strong>variation par rapport à la période précédente</strong>.</>,
-            <>👉 Classez par <strong>Score</strong> (urgence) ou par <strong>Perte</strong> (où est l'argent).</>,
+            <><strong>Meilleur</strong> = le meilleur niveau atteint par le PDV · <strong>Moyenne</strong> = sa moyenne sur les périodes.</>,
+            <>👉 Classez par <strong>Score</strong> (urgence) ou par <strong>Perte</strong> (où est l'argent). <strong>P1 = intersection des deux.</strong></>,
           ]} />
           {/* KPI */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
