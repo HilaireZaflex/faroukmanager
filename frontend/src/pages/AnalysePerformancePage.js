@@ -77,6 +77,13 @@ function TabConfig({ config, onSaved }) {
             {METRIQUES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
           </select>
         </div>
+        <div><L>Source du REAL TTC</L>
+          <select style={inp} value={cfg.source_real || 'agent'} onChange={e => set('source_real', e.target.value)}>
+            <option value="agent">Commission réelle agent (part PDV 70%)</option>
+            <option value="pdg">Commission PDG (part réseau 30%)</option>
+            <option value="totale">Commission totale (PDG + agent)</option>
+          </select>
+        </div>
         <div><L>Top à afficher</L><input type="number" style={inp} value={cfg.nb_top ?? 50} onChange={e => set('nb_top', parseInt(e.target.value) || 50)} /></div>
       </Card>
 
@@ -204,7 +211,7 @@ function TabSynthese() {
         <>
           {/* 8 KPI DG */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 16 }}>
-            <SynKPI label="REAL TTC" value={fmtF(k.real)} color="#FF6900" varPrev={k.var_real} var4={k.var_real_4} sub="Commission réelle agent" />
+            <SynKPI label="REAL TTC" value={fmtF(k.real)} color="#FF6900" varPrev={k.var_real} var4={k.var_real_4} sub={data?.source_real === 'pdg' ? 'Commission PDG (réseau)' : data?.source_real === 'totale' ? 'Commission totale (PDG + agent)' : 'Commission réelle agent'} />
             <SynKPI label="Rendement (REAL / million)" value={fmtN(k.real_par_million)} color="#00d68f" varPrev={k.var_rendement} sub={`${fmtN((k.rendement || 0) * 100, 3)} % du volume`} />
             <SynKPI label="Volume total" value={fmtF(k.volume)} color="#4a9eff" varPrev={k.var_volume} var4={k.var_volume_4} sub="CI + CO" />
             <SynKPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" varPrev={k.var_activation} sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)} PDV actifs`} />

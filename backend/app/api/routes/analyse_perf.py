@@ -35,6 +35,7 @@ CONFIG_DEFAUT: Dict[str, Any] = {
     "mode": "mensuel",              # mensuel | hebdo
     "nb_periodes": 4,               # périodes glissantes analysées
     "metrique": "volume",           # volume | real | rendement
+    "source_real": "agent",         # agent (commission réelle PDV) | pdg | totale
     "paliers": {"p1": 70, "p2": 50, "p3": 30},
     "score": {
         "intensite": {"seuils": [40, 30, 20, 10], "points": [30, 25, 20, 10, 0]},
@@ -97,12 +98,25 @@ def _label_periode(p):
     return f"{MOIS_NOMS[p[2]][:4]}. {p[1]}"
 
 
-def _valeur(p, metrique: str) -> float:
+def _real(p, source_real: str = "agent") -> float:
+    """Commission retenue comme « REAL TTC » selon la source configurée."""
+    if p is None:
+        return 0.0
+    rev = float(getattr(p, "commission_revendeur", None) or 0)
+    pdg = float(getattr(p, "commission_pdg", None) or 0)
+    if source_real == "pdg":
+        return pdg
+    if source_real == "totale":
+        return pdg + rev
+    return rev   # "agent" : commission réellement perçue par le PDV
+
+
+def _valeur(p, metrique: str, source_real: str = "agent") -> float:
     """Valeur d'une performance pour la métrique choisie."""
     if p is None:
         return 0.0
     volume = float(getattr(p, "montant_transaction", None) or getattr(p, "ca", None) or 0)
-    real = float(getattr(p, "commission_revendeur", None) or 0)
+    real = _real(p, source_real)
     if metrique == "real":
         return real
     if metrique == "rendement":
@@ -190,6 +204,7 @@ def _construire_analyse(db: Session, cfg: Dict[str, Any], mode: str, metrique: s
                         zone: Optional[str], superviseur: Optional[str],
                         type_pdv: Optional[str], current_user: User):
     nb = max(2, int(cfg.get("nb_periodes", 4)))
+    source_real = cfg.get("source_real", "agent")
     periodes = _periodes(db, mode, nb)
     if len(periodes) < 2:
         return {"periodes": [_label_periode(p) for p in periodes], "pdvs": [], "kpis": {}}
@@ -236,7 +251,7 @@ def _construire_analyse(db: Session, cfg: Dict[str, Any], mode: str, metrique: s
         if type_pdv and (pdv.type_pdv.value if pdv.type_pdv else "") != type_pdv:
             continue
 
-        serie = [_valeur(p, metrique) for p in serie_perf]
+        serie = [_valeur(p, metrique, source_real) for p in serie_perf]
         if not any(v and v > 0 for v in serie):
             continue
 
@@ -412,7 +427,7 @@ def _pct(prev, cur):
     return None
 
 
-def _agg(perf_par_pdv, ids, i):
+def _agg(perf_par_pdv, ids, i, source_real: str = "agent"):
     """Agrège les KPI d'un ensemble de PDV à l'indice de période i."""
     volume = real = ci = co = 0.0
     ops = 0
@@ -422,7 +437,7 @@ def _agg(perf_par_pdv, ids, i):
         if not p:
             continue
         v = float(getattr(p, "montant_transaction", None) or getattr(p, "ca", None) or 0)
-        r = float(getattr(p, "commission_revendeur", None) or 0)
+        r = _real(p, source_real)
         o = int(getattr(p, "nb_operations", None) or 0)
         volume += v
         real += r
@@ -460,6 +475,7 @@ def synthese(
         niveau = "zone"
     n = max(int(cfg.get("nb_periodes", 4)), 2)
     m = max(int(cfg.get("seuil_rupture_periodes", 2)), 1)
+    source_real = cfg.get("source_real", "agent")
 
     periodes = _periodes(db, mode, max(n + 1, m + 1, 6))
     if len(periodes) < 2:
@@ -499,9 +515,9 @@ def synthese(
     i_prev = i_cur - 1 if i_cur >= 1 else None
     i_back = max(0, i_cur - n)
 
-    cur = _agg(perf_par_pdv, pdv_ids, i_cur)
-    prev = _agg(perf_par_pdv, pdv_ids, i_prev) if i_prev is not None else None
-    back = _agg(perf_par_pdv, pdv_ids, i_back) if i_back != i_cur else None
+    cur = _agg(perf_par_pdv, pdv_ids, i_cur, source_real)
+    prev = _agg(perf_par_pdv, pdv_ids, i_prev, source_real) if i_prev is not None else None
+    back = _agg(perf_par_pdv, pdv_ids, i_back, source_real) if i_back != i_cur else None
 
     act_cur = round(cur["actifs"] / total_pdv * 100, 2) if total_pdv else 0
     act_prev = round(prev["actifs"] / total_pdv * 100, 2) if (prev and total_pdv) else None
@@ -517,7 +533,7 @@ def synthese(
         serie = perf_par_pdv.get(pid, {})
         pcur = serie.get(i_cur)
         v = float(getattr(pcur, "montant_transaction", None) or getattr(pcur, "ca", None) or 0) if pcur else 0
-        r = float(getattr(pcur, "commission_revendeur", None) or 0) if pcur else 0
+        r = _real(pcur, source_real)
         reals[pid] = r
         vol_par_pdv[pid] = v
         rend = (r / v * 100) if v > 0 else 0
@@ -547,7 +563,7 @@ def synthese(
         objectif = float(manuel)
         source = "manuel"
     else:
-        best = max(_agg(perf_par_pdv, pdv_ids, i)["real"] for i in range(max(0, i_cur - n + 1), i_cur + 1))
+        best = max(_agg(perf_par_pdv, pdv_ids, i, source_real)["real"] for i in range(max(0, i_cur - n + 1), i_cur + 1))
         objectif = round(best * (1 + float(cfg.get("objectif_taux_croissance", 0.05))), 2)
         source = "auto"
     taux_realisation = round(cur["real"] / objectif * 100, 2) if objectif > 0 else 0
@@ -586,8 +602,8 @@ def synthese(
 
     lignes = []
     for nom, ids in groupes.items():
-        mc = _agg(perf_par_pdv, ids, i_cur)
-        mp = _agg(perf_par_pdv, ids, i_prev) if i_prev is not None else None
+        mc = _agg(perf_par_pdv, ids, i_cur, source_real)
+        mp = _agg(perf_par_pdv, ids, i_prev, source_real) if i_prev is not None else None
         act = round(mc["actifs"] / len(ids) * 100, 2) if ids else 0
         lignes.append({
             "nom": nom, "nb_pdv": len(ids),
@@ -605,6 +621,7 @@ def synthese(
 
     return {
         "mode": mode, "niveau": niveau,
+        "source_real": source_real,
         "period_key_courante": pkey_cur,
         "periode_courante": _label_periode(periodes[i_cur]),
         "periode_precedente": _label_periode(periodes[i_prev]) if i_prev is not None else None,
