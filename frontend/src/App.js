@@ -28,6 +28,7 @@ import EvalSuperveursPage from './pages/EvalSuperveursPage';
 import KaabuDashboardPage from './pages/KaabuDashboardPage';
 import KaabuMensuelPage from './pages/KaabuMensuelPage';
 import ChallengePage from './pages/ChallengePage';
+import AnalysePerformancePage from './pages/AnalysePerformancePage';
 import CartePage from './pages/CartePage';
 import RecoveryListePage from './pages/RecoveryListePage';
 import OMyDashboardPage from './pages/OMyDashboardPage';
@@ -170,6 +171,7 @@ function App() {
                 <Route path="/mes-appels" element={<MesAppelsPage />} />
                 <Route path="/evaluations/superviseurs" element={<EvalSuperveursPage />} />
                 <Route path="/challenge" element={<MenuRoute menuId="challenge"><ChallengePage /></MenuRoute>} />
+                <Route path="/analyse-performance" element={<MenuRoute menuId="analyse_perf"><AnalysePerformancePage /></MenuRoute>} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
                 <Route path="/omy/dashboard/weekly" element={<OMyWeeklyDashboardPage />} />
                 <Route path="/nafama/dashboard" element={<NafamaDashboardPage />} />

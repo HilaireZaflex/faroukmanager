@@ -28,6 +28,7 @@ const FEATURES = [
     { id: 'menu_kaabu',     label: 'Dashboard KAABU (Mensuel & Hebdomadaire)', sidebarKey: 'kaabu' },
   ]},
   { section: '🏪 Gestion', items: [
+    { id: 'menu_analyse_perf', label: 'Analyse Performance', sidebarKey: 'analyse_perf' },
     { id: 'menu_pdvs',        label: 'Points de Vente',      sidebarKey: 'pdvs' },
     { id: 'menu_prospection', label: 'Prospection OM',       sidebarKey: 'prospection' },
     { id: 'menu_indicateurs', label: 'Indicateurs',          sidebarKey: 'indicateurs' },

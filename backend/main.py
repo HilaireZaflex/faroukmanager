@@ -20,7 +20,7 @@ def set_cache(key, value):
     _APP_CACHE_TIME[key] = time.time()
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications, localites
+from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications, localites, analyse_perf
 import app.models  # noqa - ensures all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -93,6 +93,7 @@ app.include_router(kaabu_router, prefix="/api", tags=["KAABU Mobile"])
 app.include_router(auth.router, prefix="/api", tags=["Authentification"])
 app.include_router(pdv.router, prefix="/api", tags=["PDV"])
 app.include_router(localites.router, prefix="/api", tags=["Référentiel géographique"])
+app.include_router(analyse_perf.router, prefix="/api", tags=["Analyse Performance"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(alerts.router, prefix="/api", tags=["Alertes"])
 app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
@@ -445,6 +446,12 @@ async def auto_migrate():
             ensure_missions_menu()
         except Exception as e:
             print(f"⚠️ ensure_missions_menu : {e}")
+        # ── Accès « Analyse Performance » pour l'encadrement ──
+        try:
+            from app.api.routes.role_permissions import ensure_analyse_perf_menu
+            ensure_analyse_perf_menu()
+        except Exception as e:
+            print(f"⚠️ ensure_analyse_perf_menu : {e}")
         print("✅ Auto-migration prospects OK")
     except Exception as e:
         print(f"⚠️ Auto-migration prospects: {e}")
