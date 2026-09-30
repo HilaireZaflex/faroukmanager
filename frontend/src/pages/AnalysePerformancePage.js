@@ -43,10 +43,40 @@ function Legende({ titre = 'Comment lire cet écran', points = [], defautOuvert 
   );
 }
 
+// ── Tri générique des tableaux (clic sur l'en-tête de colonne) ────────────────
+function useTableSort(data, initialKey = null, initialDir = 'desc') {
+  const [sortKey, setSortKey] = useState(initialKey);
+  const [sortDir, setSortDir] = useState(initialDir);
+  const tri = (k) => {
+    if (sortKey === k) setSortDir(d => (d === 'desc' ? 'asc' : 'desc'));
+    else { setSortKey(k); setSortDir('desc'); }
+  };
+  const lignes = useMemo(() => {
+    if (!sortKey) return data || [];
+    const dir = sortDir === 'desc' ? -1 : 1;
+    return [...(data || [])].sort((a, b) => {
+      const va = a[sortKey], vb = b[sortKey];
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === 'string') return dir * String(va).localeCompare(String(vb));
+      return dir * (va - vb);
+    });
+  }, [data, sortKey, sortDir]);
+  return { lignes, sortKey, sortDir, tri };
+}
+
+const ThTri = ({ k, label, tri, sortKey, sortDir, align = 'left' }) => (
+  <th onClick={() => tri(k)} title="Cliquer pour trier"
+    style={{ textAlign: align, padding: '9px 10px', color: sortKey === k ? '#FF6900' : '#8a8a9a', fontWeight: 700, whiteSpace: 'nowrap', fontSize: 11, cursor: 'pointer', userSelect: 'none' }}>
+    {label} {sortKey === k ? (sortDir === 'desc' ? '▼' : '▲') : '↕'}
+  </th>
+);
+
 const METRIQUES = [
-  { id: 'volume', label: 'Volume (CI+CO)' },
-  { id: 'real', label: 'REAL TTC (commission réelle agent)' },
-  { id: 'rendement', label: 'Rendement (REAL ÷ Volume)' },
+  { id: 'volume', label: 'Volume (dépôts + retraits)' },
+  { id: 'real', label: 'Gain réel (REAL TTC)' },
+  { id: 'rendement', label: 'Rendement (gain ÷ volume)' },
 ];
 
 // ── Formulaire de configuration ───────────────────────────────────────────────
@@ -192,6 +222,7 @@ function TabSynthese() {
   );
   const k = data?.kpis || {};
   const lignes = data?.lignes || [];
+  const { lignes: lignesTriees, sortKey: sk, sortDir: sd, tri: triSyn } = useTableSort(lignes, 'real', 'desc');
   const scopeKey = zone ? `ZONE:${zone}` : superviseur ? `SUPERVISEUR:${superviseur}` : 'RESEAU';
 
   const enregistrerObjectif = async (valeur) => {
@@ -243,18 +274,18 @@ function TabSynthese() {
             <><strong>Rendement (REAL/million)</strong> = combien de FCFA on gagne pour 1 million de volume. Plus c'est élevé, mieux on monétise.</>,
             <><strong>Volume</strong> = total des dépôts (Cash-in) + retraits (Cash-out), c'est-à-dire tout l'argent qui circule.</>,
             <><strong>Activation</strong> = part des PDV qui ont réellement travaillé (au moins une opération).</>,
-            <><strong>Volume/actif</strong> = volume moyen par PDV actif (productivité). <strong>VCPA</strong> = REAL moyen par PDV actif (valeur créée).</>,
+            <><strong>Volume / actif</strong> = volume moyen par PDV actif (productivité). <strong>Valeur / actif</strong> = gain moyen par PDV actif (valeur créée).</>,
             <><strong>Gisements</strong> = PDV à gros volume mais faible rendement → principal potentiel de gain.</>,
             <><strong>Ruptures Top 100</strong> = meilleurs PDV qui ne travaillent plus. Cible : 0.</>,
             <>🖱️ <strong>Cliquez sur une ligne</strong> du tableau pour descendre : Zone → Superviseur → PDV.</>,
           ]} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, marginBottom: 16 }}>
-            <SynKPI label="REAL TTC" value={fmtF(k.real)} color="#FF6900" varPrev={k.var_real} var4={k.var_real_4} title="Commission réellement gagnée par les PDV sur la période. C'est l'argent que le réseau rapporte." sub={data?.source_real === 'pdg' ? 'Commission PDG (réseau)' : data?.source_real === 'totale' ? 'Commission totale (PDG + agent)' : 'Commission réelle agent'} />
-            <SynKPI label="Rendement (REAL / million)" value={fmtN(k.real_par_million)} color="#00d68f" varPrev={k.var_rendement} title="Combien de FCFA de REAL on gagne pour 1 million de volume. Plus c'est élevé, mieux l'activité est monétisée." sub={`${fmtN((k.rendement || 0) * 100, 3)} % du volume`} />
+            <SynKPI label="Gain réel (REAL TTC)" value={fmtF(k.real)} color="#FF6900" varPrev={k.var_real} var4={k.var_real_4} title="Commission réellement gagnée par les PDV sur la période. C'est l'argent que le réseau rapporte." sub={data?.source_real === 'pdg' ? 'Commission PDG (réseau)' : data?.source_real === 'totale' ? 'Commission totale (PDG + agent)' : 'Commission réelle agent'} />
+            <SynKPI label="Gain par million de volume" value={fmtN(k.real_par_million)} color="#00d68f" varPrev={k.var_rendement} title="Combien de FCFA on gagne pour 1 million de volume. Plus c'est élevé, mieux l'activité est monétisée." sub={`${fmtN((k.rendement || 0) * 100, 3)} % du volume`} />
             <SynKPI label="Volume total" value={fmtF(k.volume)} color="#4a9eff" varPrev={k.var_volume} var4={k.var_volume_4} title="Total des dépôts (Cash-in) + retraits (Cash-out). C'est tout l'argent qui circule dans le réseau." sub="CI + CO" />
             <SynKPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" varPrev={k.var_activation} title="Part des PDV qui ont réellement travaillé (au moins une opération) sur la période." sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)} PDV actifs`} />
             <SynKPI label="Volume / actif" value={fmtF(k.volume_par_actif)} color="#0ea5e9" title="Volume moyen produit par chaque PDV actif : mesure la productivité du réseau." sub="Productivité par PDV actif" />
-            <SynKPI label="VCPA (REAL / actif)" value={fmtF(k.real_par_actif)} color="#22c55e" title="Valeur créée par PDV actif = REAL ÷ nombre de PDV actifs. Permet de comparer des superviseurs de tailles différentes." sub="Valeur créée par PDV actif" />
+            <SynKPI label="Valeur par PDV actif" value={fmtF(k.real_par_actif)} color="#22c55e" title="Valeur créée par PDV actif = gain réel ÷ nombre de PDV actifs. Permet de comparer des superviseurs de tailles différentes." sub="Gain moyen par PDV actif" />
             <SynKPI label="Gisements de profit" value={fmtN(k.nb_gisements)} color="#ffa502" title="PDV qui font beaucoup de volume mais rapportent peu (rendement sous le seuil) : principal potentiel d'amélioration." sub={`${fmtN(k.pct_volume_gisements, 1)} % du volume réseau`} />
             <SynKPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" title="Nombre de nos 100 meilleurs PDV qui n'ont plus aucune opération. Cible : 0." sub={`${fmtN(k.nb_ruptures)} ruptures au total`} />
           </div>
@@ -306,24 +337,24 @@ function TabSynthese() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th style={th}>{niveau === 'pdv' ? 'PDV' : 'Nom'}</th>
-                    <th style={{ ...th, textAlign: 'right' }}>PDV</th>
-                    <th style={{ ...th, textAlign: 'right' }}>REAL TTC</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Var</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Volume</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Rendement</th>
-                    <th style={{ ...th, textAlign: 'right' }}>REAL/M</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Activation</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Vol/actif</th>
-                    <th style={{ ...th, textAlign: 'right' }}>VCPA</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Gisements</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Ruptures</th>
+                    <ThTri k="nom" label={niveau === 'pdv' ? 'PDV' : 'Nom'} tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="nb_pdv" label="Nb PDV" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="real" label="Gain réel (REAL)" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="var_real" label="Variation" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="volume" label="Volume" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="rendement" label="Rendement" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="real_par_million" label="Gain / million" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="activation" label="Activation" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="volume_par_actif" label="Volume / actif" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="real_par_actif" label="Valeur / actif" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="nb_gisements" label="Gisements" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
+                    <ThTri k="nb_ruptures" label="Ruptures" align="right" tri={triSyn} sortKey={sk} sortDir={sd} />
                   </tr>
                 </thead>
                 <tbody>
-                  {lignes.length === 0 ? (
+                  {lignesTriees.length === 0 ? (
                     <tr><td colSpan={12} style={{ textAlign: 'center', padding: 30, color: '#8a8a9a' }}>Aucune donnée</td></tr>
-                  ) : lignes.map((l, i) => (
+                  ) : lignesTriees.map((l, i) => (
                     <tr key={i} onClick={() => ouvrirLigne(l)} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer' }}
                       onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                       onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
@@ -347,7 +378,7 @@ function TabSynthese() {
           </div>
 
           <div style={{ marginTop: 12, fontSize: 11, color: '#64748b' }}>
-            REAL TTC = commission réelle agent · Rendement = REAL ÷ Volume · VCPA = REAL ÷ PDV actifs ·
+            REAL TTC = commission réelle agent · Rendement = REAL ÷ Volume · Valeur / actif = REAL ÷ PDV actifs ·
             Gisement = volume ≥ seuil et rendement &lt; seuil · Rupture = aucune opération sur {k.nb_ruptures != null ? 'les dernières périodes' : ''}.
           </div>
         </>
@@ -371,6 +402,12 @@ function TabAnalyses() {
     () => api.get('/analyse-perf/gisements', { params: { mode } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'gisements' });
   const { data: ruptData } = useQuery(['analyse-perf-ruptures', mode],
     () => api.get('/analyse-perf/ruptures', { params: { mode } }).then(r => r.data), { staleTime: 30000, enabled: sous === 'ruptures' });
+
+  // Tris (appelés en permanence pour respecter les règles des hooks)
+  const ztri = useTableSort(zonesData?.lignes, 'volume', 'desc');
+  const stri = useTableSort(segData?.lignes, 'volume', 'desc');
+  const gtri = useTableSort(gisData?.pdvs, 'volume', 'desc');
+  const rtri = useTableSort(ruptData?.pdvs, 'real_reference', 'desc');
 
   const modifierObjectifZone = async (zone, valeur) => {
     try {
@@ -426,7 +463,7 @@ function TabAnalyses() {
               <><strong>Activation</strong> = part des PDV de la zone qui ont travaillé. <strong>Objectif</strong> (case violette) = la cible ; <strong>Écart</strong> = la différence (vert = au-dessus de la cible).</>,
               <>✏️ Vous pouvez <strong>modifier l'objectif</strong> directement dans la case violette : il se sauvegarde tout seul.</>,
               <><strong>Rendement / REAL par million</strong> = ce que la zone gagne pour 1 million de volume (sa monétisation).</>,
-              <><strong>Vol/actif</strong> et <strong>VCPA</strong> = productivité et valeur créée par PDV actif.</>,
+              <><strong>Volume / actif</strong> et <strong>Valeur / actif</strong> = productivité et valeur créée par PDV actif.</>,
               <><strong>Gisements</strong> = nombre de PDV de la zone à gros volume mais faible rendement.</>,
             ]} />
           </div>
@@ -436,14 +473,22 @@ function TabAnalyses() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <th style={th}>Zone</th><th style={{ ...th, textAlign: 'right' }}>PDV</th><th style={{ ...th, textAlign: 'right' }}>Actifs</th>
-                <th style={{ ...th, textAlign: 'right' }}>Activation</th><th style={{ ...th, textAlign: 'right' }}>Objectif</th><th style={{ ...th, textAlign: 'right' }}>Écart</th>
-                <th style={{ ...th, textAlign: 'right' }}>Volume</th><th style={{ ...th, textAlign: 'right' }}>REAL TTC</th><th style={{ ...th, textAlign: 'right' }}>Rendement</th>
-                <th style={{ ...th, textAlign: 'right' }}>REAL/M</th><th style={{ ...th, textAlign: 'right' }}>Vol/actif</th><th style={{ ...th, textAlign: 'right' }}>VCPA</th>
-                <th style={{ ...th, textAlign: 'right' }}>Gisements</th>
+                <ThTri k="nom" label="Zone" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="nb_pdv" label="PDV" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="nb_actifs" label="Actifs" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="activation" label="Activation" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="objectif_activation" label="Objectif" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="ecart_activation" label="Écart" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="volume" label="Volume" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="real" label="Gain réel (REAL)" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="rendement" label="Rendement" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="real_par_million" label="Gain / million" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="volume_par_actif" label="Volume / actif" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="real_par_actif" label="Valeur / actif" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
+                <ThTri k="nb_gisements" label="Gisements" align="right" tri={ztri.tri} sortKey={ztri.sortKey} sortDir={ztri.sortDir} />
               </tr></thead>
               <tbody>
-                {(zonesData?.lignes || []).map((l, i) => (
+                {ztri.lignes.map((l, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <td style={{ ...td, fontWeight: 700, color: '#e2e8f0' }}>{l.nom}</td>
                     <td style={{ ...td, textAlign: 'right', color: '#8a8a9a' }}>{l.nb_pdv}</td>
@@ -490,13 +535,18 @@ function TabAnalyses() {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  <th style={th}>Segment</th><th style={{ ...th, textAlign: 'right' }}>Nb PDV</th><th style={{ ...th, textAlign: 'right' }}>Activation</th>
-                  <th style={{ ...th, textAlign: 'right' }}>Volume</th><th style={{ ...th, textAlign: 'right' }}>% volume</th>
-                  <th style={{ ...th, textAlign: 'right' }}>REAL TTC</th><th style={{ ...th, textAlign: 'right' }}>% REAL</th>
-                  <th style={{ ...th, textAlign: 'right' }}>Rendement</th><th style={{ ...th, textAlign: 'right' }}>REAL/M</th>
+                  <ThTri k="segment" label="Segment" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="nb_pdv" label="Nb PDV" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="activation" label="Activation" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="volume" label="Volume" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="pct_volume" label="% volume" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="real" label="Gain réel (REAL)" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="pct_real" label="% REAL" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="rendement" label="Rendement" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
+                  <ThTri k="real_par_million" label="Gain / million" align="right" tri={stri.tri} sortKey={stri.sortKey} sortDir={stri.sortDir} />
                 </tr></thead>
                 <tbody>
-                  {(segData?.lignes || []).map((l, i) => (
+                  {stri.lignes.map((l, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={{ ...td, fontWeight: 800, color: '#e2e8f0' }}>{l.segment}</td>
                       <td style={{ ...td, textAlign: 'right', color: '#8a8a9a' }}>{l.nb_pdv}</td>
@@ -567,13 +617,17 @@ function TabAnalyses() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th style={th}>PDV</th><th style={th}>Zone</th><th style={th}>Superviseur</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Volume</th><th style={{ ...th, textAlign: 'right' }}>REAL TTC</th>
-                    <th style={{ ...th, textAlign: 'right' }}>Rendement</th><th style={{ ...th, textAlign: 'right' }}>Opérations</th>
+                    <ThTri k="nom" label="PDV" tri={gtri.tri} sortKey={gtri.sortKey} sortDir={gtri.sortDir} />
+                    <ThTri k="zone" label="Zone" tri={gtri.tri} sortKey={gtri.sortKey} sortDir={gtri.sortDir} />
+                    <ThTri k="superviseur" label="Superviseur" tri={gtri.tri} sortKey={gtri.sortKey} sortDir={gtri.sortDir} />
+                    <ThTri k="volume" label="Volume" align="right" tri={gtri.tri} sortKey={gtri.sortKey} sortDir={gtri.sortDir} />
+                    <ThTri k="real" label="Gain réel (REAL)" align="right" tri={gtri.tri} sortKey={gtri.sortKey} sortDir={gtri.sortDir} />
+                    <ThTri k="rendement" label="Rendement" align="right" tri={gtri.tri} sortKey={gtri.sortKey} sortDir={gtri.sortDir} />
+                    <ThTri k="operations" label="Opérations" align="right" tri={gtri.tri} sortKey={gtri.sortKey} sortDir={gtri.sortDir} />
                   </tr>
                 </thead>
                 <tbody>
-                  {(gisData?.pdvs || []).map((p, i) => (
+                  {gtri.lignes.map((p, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={td}><div style={{ fontWeight: 700, color: '#e2e8f0' }}>{p.numero_pdv}</div><div style={{ fontSize: 11, color: '#8a8a9a' }}>{p.nom}</div></td>
                       <td style={{ ...td, color: '#94a3b8' }}>{p.zone || '—'}</td>
@@ -635,13 +689,16 @@ function TabAnalyses() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th style={th}>PDV</th><th style={th}>Zone</th><th style={th}>Superviseur</th>
-                    <th style={th}>Quartier</th><th style={{ ...th, textAlign: 'right' }}>Dernière activité</th>
-                    <th style={{ ...th, textAlign: 'right' }}>REAL de référence</th>
+                    <ThTri k="nom" label="PDV" tri={rtri.tri} sortKey={rtri.sortKey} sortDir={rtri.sortDir} />
+                    <ThTri k="zone" label="Zone" tri={rtri.tri} sortKey={rtri.sortKey} sortDir={rtri.sortDir} />
+                    <ThTri k="superviseur" label="Superviseur" tri={rtri.tri} sortKey={rtri.sortKey} sortDir={rtri.sortDir} />
+                    <ThTri k="quartier" label="Quartier" tri={rtri.tri} sortKey={rtri.sortKey} sortDir={rtri.sortDir} />
+                    <ThTri k="derniere_activite" label="Dernière activité" align="right" tri={rtri.tri} sortKey={rtri.sortKey} sortDir={rtri.sortDir} />
+                    <ThTri k="real_reference" label="Gain de référence" align="right" tri={rtri.tri} sortKey={rtri.sortKey} sortDir={rtri.sortDir} />
                   </tr>
                 </thead>
                 <tbody>
-                  {(ruptData?.pdvs || []).map((p, i) => (
+                  {rtri.lignes.map((p, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <td style={td}><div style={{ fontWeight: 700, color: '#e2e8f0' }}>{p.numero_pdv}</div><div style={{ fontSize: 11, color: '#8a8a9a' }}>{p.nom}</div></td>
                       <td style={{ ...td, color: '#94a3b8' }}>{p.zone || '—'}</td>
@@ -667,6 +724,7 @@ function TabSuperviseurs() {
   const { data } = useQuery(['analyse-perf-superviseurs', mode],
     () => api.get('/analyse-perf/superviseurs', { params: { mode } }).then(r => r.data), { staleTime: 30000 });
   const lignes = data?.lignes || [];
+  const { lignes: lignesTriees, sortKey: ssk, sortDir: ssd, tri: triSup } = useTableSort(lignes, 'score', 'desc');
   const th = { textAlign: 'left', padding: '9px 8px', color: '#8a8a9a', fontWeight: 700, whiteSpace: 'nowrap', fontSize: 11 };
   const td = { padding: '9px 8px', fontSize: 12, whiteSpace: 'nowrap' };
   const cScore = (s) => (s >= 70 ? '#22c55e' : s >= 50 ? '#ffa502' : '#ff4757');
@@ -689,7 +747,7 @@ function TabSuperviseurs() {
       <Legende titre="💡 Comment lire le classement des superviseurs" points={[
         <>Chaque superviseur reçoit un <strong>score sur 100</strong>, classé du meilleur au moins bon.</>,
         <>Le score mélange : <strong>Objectif atteint</strong> (25 %) · <strong>Rendement</strong> (25 %) · <strong>Productivité</strong> (20 %) · <strong>Activation + Rétention</strong> (15 %) · <strong>Ruptures</strong> (10 %) · <strong>Qualité du portefeuille</strong> (5 %).</>,
-        <><strong>Obj. %</strong> = part de l'objectif REAL atteinte. <strong>Rendement</strong> = REAL par million. <strong>Vol/actif</strong> = volume moyen par PDV actif.</>,
+        <><strong>Objectif atteint</strong> = part de l'objectif de gain réalisée. <strong>Rendement</strong> = gain par million de volume. <strong>Volume / actif</strong> = volume moyen par PDV actif.</>,
         <><strong>Rétention</strong> = capacité à <em>garder</em> ses PDV actifs (actifs conservés ÷ actifs précédents).</>,
         <><strong>Solde</strong> = nouveaux PDV actifs − PDV perdus. Un solde positif = le portefeuille grandit.</>,
         <><strong>Ruptures</strong> = PDV qui ne travaillent plus (cible 0). <strong>Qualité</strong> = part de PDV bien monétisés.</>,
@@ -700,18 +758,25 @@ function TabSuperviseurs() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead style={{ position: 'sticky', top: 0, background: '#141422' }}>
               <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <th style={th}>#</th><th style={th}>Superviseur</th><th style={{ ...th, textAlign: 'center' }}>Score</th>
-                <th style={{ ...th, textAlign: 'right' }}>Obj. %</th><th style={{ ...th, textAlign: 'right' }}>Rendement</th>
-                <th style={{ ...th, textAlign: 'right' }}>Vol/actif</th><th style={{ ...th, textAlign: 'right' }}>Activation</th>
-                <th style={{ ...th, textAlign: 'right' }}>Rétention</th><th style={{ ...th, textAlign: 'right' }}>Solde</th>
-                <th style={{ ...th, textAlign: 'right' }}>Ruptures</th><th style={{ ...th, textAlign: 'right' }}>Qualité</th>
-                <th style={{ ...th, textAlign: 'right' }}>REAL TTC</th><th style={{ ...th, textAlign: 'right' }}>PDV</th>
+                <th style={th}>#</th>
+                <ThTri k="nom" label="Superviseur" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="score" label="Score /100" align="center" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="taux_realisation" label="Objectif atteint" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="rendement" label="Rendement" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="volume_par_actif" label="Volume / actif" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="activation" label="Activation" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="retention" label="Rétention" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="solde" label="Solde" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="nb_ruptures" label="Ruptures" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="qualite" label="Qualité" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="real" label="Gain réel (REAL)" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
+                <ThTri k="nb_pdv" label="PDV" align="right" tri={triSup} sortKey={ssk} sortDir={ssd} />
               </tr>
             </thead>
             <tbody>
-              {lignes.length === 0 ? (
+              {lignesTriees.length === 0 ? (
                 <tr><td colSpan={13} style={{ textAlign: 'center', padding: 30, color: '#8a8a9a' }}>Chargement…</td></tr>
-              ) : lignes.map((l, i) => (
+              ) : lignesTriees.map((l, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ ...td, color: '#64748b' }}>{i + 1}</td>
                   <td style={{ ...td, fontWeight: 700, color: '#e2e8f0' }}>{l.nom}</td>
@@ -788,7 +853,7 @@ function TabMoteurs() {
         <div style={{ fontSize: 14, fontWeight: 800, color: '#4a9eff', marginBottom: 12 }}>📦 Décomposition du VOLUME</div>
         <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 12 }}>Volume = PDV actifs × Transactions/PDV × Ticket moyen</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
-          {[['Actifs', v.actifs?.prec, v.actifs?.cur], ['Tx / actif', v.transactions_par_actif?.prec, v.transactions_par_actif?.cur], ['Ticket moyen', v.ticket_moyen?.prec, v.ticket_moyen?.cur], ['Volume', v.prec, v.cur]].map(([lab, a, b], i) => (
+          {[['PDV actifs', v.actifs?.prec, v.actifs?.cur], ['Transactions / PDV', v.transactions_par_actif?.prec, v.transactions_par_actif?.cur], ['Ticket moyen', v.ticket_moyen?.prec, v.ticket_moyen?.cur], ['Volume', v.prec, v.cur]].map(([lab, a, b], i) => (
             <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px' }}>
               <div style={{ fontSize: 11, color: '#8a8a9a' }}>{lab}</div>
               <div style={{ fontSize: 13, color: '#94a3b8' }}>{fmtN(a)}</div>
@@ -950,32 +1015,32 @@ export default function AnalysePerformancePage() {
       {tab === 'recuperation' && (
         <div>
           {/* Barre d'outils */}
-          <div className="card" style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-            <select style={inp} value={mode} onChange={e => setMode(e.target.value)}>
+          <div className="card" style={{ marginBottom: 16, display: 'flex', flexWrap: 'nowrap', gap: 8, alignItems: 'center', overflowX: 'auto' }}>
+            <select style={{ ...inp, fontSize: 12, padding: '7px 10px', flexShrink: 0 }} value={mode} onChange={e => setMode(e.target.value)}>
               <option value="mensuel">Mensuel</option>
               <option value="hebdo">Hebdomadaire</option>
             </select>
-            <select style={inp} value={metrique} onChange={e => setMetrique(e.target.value)}>
+            <select style={{ ...inp, fontSize: 12, padding: '7px 10px', flexShrink: 0 }} value={metrique} onChange={e => setMetrique(e.target.value)}>
               {METRIQUES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
-            <select style={inp} value={prioFilter} onChange={e => setPrioFilter(e.target.value)}>
+            <select style={{ ...inp, fontSize: 12, padding: '7px 10px', flexShrink: 0 }} value={prioFilter} onChange={e => setPrioFilter(e.target.value)}>
               <option value="">Toutes priorités</option>
               <option value="P1">🔴 P1 URGENCE</option>
               <option value="P2">🟠 P2 À RÉCUPÉRER</option>
               <option value="P3">🟡 P3 À SURVEILLER</option>
               <option value="P4">🟢 P4 STABLE</option>
             </select>
-            <input style={{ ...inp, flex: 1, minWidth: 180 }} placeholder="Rechercher PDV, nom, zone, quartier, superviseur…"
+            <input style={{ ...inp, fontSize: 12, padding: '7px 10px', flex: 1, minWidth: 150 }} placeholder="Rechercher PDV, nom, zone, quartier, superviseur…"
               value={search} onChange={e => setSearch(e.target.value)} />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8a8a9a' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8a8a9a', flexShrink: 0, whiteSpace: 'nowrap' }}>
               <input type="checkbox" checked={onlyTop} onChange={e => setOnlyTop(e.target.checked)} />
               Top {config?.nb_top || 50}
             </label>
-            <button onClick={() => qc.invalidateQueries('analyse-perf')} style={{ ...inp, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={() => qc.invalidateQueries('analyse-perf')} style={{ ...inp, fontSize: 12, padding: '7px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
               <RefreshCw size={14} /> Actualiser
             </button>
             <button onClick={exporter} disabled={busy}
-              style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
               <Download size={14} /> {busy ? '…' : 'Exporter Excel'}
             </button>
           </div>
@@ -984,7 +1049,7 @@ export default function AnalysePerformancePage() {
             <>On analyse les <strong>{periodes.length} dernières périodes</strong> (glissant) pour repérer les PDV qui <strong>baissent</strong>.</>,
             <><strong>Score /100</strong> = gravité du PDV. Il combine 4 choses : intensité de la baisse (30) + répétition des baisses (25) + baisse la plus récente (20) + argent réellement perdu (25).</>,
             <><strong>🔴 P1</strong> ≥70 : intervention immédiate · <strong>🟠 P2</strong> 50-69 : plan de récupération · <strong>🟡 P3</strong> 30-49 : surveillance · <strong>🟢 P4</strong> &lt;30 : stable.</>,
-            <><strong>Var réc.</strong> = évolution entre les 2 dernières périodes. <strong>Var glob.</strong> = évolution sur toute la période analysée.</>,
+            <><strong>Var. récente</strong> = évolution entre les 2 dernières périodes. <strong>Var. totale</strong> = évolution sur toute la période analysée.</>,
             <><strong>Baisses</strong> = nombre de périodes où le PDV a baissé (le chiffre entre parenthèses = baisses consécutives).</>,
             <><strong>Perte</strong> = <em>meilleur CA − CA actuel</em> : l'argent qu'on ne gagne plus. <strong>Potentiel récupérable</strong> = ce qu'on peut regagner.</>,
             <>👉 Classez par <strong>Score</strong> (urgence) ou par <strong>Perte</strong> (où est l'argent).</>,
@@ -1006,18 +1071,18 @@ export default function AnalysePerformancePage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#141422', zIndex: 2 }}>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th style={th} onClick={() => tri('rang_risque')}>#</th>
-                    <th style={th} onClick={() => tri('numero_pdv')}>PDV</th>
-                    <th style={th} onClick={() => tri('zone')}>Zone</th>
-                    <th style={th} onClick={() => tri('superviseur')}>Superviseur</th>
+                    <ThTri k="rang_risque" label="#" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="numero_pdv" label="PDV" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="zone" label="Zone" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="superviseur" label="Superviseur" tri={tri} sortKey={sortKey} sortDir={sortDir} />
                     {periodes.map(p => <th key={p} style={{ ...th, textAlign: 'right' }}>{p}</th>)}
-                    <th style={{ ...th, textAlign: 'right' }} onClick={() => tri('var_recente')}>Var réc.</th>
-                    <th style={{ ...th, textAlign: 'right' }} onClick={() => tri('var_globale')}>Var glob.</th>
-                    <th style={{ ...th, textAlign: 'right' }} onClick={() => tri('nb_baisses')}>Baisses</th>
-                    <th style={{ ...th, textAlign: 'right' }} onClick={() => tri('perte_valeur')}>Perte</th>
-                    <th style={{ ...th, textAlign: 'right' }} onClick={() => tri('pct_perte')}>% perte</th>
-                    <th style={{ ...th, textAlign: 'center' }} onClick={() => tri('score')}>Score</th>
-                    <th style={th}>Priorité</th>
+                    <ThTri k="var_recente" label="Var. récente" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="var_globale" label="Var. totale" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="nb_baisses" label="Baisses" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="perte_valeur" label="Perte" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="pct_perte" label="% perte" align="right" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="score" label="Score" align="center" tri={tri} sortKey={sortKey} sortDir={sortDir} />
+                    <ThTri k="priorite" label="Priorité" tri={tri} sortKey={sortKey} sortDir={sortDir} />
                   </tr>
                 </thead>
                 <tbody>
