@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from 'react-query';
 import { useNavigate } from 'react-router-dom';
-import { Download, RefreshCw, Settings, Target } from 'lucide-react';
+import { Download, RefreshCw, Settings, Target, Search } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -78,6 +78,8 @@ const METRIQUES = [
   { id: 'real', label: 'Gain réel (REAL TTC)' },
   { id: 'rendement', label: 'Rendement (gain ÷ volume)' },
 ];
+// Libellés courts pour la barre de filtres (tient sur une seule ligne)
+const METRIQUES_COURT = { volume: 'Volume', real: 'Gain réel', rendement: 'Rendement' };
 
 // ── Formulaire de configuration ───────────────────────────────────────────────
 function TabConfig({ config, onSaved }) {
@@ -1015,32 +1017,36 @@ export default function AnalysePerformancePage() {
       {tab === 'recuperation' && (
         <div>
           {/* Barre d'outils */}
-          <div className="card" style={{ marginBottom: 16, display: 'flex', flexWrap: 'nowrap', gap: 8, alignItems: 'center', overflowX: 'auto' }}>
-            <select style={{ ...inp, fontSize: 12, padding: '7px 10px', flexShrink: 0 }} value={mode} onChange={e => setMode(e.target.value)}>
+          <div className="card" style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
+            <select style={{ ...inp, flex: '1 1 110px', minWidth: 0, padding: '9px 10px' }} value={mode} onChange={e => setMode(e.target.value)}>
               <option value="mensuel">Mensuel</option>
-              <option value="hebdo">Hebdomadaire</option>
+              <option value="hebdo">Hebdo</option>
             </select>
-            <select style={{ ...inp, fontSize: 12, padding: '7px 10px', flexShrink: 0 }} value={metrique} onChange={e => setMetrique(e.target.value)}>
-              {METRIQUES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            <select style={{ ...inp, flex: '1 1 130px', minWidth: 0, padding: '9px 10px' }} value={metrique} onChange={e => setMetrique(e.target.value)}>
+              {METRIQUES.map(m => <option key={m.id} value={m.id}>{METRIQUES_COURT[m.id]}</option>)}
             </select>
-            <select style={{ ...inp, fontSize: 12, padding: '7px 10px', flexShrink: 0 }} value={prioFilter} onChange={e => setPrioFilter(e.target.value)}>
+            <select style={{ ...inp, flex: '1 1 150px', minWidth: 0, padding: '9px 10px' }} value={prioFilter} onChange={e => setPrioFilter(e.target.value)}>
               <option value="">Toutes priorités</option>
-              <option value="P1">🔴 P1 URGENCE</option>
-              <option value="P2">🟠 P2 À RÉCUPÉRER</option>
-              <option value="P3">🟡 P3 À SURVEILLER</option>
-              <option value="P4">🟢 P4 STABLE</option>
+              <option value="P1">🔴 P1 · Urgence</option>
+              <option value="P2">🟠 P2 · À récupérer</option>
+              <option value="P3">🟡 P3 · À surveiller</option>
+              <option value="P4">🟢 P4 · Stable</option>
             </select>
-            <input style={{ ...inp, fontSize: 12, padding: '7px 10px', flex: 1, minWidth: 150 }} placeholder="Rechercher PDV, nom, zone, quartier, superviseur…"
-              value={search} onChange={e => setSearch(e.target.value)} />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8a8a9a', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'relative', flex: '2 1 220px', minWidth: 150 }}>
+              <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
+              <input placeholder="Rechercher PDV, numéro, quartier, superviseur…" value={search} onChange={e => setSearch(e.target.value)}
+                style={{ width: '100%', padding: '9px 12px 9px 34px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#8a8a9a', flex: '0 0 auto', whiteSpace: 'nowrap' }}>
               <input type="checkbox" checked={onlyTop} onChange={e => setOnlyTop(e.target.checked)} />
               Top {config?.nb_top || 50}
             </label>
-            <button onClick={() => qc.invalidateQueries('analyse-perf')} style={{ ...inp, fontSize: 12, padding: '7px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
+            <button onClick={() => qc.invalidateQueries('analyse-perf')} title="Actualiser"
+              style={{ ...inp, flex: '0 0 auto', padding: '9px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
               <RefreshCw size={14} /> Actualiser
             </button>
             <button onClick={exporter} disabled={busy}
-              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
+              style={{ flex: '0 0 auto', padding: '9px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#FF6900,#ff9500)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
               <Download size={14} /> {busy ? '…' : 'Exporter Excel'}
             </button>
           </div>
