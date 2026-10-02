@@ -417,14 +417,19 @@ function InfoRow({ label, value, badge, style }) {
 
 // ============ ONGLET 2: PERFORMANCES ============
 function TabPerformances({ pdv }) {
-  const historique = pdv?.historique_mensuel || [];
-  const caValues = historique.map((h) => h.ca || 0);
-  const caMax = caValues.length > 0 ? Math.max(...caValues) : 0;
-  const caMin = caValues.length > 0 ? Math.min(...caValues) : 0;
-  const caMoyenne = historique.length > 0 ? historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0) / historique.length : 0;
-  const caTotal = historique.reduce((sum, h) => sum + (h.montant_transaction || h.ca || 0), 0);
+  const [vue, setVue] = useState('mensuel');
+  const mensuel = pdv?.historique_mensuel || [];
+  const hebdo = pdv?.historique_hebdo || [];
+  const liste = vue === 'mensuel' ? mensuel : hebdo;
 
-  if (!historique.length) {
+  const valeur = (h) => (h.montant_transaction || h.ca || 0);
+  const vals = liste.map(valeur);
+  const caMax = vals.length ? Math.max(...vals) : 0;
+  const caMin = vals.length ? Math.min(...vals) : 0;
+  const caMoyenne = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+  const caTotal = vals.reduce((s, v) => s + v, 0);
+
+  if (!mensuel.length && !hebdo.length) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-secondary)' }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
@@ -435,21 +440,37 @@ function TabPerformances({ pdv }) {
   }
 
   const kpiStyle = { padding: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, textAlign: 'center' };
+  const thStyle = { padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' };
+  const btn = (actif) => ({
+    padding: '8px 18px', borderRadius: 9, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+    border: `1px solid ${actif ? '#FF6900' : 'rgba(255,255,255,0.1)'}`,
+    background: actif ? 'rgba(255,105,0,0.12)' : 'rgba(255,255,255,0.03)',
+    color: actif ? '#FF6900' : '#8a8a9a',
+  });
 
   return (
     <div>
-      {/* KPIs — grid inline pour éviter les bugs de classes CSS */}
+      {/* Sélecteur Mensuel / Hebdomadaire */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18, alignItems: 'center' }}>
+        <button onClick={() => setVue('mensuel')} style={btn(vue === 'mensuel')}>📅 Mensuel ({mensuel.length})</button>
+        <button onClick={() => setVue('hebdo')} style={btn(vue === 'hebdo')}>🗓️ Hebdomadaire ({hebdo.length})</button>
+        <span style={{ fontSize: 11, color: '#64748b', marginLeft: 6 }}>
+          {vue === 'hebdo' ? 'Performances par semaine (8 dernières)' : 'Performances par mois (12 derniers)'}
+        </span>
+      </div>
+
+      {/* KPIs de la vue courante */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
         <div style={kpiStyle}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>CA Max</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{vue === 'hebdo' ? 'CA Max / sem.' : 'CA Max'}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#00d68f' }}>{formatCA(caMax)}</div>
         </div>
         <div style={kpiStyle}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>CA Min</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{vue === 'hebdo' ? 'CA Min / sem.' : 'CA Min'}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#ff4757' }}>{formatCA(caMin)}</div>
         </div>
         <div style={kpiStyle}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Moy. Transaction</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Moyenne</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: '#FF6900' }}>{formatCA(caMoyenne)}</div>
         </div>
         <div style={kpiStyle}>
@@ -458,40 +479,51 @@ function TabPerformances({ pdv }) {
         </div>
       </div>
 
-      {/* Table historique */}
-      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
-              {['Année','Mois','CA','Nb Opérations','Dépôts','Retraits','Variation','Statut'].map(h => (
-                <th key={h} style={{ padding: '10px 12px', textAlign: 'left', color: '#8a8a9a', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {historique.map((h, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <td style={{ padding: '10px 12px' }}>{h.annee}</td>
-                <td style={{ padding: '10px 12px' }}>{MOIS_NOMS[h.mois]}</td>
-                <td style={{ padding: '10px 12px', fontWeight: 600, color: '#FF6900' }}>{formatCA(h.montant_transaction || h.ca)}</td>
-                <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_operations || '—'}</td>
-                <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_depots ? `${h.nb_depots} (${((h.montant_depots||0)/1000000).toFixed(1)}M)` : '—'}</td>
-                <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_retraits ? `${h.nb_retraits} (${((h.montant_retraits||0)/1000000).toFixed(1)}M)` : '—'}</td>
-                <td style={{ padding: '10px 12px' }}>
-                  <span style={{ color: (h.taux_variation || 0) >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
-                    {(h.taux_variation || 0) >= 0 ? '+' : ''}{(h.taux_variation || 0).toFixed(1)}%
-                  </span>
-                </td>
-                <td style={{ padding: '10px 12px' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: h.est_actif ? 'rgba(0,214,143,0.15)' : 'rgba(255,71,87,0.15)', color: h.est_actif ? '#00d68f' : '#ff4757' }}>
-                    {h.est_actif ? 'Actif' : 'Inactif'}
-                  </span>
-                </td>
+      {/* Tableau */}
+      {liste.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)', fontSize: 13 }}>
+          Aucune donnée {vue === 'hebdo' ? 'hebdomadaire' : 'mensuelle'} disponible
+        </div>
+      ) : (
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                {(vue === 'mensuel'
+                  ? ['Année', 'Mois', 'CA', 'Nb Opérations', 'Dépôts', 'Retraits', 'Variation', 'Statut']
+                  : ['Année', 'Semaine', 'CA', 'Nb Opérations', 'Variation', 'Statut']
+                ).map(h => <th key={h} style={thStyle}>{h}</th>)}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {liste.map((h, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '10px 12px' }}>{h.annee}</td>
+                  <td style={{ padding: '10px 12px' }}>{vue === 'mensuel' ? (MOIS_NOMS[h.mois] || h.mois) : `S${h.semaine}`}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#FF6900' }}>{formatCA(valeur(h))}</td>
+                  <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_operations || '—'}</td>
+                  {vue === 'mensuel' && (
+                    <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_depots ? `${h.nb_depots} (${((h.montant_depots || 0) / 1000000).toFixed(1)}M)` : '—'}</td>
+                  )}
+                  {vue === 'mensuel' && (
+                    <td style={{ padding: '10px 12px', color: '#8a8a9a' }}>{h.nb_retraits ? `${h.nb_retraits} (${((h.montant_retraits || 0) / 1000000).toFixed(1)}M)` : '—'}</td>
+                  )}
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ color: (h.taux_variation || 0) >= 0 ? '#00d68f' : '#ff4757', fontWeight: 600 }}>
+                      {(h.taux_variation || 0) >= 0 ? '+' : ''}{(h.taux_variation || 0).toFixed(1)}%
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: h.est_actif ? 'rgba(0,214,143,0.15)' : 'rgba(255,71,87,0.15)', color: h.est_actif ? '#00d68f' : '#ff4757' }}>
+                      {h.est_actif ? 'Actif' : 'Inactif'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

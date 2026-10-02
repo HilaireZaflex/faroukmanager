@@ -192,28 +192,84 @@ function TabParTC({ annee, mois }) {
   );
 }
 
+// ─── Modale générique ────────────────────────────────────────────────────────
+function Modal({ title, onClose, children, width = 760 }) {
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.72)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#141422', border:'1px solid rgba(255,105,0,0.3)', borderRadius:16, width, maxWidth:'96vw', maxHeight:'86vh', overflow:'auto', padding:'20px 24px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <h3 style={{ fontSize:16, fontWeight:800, color:'#fff' }}>{title}</h3>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#8a8a9a', fontSize:20, cursor:'pointer' }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── Tab 3 : Historique Appels ────────────────────────────────────────────────
 function TabHistorique({ dashboard }) {
   const [search, setSearch] = useState('');
   const [selTC, setSelTC] = useState('');
   const [selInd, setSelInd] = useState('');
+  const [detail, setDetail] = useState(null);
+  const [showComms, setShowComms] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const { data: appelsData } = useQuery(
+  const { data: appelsData, isLoading } = useQuery(
     ['suivi-tc-appels-hist', selTC],
-    () => api.get('/appels-tc', { params: selTC ? { tc_user_id: selTC, limit:200 } : { limit:100 } }).then(r => r.data),
+    () => api.get('/appels-tc', { params: selTC ? { tc_user_id: selTC, limit:200 } : { limit:200 } }).then(r => r.data),
     { staleTime: 30000 }
   );
-  const appels = (appelsData?.items || []).filter(a => {
+  const matchSearch = (a) => !search
+    || (a.nom_pdv||'').toLowerCase().includes(search.toLowerCase())
+    || (a.numero_pdv||'').includes(search)
+    || (a.tc_nom||'').toLowerCase().includes(search.toLowerCase());
+  const matchInd = (a) => {
     const inds = (a.indicateurs && a.indicateurs.length) ? a.indicateurs : (a.indicateur ? [a.indicateur] : []);
-    return (!search || (a.nom_pdv||'').toLowerCase().includes(search.toLowerCase()) || (a.numero_pdv||'').includes(search)) &&
-           (!selInd || inds.includes(selInd));
-  });
+    return !selInd || inds.includes(selInd);
+  };
+  const appels = (appelsData?.items || []).filter(a => matchSearch(a) && matchInd(a));
+
+  // Vue « commentaires globaux » : tous les appels avec commentaire (pas de pagination)
+  const { data: commsData, isLoading: loadComms } = useQuery(
+    ['suivi-tc-commentaires', selTC, selInd],
+    () => api.get('/appels-tc/commentaires', {
+      params: { ...(selTC ? { tc_user_id: selTC } : {}), ...(selInd ? { indicateur: selInd } : {}) },
+    }).then(r => r.data),
+    { enabled: showComms, staleTime: 30000 }
+  );
+  const commentaires = (commsData?.items || []).filter(a => matchSearch(a) && matchInd(a));
+
+  const exporter = async () => {
+    setBusy(true);
+    try {
+      const r = await api.get('/appels-tc/export', {
+        params: { ...(selTC ? { tc_user_id: selTC } : {}), ...(selInd ? { indicateur: selInd } : {}) },
+        responseType: 'blob',
+      });
+      const u = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = u; a.download = `historique_appels_tc_${new Date().toISOString().slice(0,10)}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(u);
+    } catch (e) { /* silencieux */ }
+    finally { setBusy(false); }
+  };
+
+  const btn = { padding:'8px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.04)', color:'#e2e8f0', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' };
+  const F = ({ label, value }) => (
+    <div style={{ background:'rgba(255,255,255,0.03)', borderRadius:8, padding:'8px 12px' }}>
+      <div style={{ fontSize:10, color:'#8a8a9a', textTransform:'uppercase', marginBottom:3 }}>{label}</div>
+      <div style={{ fontSize:13, color:'#e2e8f0' }}>{value || '—'}</div>
+    </div>
+  );
 
   return (
     <div>
-      <div style={{ display:'flex', gap:8, marginBottom:16, alignItems:'center' }}>
-        <input placeholder="🔍 Rechercher PDV..." value={search} onChange={e=>setSearch(e.target.value)}
-          style={{ flex:1, padding:'8px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:13 }}/>
+      <div style={{ display:'flex', gap:8, marginBottom:16, alignItems:'center', flexWrap:'nowrap', overflowX:'auto' }}>
+        <input placeholder="🔍 Rechercher PDV ou TC..." value={search} onChange={e=>setSearch(e.target.value)}
+          style={{ flex:'1 1 200px', minWidth:160, padding:'8px 14px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'rgba(255,255,255,0.04)', color:'#fff', fontSize:13 }}/>
         <select value={selTC} onChange={e=>setSelTC(e.target.value)}
           style={{ padding:'8px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.1)', background:'#1a1a2e', color:'#fff', fontSize:12 }}>
           <option value="">Toutes TCs</option>
@@ -224,27 +280,37 @@ function TabHistorique({ dashboard }) {
           <option value="">Tous indicateurs</option>
           {['OMY','NAFAMA','KAABU','UNIFIE'].map(i => <option key={i} value={i}>{i}</option>)}
         </select>
-        <span style={{ fontSize:12, color:'#64748b' }}>{appels.length} appels</span>
+        <button onClick={() => setShowComms(true)} style={btn} title="Voir tous les commentaires">💬 Commentaires globaux</button>
+        <button onClick={exporter} disabled={busy} style={{ ...btn, border:'none', background:'linear-gradient(135deg,#FF6900,#ff9500)', color:'#fff' }} title="Télécharger toutes les données">
+          {busy ? '…' : '📥 Exporter Excel'}
+        </button>
+        <span style={{ fontSize:12, color:'#64748b', whiteSpace:'nowrap' }}>{appels.length} appel(s)</span>
       </div>
+
       <div style={{ background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:14, overflow:'auto' }}>
         <table style={{ width:'100%', borderCollapse:'collapse' }}>
           <thead>
             <tr style={{ background:'rgba(255,255,255,0.04)' }}>
-              {['Date','TC','PDV','Indicateur','Statut','Commentaire'].map(h => (
+              {['Date','TC','PDV','Zone / Quartier','Indicateur','Statut','Commentaire',''].map(h => (
                 <th key={h} style={{ padding:'10px 14px', fontSize:11, color:'#64748b', fontWeight:700, textAlign:'left', whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {appels.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Aucun appel trouvé</td></tr>
+            {isLoading ? (
+              <tr><td colSpan={8} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Chargement…</td></tr>
+            ) : appels.length === 0 ? (
+              <tr><td colSpan={8} style={{ textAlign:'center', padding:40, color:'#64748b' }}>Aucun appel trouvé</td></tr>
             ) : appels.map((a,i) => (
               <tr key={a.id} style={{ borderTop:'1px solid rgba(255,255,255,0.04)', background:i%2===0?'transparent':'rgba(255,255,255,0.01)' }}>
-                <td style={{ padding:'8px 14px', fontSize:11, color:'#64748b', whiteSpace:'nowrap' }}>{a.created_at?.slice(0,16)||'—'}</td>
+                <td style={{ padding:'8px 14px', fontSize:11, color:'#64748b', whiteSpace:'nowrap' }}>{a.created_at?.slice(0,16).replace('T',' ')||'—'}</td>
                 <td style={{ padding:'8px 14px', fontSize:12, fontWeight:700, color:'#FF6900' }}>{a.tc_nom}</td>
                 <td style={{ padding:'8px 14px' }}>
                   <div style={{ fontSize:12, color:'#fff', fontWeight:600 }}>{a.nom_pdv||a.numero_pdv}</div>
                   <div style={{ fontSize:10, color:'#64748b' }}>{a.numero_pdv}</div>
+                </td>
+                <td style={{ padding:'8px 14px', fontSize:11, color:'#94a3b8' }}>
+                  {a.zone||'—'}{a.quartier ? ` · ${a.quartier}` : ''}
                 </td>
                 <td style={{ padding:'8px 14px' }}>
                   {((a.indicateurs && a.indicateurs.length) ? a.indicateurs : [a.indicateur]).filter(Boolean).map((ind, k) => (
@@ -257,14 +323,72 @@ function TabHistorique({ dashboard }) {
                 <td style={{ padding:'8px 14px', fontSize:11, color:STATUT_COLORS[a.statut]||'#64748b', whiteSpace:'nowrap' }}>
                   {STATUT_ICONS[a.statut]||''} {(a.statut||'').replace(/_/g,' ')}
                 </td>
-                <td style={{ padding:'8px 14px', fontSize:11, color:'#8a8a9a', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                <td style={{ padding:'8px 14px', fontSize:11, color:'#8a8a9a', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {a.commentaire||'—'}
+                </td>
+                <td style={{ padding:'8px 14px' }}>
+                  <button onClick={() => setDetail(a)} style={{ ...btn, padding:'4px 10px', fontSize:11 }}>🔎 Détails</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Modale détail d'un appel */}
+      {detail && (
+        <Modal title={`Détail de l'appel — ${detail.numero_pdv}`} onClose={() => setDetail(null)}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+            <F label="Date / heure" value={detail.created_at?.slice(0,16).replace('T',' ')} />
+            <F label="Téléconseillère" value={detail.tc_nom} />
+            <F label="Statut" value={detail.statut_label || (detail.statut||'').replace(/_/g,' ')} />
+            <F label="N° PDV" value={detail.numero_pdv} />
+            <F label="Nom PDV" value={detail.nom_pdv} />
+            <F label="N° personnel" value={detail.numero_personnel} />
+            <F label="Zone" value={detail.zone} />
+            <F label="Quartier" value={detail.quartier} />
+            <F label="Superviseur" value={detail.superviseur} />
+            <F label="Gestionnaire" value={detail.gestionnaire} />
+            <F label="Gérant" value={detail.nom_gerant} />
+            <F label="Téléphone" value={detail.telephone} />
+            <F label="Indicateurs" value={((detail.indicateurs && detail.indicateurs.length) ? detail.indicateurs : [detail.indicateur]).filter(Boolean).join(', ')} />
+            <F label="Rappel programmé" value={detail.date_rappel} />
+            <F label="Mission" value={detail.mission ? 'Oui' : 'Non'} />
+          </div>
+          <div style={{ marginTop:14 }}>
+            <F label="Commentaire" value={detail.commentaire} />
+          </div>
+        </Modal>
+      )}
+
+      {/* Modale commentaires globaux */}
+      {showComms && (
+        <Modal title={`💬 Tous les commentaires (${commentaires.length})`} onClose={() => setShowComms(false)} width={880}>
+          {loadComms ? <div style={{ color:'#8a8a9a' }}>Chargement…</div> : commentaires.length === 0 ? (
+            <div style={{ textAlign:'center', padding:30, color:'#64748b' }}>Aucun commentaire</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {commentaires.map(a => (
+                <div key={a.id} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:10, padding:'12px 14px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', gap:10, flexWrap:'wrap', marginBottom:6 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'#e2e8f0' }}>
+                      {a.nom_pdv || a.numero_pdv} <span style={{ color:'#64748b', fontWeight:400 }}>· {a.numero_pdv}</span>
+                    </div>
+                    <div style={{ fontSize:11, color:'#64748b' }}>{a.tc_nom} · {a.created_at?.slice(0,16).replace('T',' ')}</div>
+                  </div>
+                  <div style={{ fontSize:10, color:'#8a8a9a', marginBottom:6 }}>
+                    {a.zone || '—'}{a.quartier ? ` · ${a.quartier}` : ''} {a.superviseur ? ` · Sup. ${a.superviseur}` : ''}
+                  </div>
+                  <div style={{ fontSize:13, color:'#cbd5e1', lineHeight:1.6 }}>“{a.commentaire}”</div>
+                  <div style={{ marginTop:6, fontSize:10, color:STATUT_COLORS[a.statut]||'#64748b' }}>
+                    {STATUT_ICONS[a.statut]||''} {(a.statut_label || (a.statut||'').replace(/_/g,' '))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

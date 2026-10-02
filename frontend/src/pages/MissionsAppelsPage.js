@@ -5,7 +5,8 @@
  * Produit & Qualité Opérationnelle.
  * Exécutantes : les téléconseillères (elles reçoivent la liste dans Accueil TC).
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { useQuery, useQueryClient } from 'react-query';
 import { Plus, Download, X, Search, Send, CheckCircle2, AlertTriangle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -77,6 +78,10 @@ function AssistantMission({ refs, onClose, onCree }) {
   const [fGest, setFGest] = useState('');
   const [fQuartier, setFQuartier] = useState('');
   const [fSituation, setFSituation] = useState('');
+  // Import Excel : liste de numéros PDV → restreint la liste affichée
+  const [importPdv, setImportPdv] = useState(null);      // Set de numéros trouvés
+  const [importInfo, setImportInfo] = useState(null);    // {fichier, numeros, trouves, introuvables, exemples}
+  const fileRef = useRef(null);
   const [selPdv, setSelPdv] = useState([]);         // numéros de PDV cochés
   const [qPers, setQPers] = useState('');
   const [fRole, setFRole] = useState('superviseur');
@@ -115,6 +120,7 @@ function AssistantMission({ refs, onClose, onCree }) {
   const pdvFiltres = useMemo(() => {
     const terme = q.trim().toLowerCase();
     return tousPdv.filter(p => {
+      if (importPdv && !importPdv.has(String(p.pdv_numero))) return false;
       if (fSup && p.superviseur !== fSup) return false;
       if (fGest && p.gestionnaire !== fGest) return false;
       if (fQuartier && p.quartier !== fQuartier) return false;
@@ -123,7 +129,7 @@ function AssistantMission({ refs, onClose, onCree }) {
       return String(p.pdv_numero || '').toLowerCase().includes(terme)
           || String(p.nom || '').toLowerCase().includes(terme);
     });
-  }, [tousPdv, q, fSup, fGest, fQuartier, fSituation]);
+  }, [tousPdv, q, fSup, fGest, fQuartier, fSituation, importPdv]);
 
   // Toute la liste est affichée (le patron veut voir l'ensemble des PDV) :
   // le filtre par recherche/superviseur/gestionnaire/quartier suffit à réduire.
@@ -142,6 +148,31 @@ function AssistantMission({ refs, onClose, onCree }) {
   const toutCocherPdv = () => setSelPdv(prev =>
     [...new Set([...prev, ...pdvFiltres.map(p => p.pdv_numero)])]);
   const toutDecocherPdv = () => setSelPdv([]);
+
+  // ── Import Excel : le fichier contient uniquement des N° PDV ──
+  const importerExcel = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+      const nums = new Set();
+      rows.forEach(r => (r || []).forEach(cell => {
+        const s = String(cell ?? '').trim();
+        if (s && /\d/.test(s)) nums.add(s);
+      }));
+      const dispo = new Set(tousPdv.map(p => String(p.pdv_numero)));
+      const trouves = [...nums].filter(n => dispo.has(n));
+      const introuvables = [...nums].filter(n => !dispo.has(n));
+      setImportPdv(new Set(trouves));
+      setImportInfo({ fichier: f.name, numeros: nums.size, trouves: trouves.length, introuvables: introuvables.length, exemples: introuvables.slice(0, 8) });
+      if (trouves.length) toast.success(`${trouves.length} PDV affiché(s) sur ${nums.size} numéro(s)`);
+      else toast.error('Aucun de ces numéros n\'existe dans la base Point de vente');
+    } catch (err) { toast.error('Fichier illisible'); }
+    finally { if (fileRef.current) fileRef.current.value = ''; }
+  };
   const toutCocherPers = () => setSelPers(prev =>
     [...new Set([...prev, ...persFiltrees.map(u => u.user_id)])]);
 
@@ -338,6 +369,21 @@ function AssistantMission({ refs, onClose, onCree }) {
                     onClick={toutDecocherPdv} disabled={!nbSelection}>
                     ✕ Tout décocher
                   </button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }}
+                    onClick={() => fileRef.current?.click()} title="Importer un fichier Excel contenant uniquement des numéros de PDV">
+                    📂 Importer Excel
+                  </button>
+                  <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={importerExcel} style={{ display: 'none' }} />
+                  {importInfo && (
+                    <span style={{ fontSize: 11, color: '#8a8a9a', display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      📄 <b style={{ color: '#e2e8f0' }}>{importInfo.fichier}</b> · {importInfo.trouves}/{importInfo.numeros} trouvé(s)
+                      {importInfo.introuvables > 0 && (
+                        <span style={{ color: '#ffa502' }} title={(importInfo.exemples || []).join(', ')}>· {importInfo.introuvables} non trouvé(s)</span>
+                      )}
+                      <button type="button" onClick={() => { setImportPdv(null); setImportInfo(null); }}
+                        style={{ background: 'rgba(255,71,87,0.12)', border: '1px solid rgba(255,71,87,0.3)', borderRadius: 6, color: '#ff4757', padding: '2px 7px', cursor: 'pointer' }}>✕</button>
+                    </span>
+                  )}
                 </div>
 
                 {/* Liste complète des PDV */}

@@ -100,7 +100,7 @@ def _pdv_autorise_pour_tc(db: Session, current_user: User, numero_pdv: str) -> b
     return nom_pdv in mes_noms
 
 
-def _fmt(a: AppelTC) -> dict:
+def _fmt(a: AppelTC, pdv=None) -> dict:
     return {
         "id": a.id,
         "numero_pdv": a.numero_pdv,
@@ -114,7 +114,23 @@ def _fmt(a: AppelTC) -> dict:
         "commentaire": a.commentaire,
         "date_rappel": a.date_rappel.isoformat() if a.date_rappel else None,
         "created_at": a.created_at.isoformat() if a.created_at else None,
+        # Contexte PDV (issu du menu Point de vente)
+        "zone": getattr(pdv, "zone", None),
+        "quartier": getattr(pdv, "quartier", None),
+        "superviseur": getattr(pdv, "superviseur", None),
+        "gestionnaire": getattr(pdv, "gestionnaire", None),
+        "nom_gerant": getattr(pdv, "nom_gerant", None),
+        "telephone": getattr(pdv, "telephone", None),
+        "numero_personnel": getattr(pdv, "numero_personnel", None),
+        "mission": a.mission_cible_id is not None,
     }
+
+
+def _pdv_map_pour(db: Session, items):
+    nums = {a.numero_pdv for a in items if a.numero_pdv}
+    if not nums:
+        return {}
+    return {p.numero_pdv: p for p in db.query(PDV).filter(PDV.numero_pdv.in_(nums)).all()}
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -191,11 +207,94 @@ def list_appels(
 
     total = q.count()
     items = q.order_by(desc(AppelTC.created_at)).offset(skip).limit(limit).all()
+    pdv_map = _pdv_map_pour(db, items)
 
     return {
         "total": total,
-        "items": [_fmt(a) for a in items],
+        "items": [_fmt(a, pdv_map.get(a.numero_pdv)) for a in items],
     }
+
+
+@router.get("/appels-tc/commentaires")
+def list_commentaires(
+    tc_user_id: Optional[int] = Query(None),
+    indicateur: Optional[str] = Query(None),
+    numero_pdv: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Tous les appels ayant un commentaire (vue « commentaires globaux »)."""
+    q = db.query(AppelTC).filter(AppelTC.commentaire.isnot(None), func.trim(AppelTC.commentaire) != "")
+    if tc_user_id:
+        q = q.filter(AppelTC.tc_user_id == tc_user_id)
+    if indicateur:
+        q = q.filter(AppelTC.indicateur == indicateur)
+    if numero_pdv:
+        q = q.filter(AppelTC.numero_pdv == numero_pdv)
+    items = q.order_by(desc(AppelTC.created_at)).all()
+    pdv_map = _pdv_map_pour(db, items)
+    return {"total": len(items), "items": [_fmt(a, pdv_map.get(a.numero_pdv)) for a in items]}
+
+
+@router.get("/appels-tc/export")
+def export_appels(
+    tc_user_id: Optional[int] = Query(None),
+    indicateur: Optional[str] = Query(None),
+    numero_pdv: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export Excel de TOUS les appels (avec le contexte PDV)."""
+    import io
+    from fastapi.responses import StreamingResponse
+    from openpyxl import Workbook
+
+    q = db.query(AppelTC)
+    if tc_user_id:
+        q = q.filter(AppelTC.tc_user_id == tc_user_id)
+    if indicateur:
+        q = q.filter(AppelTC.indicateur == indicateur)
+    if numero_pdv:
+        q = q.filter(AppelTC.numero_pdv == numero_pdv)
+    items = q.order_by(desc(AppelTC.created_at)).all()
+    pdv_map = _pdv_map_pour(db, items)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Historique appels"
+    ws.append(["Date", "Téléconseillère", "N° PDV", "Nom PDV", "Zone", "Quartier",
+               "Superviseur", "Gestionnaire", "Gérant", "Téléphone", "Indicateurs",
+               "Statut", "Commentaire", "Date rappel", "Mission", "N° personnel"])
+    for a in items:
+        p = pdv_map.get(a.numero_pdv)
+        inds = list(a.indicateurs) if a.indicateurs else ([a.indicateur.value] if a.indicateur else [])
+        ws.append([
+            a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "",
+            a.tc_nom or "",
+            a.numero_pdv or "",
+            a.nom_pdv or "",
+            getattr(p, "zone", "") or "",
+            getattr(p, "quartier", "") or "",
+            getattr(p, "superviseur", "") or "",
+            getattr(p, "gestionnaire", "") or "",
+            getattr(p, "nom_gerant", "") or "",
+            getattr(p, "telephone", "") or "",
+            ", ".join(inds),
+            STATUT_LABELS.get(a.statut.value if a.statut else "", ""),
+            a.commentaire or "",
+            a.date_rappel.isoformat() if a.date_rappel else "",
+            "Oui" if a.mission_cible_id else "Non",
+            getattr(p, "numero_personnel", "") or "",
+        ])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="historique_appels_tc.xlsx"'},
+    )
 
 
 @router.get("/appels-tc/pdv/{numero_pdv}")
