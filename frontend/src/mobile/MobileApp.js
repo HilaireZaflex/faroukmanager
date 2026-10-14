@@ -10,6 +10,10 @@ import MobilePDV from './pages/MobilePDV';
 import MobilePDVDetail from './pages/MobilePDVDetail';
 import MobileRecuperation from './pages/MobileRecuperation';
 import MobileAlertes from './pages/MobileAlertes';
+import MobileProspection from './pages/MobileProspection';
+import MobileProspectDetail from './pages/MobileProspectDetail';
+import MobilePlanning from './pages/MobilePlanning';
+import MobileActivations from './pages/MobileActivations';
 import './mobile.css';
 
 export default function MobileApp() {
@@ -40,10 +44,13 @@ export default function MobileApp() {
         <Route path="recuperation" element={<MobileRecuperation />} />
         <Route path="alertes" element={<MobileAlertes />} />
 
-        {/* ── Phases C/D à venir ── */}
-        <Route path="prospection" element={<MobileSoon titre="Prospection" icone="👥" phase="C" />} />
-        <Route path="planning" element={<MobileSoon titre="Planning des visites" icone="📅" phase="C" />} />
-        <Route path="activations" element={<MobileSoon titre="Activations" icone="✅" phase="C" />} />
+        {/* ── Phase C · Développeur terrain ── */}
+        <Route path="prospection" element={<MobileProspection />} />
+        <Route path="prospect/:id" element={<MobileProspectDetail />} />
+        <Route path="planning" element={<MobilePlanning />} />
+        <Route path="activations" element={<MobileActivations />} />
+
+        {/* ── Phase D à venir ── */}
         <Route path="pilotage" element={<MobileSoon titre="Pilotage" icone="📊" phase="D" />} />
         <Route path="equipe" element={<MobileSoon titre="Équipe & Réseau" icone="🌐" phase="D" />} />
         <Route path="validations" element={<MobileSoon titre="Validations" icone="📋" phase="D" />} />

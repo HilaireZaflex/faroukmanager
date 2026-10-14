@@ -37,6 +37,19 @@ export default function MobileAccueil() {
   const nbAlertes = alertes?.pdvs?.length || 0;
   const nbCritiques = (alertes?.pdvs || []).filter(p => (p.priorite || '').toUpperCase() === 'CRITIQUE').length;
 
+  // Priorités du développeur terrain (périmètre restreint à ses affectations par le serveur)
+  const { data: devVisites } = useQuery('m-dev-visites',
+    () => api.get('/prospects', { params: { status: 'EN_VISITE', assigned_to_me: true, limit: 200 } }).then(r => r.data),
+    { enabled: groupe === 'developpeur', staleTime: 120000 });
+  const { data: devActis } = useQuery('m-dev-activations',
+    () => api.get('/prospects', { params: { assigned_to_me: true, limit: 200 } }).then(r => r.data),
+    { enabled: groupe === 'developpeur', staleTime: 120000 });
+
+  const nbVisites = devVisites?.length || 0;
+  const nbA_activer = (devActis || []).filter(p => ['PUCE_ATTRIBUEE', 'EN_ATTENTE_CONFORMITE'].includes((p.status || '').toUpperCase())).length;
+  const nbActivees = (devActis || []).filter(p => (p.status || '').toUpperCase() === 'PUCE_ACTIVEE').length;
+  const nbAttente = (devActis || []).filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC', 'APPROUVEE_RC'].includes((p.status || '').toUpperCase())).length;
+
   const k = synthese?.kpis || {};
   const liens = (ONGLETS[groupe] || ONGLETS.autre).filter(t => t.to !== '/m/accueil' && t.to !== '/m/profil');
 
@@ -62,6 +75,18 @@ export default function MobileAccueil() {
             <KPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)}`} />
             <KPI label="Gisements" value={fmtN(k.nb_gisements)} color="#ffa502" sub={`${fmtN(k.pct_volume_gisements, 1)} % volume`} />
             <KPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" />
+          </div>
+        </>
+      )}
+
+      {groupe === 'developpeur' && (
+        <>
+          <div className="m-section-title">🎯 Mes priorités aujourd'hui</div>
+          <div className="m-grid m-grid-2" style={{ marginBottom: 12 }}>
+            <KPI label="Visites à faire" value={fmtN(nbVisites)} color="#ffa502" sub="affectées à moi" />
+            <KPI label="Activations à faire" value={fmtN(nbA_activer)} color="#4a9eff" sub="puces attribuées" />
+            <KPI label="En attente RC" value={fmtN(nbAttente)} color="#a29bfe" sub="dossiers en cours" />
+            <KPI label="Activées" value={fmtN(nbActivees)} color="#22c55e" sub="PDV créés" />
           </div>
         </>
       )}

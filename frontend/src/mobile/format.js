@@ -77,3 +77,44 @@ export const libelleStatut = (s) => (STATUTS_PDV[(s || '').toUpperCase()] || {})
 
 export const classePrioriteAlerte = (p) =>
   ({ CRITIQUE: 'red', HAUTE: 'amber', NORMALE: 'blue' }[(p || '').toUpperCase()] || '');
+
+/* ── Prospection ────────────────────────────────────────────────────────── */
+
+export const STATUTS_PROSPECT = {
+  NOUVELLE:              { label: 'Nouvelle',            classe: 'blue' },
+  EN_VISITE:             { label: 'En visite',           classe: 'amber' },
+  VALIDEE_DEV:           { label: 'Validée dev',         classe: 'green' },
+  REFUSEE_DEV:           { label: 'Refusée dev',         classe: 'red' },
+  EN_ATTENTE_RC:         { label: 'Attente RC',          classe: 'amber' },
+  APPROUVEE_RC:          { label: 'Approuvée RC',        classe: 'green' },
+  REFUSEE_RC:            { label: 'Refusée RC',          classe: 'red' },
+  PUCE_ATTRIBUEE:        { label: 'Puce attribuée',      classe: 'blue' },
+  EN_ATTENTE_CONFORMITE: { label: 'Attente conformité',  classe: 'amber' },
+  PUCE_ACTIVEE:          { label: 'Activée',             classe: 'green' },
+  ANNULEE:               { label: 'Annulée',             classe: '' },
+};
+
+export const libelleStatutProspect = (s) =>
+  (STATUTS_PROSPECT[(s || '').toUpperCase()] || {}).label || s || '—';
+
+export const classeStatutProspect = (s) =>
+  (STATUTS_PROSPECT[(s || '').toUpperCase()] || {}).classe || '';
+
+/** Qualité du prospect évaluée sur le terrain (obligatoire pour valider une visite). */
+export const QUALIFICATIONS = [
+  { value: 'EXCELLENT', label: 'Excellent',  icone: '🟢', desc: 'Emplacement idéal, forte affluence' },
+  { value: 'TRES_BON',  label: 'Très bon',   icone: '🟩', desc: 'Très bon potentiel' },
+  { value: 'BON',       label: 'Bon',        icone: '🟡', desc: 'Potentiel correct' },
+  { value: 'MOYEN',     label: 'Moyen',      icone: '🟠', desc: 'Potentiel limité' },
+  { value: 'FAIBLE',    label: 'Faible',     icone: '🔴', desc: 'Potentiel insuffisant' },
+];
+
+export const libelleQualification = (q) =>
+  (QUALIFICATIONS.find(x => x.value === q) || {}).label || q || '—';
+
+/** Lien d'itinéraire Google Maps vers un point GPS. */
+export const lienItineraire = (lat, lng) =>
+  lat != null && lng != null
+    ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+    : null;
+
