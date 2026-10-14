@@ -617,8 +617,9 @@ def create_new_pdv(
 
 
 @router.get("/pdvs/{pdv_id}")
-def get_pdv_detail(pdv_id: int, db: Session = Depends(get_db)):
-    """Fiche complète d'un PDV avec historique — M9"""
+def get_pdv_detail(pdv_id: int, db: Session = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
+    """Fiche complète d'un PDV avec historique — M9 (accès authentifié requis)"""
     pdv = db.query(PDV).filter(PDV.id == pdv_id).first()
     if not pdv:
         raise HTTPException(status_code=404, detail="PDV non trouvé")
