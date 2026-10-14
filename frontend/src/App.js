@@ -29,6 +29,7 @@ import KaabuDashboardPage from './pages/KaabuDashboardPage';
 import KaabuMensuelPage from './pages/KaabuMensuelPage';
 import ChallengePage from './pages/ChallengePage';
 import AnalysePerformancePage from './pages/AnalysePerformancePage';
+import MobileApp from './mobile/MobileApp';
 import CartePage from './pages/CartePage';
 import RecoveryListePage from './pages/RecoveryListePage';
 import OMyDashboardPage from './pages/OMyDashboardPage';
@@ -148,10 +149,25 @@ function App() {
     return () => clearInterval(interval);
   }, [isAuthenticated, fetchNotifications, resetNotifs]);
 
+  // ── PWA mobile : rediriger les téléphones vers /m (sauf si « version bureau » choisi) ──
+  useEffect(() => {
+    try {
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile|Opera Mini/i.test(navigator.userAgent);
+      const forceDesktop = localStorage.getItem('fm_force_desktop') === '1';
+      const p = window.location.pathname;
+      if (isMobile && !forceDesktop && (p === '/' || p === '/login' || p === '/accueil')) {
+        window.location.replace('/m');
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
   return (
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<LoginPage />} />
+
+      {/* Application mobile (PWA) */}
+      <Route path="/m/*" element={<MobileApp />} />
 
       {/* Protected Routes */}
       <Route
