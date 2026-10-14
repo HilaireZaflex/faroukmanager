@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from typing import List, Optional
 from app.core.database import get_db
 from app.models.pdv import PDV, PDVStatut, PDVType
@@ -533,6 +533,9 @@ def list_pdvs(
     # ── Filtres manuels (si pas déjà fixés par le rôle) ──
     if zone and 'zone' not in user_filters:
         query = query.filter(PDV.zone == zone)
+    if quartier:
+        # Comparaison insensible à la casse et aux espaces (valeurs du référentiel)
+        query = query.filter(func.trim(func.lower(PDV.quartier)) == quartier.strip().lower())
     if superviseur and 'superviseur' not in user_filters:
         query = query.filter(PDV.superviseur.ilike(f"%{superviseur}%"))
     if gestionnaire and 'gestionnaire' not in user_filters:
