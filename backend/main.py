@@ -452,6 +452,12 @@ async def auto_migrate():
             ensure_analyse_perf_menu()
         except Exception as e:
             print(f"⚠️ ensure_analyse_perf_menu : {e}")
+        # ── Accès « Paramètres » + « Suivi TC » au Responsable Produit & Qualité ──
+        try:
+            from app.api.routes.role_permissions import ensure_rpqo_menus
+            ensure_rpqo_menus()
+        except Exception as e:
+            print(f"⚠️ ensure_rpqo_menus : {e}")
         print("✅ Auto-migration prospects OK")
     except Exception as e:
         print(f"⚠️ Auto-migration prospects: {e}")

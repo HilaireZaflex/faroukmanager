@@ -65,7 +65,8 @@ DEFAULT_SIDEBAR = {
     "responsable_produit_et_qualit_oprationnelle_": {
         "dashboards": DEFAULT_DASHBOARDS_NON_ADMIN,
         "menus": ["pdvs", "prospection", "evaluations", "alerts", "ia", "carte",
-                  "recovery", "import", "reports", "reclamations", MISSIONS_MENU],
+                  "recovery", "import", "reports", "reclamations", MISSIONS_MENU,
+                  "settings", "suivi_tc"],
     },
 }
 
@@ -161,6 +162,55 @@ def ensure_analyse_perf_menu():
     except Exception as e:
         db.rollback()
         print(f"⚠️ Accès « Analyse Performance » non appliqué : {e}")
+    finally:
+        db.close()
+
+
+# ── Responsable Produit & Qualité Opérationnelle : référentiel + Suivi TC ────
+# C'est lui qui met à jour les Zones / Sous-zones / Quartiers (menu Paramètres)
+# et qui doit pouvoir lire les commentaires de tous les appels des TC (Suivi TC,
+# page en lecture seule pour ce rôle : `peutEditer` reste limité à admin/manager/rc).
+RPQO_ROLE = "responsable_produit_et_qualit_oprationnelle_"
+RPQO_MENUS_A_AJOUTER = ["settings", "suivi_tc"]
+
+
+def ensure_rpqo_menus():
+    """Idempotent : ouvre « Paramètres » et « Suivi TC » au Responsable Produit & Qualité.
+
+    Aucune permission n'est jamais retirée : on ne fait qu'ajouter les menus manquants.
+    Appelé au démarrage de l'application.
+    """
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        row = db.query(RolePermission).filter(RolePermission.role_id == RPQO_ROLE).first()
+        if row is None:
+            base = DEFAULT_SIDEBAR.get(RPQO_ROLE, {})
+            menus = list(base.get("menus") or DEFAULT_MENUS_NON_ADMIN)
+            for m in RPQO_MENUS_A_AJOUTER:
+                if m not in menus:
+                    menus.append(m)
+            db.add(RolePermission(
+                role_id=RPQO_ROLE,
+                permissions={},
+                sidebar_config={
+                    "dashboards": base.get("dashboards", list(DEFAULT_DASHBOARDS_NON_ADMIN)),
+                    "menus": menus,
+                },
+            ))
+        else:
+            cfg = dict(row.sidebar_config or {})
+            menus = list(cfg.get("menus") or [])
+            ajoutes = [m for m in RPQO_MENUS_A_AJOUTER if m not in menus]
+            if ajoutes:
+                menus.extend(ajoutes)
+                cfg["menus"] = menus
+                row.sidebar_config = cfg
+        db.commit()
+        print("✅ Accès « Paramètres » et « Suivi TC » vérifiés (Responsable Produit & Qualité)")
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ Accès Responsable Produit & Qualité non appliqué : {e}")
     finally:
         db.close()
 

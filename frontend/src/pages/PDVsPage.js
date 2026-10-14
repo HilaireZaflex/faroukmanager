@@ -475,6 +475,14 @@ export default function PDVsPage() {
   );
   const zonesRef = React.useMemo(() => (refLocalites || []).filter(l => l.type === 'ZONE').map(l => l.nom), [refLocalites]);
   const quartiersRef = React.useMemo(() => (refLocalites || []).filter(l => l.type === 'QUARTIER').map(l => l.nom), [refLocalites]);
+
+  // Référentiel mis à jour (renommage / fusion) : si le quartier filtré n'existe plus,
+  // on réinitialise le filtre pour ne pas rester bloqué sur une liste vide.
+  React.useEffect(() => {
+    if (!quartier || quartiersRef.length === 0) return;
+    const existe = quartiersRef.some(q => String(q).trim().toLowerCase() === String(quartier).trim().toLowerCase());
+    if (!existe) { setQuartier(''); setPage(0); }
+  }, [quartiersRef, quartier]);
   const zones = React.useMemo(() => {
     const fromStats = statsBase?.pdvs_par_zone ? Object.keys(statsBase.pdvs_par_zone) : [];
     return Array.from(new Set([...fromStats, ...zonesRef])).sort((a, b) => String(a).localeCompare(String(b)));

@@ -1086,10 +1086,57 @@ function SectionLocalites() {
   const [edits, setEdits] = useState({});
   const [busy, setBusy] = useState(false);
 
+  // ── Fusion de doublons (ex. plusieurs écritures du même quartier) ──
+  const [fusionPour, setFusionPour] = useState(null);   // clé du type en cours de fusion
+  const [selection, setSelection] = useState([]);       // ids cochés
+  const [nomFinal, setNomFinal] = useState('');         // nom qui sera conservé
+  const [autreNom, setAutreNom] = useState(false);      // saisie libre du nom final
+
   const invalider = () => {
     qc.invalidateQueries('localites');
     qc.invalidateQueries('pdvs');
     qc.invalidateQueries('pdv-stats');
+    qc.invalidateQueries('pdv');
+    qc.invalidateQueries('pdv-dashboard-monthly');
+    qc.invalidateQueries('pdv-dashboard-weekly');
+  };
+
+  const reinitialiserFusion = () => {
+    setFusionPour(null); setSelection([]); setNomFinal(''); setAutreNom(false);
+  };
+
+  const ouvrirFusion = (key) => {
+    if (fusionPour === key) { reinitialiserFusion(); return; }
+    setFusionPour(key); setSelection([]); setNomFinal(''); setAutreNom(false);
+  };
+
+  const basculer = (id) =>
+    setSelection(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]));
+
+  const fusionner = async (t, items) => {
+    const choisis = items.filter(l => selection.includes(l.id));
+    if (choisis.length < 2) return toast.error('Sélectionnez au moins deux entrées à fusionner');
+    const cible = (nomFinal || '').trim() || choisis[0].nom;
+    if (!cible) return toast.error('Indiquez le nom à conserver');
+    const noms = choisis.map(l => `« ${l.nom} »`).join(', ');
+    if (!window.confirm(
+      `Fusionner ${choisis.length} entrées en « ${cible} » ?\n\n` +
+      `Entrées concernées : ${noms}\n\n` +
+      `Tous les PDV rattachés à ces entrées seront basculés sur « ${cible} », ` +
+      `puis les entrées en trop seront supprimées du référentiel.\n\n` +
+      `Cette action est définitive.`
+    )) return;
+    setBusy(true);
+    try {
+      const res = await api.post('/localites/fusionner', {
+        type: t.key, ids: choisis.map(l => l.id), nom_final: cible,
+      });
+      const nb = res.data?.pdvs_mis_a_jour || 0;
+      toast.success(`Fusion réussie · ${nb} PDV mis à jour`);
+      reinitialiserFusion();
+      invalider();
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Fusion impossible'); }
+    finally { setBusy(false); }
   };
 
   const creer = async (type) => {
@@ -1135,9 +1182,18 @@ function SectionLocalites() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <p style={{ color: '#8a8a9a', fontSize: 13 }}>
-        Gérez les zones, sous-zones et quartiers du réseau. Toute modification (ajout, renommage, suppression)
-        est immédiatement reportée dans le menu <strong style={{ color: '#FF6900' }}>Point de vente</strong>.
+        Gérez les zones, sous-zones et quartiers du réseau. Toute modification (ajout, renommage, suppression,
+        <strong style={{ color: '#00d68f' }}> fusion</strong>) est immédiatement reportée dans le menu{' '}
+        <strong style={{ color: '#FF6900' }}>Point de vente</strong>.
       </p>
+
+      <div style={{ background: 'rgba(0,214,143,0.07)', border: '1px solid rgba(0,214,143,0.25)', borderRadius: 12, padding: '14px 16px', fontSize: 12.5, color: '#c9d3e0', lineHeight: 1.7 }}>
+        <strong style={{ color: '#00d68f' }}>🔀 Fusionner des doublons</strong><br />
+        Quand un même lieu est écrit de plusieurs façons (« Badalabougou », « badalabougou », « Badalabougou  »),
+        utilisez <em>Fusionner</em> : cochez les entrées concernées, choisissez le nom à conserver, validez.
+        <br />Les PDV concernés basculent automatiquement sur le nom conservé, et les filtres du menu
+        <strong> Point de vente</strong> se mettent à jour.
+      </div>
 
       {isLoading ? <div style={{ color: '#8a8a9a' }}>Chargement…</div> : LOCALITE_TYPES.map(t => {
         const items = (localites || []).filter(l => l.type === t.key);
@@ -1145,7 +1201,20 @@ function SectionLocalites() {
           <div key={t.key} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderLeft: `4px solid ${t.color}`, borderRadius: 14, padding: '18px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: t.color, margin: 0 }}>{t.icon} {t.label}</h3>
-              <span style={{ fontSize: 12, color: '#8a8a9a' }}>{items.length} entrée{items.length > 1 ? 's' : ''}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, color: '#8a8a9a' }}>{items.length} entrée{items.length > 1 ? 's' : ''}</span>
+                {items.length > 1 && (
+                  <button onClick={() => ouvrirFusion(t.key)} disabled={busy}
+                    style={{
+                      padding: '7px 13px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                      background: fusionPour === t.key ? 'rgba(255,71,87,0.14)' : 'rgba(0,214,143,0.12)',
+                      border: `1px solid ${fusionPour === t.key ? 'rgba(255,71,87,0.35)' : 'rgba(0,214,143,0.3)'}`,
+                      color: fusionPour === t.key ? '#ff4757' : '#00d68f',
+                    }}>
+                    {fusionPour === t.key ? '✕ Annuler la fusion' : '🔀 Fusionner des doublons'}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
@@ -1163,6 +1232,18 @@ function SectionLocalites() {
                 <div style={{ fontSize: 12, color: '#64748b', padding: '8px 0' }}>Aucune entrée</div>
               ) : items.map(l => {
                 const modifie = edits[l.id] !== undefined && edits[l.id] !== l.nom;
+                const enFusion = fusionPour === t.key;
+                const coche = selection.includes(l.id);
+                if (enFusion) {
+                  return (
+                    <label key={l.id}
+                      style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', padding: '7px 10px', borderRadius: 8, background: coche ? 'rgba(0,214,143,0.12)' : 'transparent', border: `1px solid ${coche ? 'rgba(0,214,143,0.35)' : 'transparent'}` }}>
+                      <input type="checkbox" checked={coche} onChange={() => basculer(l.id)} disabled={busy}
+                        style={{ width: 16, height: 16, accentColor: '#00d68f', cursor: 'pointer' }} />
+                      <span style={{ fontSize: 13, color: coche ? '#fff' : '#c9d3e0', fontWeight: coche ? 700 : 500 }}>{l.nom}</span>
+                    </label>
+                  );
+                }
                 return (
                   <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input value={edits[l.id] !== undefined ? edits[l.id] : l.nom}
@@ -1179,6 +1260,55 @@ function SectionLocalites() {
                 );
               })}
             </div>
+
+            {/* ── Panneau de fusion ── */}
+            {fusionPour === t.key && (() => {
+              const choisis = items.filter(l => selection.includes(l.id));
+              const pret = choisis.length >= 2 && ((nomFinal || '').trim() || choisis[0]?.nom);
+              return (
+                <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 12, background: 'rgba(0,214,143,0.07)', border: '1px solid rgba(0,214,143,0.28)' }}>
+                  <div style={{ fontSize: 13, color: '#fff', fontWeight: 800, marginBottom: 4 }}>
+                    {choisis.length} entrée{choisis.length > 1 ? 's' : ''} sélectionnée{choisis.length > 1 ? 's' : ''}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 12 }}>
+                    Cochez au moins deux entrées ci-dessus, puis choisissez le nom qui sera conservé.
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <select value={autreNom ? '__autre__' : (nomFinal || '')}
+                      onChange={e => {
+                        if (e.target.value === '__autre__') { setAutreNom(true); setNomFinal(''); }
+                        else { setAutreNom(false); setNomFinal(e.target.value); }
+                      }}
+                      style={{ ...inputStyle, minWidth: 220 }}>
+                      <option value="">— Choisir le nom à conserver —</option>
+                      {choisis.map(l => <option key={l.id} value={l.nom}>{l.nom}</option>)}
+                      <option value="__autre__">➕ Saisir un autre nom…</option>
+                    </select>
+                    {autreNom && (
+                      <input value={nomFinal} onChange={e => setNomFinal(e.target.value)}
+                        placeholder="Ex: Badalabougou" style={{ ...inputStyle, minWidth: 180 }} />
+                    )}
+                    <button onClick={() => fusionner(t, items)} disabled={busy || !pret}
+                      style={{
+                        padding: '8px 18px', borderRadius: 8, border: 'none', fontWeight: 800, fontSize: 13,
+                        background: pret ? '#00d68f' : 'rgba(255,255,255,0.08)',
+                        color: pret ? '#04140d' : '#64748b', cursor: pret ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+                      }}>
+                      🔀 Fusionner en une seule entrée
+                    </button>
+                  </div>
+
+                  {choisis.length >= 2 && (
+                    <div style={{ fontSize: 12, color: '#c9d3e0', lineHeight: 1.7 }}>
+                      Les PDV de {choisis.map(l => `« ${l.nom} »`).join(', ')} seront tous rattachés à{' '}
+                      <strong style={{ color: '#00d68f' }}>« {(nomFinal || '').trim() || choisis[0].nom} »</strong>.
+                      Les autres entrées seront supprimées du référentiel.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         );
       })}
@@ -1189,16 +1319,25 @@ function SectionLocalites() {
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const { user } = useAuthStore();
-  const [activeSection, setActiveSection] = useState('profil');
+  const roleCourant = (user?.role || '').toLowerCase().replace('userrole.', '');
+  const estRPQO = roleCourant === 'responsable_produit_et_qualit_oprationnelle_';
+  // Le Responsable Produit & Qualité vient ici pour tenir le référentiel à jour :
+  // on l'ouvre directement sur « Zones & Localités ».
+  const [activeSection, setActiveSection] = useState(estRPQO ? 'localites' : 'profil');
 
   const sections = [
     { id:'profil',         label:'Mon Profil',              icon: User,     color:'#4a9eff' },
     { id:'equipe',         label:'Équipe & Accès',           icon: Users,    color:'#FF6900', adminOnly: true },
     { id:'roles',          label:'Roles & Permissions',      icon: Shield,   color:'#a855f7', adminOnly: true },
-    { id:'database',       label:'Base de Donnees',          icon: Database, color:'#00d68f' },
+    { id:'database',       label:'Base de Donnees',          icon: Database, color:'#00d68f', reserveEncadrement: true },
     { id:'notifications',  label:'Notifications',            icon: Bell,     color:'#ffaa00' },
     { id:'localites',      label:'Zones & Localités',        icon: MapPin,   color:'#4a9eff' },
-  ].filter(s => !s.adminOnly || ['admin', 'ADMIN', 'manager', 'MANAGER'].includes(user?.role));
+  ].filter(s => {
+    if (s.adminOnly) return ['admin', 'manager'].includes(roleCourant);
+    // Outils techniques (export base, recalcul des scores) : encadrement historique uniquement
+    if (s.reserveEncadrement) return ['admin', 'manager', 'rc'].includes(roleCourant);
+    return true;
+  });
 
   return (
     <div className="page">
