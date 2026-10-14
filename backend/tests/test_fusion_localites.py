@@ -133,3 +133,79 @@ def test_refus_si_types_melanges(referentiel):
     with pytest.raises(HTTPException) as err:
         fusionner_localites(FusionIn(type="QUARTIER", ids=ids, nom_final="X"), db, _Utilisateur("admin"))
     assert err.value.status_code == 400
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Régression : cas réel « BAMAKO COURA » / « Bamako coura » (espaces + casse).
+#
+# La table `localites` porte la contrainte UNIQUE (type, nom). L'ancien code
+# renommait l'entrée conservée AVANT de supprimer les autres : quand on gardait
+# le nom porté par l'autre ligne, le renommage créait un doublon encore présent
+# en base → erreur, et l'utilisateur voyait « Fusion impossible ».
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_fusion_bamako_coura_en_gardant_le_nom_de_lautre_ligne(referentiel):
+    """Sur ce cas précis la 1re ligne est « Bamako coura » (espace final) et la 2e « BAMAKO COURA »."""
+    db = referentiel
+    db.add(Localite(type="QUARTIER", nom="Bamako coura "))
+    db.add(Localite(type="QUARTIER", nom="BAMAKO COURA"))
+    db.add(PDV(numero_pdv="10", nom="PDV 10", quartier="BAMAKO COURA"))
+    db.add(PDV(numero_pdv="11", nom="PDV 11", quartier="bamako coura"))
+    db.commit()
+
+    ids = _ids(db, ["Bamako coura ", "BAMAKO COURA"])
+
+    # On conserve le nom de la SECONDE ligne : c'est ce choix qui échouait avant.
+    res = fusionner_localites(
+        FusionIn(type="QUARTIER", ids=ids, nom_final="BAMAKO COURA"), db, _Utilisateur("admin")
+    )
+
+    assert res["entrees_supprimees"] == 1
+    noms = [l.nom for l in db.query(Localite).filter(Localite.type == "QUARTIER").all()]
+    assert noms.count("BAMAKO COURA") == 1
+    assert "Bamako coura " not in noms
+
+    quartiers = _quartiers(db)
+    assert quartiers["10"] == quartiers["11"] == "BAMAKO COURA"
+
+
+def test_fusion_bamako_coura_en_gardant_le_nom_avec_espace(referentiel):
+    """Même paire, mais on conserve le nom de la 1re ligne (espace final ignoré)."""
+    db = referentiel
+    db.add(Localite(type="QUARTIER", nom="Bamako coura "))
+    db.add(Localite(type="QUARTIER", nom="BAMAKO COURA"))
+    db.commit()
+
+    ids = _ids(db, ["Bamako coura ", "BAMAKO COURA"])
+    res = fusionner_localites(
+        FusionIn(type="QUARTIER", ids=ids, nom_final="Bamako coura "), db, _Utilisateur("admin")
+    )
+
+    assert res["entrees_supprimees"] == 1
+    noms = [l.nom for l in db.query(Localite).filter(Localite.type == "QUARTIER").all()]
+    assert "BAMAKO COURA" not in noms
+    assert len([n for n in noms if n.strip().lower() == "bamako coura"]) == 1
+
+
+def test_fusion_dans_les_deux_sens_ne_laisse_quune_entree():
+    """Quel que soit le nom conservé, il ne doit rester qu'une seule écriture."""
+    for nom_final in ["BAMAKO COURA", "Bamako coura "]:
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine, tables=[PDV.__table__, Localite.__table__])
+        db = sessionmaker(bind=engine)()
+
+        db.add(Localite(type="QUARTIER", nom="Bamako coura "))
+        db.add(Localite(type="QUARTIER", nom="BAMAKO COURA"))
+        for numero, quartier in [("1", "BAMAKO COURA"), ("2", "bamako coura")]:
+            db.add(PDV(numero_pdv=numero, nom=f"PDV {numero}", quartier=quartier))
+        db.commit()
+
+        ids = _ids(db, ["Bamako coura ", "BAMAKO COURA"])
+        fusionner_localites(FusionIn(type="QUARTIER", ids=ids, nom_final=nom_final), db,
+                            _Utilisateur("admin"))
+
+        restants = [l.nom for l in db.query(Localite).filter(Localite.type == "QUARTIER").all()]
+        identiques = [n for n in restants if n.strip().lower() == "bamako coura"]
+        assert len(identiques) == 1, f"nom_final={nom_final!r} → {restants}"
+        assert _quartiers(db)["1"] == _quartiers(db)["2"]
+        db.close()

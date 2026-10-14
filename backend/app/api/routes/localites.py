@@ -14,6 +14,7 @@ les filtres du menu Point de vente.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -218,21 +219,36 @@ def fusionner_localites(
         cible = db.query(Localite).filter(
             Localite.type == t, func.lower(func.trim(Localite.nom)) == nom_final.lower()
         ).first()
+    nouvelle = False
     if cible is None:
         cible = Localite(type=t, nom=nom_final)
         db.add(cible)
-        db.flush()
-    else:
-        cible.nom = nom_final
+        nouvelle = True
 
-    # 3. Suppression des autres entrées sélectionnées
+    # 3. IMPORTANT — supprimer les entrées en trop AVANT de renommer la cible.
+    #    La table porte une contrainte UNIQUE (type, nom) : renommer d'abord la cible
+    #    avec un nom encore porté par une autre ligne sélectionnée provoque une erreur.
     supprimes = 0
     for r in rows:
-        if r.id != cible.id:
-            db.delete(r)
-            supprimes += 1
+        if not nouvelle and r.id == cible.id:
+            continue
+        db.delete(r)
+        supprimes += 1
+    db.flush()
 
-    db.commit()
+    # 4. Le renommage se fait maintenant sans aucun risque de collision
+    if not nouvelle:
+        cible.nom = nom_final
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"« {nom_final} » existe déjà dans cette catégorie.",
+        )
+
     return {
         "success": True,
         "action": "fusion",

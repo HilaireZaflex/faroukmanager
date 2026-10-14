@@ -1135,7 +1135,15 @@ function SectionLocalites() {
       toast.success(`Fusion réussie · ${nb} PDV mis à jour`);
       reinitialiserFusion();
       invalider();
-    } catch (e) { toast.error(e?.response?.data?.detail || 'Fusion impossible'); }
+    } catch (e) {
+      // Toujours afficher la raison réelle (message serveur, texte brut ou erreur réseau) :
+      // un « Fusion impossible » générique masquerait la vraie cause.
+      const detail = e?.response?.data?.detail
+        || (typeof e?.response?.data === 'string' ? e.response.data : null)
+        || e?.message
+        || 'Fusion impossible';
+      toast.error(detail);
+    }
     finally { setBusy(false); }
   };
 
