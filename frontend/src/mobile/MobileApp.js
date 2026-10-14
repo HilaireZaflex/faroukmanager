@@ -5,7 +5,6 @@ import MobileLayout from './MobileLayout';
 import MobileLogin from './pages/MobileLogin';
 import MobileAccueil from './pages/MobileAccueil';
 import MobileProfil from './pages/MobileProfil';
-import MobileSoon from './pages/MobileSoon';
 import MobilePDV from './pages/MobilePDV';
 import MobilePDVDetail from './pages/MobilePDVDetail';
 import MobileRecuperation from './pages/MobileRecuperation';
@@ -14,6 +13,9 @@ import MobileProspection from './pages/MobileProspection';
 import MobileProspectDetail from './pages/MobileProspectDetail';
 import MobilePlanning from './pages/MobilePlanning';
 import MobileActivations from './pages/MobileActivations';
+import MobilePilotage from './pages/MobilePilotage';
+import MobileEquipe from './pages/MobileEquipe';
+import MobileValidations from './pages/MobileValidations';
 import './mobile.css';
 
 export default function MobileApp() {
@@ -50,10 +52,10 @@ export default function MobileApp() {
         <Route path="planning" element={<MobilePlanning />} />
         <Route path="activations" element={<MobileActivations />} />
 
-        {/* ── Phase D à venir ── */}
-        <Route path="pilotage" element={<MobileSoon titre="Pilotage" icone="📊" phase="D" />} />
-        <Route path="equipe" element={<MobileSoon titre="Équipe & Réseau" icone="🌐" phase="D" />} />
-        <Route path="validations" element={<MobileSoon titre="Validations" icone="📋" phase="D" />} />
+        {/* ── Phase D · Manager / Admin ── */}
+        <Route path="pilotage" element={<MobilePilotage />} />
+        <Route path="equipe" element={<MobileEquipe />} />
+        <Route path="validations" element={<MobileValidations />} />
 
         <Route path="profil" element={<MobileProfil />} />
         <Route path="*" element={<Navigate to="/m/accueil" replace />} />

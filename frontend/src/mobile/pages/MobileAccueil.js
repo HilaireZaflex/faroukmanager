@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import useAuthStore from '../../store/authStore';
 import { groupeRole, ONGLETS } from '../MobileLayout';
+import { fmtCourt } from '../format';
 
 const fmtN = (v, d = 0) => (v == null ? '—' : Number(v).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }));
 const fmtF = (v) => (v == null ? '—' : `${fmtN(v)} F`);
@@ -51,6 +52,14 @@ export default function MobileAccueil() {
   const nbAttente = (devActis || []).filter(p => ['VALIDEE_DEV', 'EN_ATTENTE_RC', 'APPROUVEE_RC'].includes((p.status || '').toUpperCase())).length;
 
   const k = synthese?.kpis || {};
+
+  // Dossiers en attente de décision de l'encadrement (vue globale pour manager/admin)
+  const { data: pstats } = useQuery('m-prospect-stats',
+    () => api.get('/prospects/stats').then(r => r.data),
+    { enabled: groupe === 'manager', staleTime: 120000 });
+  const aDecider = (Number(pstats?.validees_dev) || 0) + (Number(pstats?.en_attente_rc) || 0);
+  const aAttribuer = Number(pstats?.approuvees_rc) || 0;
+
   const liens = (ONGLETS[groupe] || ONGLETS.autre).filter(t => t.to !== '/m/accueil' && t.to !== '/m/profil');
 
   const titre = groupe === 'superviseur' ? 'Espace superviseur'
@@ -69,13 +78,22 @@ export default function MobileAccueil() {
         <>
           <div className="m-section-title">📊 Synthèse{synthese?.periode_courante ? ` · ${synthese.periode_courante}` : ''}</div>
           <div className="m-grid m-grid-2" style={{ marginBottom: 12 }}>
-            <KPI label="Gain réel" value={fmtF(k.real)} color="#FF6900" sub="REAL TTC" />
+            <KPI label="Gain réel" value={fmtCourt(k.real)} color="#FF6900" sub="REAL TTC" />
             <KPI label="Gain / million" value={fmtN(k.real_par_million)} color="#00d68f" sub="rendement" />
-            <KPI label="Volume" value={fmtF(k.volume)} color="#4a9eff" />
+            <KPI label="Volume" value={fmtCourt(k.volume)} color="#4a9eff" sub="transactions" />
             <KPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)}`} />
             <KPI label="Gisements" value={fmtN(k.nb_gisements)} color="#ffa502" sub={`${fmtN(k.pct_volume_gisements, 1)} % volume`} />
             <KPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" />
           </div>
+
+          <div className="m-section-title">📋 À valider</div>
+          <div className="m-grid m-grid-2" style={{ marginBottom: 10 }}>
+            <KPI label="Décisions RC" value={fmtN(aDecider)} color="#ffa502" sub="dossiers en attente" />
+            <KPI label="Puces à attribuer" value={fmtN(aAttribuer)} color="#4a9eff" sub="dossiers approuvés" />
+          </div>
+          <Link to="/m/validations" className="m-link-row">
+            <span className="ico">📋</span>Ouvrir les validations<span className="arrow">›</span>
+          </Link>
         </>
       )}
 
