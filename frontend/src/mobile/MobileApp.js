@@ -6,6 +6,10 @@ import MobileLogin from './pages/MobileLogin';
 import MobileAccueil from './pages/MobileAccueil';
 import MobileProfil from './pages/MobileProfil';
 import MobileSoon from './pages/MobileSoon';
+import MobilePDV from './pages/MobilePDV';
+import MobilePDVDetail from './pages/MobilePDVDetail';
+import MobileRecuperation from './pages/MobileRecuperation';
+import MobileAlertes from './pages/MobileAlertes';
 import './mobile.css';
 
 export default function MobileApp() {
@@ -29,16 +33,22 @@ export default function MobileApp() {
     <MobileLayout>
       <Routes>
         <Route path="accueil" element={<MobileAccueil />} />
-        <Route path="profil" element={<MobileProfil />} />
-        <Route path="pdv" element={<MobileSoon titre="Mes PDV" icone="🏪" phase="B" />} />
-        <Route path="missions" element={<MobileSoon titre="Mes missions" icone="📣" phase="B" />} />
-        <Route path="recuperation" element={<MobileSoon titre="PDV à récupérer" icone="🎯" phase="B" />} />
+
+        {/* ── Phase B · Superviseur terrain ── */}
+        <Route path="pdv" element={<MobilePDV />} />
+        <Route path="pdv/:id" element={<MobilePDVDetail />} />
+        <Route path="recuperation" element={<MobileRecuperation />} />
+        <Route path="alertes" element={<MobileAlertes />} />
+
+        {/* ── Phases C/D à venir ── */}
         <Route path="prospection" element={<MobileSoon titre="Prospection" icone="👥" phase="C" />} />
         <Route path="planning" element={<MobileSoon titre="Planning des visites" icone="📅" phase="C" />} />
         <Route path="activations" element={<MobileSoon titre="Activations" icone="✅" phase="C" />} />
         <Route path="pilotage" element={<MobileSoon titre="Pilotage" icone="📊" phase="D" />} />
         <Route path="equipe" element={<MobileSoon titre="Équipe & Réseau" icone="🌐" phase="D" />} />
         <Route path="validations" element={<MobileSoon titre="Validations" icone="📋" phase="D" />} />
+
+        <Route path="profil" element={<MobileProfil />} />
         <Route path="*" element={<Navigate to="/m/accueil" replace />} />
       </Routes>
     </MobileLayout>

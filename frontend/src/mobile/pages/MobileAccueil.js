@@ -25,6 +25,18 @@ export default function MobileAccueil() {
     () => api.get('/analyse-perf/synthese', { params: { mode: 'hebdo', niveau: 'zone' } }).then(r => r.data),
     { enabled: groupe === 'manager', staleTime: 120000 });
 
+  // Priorités terrain du superviseur (périmètre automatiquement restreint à son réseau)
+  const { data: recup } = useQuery('m-recup-accueil',
+    () => api.get('/analyse-perf/recuperation', { params: { mode: 'hebdo', metrique: 'volume' } }).then(r => r.data),
+    { enabled: groupe === 'superviseur', staleTime: 120000 });
+  const { data: alertes } = useQuery('m-alertes-accueil',
+    () => api.get('/alerts/inactive').then(r => r.data),
+    { enabled: groupe === 'superviseur', staleTime: 120000 });
+
+  const kr = recup?.kpis || {};
+  const nbAlertes = alertes?.pdvs?.length || 0;
+  const nbCritiques = (alertes?.pdvs || []).filter(p => (p.priorite || '').toUpperCase() === 'CRITIQUE').length;
+
   const k = synthese?.kpis || {};
   const liens = (ONGLETS[groupe] || ONGLETS.autre).filter(t => t.to !== '/m/accueil' && t.to !== '/m/profil');
 
@@ -50,6 +62,21 @@ export default function MobileAccueil() {
             <KPI label="Activation" value={`${fmtN(k.activation, 1)} %`} color="#a29bfe" sub={`${fmtN(k.nb_actifs)} / ${fmtN(k.nb_pdv_total)}`} />
             <KPI label="Gisements" value={fmtN(k.nb_gisements)} color="#ffa502" sub={`${fmtN(k.pct_volume_gisements, 1)} % volume`} />
             <KPI label="Ruptures Top 100" value={fmtN(k.ruptures_top100)} color="#ff4757" />
+          </div>
+        </>
+      )}
+
+      {groupe === 'superviseur' && (
+        <>
+          <div className="m-section-title">🎯 Mes priorités cette semaine</div>
+          <div className="m-grid m-grid-2" style={{ marginBottom: 12 }}>
+            <KPI label="PDV en baisse" value={fmtN(kr.nb_baisse)} color="#ff4757"
+              sub={`${fmtN(kr.nb_p1)} urgent(s) P1`} />
+            <KPI label="Gain à récupérer" value={fmtF(kr.perte_totale)} color="#ffa502"
+              sub="perte de valeur totale" />
+            <KPI label="PDV sans activité" value={fmtN(nbAlertes)} color="#4a9eff"
+              sub={`${fmtN(nbCritiques)} critique(s)`} />
+            <KPI label="Récupération en cours" value={fmtN(stats?.en_recuperation)} color="#a29bfe" />
           </div>
         </>
       )}

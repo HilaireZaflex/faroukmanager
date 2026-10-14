@@ -15,8 +15,8 @@ export const ONGLETS = {
   superviseur: [
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
     { to: '/m/pdv',          icon: '🏪', label: 'Mes PDV' },
-    { to: '/m/missions',     icon: '📣', label: 'Missions' },
     { to: '/m/recuperation', icon: '🎯', label: 'Récupérer' },
+    { to: '/m/alertes',      icon: '🔔', label: 'Alertes' },
     { to: '/m/profil',       icon: '👤', label: 'Profil' },
   ],
   developpeur: [

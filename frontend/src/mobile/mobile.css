@@ -149,6 +149,85 @@ body.fm-mobile {
 
 .m-erreur { background: rgba(255,71,87,0.12); border: 1px solid rgba(255,71,87,0.35); color: #ff8b96; padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; }
 
+/* ── Recherche + filtres ── */
+.m-search {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--fm-border);
+  border-radius: 12px; padding: 0 12px; margin-bottom: 10px;
+}
+.m-search span { font-size: 15px; opacity: 0.7; }
+.m-search input {
+  flex: 1; border: none; background: transparent; color: #fff;
+  font-size: 15px; padding: 13px 0; outline: none; min-width: 0;
+}
+.m-search input::placeholder { color: var(--fm-muted); }
+
+.m-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; scrollbar-width: none; }
+.m-chips::-webkit-scrollbar { display: none; }
+.m-chip {
+  flex-shrink: 0; padding: 8px 13px; border-radius: 999px;
+  border: 1px solid var(--fm-border); background: var(--fm-card); color: var(--fm-muted);
+  font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.m-chip.active { background: rgba(255,105,0,0.16); border-color: var(--fm-orange); color: var(--fm-orange); }
+
+/* ── Lignes de liste ── */
+.m-item {
+  display: block; text-decoration: none; color: var(--fm-text);
+  background: var(--fm-card); border: 1px solid var(--fm-border);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 9px;
+}
+.m-item:active { background: rgba(255,255,255,0.08); }
+.m-item-top { display: flex; align-items: center; gap: 8px; }
+.m-item-title { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 800; color: #fff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-item-sub { font-size: 11.5px; color: var(--fm-muted); margin-top: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-item-metrics { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+.m-item-metrics div { font-size: 11px; color: var(--fm-muted); }
+.m-item-metrics b { display: block; font-size: 13.5px; color: var(--fm-text); font-weight: 800; }
+
+/* ── Badges ── */
+.m-badge {
+  flex-shrink: 0; font-size: 10px; font-weight: 900; letter-spacing: 0.4px;
+  padding: 3px 8px; border-radius: 999px; text-transform: uppercase;
+  background: rgba(255,255,255,0.08); color: var(--fm-muted); border: 1px solid var(--fm-border);
+  max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.m-badge.red    { background: rgba(255,71,87,0.16);  color: #ff8b96; border-color: rgba(255,71,87,0.4); }
+.m-badge.amber  { background: rgba(255,165,2,0.16);  color: #ffc048; border-color: rgba(255,165,2,0.4); }
+.m-badge.green  { background: rgba(34,197,94,0.16);  color: #63e6a0; border-color: rgba(34,197,94,0.4); }
+.m-badge.blue   { background: rgba(74,158,255,0.16); color: #7fbaff; border-color: rgba(74,158,255,0.4); }
+
+/* ── Bascule segmentée ── */
+.m-toggle {
+  display: flex; gap: 4px; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--fm-border); border-radius: 11px; padding: 4px; margin-bottom: 12px;
+}
+.m-toggle button {
+  flex: 1; padding: 9px; border: none; border-radius: 8px; background: transparent;
+  color: var(--fm-muted); font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.m-toggle button.active { background: var(--fm-orange); color: #fff; }
+
+/* ── Fiche : paires clé/valeur ── */
+.m-kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; }
+.m-kv:last-child { border-bottom: none; }
+.m-kv span { color: var(--fm-muted); flex-shrink: 0; }
+.m-kv b { text-align: right; font-weight: 700; word-break: break-word; }
+
+.m-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.m-tbl th { text-align: left; color: var(--fm-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 4px; font-weight: 800; }
+.m-tbl td { padding: 7px 4px; border-top: 1px solid rgba(255,255,255,0.06); }
+.m-tbl td.num, .m-tbl th.num { text-align: right; white-space: nowrap; }
+
+.m-progress { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; margin-top: 6px; }
+.m-progress i { display: block; height: 100%; background: var(--fm-orange); border-radius: 999px; }
+
+.m-empty { text-align: center; color: var(--fm-muted); font-size: 13px; padding: 28px 12px; line-height: 1.6; }
+.m-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--fm-muted); font-size: 13px; font-weight: 700; padding: 0 0 10px; cursor: pointer; }
+.m-tel { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; margin-bottom: 10px; }
+
 /* ── Login ── */
 .m-login { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; padding: 24px; max-width: 460px; margin: 0 auto; box-sizing: border-box; }
 .m-login-logo { width: 96px; height: 96px; border-radius: 22px; background: #fff; padding: 6px; margin: 0 auto 16px; display: block; }
