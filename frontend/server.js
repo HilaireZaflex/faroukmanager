@@ -74,6 +74,14 @@ function proxyVersApi(prefixe) {
 app.use('/api', proxyVersApi('/api'));
 app.use('/health', proxyVersApi('/health'));
 
+// Le navigateur doit revérifier ce fichier à CHAQUE visite : c'est ainsi que les
+// anciens service workers — qui servaient une version périmée de l'application —
+// sont remplacés par celui qui se désinstalle et vide les caches.
+app.get('/service-worker.js', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(BUILD, 'service-worker.js'));
+});
+
 app.use(express.static(BUILD, { index: false }));
 
 // ─────────────────────────────────────────────────────────────────────────────

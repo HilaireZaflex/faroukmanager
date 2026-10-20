@@ -1,40 +1,44 @@
 /* eslint-disable no-restricted-globals */
-// Service worker Farouk Manager (CRA / Workbox)
-// - précache de la coquille de l'application
-// - couche API : réseau d'abord, cache de secours (consultation hors-ligne)
-// - images : cache d'abord
-import { clientsClaim } from 'workbox-core';
-import { ExpirationPlugin } from 'workbox-expiration';
-import { precacheAndRoute, createHandlerBoundToURL } from 'workbox-precaching';
-import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { NetworkFirst, CacheFirst } from 'workbox-strategies';
+//
+// SERVICE WORKER DE DÉSINSTALLATION — 20/10/2026
+//
+// L'ancien service worker conservait en cache la page d'accueil et les fichiers
+// JavaScript du déploiement d'origine. Résultat : même après correction du
+// serveur, les navigateurs continuaient d'exécuter l'ancienne version de
+// l'application — qui appelait une adresse *.railway.app devenue injoignable
+// sur certains réseaux. Écran blanc ou connexion impossible, malgré tous les
+// correctifs déployés côté serveur.
+//
+// Ce service worker ne met plus RIEN en cache : il supprime les caches
+// existants, se désenregistre lui-même, puis recharge les fenêtres ouvertes
+// pour qu'elles récupèrent la version à jour depuis le serveur.
+//
+// `self.__WB_MANIFEST` est conservé uniquement parce que l'outil de build de
+// Create React App exige de le trouver dans ce fichier.
+//
+const _manifesteInutilise = self.__WB_MANIFEST;
+void _manifesteInutilise;
 
-self.skipWaiting();
-clientsClaim();
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
 
-// Coquille de l'application (injectée par react-scripts)
-precacheAndRoute(self.__WB_MANIFEST);
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const noms = await caches.keys();
+      await Promise.all(noms.map((nom) => caches.delete(nom)));
+    } catch (e) { /* rien à nettoyer */ }
 
-// Toute navigation SPA renvoie l'index (y compris /m/...)
-registerRoute(
-  new NavigationRoute(createHandlerBoundToURL(process.env.PUBLIC_URL + '/index.html'))
-);
+    try {
+      await self.registration.unregister();
+    } catch (e) { /* déjà désenregistré */ }
 
-// API : réseau d'abord, cache de secours (8 s de patience)
-registerRoute(
-  ({ url }) => url.pathname.includes('/api/') || url.hostname.endsWith('railway.app'),
-  new NetworkFirst({
-    cacheName: 'fm-api',
-    networkTimeoutSeconds: 8,
-    plugins: [new ExpirationPlugin({ maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 })],
-  })
-);
-
-// Images : cache d'abord
-registerRoute(
-  ({ request }) => request.destination === 'image',
-  new CacheFirst({
-    cacheName: 'fm-images',
-    plugins: [new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 })],
-  })
-);
+    try {
+      const fenetres = await self.clients.matchAll({ type: 'window' });
+      fenetres.forEach((fenetre) => {
+        try { fenetre.navigate(fenetre.url); } catch (e) { /* ignore */ }
+      });
+    } catch (e) { /* ignore */ }
+  })());
+});

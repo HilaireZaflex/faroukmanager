@@ -45,10 +45,17 @@ root.render(
   </React.StrictMode>
 );
 
-// ── PWA : enregistrement du service worker (production uniquement) ──
-if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+// ── PWA : service worker DÉSACTIVÉ (20/10/2026) ──
+// Il servait une version mise en cache de l'application : après un déploiement,
+// les navigateurs continuaient d'exécuter l'ancienne version (écran blanc,
+// connexion impossible) sans jamais recontacter le serveur.
+// On ne l'enregistre plus. Les anciens service workers installés se
+// désenregistrent d'eux-mêmes via public/service-worker de désinstallation.
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    navigator.serviceWorker.getRegistrations()
+      .then(inscriptions => Promise.all(inscriptions.map(i => i.unregister().catch(() => false))))
+      .catch(() => {});
   });
 }
 
