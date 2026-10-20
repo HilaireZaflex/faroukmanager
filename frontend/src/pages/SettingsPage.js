@@ -954,7 +954,7 @@ function SectionEquipeEtAcces({ currentUser }) {
 
   // Charger les rôles custom ici pour les passer aux deux sections
   const { data: customRoles = [] } = useQuery('custom-roles',
-    () => fetch(`${process.env.REACT_APP_API_BASE_URL?.replace('/api','') || 'https://faroukmanager-backend-production-feb9.up.railway.app'}/api/custom-roles`)
+    () => fetch(`${(process.env.REACT_APP_API_BASE_URL || '').replace(/\/api\/?$/, '')}/api/custom-roles`)
       .then(r => r.json()).catch(() => []),
     { staleTime: 30000 }
   );

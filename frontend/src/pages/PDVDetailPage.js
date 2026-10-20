@@ -602,7 +602,7 @@ function TabPiecesJointes({ pdvId, numeroPdv, nomPdv }) {
   const [confirmDelete, setConfirmDelete] = useState(null); // {id, filename}
   const qc = useQueryClient();
 
-  const BACKEND = process.env.REACT_APP_API_BASE_URL?.replace('/api', '') || 'https://faroukmanager-backend-production-feb9.up.railway.app';
+  const BACKEND = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/api\/?$/, '');
   const KIND_LABELS = {
     PHOTO_LOCAL_FACADE: '🏪 Facade du local',
     PHOTO_LOCAL_INTERIEUR: '🏠 Int\u00e9rieur du local',

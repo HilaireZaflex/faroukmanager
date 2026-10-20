@@ -420,7 +420,7 @@ function PiecesEnergiaModal({ prospect, onClose }) {
   const { useState: useSt, useEffect: useEff } = React;
   const [pieces, setPieces] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const BACKEND = 'https://faroukmanager-backend-production-feb9.up.railway.app';
+  const BACKEND = (process.env.REACT_APP_API_BASE_URL || '').replace(/\/api\/?$/, '');
 
   React.useEffect(() => {
     api.get(`/energia/prospects/${prospect.id}/pieces`)
