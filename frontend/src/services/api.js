@@ -32,7 +32,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Ne JAMAIS rediriger sur l'échec de la connexion elle-même : sinon la page
+    // se recharge et le message « Identifiants incorrects » disparaît avant d'être
+    // lu. L'utilisateur voyait un simple clignotement, sans aucune explication.
+    const urlAppelee = error.config?.url || '';
+    const estTentativeDeConnexion = urlAppelee.includes('/auth/login');
+
+    if (error.response?.status === 401 && !estTentativeDeConnexion) {
       // Clear auth state and redirect to login
       useAuthStore.getState().logout();
       window.location.href = '/login';

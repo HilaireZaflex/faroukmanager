@@ -196,8 +196,10 @@ def get_decline_predictions(
         "low_risk_pdvs": low_risk[:20],
         "network_forecast": network_forecast
     }
-    _predictions_cache[cache_key] = result
-    _predictions_cache_time[cache_key] = now
+    # Le cache est déjà géré plus haut via main.set_cache("predictions", ...) pour
+    # les appels sans filtre. Les deux lignes qui écrivaient ici utilisaient des
+    # variables inexistantes (cache_key / now) et faisaient échouer TOUT l'endpoint
+    # en 500 (NameError) — donc l'encart de prédictions de la page d'Accueil.
     return result
 
 @router.get("/analytics/forecast")

@@ -1,12 +1,24 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.models.user import User
 from app.core.security import verify_password, get_password_hash, create_access_token, decode_token
 from app.schemas.user import UserCreate
 from typing import Optional
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
-    """Get user by email address."""
-    return db.query(User).filter(User.email == email).first()
+    """Get user by email address.
+
+    La comparaison ignore les espaces et la casse : sur téléphone, les claviers
+    ajoutent très souvent une espace après l'adresse et mettent parfois une
+    majuscule en début de champ. Sans cette normalisation, la connexion échoue
+    alors que l'identifiant saisi est correct.
+    """
+    if not email or not str(email).strip():
+        return None
+    email_normalise = str(email).strip().lower()
+    return db.query(User).filter(
+        func.lower(func.trim(User.email)) == email_normalise
+    ).first()
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
     """Authenticate user with email and password."""
