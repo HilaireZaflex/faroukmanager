@@ -28,7 +28,10 @@ export default function LoginPage() {
       toast.success(`Bienvenue, ${user.nom} !`, { duration: 3000 });
       navigate('/accueil');
     } catch (err) {
-      const msg = err.response?.data?.detail || 'Identifiants incorrects. Veuillez réessayer.';
+      const msg = err.response?.data?.detail
+        || (err.response
+              ? 'Connexion refusée par le serveur. Veuillez réessayer.'
+              : "Impossible de joindre le serveur. Vérifiez votre connexion internet, puis réessayez.");
       setError(msg);
     } finally {
       setLoading(false);

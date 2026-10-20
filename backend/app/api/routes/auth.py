@@ -118,7 +118,7 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
+            detail="Adresse e-mail ou mot de passe incorrect."
         )
     
     # Update last login

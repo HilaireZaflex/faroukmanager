@@ -22,7 +22,10 @@ export default function MobileLogin() {
       try { await loadPermissions(); } catch (e) { /* non bloquant */ }
       navigate('/m/accueil', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Identifiants incorrects. Veuillez réessayer.');
+      setError(err.response?.data?.detail
+        || (err.response
+              ? 'Connexion refusée par le serveur. Veuillez réessayer.'
+              : "Impossible de joindre le serveur. Vérifiez votre connexion internet, puis réessayez."));
     } finally { setLoading(false); }
   };
 
