@@ -45,7 +45,7 @@ const useAuthStore = create(
         try {
           const { token } = get();
           if (!token) return null;
-          const baseURL = process.env.REACT_APP_API_BASE_URL || 'https://faroukmanager-backend-production-feb9.up.railway.app/api';
+          const baseURL = process.env.REACT_APP_API_BASE_URL || '/api';
           const res = await fetch(`${baseURL}/my-permissions`, {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -81,7 +81,7 @@ const useAuthStore = create(
         try {
           const { token } = get();
           if (!token) return false;
-          const baseURL = process.env.REACT_APP_API_BASE_URL || 'https://faroukmanager-backend-production-feb9.up.railway.app/api';
+          const baseURL = process.env.REACT_APP_API_BASE_URL || '/api';
           const res = await fetch(`${baseURL}/auth/refresh`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
