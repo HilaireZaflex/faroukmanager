@@ -120,6 +120,10 @@ export default function FicheFormation({ agentInitial = null }) {
     { enabled: recherche.trim().length >= 2, staleTime: 30000 }
   );
 
+  const { data: tous } = useQuery('formations-tous',
+    () => api.get('/formations/personnel', { params: { limit: 2000 } }).then(r => r.data),
+    { enabled: !selection, staleTime: 120000 });
+
   const { data: fiche, isLoading } = useQuery(
     ['formations-fiche', selection],
     () => api.get(`/formations/personnel/${selection}`).then(r => r.data),
@@ -137,40 +141,71 @@ export default function FicheFormation({ agentInitial = null }) {
 
   // ── Sélection de l'agent ──
   if (!selection) {
+    const agents = tous?.items || [];
     return (
-      <div className="card" style={{ padding: 24, maxWidth: 720 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
-          🪪 Choisir un collaborateur
-        </div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 14 }}>
-          Tapez au moins 2 lettres : nom, matricule ou téléphone.
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 16 }}>
 
-        <input autoFocus placeholder="Ex. KONATE, FRK-061, 72460131…"
-          value={recherche} onChange={e => setRecherche(e.target.value)}
-          style={{ ...styleChamp, fontSize: 15 }} />
-
-        {recherche.trim().length >= 2 && (
-          <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            {(resultats?.items || []).length === 0 && (
-              <div style={{ padding: 14, fontSize: 12.5, color: 'var(--text-secondary)' }}>Aucun agent trouvé.</div>
-            )}
-            {(resultats?.items || []).map(p => (
-              <button key={p.id} onClick={() => { setSelection(p.id); setRecherche(''); }}
-                style={{
-                  display: 'flex', width: '100%', alignItems: 'center', gap: 12, padding: '11px 14px',
-                  background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
-                  color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left', fontSize: 13,
-                }}>
-                <span style={{ fontWeight: 800, color: 'var(--primary)', minWidth: 74 }}>{p.matricule}</span>
-                <span style={{ flex: 1 }}>{p.nom}</span>
-                <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                  {p.poste || '—'} · {p.nb_valides}/{p.nb_modules}
-                </span>
-              </button>
-            ))}
+        {/* ── Mode 1 : saisir ── */}
+        <div className="card" style={{ padding: 24 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
+            ⌨️ Saisir
           </div>
-        )}
+          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 14 }}>
+            Tapez au moins 2 lettres : nom, matricule ou téléphone.
+          </div>
+
+          <input autoFocus placeholder="Ex. KONATE, FRK-061, 72460131…"
+            value={recherche} onChange={e => setRecherche(e.target.value)}
+            style={{ ...styleChamp, fontSize: 15 }} />
+
+          {recherche.trim().length >= 2 && (
+            <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+              {(resultats?.items || []).length === 0 && (
+                <div style={{ padding: 14, fontSize: 12.5, color: 'var(--text-secondary)' }}>Aucun agent trouvé.</div>
+              )}
+              {(resultats?.items || []).map(p => (
+                <button key={p.id} onClick={() => { setSelection(p.id); setRecherche(''); }}
+                  style={{
+                    display: 'flex', width: '100%', alignItems: 'center', gap: 12, padding: '11px 14px',
+                    background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)',
+                    color: 'var(--text-primary)', cursor: 'pointer', textAlign: 'left', fontSize: 13,
+                  }}>
+                  <span style={{ fontWeight: 800, color: 'var(--primary)', minWidth: 74 }}>{p.matricule}</span>
+                  <span style={{ flex: 1 }}>{p.nom}</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                    {p.poste || '—'} · {p.nb_valides}/{p.nb_modules}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Mode 2 : sélectionner dans la liste ── */}
+        <div className="card" style={{ padding: 24 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
+            📋 Sélectionner dans la liste
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 14 }}>
+            Parcourez les {agents.length} collaborateurs et choisissez-en un.
+          </div>
+
+          <select value="" onChange={e => { if (e.target.value) setSelection(Number(e.target.value)); }}
+            style={{ ...styleChamp, fontSize: 14, padding: '12px' }}>
+            <option value="">— Choisir un collaborateur —</option>
+            {agents.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.matricule} — {p.nom}{p.poste ? ` (${p.poste})` : ''}
+              </option>
+            ))}
+          </select>
+
+          <div style={{ marginTop: 14, padding: '12px 14px', border: '1px dashed var(--border)', borderRadius: 10, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            Astuce : les deux méthodes fonctionnent à tout moment. Vous pouvez aussi
+            ouvrir une fiche directement depuis l'onglet <strong>Personnel</strong> (bouton 🪪)
+            ou depuis <strong>Pilotage</strong>.
+          </div>
+        </div>
       </div>
     );
   }

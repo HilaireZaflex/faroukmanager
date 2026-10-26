@@ -249,3 +249,62 @@ def test_fiche_alerte_action_requise(rapport, db):
     assert d["alerte"] == "ACTION_REQUISE"
     reformer = [x for x in d["parcours"] if x["statut"] == "A_REFORMER"]
     assert len(reformer) == 1
+
+
+# ── Pilotage & export (lot 4) ───────────────────────────────────────────────
+import asyncio  # noqa: E402
+import io as _io  # noqa: E402
+
+import openpyxl  # noqa: E402
+
+from app.api.routes.formations import dashboard, exporter_excel, lister_alertes  # noqa: E402
+
+
+def test_dashboard_kpis_et_modules(rapport, db):
+    d = dashboard(groupe=None, poste=None, db=db, current_user=_Admin())
+
+    assert d["kpis"]["nb_personnel"] == 3
+    assert d["kpis"]["nb_modules"] == len(MODULES_DEFAUT)
+    assert len(d["par_module"]) == len(MODULES_DEFAUT)
+    assert sum(d["alertes"].values()) == 3
+
+    agence = next(m for m in d["par_module"] if m["nom"] == "L'AGENCE / POINT HUB OMY")
+    assert agence["nb_valides"] == 2          # FRK-001 et FRK-003
+    assert agence["nb_non_formes"] == 1       # FRK-002
+
+
+def test_alertes_filtrees_par_type(rapport, db):
+    toutes = lister_alertes(type_alerte=None, groupe=None, poste=None, gestionnaire=None,
+                            db=db, current_user=_Admin())
+    assert toutes["total"] == 3
+    assert toutes["compteurs"]["ACTION_REQUISE"] == 1     # FRK-003
+
+    action = lister_alertes(type_alerte="ACTION_REQUISE", groupe=None, poste=None,
+                            gestionnaire=None, db=db, current_user=_Admin())
+    assert action["total"] == 1
+    assert action["items"][0]["matricule"] == "FRK-003"
+    assert action["items"][0]["modules_a_reformer"]
+    assert action["items"][0]["modules_manquants"]
+
+
+def test_export_excel_quatre_feuilles(rapport, db):
+    resp = exporter_excel(groupe=None, poste=None, db=db, current_user=_Admin())
+
+    async def collecter(r):
+        return b"".join([bloc async for bloc in r.body_iterator])
+
+    contenu = asyncio.run(collecter(resp))
+    wb = openpyxl.load_workbook(_io.BytesIO(contenu))
+
+    assert wb.sheetnames == ["Synthèse", "Matrice", "Détail sessions", "Personnel"]
+
+    matrice = wb["Matrice"]
+    entetes = [matrice.cell(row=1, column=c).value for c in range(1, 8)]
+    assert entetes[:6] == ["ID PERSONNEL", "NOM ET PRÉNOM", "N° TÉLÉPHONE",
+                           "GROUPE", "POSTE", "AGENCE"]
+    assert entetes[6] == "L'AGENCE / POINT HUB OMY"
+    assert matrice.cell(row=1, column=7 + 2 * len(MODULES_DEFAUT)).value == "COMPRÉHENSION / ÉVALUATION"
+
+    # le vocabulaire d'origine est conservé
+    valeurs = [matrice.cell(row=r, column=7).value for r in range(2, 4)]
+    assert all(v in (None, "VALIDER", "À FORMER", "EN COURS", "À REFORMER", "N/A") for v in valeurs)

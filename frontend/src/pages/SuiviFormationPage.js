@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 import TableauSuivi from '../components/formations/TableauSuivi';
 import FicheFormation from '../components/formations/FicheFormation';
+import PilotageFormation from '../components/formations/PilotageFormation';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Suivi Formation — Lot 1 : référentiel du personnel + catalogue des modules.
@@ -16,6 +17,7 @@ const ONGLETS = [
   { id: 'modules',   label: '🎓 Modules' },
   { id: 'suivi',     label: '📊 Tableau de suivi' },
   { id: 'fiche',     label: '🪪 Fiche individuelle' },
+  { id: 'pilotage',  label: '📈 Pilotage' },
 ];
 
 const couleurStatut = (taux) =>
@@ -336,6 +338,11 @@ export default function SuiviFormationPage() {
 
       {/* ── Fiche individuelle ── */}
       {onglet === 'fiche' && <FicheFormation agentInitial={agentFiche} />}
+
+      {/* ── Pilotage ── */}
+      {onglet === 'pilotage' && (
+        <PilotageFormation onOuvrirFiche={(id) => { setAgentFiche(id); setOnglet('fiche'); }} />
+      )}
 
       {/* ── Modale agent ── */}
       {edition?.type === 'personnel' && (
