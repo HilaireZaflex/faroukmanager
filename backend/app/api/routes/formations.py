@@ -496,7 +496,58 @@ def detail_personnel(
     modules = {m.id: m for m in db.query(FormationModule).all()}
     aggs = _agregats_personnel(db, [personnel_id])
 
+    # Parcours : tous les modules actifs, avec la DERNIÈRE formation de chacun
+    modules_actifs = (
+        db.query(FormationModule)
+        .filter(FormationModule.actif.is_(True))
+        .order_by(FormationModule.ordre, FormationModule.nom)
+        .all()
+    )
+    dernieres = {}
+    for s_ in sessions:
+        cle = s_.module_id
+        actuel = dernieres.get(cle)
+        if actuel is None:
+            dernieres[cle] = s_
+            continue
+        d_new = s_.date_session or date.min
+        d_old = actuel.date_session or date.min
+        if d_new > d_old or (d_new == d_old and (s_.id or 0) > (actuel.id or 0)):
+            dernieres[cle] = s_
+
+    parcours = []
+    for m in modules_actifs:
+        s_ = dernieres.get(m.id)
+        parcours.append({
+            "module_id": m.id,
+            "module_nom": m.nom,
+            "obligatoire": m.obligatoire,
+            "session_id": s_.id if s_ else None,
+            "statut": s_.statut if s_ else None,
+            "date_session": s_.date_session.isoformat() if s_ and s_.date_session else None,
+            "evaluation": s_.evaluation if s_ else None,
+            "note": s_.note if s_ else None,
+            "observation": s_.observation if s_ else None,
+            "formateur": s_.formateur if s_ else None,
+        })
+
+    # Alerte. La feuille Excel ne testait que « à reformer » et « en cours » :
+    # un agent formé sur 3 modules sur 8 y apparaissait « À JOUR », ce qui est
+    # trompeur. On ajoute donc l'état INCOMPLET pour les modules non formés.
+    statuts = [x["statut"] for x in parcours if x["statut"]]
+    if "A_REFORMER" in statuts:
+        alerte = "ACTION_REQUISE"
+    elif "EN_COURS" in statuts:
+        alerte = "SUIVI_EN_COURS"
+    elif any(not x["statut"] for x in parcours):
+        alerte = "INCOMPLET"
+    else:
+        alerte = "A_JOUR"
+
     data = _serialiser_personnel(p, aggs.get(personnel_id, {}))
+    data["parcours"] = parcours
+    data["alerte"] = alerte
+    data["nb_non_formes"] = sum(1 for x in parcours if not x["statut"])
     data["historique"] = [
         {
             "id": s.id,

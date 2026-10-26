@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from 'react-query';
-import toast from 'react-hot-toast';
+import { useQuery, useQueryClient } from 'react-query';
 import api from '../../services/api';
+import EditeurFormation from './EditeurFormation';
+import {
+  LISTE_STATUTS, infoStatut, fmtDate, tauxCouleur, styleChamp, Barre,
+} from './commun';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tableau de suivi — remplace la feuille « SUIVI FORMATIONS » d'Excel.
@@ -10,35 +13,12 @@ import api from '../../services/api';
 //   • clic sur une cellule = saisie immédiate de la formation
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STATUTS = {
-  VALIDER:    { label: 'Validé',     court: 'V',  couleur: '#00d68f' },
-  EN_COURS:   { label: 'En cours',   court: 'EC', couleur: '#ffa502' },
-  A_REFORMER: { label: 'À reformer', court: 'R',  couleur: '#ff4757' },
-  A_FORMER:   { label: 'À former',   court: 'F',  couleur: '#4a9eff' },
-  NA:         { label: 'N/A',        court: '—',  couleur: '#555570' },
+const thBase = {
+  textAlign: 'left', padding: '10px 10px', fontSize: 10, textTransform: 'uppercase',
+  letterSpacing: 0.4, color: 'var(--text-secondary)', fontWeight: 800,
+  background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', verticalAlign: 'bottom',
 };
-const LISTE_STATUTS = ['VALIDER', 'EN_COURS', 'A_REFORMER', 'A_FORMER', 'NA'];
-const EVALUATIONS = ['EXCELLENT', 'TRES_BIEN', 'BIEN', 'MOYEN', 'INSUFFISANT'];
-const LIBELLE_EVAL = {
-  EXCELLENT: 'Excellent', TRES_BIEN: 'Très bien', BIEN: 'Bien',
-  MOYEN: 'Moyen', INSUFFISANT: 'Insuffisant',
-};
-
-const infoStatut = (s) => STATUTS[s] || { label: s || '—', court: '·', couleur: '#555570' };
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '');
-
-const styleChamp = {
-  width: '100%', padding: '10px 12px', borderRadius: 10,
-  border: '1px solid var(--border)', background: 'rgba(255,255,255,0.05)',
-  color: 'var(--text-primary)', fontSize: 13, outline: 'none', boxSizing: 'border-box',
-};
-
-const Champ = ({ label, children }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{label}</label>
-    {children}
-  </div>
-);
+const tdBase = { padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' };
 
 // ── Cellule cliquable ────────────────────────────────────────────────────────
 function Cellule({ cellule, onClick }) {
@@ -75,7 +55,7 @@ export default function TableauSuivi() {
   const [groupe, setGroupe] = useState('');
   const [poste, setPoste] = useState('');
   const [gestionnaire, setGestionnaire] = useState('');
-  const [celluleActive, setCelluleActive] = useState(null); // { personne, module, cellule }
+  const [celluleActive, setCelluleActive] = useState(null);
 
   const { data: filtres } = useQuery('formations-filtres',
     () => api.get('/formations/filtres').then(r => r.data), { staleTime: 120000 });
@@ -98,6 +78,7 @@ export default function TableauSuivi() {
     qc.invalidateQueries('formations-matrice');
     qc.invalidateQueries('formations-resume');
     qc.invalidateQueries('formations-personnel');
+    qc.invalidateQueries('formations-fiche');
   };
 
   const compter = useMemo(() => {
@@ -177,7 +158,7 @@ export default function TableauSuivi() {
                 </th>
                 {modules.map(m => (
                   <th key={m.id} title={m.nom} style={{ ...thBase, minWidth: 96, maxWidth: 96, height: 70 }}>
-                    <div style={{ fontSize: 9.5, lineHeight: 1.25, writingMode: 'initial' }}>
+                    <div style={{ fontSize: 9.5, lineHeight: 1.25 }}>
                       {m.nom.length > 30 ? m.nom.slice(0, 28) + '…' : m.nom}
                     </div>
                   </th>
@@ -206,8 +187,8 @@ export default function TableauSuivi() {
                     <div style={{ fontSize: 11, fontWeight: 800, color: tauxCouleur(p.taux_validation) }}>
                       {p.nb_valides}/{p.nb_modules}
                     </div>
-                    <div style={{ height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 999, marginTop: 4 }}>
-                      <div style={{ width: `${Math.min(100, p.taux_validation)}%`, height: '100%', background: tauxCouleur(p.taux_validation), borderRadius: 999 }} />
+                    <div style={{ marginTop: 4 }}>
+                      <Barre pct={p.taux_validation} couleur={tauxCouleur(p.taux_validation)} />
                     </div>
                   </td>
                 </tr>
@@ -233,19 +214,17 @@ export default function TableauSuivi() {
                 <tr key={p.id} style={{ borderTop: '1px solid var(--border)' }}>
                   <td style={{ ...tdBase, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{p.matricule}</td>
                   <td style={{ ...tdBase, color: 'var(--text-primary)' }}>{p.nom}</td>
-                  <td style={{ ...tdBase, color: 'var(--text-secondary)' }}>{p.groupe || '—'}</td>
-                  <td style={{ ...tdBase, color: 'var(--text-secondary)' }}>{p.poste || '—'}</td>
-                  <td style={{ ...tdBase, color: 'var(--text-secondary)' }}>{p.gestionnaire || '—'}</td>
+                  <td style={{ ...tdBase }}>{p.groupe || '—'}</td>
+                  <td style={{ ...tdBase }}>{p.poste || '—'}</td>
+                  <td style={{ ...tdBase }}>{p.gestionnaire || '—'}</td>
                   <td style={{ ...tdBase, minWidth: 130 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 4 }}>
                       <span style={{ fontWeight: 700 }}>{p.nb_valides}/{p.nb_modules}</span>
                       <span style={{ color: tauxCouleur(p.taux_validation) }}>{p.taux_validation} %</span>
                     </div>
-                    <div style={{ height: 5, background: 'rgba(255,255,255,0.08)', borderRadius: 999 }}>
-                      <div style={{ width: `${Math.min(100, p.taux_validation)}%`, height: '100%', background: tauxCouleur(p.taux_validation), borderRadius: 999 }} />
-                    </div>
+                    <Barre pct={p.taux_validation} couleur={tauxCouleur(p.taux_validation)} />
                   </td>
-                  <td style={{ ...tdBase, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtDate(p.derniere_formation) || '—'}</td>
+                  <td style={{ ...tdBase, whiteSpace: 'nowrap' }}>{fmtDate(p.derniere_formation) || '—'}</td>
                   <td style={{ ...tdBase }}>
                     <div style={{ display: 'flex', gap: 3 }}>
                       {modules.map(m => {
@@ -271,136 +250,14 @@ export default function TableauSuivi() {
       )}
 
       {celluleActive && (
-        <EditeurCellule
-          cle={celluleActive}
+        <EditeurFormation
+          personne={celluleActive.personne}
+          module={celluleActive.module}
+          cellule={celluleActive.cellule}
           onClose={() => setCelluleActive(null)}
           onSaved={() => { setCelluleActive(null); rafraichir(); }}
         />
       )}
-    </div>
-  );
-}
-
-const tauxCouleur = (t) => (t >= 80 ? '#00d68f' : t >= 40 ? '#ffa502' : '#ff4757');
-
-const thBase = {
-  textAlign: 'left', padding: '10px 10px', fontSize: 10, textTransform: 'uppercase',
-  letterSpacing: 0.4, color: 'var(--text-secondary)', fontWeight: 800,
-  background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', verticalAlign: 'bottom',
-};
-const tdBase = { padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' };
-
-// ── Éditeur de cellule ───────────────────────────────────────────────────────
-function EditeurCellule({ cle, onClose, onSaved }) {
-  const { personne, module, cellule } = cle;
-  const [statut, setStatut] = useState(cellule?.statut || 'VALIDER');
-  const [dateSession, setDate] = useState(cellule?.date_session || '');
-  const [evaluation, setEvaluation] = useState(cellule?.evaluation || '');
-  const [note, setNote] = useState(cellule?.note != null ? String(cellule.note) : '');
-  const [observation, setObservation] = useState(cellule?.observation || '');
-
-  const { data: historique = [] } = useQuery(
-    ['formations-historique', personne.id, module.id],
-    () => api.get('/formations/sessions', { params: { personnel_id: personne.id, module_id: module.id } }).then(r => r.data),
-    { staleTime: 0 }
-  );
-
-  const corps = () => ({
-    statut,
-    date_session: dateSession || null,
-    evaluation: evaluation || null,
-    note: note === '' ? null : Number(note),
-    observation: observation || null,
-  });
-
-  const enregistrer = useMutation(
-    () => (cellule?.session_id
-      ? api.put(`/formations/sessions/${cellule.session_id}`, corps()).then(r => r.data)
-      : api.post('/formations/sessions', { personnel_id: personne.id, module_id: module.id, ...corps() }).then(r => r.data)),
-    {
-      onSuccess: () => { toast.success('Formation enregistrée'); onSaved(); },
-      onError: (e) => toast.error(e?.response?.data?.detail || 'Enregistrement impossible'),
-    }
-  );
-
-  const supprimer = useMutation(
-    () => api.delete(`/formations/sessions/${cellule.session_id}`).then(r => r.data),
-    {
-      onSuccess: () => { toast.success('Formation supprimée'); onSaved(); },
-      onError: (e) => toast.error(e?.response?.data?.detail || 'Suppression impossible'),
-    }
-  );
-
-  return (
-    <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div className="card" onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 620, maxHeight: '90vh', overflowY: 'auto', background: '#141420' }}>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{personne.nom}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              {personne.matricule} · {module.nom}
-            </div>
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <Champ label="Statut">
-            <select style={styleChamp} value={statut} onChange={e => setStatut(e.target.value)}>
-              {LISTE_STATUTS.map(s => <option key={s} value={s}>{infoStatut(s).label}</option>)}
-            </select>
-          </Champ>
-          <Champ label="Date de formation">
-            <input type="date" style={styleChamp} value={dateSession || ''} onChange={e => setDate(e.target.value)} />
-          </Champ>
-          <Champ label="Évaluation (facultatif)">
-            <select style={styleChamp} value={evaluation} onChange={e => setEvaluation(e.target.value)}>
-              <option value="">—</option>
-              {EVALUATIONS.map(ev => <option key={ev} value={ev}>{LIBELLE_EVAL[ev]}</option>)}
-            </select>
-          </Champ>
-          <Champ label="Note / 20 (facultatif)">
-            <input type="number" min="0" max="20" step="0.5" style={styleChamp}
-              value={note} onChange={e => setNote(e.target.value)} />
-          </Champ>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <Champ label="Observation">
-              <textarea style={{ ...styleChamp, minHeight: 70 }} value={observation}
-                onChange={e => setObservation(e.target.value)} />
-            </Champ>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
-          {cellule?.session_id && (
-            <button className="btn btn-danger" disabled={supprimer.isLoading}
-              onClick={() => { if (window.confirm('Supprimer cette formation ?')) supprimer.mutate(); }}>
-              Supprimer
-            </button>
-          )}
-          <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
-          <button className="btn btn-primary" disabled={enregistrer.isLoading} onClick={() => enregistrer.mutate()}>
-            {enregistrer.isLoading ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
-        </div>
-
-        {historique.length > 0 && (
-          <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>
-              Historique sur ce module ({historique.length})
-            </div>
-            {historique.map(h => (
-              <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>{fmtDate(h.date_session) || 'sans date'}</span>
-                <span style={{ color: infoStatut(h.statut).couleur }}>{infoStatut(h.statut).label}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

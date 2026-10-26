@@ -226,3 +226,26 @@ def test_matrice_refusee_pour_un_role_non_autorise(rapport, db):
         matrice(search=None, groupe=None, poste=None, gestionnaire=None,
                 actif=True, db=db, current_user=_TC())
     assert "403" in str(err.value) or "réservé" in str(err.value)
+
+
+def test_fiche_liste_tous_les_modules(rapport, db):
+    alpha = db.query(FormationPersonnel).filter(FormationPersonnel.matricule == "FRK-001").one()
+    d = detail_personnel(personnel_id=alpha.id, db=db, current_user=_Admin())
+
+    assert len(d["parcours"]) == len(MODULES_DEFAUT)
+    agence = next(x for x in d["parcours"] if x["module_nom"] == "L'AGENCE / POINT HUB OMY")
+    assert agence["statut"] == "VALIDER"
+    assert agence["date_session"] == "2025-01-17"
+
+    sans = [x for x in d["parcours"] if x["statut"] is None]
+    assert d["nb_non_formes"] == len(sans)
+    assert len(sans) == len(MODULES_DEFAUT) - 2
+    assert d["alerte"] == "INCOMPLET"      # 2 modules validés sur 8
+
+
+def test_fiche_alerte_action_requise(rapport, db):
+    epsilon = db.query(FormationPersonnel).filter(FormationPersonnel.matricule == "FRK-003").one()
+    d = detail_personnel(personnel_id=epsilon.id, db=db, current_user=_Admin())
+    assert d["alerte"] == "ACTION_REQUISE"
+    reformer = [x for x in d["parcours"] if x["statut"] == "A_REFORMER"]
+    assert len(reformer) == 1

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from 'react-query';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import TableauSuivi from '../components/formations/TableauSuivi';
+import FicheFormation from '../components/formations/FicheFormation';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Suivi Formation — Lot 1 : référentiel du personnel + catalogue des modules.
@@ -14,7 +15,7 @@ const ONGLETS = [
   { id: 'personnel', label: '👥 Personnel' },
   { id: 'modules',   label: '🎓 Modules' },
   { id: 'suivi',     label: '📊 Tableau de suivi' },
-  { id: 'fiche',     label: '🪪 Fiche individuelle', lot: 3 },
+  { id: 'fiche',     label: '🪪 Fiche individuelle' },
 ];
 
 const couleurStatut = (taux) =>
@@ -75,6 +76,7 @@ export default function SuiviFormationPage() {
   const [poste, setPoste] = useState('');
   const [edition, setEdition] = useState(null);       // { type, item }
   const [rapport, setRapport] = useState(null);        // rapport d'import
+  const [agentFiche, setAgentFiche] = useState(null);  // agent ouvert dans la fiche
   const fichierRef = useRef(null);
 
   // ── Données ──
@@ -277,7 +279,10 @@ export default function SuiviFormationPage() {
                         {p.derniere_formation ? new Date(p.derniere_formation).toLocaleDateString('fr-FR') : '—'}
                       </td>
                       <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setEdition({ type: 'personnel', item: p })}>✏️</button>
+                        <button className="btn btn-ghost btn-sm" title="Ouvrir la fiche"
+                          onClick={() => { setAgentFiche(p.id); setOnglet('fiche'); }}>🪪</button>
+                        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 6 }}
+                          onClick={() => setEdition({ type: 'personnel', item: p })}>✏️</button>
                         <button className="btn btn-danger btn-sm" style={{ marginLeft: 6 }}
                           onClick={() => { if (window.confirm(`Désactiver ${p.nom} ? (l'historique est conservé)`)) desactiverPersonnel.mutate(p.id); }}>
                           🗑️
@@ -329,17 +334,8 @@ export default function SuiviFormationPage() {
       {/* ── Tableau de suivi ── */}
       {onglet === 'suivi' && <TableauSuivi />}
 
-      {/* ── Fiche individuelle (lot 3) ── */}
-      {onglet === 'fiche' && (
-        <div className="empty-state">
-          <div style={{ fontSize: 40, marginBottom: 8 }}>🪪</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Fiche individuelle</div>
-          <div style={{ maxWidth: 460, textAlign: 'center', lineHeight: 1.6 }}>
-            Cet écran arrive au <strong>lot 3</strong>.
-            Les données sont déjà importées : il ne reste que l'affichage à construire.
-          </div>
-        </div>
-      )}
+      {/* ── Fiche individuelle ── */}
+      {onglet === 'fiche' && <FicheFormation agentInitial={agentFiche} />}
 
       {/* ── Modale agent ── */}
       {edition?.type === 'personnel' && (
