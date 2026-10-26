@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import TableauSuivi from '../components/formations/TableauSuivi';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Suivi Formation — Lot 1 : référentiel du personnel + catalogue des modules.
@@ -12,7 +13,7 @@ import api from '../services/api';
 const ONGLETS = [
   { id: 'personnel', label: '👥 Personnel' },
   { id: 'modules',   label: '🎓 Modules' },
-  { id: 'suivi',     label: '📊 Tableau de suivi', lot: 2 },
+  { id: 'suivi',     label: '📊 Tableau de suivi' },
   { id: 'fiche',     label: '🪪 Fiche individuelle', lot: 3 },
 ];
 
@@ -180,10 +181,12 @@ export default function SuiviFormationPage() {
           <button className="btn btn-ghost" onClick={choisirFichier} disabled={importer.isLoading}>
             {importer.isLoading ? '⏳ Import…' : '📥 Importer un Excel'}
           </button>
-          <button className="btn btn-primary"
-            onClick={() => setEdition({ type: onglet === 'modules' ? 'module' : 'personnel', item: null })}>
-            + {onglet === 'modules' ? 'Nouveau module' : 'Nouvel agent'}
-          </button>
+          {(onglet === 'personnel' || onglet === 'modules') && (
+            <button className="btn btn-primary"
+              onClick={() => setEdition({ type: onglet === 'modules' ? 'module' : 'personnel', item: null })}>
+              + {onglet === 'modules' ? 'Nouveau module' : 'Nouvel agent'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -323,15 +326,16 @@ export default function SuiviFormationPage() {
         </div>
       )}
 
-      {/* ── Onglets à venir ── */}
-      {(onglet === 'suivi' || onglet === 'fiche') && (
+      {/* ── Tableau de suivi ── */}
+      {onglet === 'suivi' && <TableauSuivi />}
+
+      {/* ── Fiche individuelle (lot 3) ── */}
+      {onglet === 'fiche' && (
         <div className="empty-state">
-          <div style={{ fontSize: 40, marginBottom: 8 }}>{onglet === 'suivi' ? '📊' : '🪪'}</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-            {onglet === 'suivi' ? 'Tableau de suivi' : 'Fiche individuelle'}
-          </div>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>🪪</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Fiche individuelle</div>
           <div style={{ maxWidth: 460, textAlign: 'center', lineHeight: 1.6 }}>
-            Cet écran arrive au <strong>lot {onglet === 'suivi' ? 2 : 3}</strong>.
+            Cet écran arrive au <strong>lot 3</strong>.
             Les données sont déjà importées : il ne reste que l'affichage à construire.
           </div>
         </div>

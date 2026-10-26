@@ -165,3 +165,64 @@ def test_initialisation_catalogue_idempotente(db):
     assert assurer_modules_defaut(db) == len(MODULES_DEFAUT)
     assert assurer_modules_defaut(db) == 0
     assert db.query(FormationModule).count() == len(MODULES_DEFAUT)
+
+
+# ── Matrice de suivi (lot 2) ─────────────────────────────────────────────────
+from app.api.routes.formations import matrice, detail_personnel  # noqa: E402
+
+
+class _Admin:
+    role = "admin"
+    id = 1
+
+
+def test_matrice_retourne_modules_et_cellules(rapport, db):
+    r = matrice(search=None, groupe=None, poste=None, gestionnaire=None,
+                actif=True, db=db, current_user=_Admin())
+
+    assert len(r["modules"]) == len(MODULES_DEFAUT)
+    assert r["total"] == 3
+
+    alpha = next(p for p in r["personnes"] if p["matricule"] == "FRK-001")
+    module_agence = next(m for m in r["modules"] if m["nom"] == "L'AGENCE / POINT HUB OMY")
+    cellule = alpha["cellules"].get(str(module_agence["id"]))
+
+    assert cellule is not None
+    assert cellule["statut"] == "VALIDER"
+    assert cellule["date_session"] == "2025-01-17"
+    assert alpha["nb_valides"] == 2          # agence + obligations
+
+
+def test_matrice_filtre_par_groupe(rapport, db):
+    r = matrice(search=None, groupe="GRP 1", poste=None, gestionnaire=None,
+                actif=True, db=db, current_user=_Admin())
+    assert r["total"] == 1
+    assert r["personnes"][0]["matricule"] == "FRK-003"
+
+
+def test_matrice_recherche(rapport, db):
+    r = matrice(search="GAMMA", groupe=None, poste=None, gestionnaire=None,
+                actif=True, db=db, current_user=_Admin())
+    assert r["total"] == 1
+    assert r["personnes"][0]["nom"] == "GAMMA DELTA"
+
+
+def test_detail_personnel_avec_historique(rapport, db):
+    alpha = db.query(FormationPersonnel).filter(FormationPersonnel.matricule == "FRK-001").one()
+    d = detail_personnel(personnel_id=alpha.id, db=db, current_user=_Admin())
+
+    assert d["nom"] == "ALPHA BETA"
+    assert len(d["historique"]) == 2
+    assert d["historique"][0]["module_nom"]
+    assert d["nb_valides"] == 2
+
+
+def test_matrice_refusee_pour_un_role_non_autorise(rapport, db):
+    class _TC:
+        role = "teleconseillere"
+        id = 9
+
+    with pytest.raises(Exception) as err:
+        matrice(search=None, groupe=None, poste=None, gestionnaire=None,
+                actif=True, db=db, current_user=_TC())
+    assert "403" in str(err.value) or "réservé" in str(err.value)

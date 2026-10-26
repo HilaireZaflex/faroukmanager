@@ -363,6 +363,157 @@ def _serialiser_session(s: FormationSession, personnel=None, module=None) -> dic
     return d
 
 
+@router.get("/formations/matrice")
+def matrice(
+    search: Optional[str] = Query(None),
+    groupe: Optional[str] = Query(None),
+    poste: Optional[str] = Query(None),
+    gestionnaire: Optional[str] = Query(None),
+    actif: Optional[bool] = Query(True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Tableau de suivi : personnes en lignes, modules en colonnes.
+
+    Pour chaque couple (agent, module), on renvoie la **dernière** formation
+    enregistrée. L'historique complet reste consultable via
+    /formations/sessions?personnel_id=…
+    """
+    _exiger_acces(current_user)
+
+    modules = (
+        db.query(FormationModule)
+        .filter(FormationModule.actif.is_(True))
+        .order_by(FormationModule.ordre, FormationModule.nom)
+        .all()
+    )
+
+    q = db.query(FormationPersonnel)
+    if actif is not None:
+        q = q.filter(FormationPersonnel.actif.is_(actif))
+    if groupe:
+        q = q.filter(FormationPersonnel.groupe == groupe)
+    if poste:
+        q = q.filter(FormationPersonnel.poste == poste)
+    if gestionnaire:
+        q = q.filter(FormationPersonnel.gestionnaire == gestionnaire)
+    if search:
+        terme = f"%{search.strip()}%"
+        q = q.filter(or_(
+            FormationPersonnel.nom.ilike(terme),
+            FormationPersonnel.matricule.ilike(terme),
+            FormationPersonnel.telephone.ilike(terme),
+        ))
+
+    personnes = q.order_by(FormationPersonnel.nom).all()
+    ids = [p.id for p in personnes]
+    aggs = _agregats_personnel(db, ids)
+
+    sessions = []
+    if ids:
+        sessions = (
+            db.query(FormationSession)
+            .filter(FormationSession.personnel_id.in_(ids))
+            .all()
+        )
+
+    # Dernière session par (agent, module) : date la plus récente, sinon la plus récemment créée
+    dernieres: Dict[tuple, FormationSession] = {}
+    for s in sessions:
+        cle = (s.personnel_id, s.module_id)
+        actuel = dernieres.get(cle)
+        if actuel is None:
+            dernieres[cle] = s
+            continue
+        d_new = s.date_session or date.min
+        d_old = actuel.date_session or date.min
+        if d_new > d_old or (d_new == d_old and (s.id or 0) > (actuel.id or 0)):
+            dernieres[cle] = s
+
+    lignes = []
+    for p in personnes:
+        cellules = {}
+        for m in modules:
+            s = dernieres.get((p.id, m.id))
+            if s is not None:
+                cellules[str(m.id)] = {
+                    "session_id": s.id,
+                    "statut": s.statut,
+                    "date_session": s.date_session.isoformat() if s.date_session else None,
+                    "evaluation": s.evaluation,
+                    "note": s.note,
+                    "observation": s.observation,
+                }
+        agg = aggs.get(p.id, {})
+        lignes.append({
+            "id": p.id,
+            "matricule": p.matricule,
+            "nom": p.nom,
+            "telephone": p.telephone,
+            "groupe": p.groupe,
+            "poste": p.poste,
+            "gestionnaire": p.gestionnaire,
+            "agence": p.agence,
+            "evaluation_globale": p.evaluation_globale,
+            "note_globale": p.note_globale,
+            "nb_valides": agg.get("nb_valides", 0),
+            "nb_modules": agg.get("nb_modules", 0),
+            "nb_a_reformer": agg.get("nb_a_reformer", 0),
+            "taux_validation": agg.get("taux_validation", 0.0),
+            "derniere_formation": agg.get("derniere_formation").isoformat() if agg.get("derniere_formation") else None,
+            "cellules": cellules,
+        })
+
+    return {
+        "modules": [
+            {"id": m.id, "nom": m.nom, "ordre": m.ordre, "obligatoire": m.obligatoire}
+            for m in modules
+        ],
+        "personnes": lignes,
+        "total": len(lignes),
+    }
+
+
+@router.get("/formations/personnel/{personnel_id}")
+def detail_personnel(
+    personnel_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Fiche complète d'un agent : identité, avancement et historique des formations."""
+    _exiger_acces(current_user)
+
+    p = db.query(FormationPersonnel).filter(FormationPersonnel.id == personnel_id).first()
+    if not p:
+        raise HTTPException(404, "Agent introuvable.")
+
+    sessions = (
+        db.query(FormationSession)
+        .filter(FormationSession.personnel_id == personnel_id)
+        .order_by(FormationSession.date_session.desc().nullslast())
+        .all()
+    )
+    modules = {m.id: m for m in db.query(FormationModule).all()}
+    aggs = _agregats_personnel(db, [personnel_id])
+
+    data = _serialiser_personnel(p, aggs.get(personnel_id, {}))
+    data["historique"] = [
+        {
+            "id": s.id,
+            "module_id": s.module_id,
+            "module_nom": modules[s.module_id].nom if s.module_id in modules else None,
+            "date_session": s.date_session.isoformat() if s.date_session else None,
+            "statut": s.statut,
+            "evaluation": s.evaluation,
+            "note": s.note,
+            "observation": s.observation,
+            "formateur": s.formateur,
+        }
+        for s in sessions
+    ]
+    return data
+
+
 @router.get("/formations/sessions")
 def lister_sessions(
     personnel_id: Optional[int] = Query(None),
