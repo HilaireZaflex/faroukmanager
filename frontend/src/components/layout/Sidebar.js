@@ -4,7 +4,7 @@ import {
   Home, LayoutDashboard, CalendarDays, Store, Bell,
   Brain, RefreshCw, FileText, Settings,
   LogOut, ChevronLeft, ChevronRight, Users, Upload,
-  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy, PhoneCall, BarChart3
+  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy, PhoneCall, BarChart3, GraduationCap
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import './Sidebar.css';
@@ -78,6 +78,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {role === 'teleconseillere' && nl('/accueil-tc', Home, '📞 Accueil TC', true)}
             {/* ── ANALYSE PERFORMANCE — juste après l'Accueil ── */}
             {can('analyse_perf') && nl('/analyse-performance', BarChart3, '📊 Analyse Performance')}
+            {can('formations') && nl('/suivi-formation', GraduationCap, '🎓 Suivi Formation')}
             {role === 'teleconseillere' && nl('/mes-appels', Activity, '📈 Mes appels')}
 
             {/* ── DASHBOARDS ── */}

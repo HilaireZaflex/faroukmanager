@@ -20,7 +20,7 @@ def set_cache(key, value):
     _APP_CACHE_TIME[key] = time.time()
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications, localites, analyse_perf
+from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications, localites, analyse_perf, formations
 import app.models  # noqa - ensures all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -112,6 +112,7 @@ app.include_router(commissions.router, prefix="/api", tags=["Commissions"])
 app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
+app.include_router(formations.router, prefix="/api", tags=["Suivi Formation"])
 
 @app.post("/api/rapports/generer-superviseur")
 async def generer_rapport_superviseur(request: Request):
@@ -458,6 +459,24 @@ async def auto_migrate():
             ensure_rpqo_menus()
         except Exception as e:
             print(f"⚠️ ensure_rpqo_menus : {e}")
+        # ── Suivi Formation : accès encadrement + catalogue par défaut ──
+        try:
+            from app.api.routes.role_permissions import ensure_formations_menu
+            ensure_formations_menu()
+        except Exception as e:
+            print(f"⚠️ ensure_formations_menu : {e}")
+        try:
+            from app.core.database import SessionLocal
+            from app.services.formation_import import assurer_modules_defaut
+            _db_formations = SessionLocal()
+            try:
+                _crees = assurer_modules_defaut(_db_formations)
+                if _crees:
+                    print(f"✅ Suivi Formation : {_crees} module(s) créé(s)")
+            finally:
+                _db_formations.close()
+        except Exception as e:
+            print(f"⚠️ modules Suivi Formation : {e}")
         print("✅ Auto-migration prospects OK")
     except Exception as e:
         print(f"⚠️ Auto-migration prospects: {e}")

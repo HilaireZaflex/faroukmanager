@@ -8,6 +8,7 @@ export const DEFAULT_DASHBOARDS = []; // Aucun dashboard par défaut — doit ê
 // Mapping menu → route(s)
 export const MENU_ROUTES = {
   pdvs:         ['/pdvs'],
+  formations:   ['/suivi-formation'],
   prospection:  ['/prospection'],
   evaluations:  ['/evaluations'],
   alerts:       ['/alerts'],

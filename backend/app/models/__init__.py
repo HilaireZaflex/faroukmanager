@@ -59,3 +59,7 @@ from app.models.mission_appel import (
     TypeMission, PrioriteMission, StatutMission, CibleType, StatutCible,
     TYPE_MISSION_LABELS, PRIORITE_LABELS, STATUT_MISSION_LABELS,
 )
+
+from app.models.formation import (
+    FormationPersonnel, FormationModule, FormationSession,
+)

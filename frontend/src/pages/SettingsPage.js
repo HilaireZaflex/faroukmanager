@@ -29,6 +29,7 @@ const FEATURES = [
   ]},
   { section: '🏪 Gestion', items: [
     { id: 'menu_analyse_perf', label: 'Analyse Performance', sidebarKey: 'analyse_perf' },
+    { id: 'menu_formations', label: 'Suivi Formation', sidebarKey: 'formations' },
     { id: 'menu_pdvs',        label: 'Points de Vente',      sidebarKey: 'pdvs' },
     { id: 'menu_prospection', label: 'Prospection OM',       sidebarKey: 'prospection' },
     { id: 'menu_indicateurs', label: 'Indicateurs',          sidebarKey: 'indicateurs' },
