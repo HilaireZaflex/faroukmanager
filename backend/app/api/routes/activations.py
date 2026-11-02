@@ -306,7 +306,7 @@ def lister_activations(
     }
     return {
         "total": len(lignes),
-        "dernier_mois": f"{data['dernier_mois'][1]:02d}/{data['dernier_mois'][0]}" if données["dernier_mois"] else None,
+        "dernier_mois": f"{data['dernier_mois'][1]:02d}/{data['dernier_mois'][0]}" if data["dernier_mois"] else None,
         "items": lignes,
         "filtres": valeurs,
     }
