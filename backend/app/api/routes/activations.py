@@ -119,6 +119,17 @@ def _construire(db: Session) -> Dict[str, Any]:
         .filter(Prospect.status == "PUCE_ACTIVEE", Prospect.activated_pdv_id.isnot(None))
         .all()
     )
+    # Un même PDV peut être relié à plusieurs prospects (réactivations) :
+    # on ne garde que l'activation la plus récente pour éviter les doublons.
+    par_pdv = {}
+    for pr in prospects:
+        if not pr.activated_pdv_id:
+            continue
+        actuel = par_pdv.get(pr.activated_pdv_id)
+        if actuel is None or (pr.activated_at and (not actuel.activated_at or pr.activated_at > actuel.activated_at)):
+            par_pdv[pr.activated_pdv_id] = pr
+    prospects = list(par_pdv.values())
+
     pdv_ids = list({p.activated_pdv_id for p in prospects if p.activated_pdv_id})
     if not pdv_ids:
         return {"pdvs": [], "dernier_mois": None, "mois_disponibles": []}
