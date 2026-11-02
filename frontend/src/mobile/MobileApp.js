@@ -13,6 +13,8 @@ import MobileProspection from './pages/MobileProspection';
 import MobileProspectDetail from './pages/MobileProspectDetail';
 import MobilePlanning from './pages/MobilePlanning';
 import MobileActivations from './pages/MobileActivations';
+import MobileReclamations from './pages/MobileReclamations';
+import MobileReclamationDetail from './pages/MobileReclamationDetail';
 import MobilePilotage from './pages/MobilePilotage';
 import MobileEquipe from './pages/MobileEquipe';
 import MobileValidations from './pages/MobileValidations';
@@ -45,6 +47,8 @@ export default function MobileApp() {
         <Route path="pdv/:id" element={<MobilePDVDetail />} />
         <Route path="recuperation" element={<MobileRecuperation />} />
         <Route path="alertes" element={<MobileAlertes />} />
+        <Route path="reclamations" element={<MobileReclamations />} />
+        <Route path="reclamation/:id" element={<MobileReclamationDetail />} />
 
         {/* ── Phase C · Développeur terrain ── */}
         <Route path="prospection" element={<MobileProspection />} />

@@ -283,3 +283,46 @@ body.fm-mobile {
 @media (min-width: 720px) {
   .m-content { max-width: 680px; }
 }
+
+/* ── Tiroir de menu (toutes les fonctions du rôle) ── */
+.m-drawer-overlay {
+  position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, 0.62);
+}
+
+.m-drawer {
+  position: fixed; top: 0; bottom: 0; left: 0;
+  width: 86%; max-width: 340px;
+  background: #141426;
+  border-right: 1px solid var(--fm-border);
+  display: flex; flex-direction: column;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  overflow-y: auto;
+  animation: m-slide-in 0.18s ease-out;
+}
+
+@keyframes m-slide-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+.m-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 4px 6px 14px;
+  border-bottom: 1px solid var(--fm-border);
+}
+
+.m-drawer-section {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--fm-muted); font-weight: 800; margin: 14px 6px 6px;
+}
+
+.m-drawer-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 12px; border-radius: 10px;
+  color: var(--fm-text); text-decoration: none;
+  font-size: 14px; font-weight: 600;
+  background: transparent; border: none; width: 100%;
+  text-align: left; cursor: pointer; font-family: inherit;
+}
+.m-drawer-item:active { background: rgba(255, 255, 255, 0.07); }
+.m-drawer-item .arrow { margin-left: auto; color: var(--fm-muted); }
