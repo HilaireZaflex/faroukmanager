@@ -9,6 +9,7 @@ export const DEFAULT_DASHBOARDS = []; // Aucun dashboard par défaut — doit ê
 export const MENU_ROUTES = {
   pdvs:         ['/pdvs'],
   formations:   ['/suivi-formation'],
+  activations:  ['/activations'],
   prospection:  ['/prospection'],
   evaluations:  ['/evaluations'],
   alerts:       ['/alerts'],

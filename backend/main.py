@@ -20,7 +20,7 @@ def set_cache(key, value):
     _APP_CACHE_TIME[key] = time.time()
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications, localites, analyse_perf, formations
+from app.api.routes import auth, pdv, dashboard, alerts, analytics, reports, performance, superviseurs, gestionnaires, potentialites, grades, envois, prospects, prospect_extras, indicators, commissions, evaluations, developpeurs, role_permissions, notifications, localites, analyse_perf, formations, activations
 import app.models  # noqa - ensures all models are registered
 
 Base.metadata.create_all(bind=engine)
@@ -113,6 +113,7 @@ app.include_router(evaluations.router, prefix="/api", tags=["Évaluations"])
 app.include_router(developpeurs.router, prefix="/api", tags=["Développeurs"])
 app.include_router(role_permissions.router, prefix="/api", tags=["Permissions"])
 app.include_router(formations.router, prefix="/api", tags=["Suivi Formation"])
+app.include_router(activations.router, prefix="/api", tags=["Suivi des activations"])
 
 @app.post("/api/rapports/generer-superviseur")
 async def generer_rapport_superviseur(request: Request):
@@ -465,6 +466,11 @@ async def auto_migrate():
             ensure_formations_menu()
         except Exception as e:
             print(f"⚠️ ensure_formations_menu : {e}")
+        try:
+            from app.api.routes.role_permissions import ensure_activations_menu
+            ensure_activations_menu()
+        except Exception as e:
+            print(f"⚠️ ensure_activations_menu : {e}")
         try:
             from app.core.database import SessionLocal
             from app.services.formation_import import assurer_modules_defaut

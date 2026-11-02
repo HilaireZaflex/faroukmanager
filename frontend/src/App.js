@@ -30,6 +30,7 @@ import KaabuMensuelPage from './pages/KaabuMensuelPage';
 import ChallengePage from './pages/ChallengePage';
 import AnalysePerformancePage from './pages/AnalysePerformancePage';
 import SuiviFormationPage from './pages/SuiviFormationPage';
+import ActivationsPage from './pages/ActivationsPage';
 import MobileApp from './mobile/MobileApp';
 import CartePage from './pages/CartePage';
 import RecoveryListePage from './pages/RecoveryListePage';
@@ -190,6 +191,7 @@ function App() {
                 <Route path="/challenge" element={<MenuRoute menuId="challenge"><ChallengePage /></MenuRoute>} />
                 <Route path="/analyse-performance" element={<MenuRoute menuId="analyse_perf"><AnalysePerformancePage /></MenuRoute>} />
                 <Route path="/suivi-formation" element={<MenuRoute menuId="formations"><SuiviFormationPage /></MenuRoute>} />
+                <Route path="/activations" element={<MenuRoute menuId="activations"><ActivationsPage /></MenuRoute>} />
                 <Route path="/omy/dashboard" element={<OMyDashboardPage />} />
                 <Route path="/omy/dashboard/weekly" element={<OMyWeeklyDashboardPage />} />
                 <Route path="/nafama/dashboard" element={<NafamaDashboardPage />} />

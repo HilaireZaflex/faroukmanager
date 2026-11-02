@@ -4,7 +4,7 @@ import {
   Home, LayoutDashboard, CalendarDays, Store, Bell,
   Brain, RefreshCw, FileText, Settings,
   LogOut, ChevronLeft, ChevronRight, Users, Upload,
-  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy, PhoneCall, BarChart3, GraduationCap
+  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy, PhoneCall, BarChart3, GraduationCap, Rocket
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import './Sidebar.css';
@@ -174,6 +174,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {can('challenge')   && nl('/challenge',    Trophy,      '🏆 Orange Awards 2026')}
             {can('pdvs')        && nl('/pdvs',         Store,       'Points de Vente')}
             {can('prospection') && nl('/prospection',  UserPlus,    'Prospection OM')}
+            {can('activations') && nl('/activations', Rocket, '🚀 Suivi des activations')}
             {can('prospection_energia') && nl('/prospection-energia', Activity, '☀️ Prospection ENERGIA')}
             {can('reclamations') && nl('/reclamations', AlertTriangle, '📣 Réclamations')}
             {can('suivi_tc')     && nl('/suivi-tc',    Bell,        '📞 Suivi TC')}
