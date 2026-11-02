@@ -62,6 +62,7 @@ export default function ActivationsPage() {
   const [ouvert, setOuvert] = useState(null);
   const [voirAnterieurs, setVoirAnterieurs] = useState({});
   const [exportEnCours, setExportEnCours] = useState(false);
+  const [tri, setTri] = useState({ cle: null, sens: 'desc' });
 
   const { data, isLoading } = useQuery(
     ['activations', filtres],
@@ -73,6 +74,29 @@ export default function ActivationsPage() {
     () => api.get('/activations/synthese').then(r => r.data), { staleTime: 60000 });
 
   const items = data?.items || [];
+
+  const basculerTri = (cle) => {
+    setTri(prev => prev.cle === cle
+      ? { cle, sens: prev.sens === 'asc' ? 'desc' : 'asc' }
+      : { cle, sens: 'asc' });
+  };
+
+  const itemsTries = useMemo(() => {
+    if (!tri.cle) return items;
+    const valeur = (l) => {
+      if (tri.cle === 'anciennete') return l.anciennete?.jours ?? -1;
+      if (tri.cle === 'statut') return l.statut_activation;
+      return l[tri.cle];
+    };
+    const copie = [...items].sort((a, b) => {
+      const va = valeur(a), vb = valeur(b);
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === 'number' && typeof vb === 'number') return va - vb;
+      return String(va).localeCompare(String(vb), 'fr');
+    });
+    return tri.sens === 'asc' ? copie : copie.reverse();
+  }, [items, tri]);
   const filtresDispo = data?.filtres || {};
   const set = (k, v) => setFiltres(prev => ({ ...prev, [k]: v }));
 
@@ -130,30 +154,30 @@ export default function ActivationsPage() {
       </div>
 
       {/* Filtres */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'nowrap', marginBottom: 14, overflowX: 'auto', paddingBottom: 4 }}>
         <input placeholder="Rechercher un PDV, un superviseur…" value={filtres.search}
-          onChange={e => set('search', e.target.value)} style={{ ...champ, flex: 1, minWidth: 220 }} />
-        <select value={filtres.statut} onChange={e => set('statut', e.target.value)} style={champ}>
+          onChange={e => set('search', e.target.value)} style={{ ...champ, flex: 1, minWidth: 200, maxWidth: 320 }} />
+        <select value={filtres.statut} onChange={e => set('statut', e.target.value)} style={{ ...champ, width: 140, flexShrink: 0 }}>
           <option value="">Tous les statuts</option>
           {Object.entries(STATUTS).map(([id, s]) => <option key={id} value={id}>{s.label}</option>)}
         </select>
-        <select value={filtres.cohorte} onChange={e => set('cohorte', e.target.value)} style={champ}>
+        <select value={filtres.cohorte} onChange={e => set('cohorte', e.target.value)} style={{ ...champ, width: 130, flexShrink: 0 }}>
           <option value="">Toutes les cohortes</option>
           {(filtresDispo.cohortes || []).map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select value={filtres.zone} onChange={e => set('zone', e.target.value)} style={champ}>
+        <select value={filtres.zone} onChange={e => set('zone', e.target.value)} style={{ ...champ, width: 120, flexShrink: 0 }}>
           <option value="">Toutes les zones</option>
           {(filtresDispo.zones || []).map(z => <option key={z} value={z}>{z}</option>)}
         </select>
-        <select value={filtres.developpeur} onChange={e => set('developpeur', e.target.value)} style={champ}>
+        <select value={filtres.developpeur} onChange={e => set('developpeur', e.target.value)} style={{ ...champ, width: 160, flexShrink: 0 }}>
           <option value="">Tous les développeurs</option>
           {(filtresDispo.developpeurs || []).map(d => <option key={d} value={d}>{d}</option>)}
         </select>
-        <select value={filtres.superviseur} onChange={e => set('superviseur', e.target.value)} style={champ}>
+        <select value={filtres.superviseur} onChange={e => set('superviseur', e.target.value)} style={{ ...champ, width: 170, flexShrink: 0 }}>
           <option value="">Tous les superviseurs</option>
           {(filtresDispo.superviseurs || []).map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span style={{ alignSelf: 'center', fontSize: 12.5, color: 'var(--text-secondary)' }}>
+        <span style={{ alignSelf: 'center', fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
           {data?.total ?? 0} PDV · données arrêtées à {data?.dernier_mois || '—'}
         </span>
       </div>
@@ -166,17 +190,37 @@ export default function ActivationsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                {['PDV', 'Nom', 'Zone', 'Superviseur', 'Activé le', 'Ancienneté', 'Statut',
-                  'Démarrage', 'Sans op.', 'CA cumulé', 'Évolution', 'Tendance'].map(h => (
-                  <th key={h} style={{
+                {[
+                  ['numero_pdv', 'PDV'], ['nom', 'Nom'], ['zone', 'Zone'],
+                  ['superviseur', 'Superviseur'], ['date_activation', 'Activé le'],
+                  ['anciennete', 'Ancienneté'], ['statut', 'Statut'],
+                  ['delai_demarrage_jours', 'Démarrage'], ['jours_sans_operation', 'Sans op.'],
+                  ['total_ca', 'CA cumulé'], ['evolution_pct', 'Évolution'], [null, 'Tendance'],
+                ].map(([cle, label]) => (
+                  <th key={label} style={{
                     textAlign: 'left', padding: '10px 10px', fontSize: 10, textTransform: 'uppercase',
                     letterSpacing: 0.4, color: 'var(--text-secondary)', fontWeight: 800, whiteSpace: 'nowrap',
-                  }}>{h}</th>
+                  }}>
+                    {cle ? (
+                      <button onClick={() => basculerTri(cle)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                          color: tri.cle === cle ? 'var(--primary)' : 'var(--text-secondary)',
+                          font: 'inherit', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 800,
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
+                        }}>
+                        {label}
+                        <span style={{ fontSize: 9, opacity: tri.cle === cle ? 1 : 0.35 }}>
+                          {tri.cle === cle ? (tri.sens === 'asc' ? '▲' : '▼') : '⇅'}
+                        </span>
+                      </button>
+                    ) : label}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {items.map(l => {
+              {itemsTries.map(l => {
                 const st = STATUTS[l.statut_activation] || { label: l.statut, couleur: '#8a94a6' };
                 const estOuvert = ouvert === l.pdv_id;
                 return (
@@ -184,7 +228,16 @@ export default function ActivationsPage() {
                     <tr style={{ borderTop: '1px solid var(--border)', cursor: 'pointer', background: estOuvert ? 'rgba(255,255,255,0.03)' : undefined }}
                       onClick={() => setOuvert(estOuvert ? null : l.pdv_id)}>
                       <td style={{ padding: '9px 10px', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{l.numero_pdv}</td>
-                      <td style={{ padding: '9px 10px', color: 'var(--text-primary)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.nom}</td>
+                      <td style={{ padding: '9px 10px', color: 'var(--text-primary)', maxWidth: 210, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {l.nom}
+                        {l.reactivation && (
+                          <span title={`${l.nb_activations_pdv} activations pour ce PDV`}
+                            style={{ marginLeft: 6, fontSize: 9.5, padding: '2px 6px', borderRadius: 999,
+                                     background: 'rgba(255,165,2,0.15)', color: '#ffc048', border: '1px solid rgba(255,165,2,0.4)' }}>
+                            réactivation
+                          </span>
+                        )}
+                      </td>
                       <td style={{ padding: '9px 10px', color: 'var(--text-secondary)' }}>{l.zone || '—'}</td>
                       <td style={{ padding: '9px 10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{l.superviseur || '—'}</td>
                       <td style={{ padding: '9px 10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{fmtDate(l.date_activation)}</td>

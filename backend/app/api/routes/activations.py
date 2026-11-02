@@ -119,16 +119,13 @@ def _construire(db: Session) -> Dict[str, Any]:
         .filter(Prospect.status == "PUCE_ACTIVEE", Prospect.activated_pdv_id.isnot(None))
         .all()
     )
-    # Un même PDV peut être relié à plusieurs prospects (réactivations) :
-    # on ne garde que l'activation la plus récente pour éviter les doublons.
-    par_pdv = {}
+    # Une ligne par ACTIVATION (comme le menu Prospection), et non par PDV :
+    # le total correspond ainsi exactement au nombre affiché côté Prospection.
+    # Les PDV reliés à plusieurs demandes sont signalés par « réactivation ».
+    activations_par_pdv: Dict[int, int] = {}
     for pr in prospects:
-        if not pr.activated_pdv_id:
-            continue
-        actuel = par_pdv.get(pr.activated_pdv_id)
-        if actuel is None or (pr.activated_at and (not actuel.activated_at or pr.activated_at > actuel.activated_at)):
-            par_pdv[pr.activated_pdv_id] = pr
-    prospects = list(par_pdv.values())
+        if pr.activated_pdv_id:
+            activations_par_pdv[pr.activated_pdv_id] = activations_par_pdv.get(pr.activated_pdv_id, 0) + 1
 
     pdv_ids = list({p.activated_pdv_id for p in prospects if p.activated_pdv_id})
     if not pdv_ids:
@@ -263,11 +260,14 @@ def _construire(db: Session) -> Dict[str, Any]:
             "nb_mois_anterieurs": len(anterieurs),
             "developpeur": f"{dev.prenom or ''} {dev.nom or ''}".strip() if dev else None,
             "prospect_reference": pr.reference,
+            "nb_activations_pdv": activations_par_pdv.get(pdv.id, 1),
+            "reactivation": activations_par_pdv.get(pdv.id, 1) > 1,
         })
 
-    lignes.sort(key=lambda x: (x["statut_activation"] != "JAMAIS_ACTIF",
+    lignes.sort(key=lambda x: (x["reactivation"],
+                               x["statut_activation"] != "JAMAIS_ACTIF",
                                x["jours_sans_operation"] or 0,
-                               -x["total_ca"]), reverse=False)
+                               -x["total_ca"]))
     return {"pdvs": lignes, "dernier_mois": dernier_mois, "mois_disponibles": []}
 
 
