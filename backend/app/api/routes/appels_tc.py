@@ -70,34 +70,40 @@ def _normalize_indicateurs(indicateurs, principal=None) -> list:
     return resultat
 
 
-def _pdv_autorise_pour_tc(db: Session, current_user: User, numero_pdv: str) -> bool:
-    """Une téléconseillère ne peut enregistrer un appel que sur SES PDV affectés.
+def _controle_pdv_pour_tc(db: Session, current_user: User, numero_pdv: str):
+    """Vérifie si la téléconseillère peut enregistrer un appel sur ce PDV.
 
-    - PDV inconnu ou non affecté → autorisé (les cas particuliers ne sont pas bloqués).
-    - PDV affecté au compte de la TC → autorisé.
-    - PDV affecté à une AUTRE téléconseillère → refusé.
+    Retourne (autorise, nom_proprietaire). Quand le PDV est affecté à une autre
+    téléconseillère, on renvoie son nom pour que le message affiché soit clair :
+    « ce PDV appartient à X ».
     """
     role = str(current_user.role or '').lower().replace('userrole.', '')
     if role not in ('teleconseillere', 'tc'):
-        return True
+        return True, None
 
     pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv).first()
     if pdv is None:
-        return True
+        return True, None
 
     # Lien fiable par COMPTE
     if pdv.teleconseillere_user_id:
-        return pdv.teleconseillere_user_id == current_user.id
+        if pdv.teleconseillere_user_id == current_user.id:
+            return True, None
+        proprietaire = db.query(User).filter(User.id == pdv.teleconseillere_user_id).first()
+        nom = _full_name(proprietaire) if proprietaire else (pdv.teleconseillere or None)
+        return False, nom or "une autre téléconseillère"
 
     # Repli par nom (lien pas encore rempli)
-    nom_pdv = (pdv.teleconseillere or '').strip().upper()
-    if nom_pdv in ('', 'AU BUREAU', '#VALUE!'):
-        return True
+    nom_pdv = (pdv.teleconseillere or '').strip()
+    if nom_pdv.upper() in ('', 'AU BUREAU', '#VALUE!'):
+        return True, None
     mes_noms = {
         _full_name(current_user).strip().upper(),
         f"{current_user.nom or ''} {current_user.prenom or ''}".strip().upper(),
     }
-    return nom_pdv in mes_noms
+    if nom_pdv.upper() in mes_noms:
+        return True, None
+    return False, nom_pdv
 
 
 def _fmt(a: AppelTC, pdv=None) -> dict:
@@ -146,8 +152,13 @@ def create_appel(
     if not inds:
         raise HTTPException(400, "Au moins un indicateur valide est requis (OMY, NAFAMA ou KAABU)")
 
-    if not _pdv_autorise_pour_tc(db, current_user, body.numero_pdv):
-        raise HTTPException(403, "Ce point de vente est affecté à une autre téléconseillère.")
+    autorise, proprietaire = _controle_pdv_pour_tc(db, current_user, body.numero_pdv)
+    if not autorise:
+        raise HTTPException(
+            403,
+            f"Vous ne pouvez pas enregistrer l'appel de ce PDV ({body.numero_pdv}) : "
+            f"il appartient à {proprietaire}. Contactez votre superviseur pour le réaffecter.",
+        )
 
     tc_nom = _full_name(current_user)
 
@@ -692,8 +703,13 @@ def marquer_appele(
     if not inds:
         raise HTTPException(400, "Au moins un indicateur valide est requis (OMY, NAFAMA ou KAABU)")
 
-    if not _pdv_autorise_pour_tc(db, current_user, numero_pdv):
-        raise HTTPException(403, "Ce point de vente est affecté à une autre téléconseillère.")
+    autorise, proprietaire = _controle_pdv_pour_tc(db, current_user, numero_pdv)
+    if not autorise:
+        raise HTTPException(
+            403,
+            f"Vous ne pouvez pas enregistrer l'appel de ce PDV ({numero_pdv}) : "
+            f"il appartient à {proprietaire}. Contactez votre superviseur pour le réaffecter.",
+        )
 
     pdv = db.query(PDV).filter(PDV.numero_pdv == numero_pdv).first()
     nom_pdv = pdv.nom if pdv else numero_pdv
