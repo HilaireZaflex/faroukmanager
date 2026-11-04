@@ -203,7 +203,13 @@ def _construire(db: Session) -> Dict[str, Any]:
             })
 
         # Première / dernière opération (données hebdomadaires)
-        semaines = hebdo.get(pdv.id, [])
+        # On ne garde que les semaines POSTÉRIEURES à l'activation : sinon un PDV
+        # déjà existant « hériterait » de son passé avant même d'être activé.
+        semaines = []
+        for w in hebdo.get(pdv.id, []):
+            fin = _fin_semaine(w.annee, w.semaine)
+            if fin and fin >= date_activation:
+                semaines.append(w)
         actives = [w for w in semaines if (w.nb_operations or 0) > 0]
         premiere_date = derniere_date = None
         if actives:
