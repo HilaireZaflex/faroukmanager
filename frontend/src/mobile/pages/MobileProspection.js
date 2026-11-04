@@ -67,6 +67,10 @@ export default function MobileProspection() {
         <KPI label="Activées" value={fmtN(compte(['PUCE_ACTIVEE']))} color="#22c55e" />
       </div>
 
+      <Link to="/m/prospect/nouveau" className="m-btn" style={{ marginBottom: 12 }}>
+        ➕ Nouveau prospect
+      </Link>
+
       <div className="m-search">
         <span>🔎</span>
         <input

@@ -11,6 +11,7 @@ import MobileRecuperation from './pages/MobileRecuperation';
 import MobileAlertes from './pages/MobileAlertes';
 import MobileProspection from './pages/MobileProspection';
 import MobileProspectDetail from './pages/MobileProspectDetail';
+import MobileNouveauProspect from './pages/MobileNouveauProspect';
 import MobilePlanning from './pages/MobilePlanning';
 import MobileActivations from './pages/MobileActivations';
 import MobileReclamations from './pages/MobileReclamations';
@@ -52,6 +53,7 @@ export default function MobileApp() {
 
         {/* ── Phase C · Développeur terrain ── */}
         <Route path="prospection" element={<MobileProspection />} />
+        <Route path="prospect/nouveau" element={<MobileNouveauProspect />} />
         <Route path="prospect/:id" element={<MobileProspectDetail />} />
         <Route path="planning" element={<MobilePlanning />} />
         <Route path="activations" element={<MobileActivations />} />
