@@ -855,6 +855,7 @@ function TabEvolution({ annee, mois, criterion }) {
   const exportExcel = () => {
     const data = dataToShow.map((row, idx) => ({
       'Rang': idx + 1,
+      'PDV Numéro': row.numero_pdv || row.numero_personnel || '-',
       'Nom': row.nom,
       [`${getMetricLabel(criterion)} Actuel`]: row.actuel,
       [`${getMetricLabel(criterion)} Précédent`]: row.precedent,
