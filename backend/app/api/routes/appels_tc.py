@@ -106,6 +106,12 @@ def _controle_pdv_pour_tc(db: Session, current_user: User, numero_pdv: str):
     return False, nom_pdv
 
 
+def _pdv_autorise_pour_tc(db: Session, current_user: User, numero_pdv: str) -> bool:
+    """Compatibilité : ancien nom conservé (utilisé par appels_migration.py)."""
+    autorise, _ = _controle_pdv_pour_tc(db, current_user, numero_pdv)
+    return autorise
+
+
 def _fmt(a: AppelTC, pdv=None) -> dict:
     return {
         "id": a.id,
