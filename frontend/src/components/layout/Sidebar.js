@@ -169,10 +169,9 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
             {/* ── GESTION ── */}
             <div className="nav-divider"/>
             {!collapsed && <div className="nav-section-label">Gestion</div>}
-            {can('formations') && nl('/suivi-formation', GraduationCap, '🎓 Suivi Formation')}
-
-            {can('challenge')   && nl('/challenge',    Trophy,      '🏆 Orange Awards 2026')}
             {can('pdvs')        && nl('/pdvs',         Store,       'Points de Vente')}
+            {can('challenge')   && nl('/challenge',    Trophy,      '🏆 Orange Awards 2026')}
+            {can('formations') && nl('/suivi-formation', GraduationCap, '🎓 Suivi Formation')}
             {can('prospection') && nl('/prospection',  UserPlus,    'Prospection OM')}
             {can('activations') && nl('/activations', Rocket, '🚀 Suivi des activations')}
             {can('prospection_energia') && nl('/prospection-energia', Activity, '☀️ Prospection ENERGIA')}
