@@ -614,8 +614,8 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
     ['tc-appels-omy', tcNom],
     async () => {
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       return [...p1, ...p2]
         .filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom))
@@ -633,8 +633,8 @@ function OngletInactifs({ annee, semaine, criterion, teleFilter }) {
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       const all = [...p1, ...p2];
       return all.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
@@ -827,8 +827,8 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
     ['tc-appels-omyb', tcNomB],
     async () => {
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       return [...p1, ...p2]
         .filter(a => a.indicateur === 'OMY' && (!tcNomB || a.tc_nom === tcNomB))
@@ -849,8 +849,8 @@ function OngletBaisse({ annee, semaine, criterion, teleFilter }) {
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       const all = [...p1, ...p2];
       return all.filter(a => a.indicateur === 'OMY' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);

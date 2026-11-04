@@ -199,6 +199,7 @@ def list_appels(
     indicateur: Optional[str] = Query(None),
     tc_user_id: Optional[int] = Query(None, description="Filtrer sur un COMPTE téléconseillère précis"),
     mes_appels_seulement: bool = Query(False, description="Si True, retourne uniquement les appels de l'utilisateur connecté"),
+    depuis: Optional[str] = Query(None, description="Ne renvoyer que les appels depuis cette date (AAAA-MM-JJ)"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -215,6 +216,12 @@ def list_appels(
         q = q.filter(AppelTC.tc_user_id == tc_user_id)
     if mes_appels_seulement:
         q = q.filter(AppelTC.tc_user_id == current_user.id)
+    if depuis:
+        try:
+            from datetime import datetime as _dt
+            q = q.filter(AppelTC.created_at >= _dt.strptime(depuis, "%Y-%m-%d"))
+        except ValueError:
+            pass
 
     total = q.count()
     items = q.order_by(desc(AppelTC.created_at)).offset(skip).limit(limit).all()

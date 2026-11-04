@@ -846,8 +846,8 @@ function TabInactivePDVs({
     ['tc-appels-nafamani', tcNomNI],
     async () => {
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       return [...p1, ...p2]
         .filter(a => a.indicateur === 'NAFAMA' && (!tcNomNI || a.tc_nom === tcNomNI))
@@ -865,8 +865,8 @@ function TabInactivePDVs({
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       const all = [...p1, ...p2];
       return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
@@ -1023,8 +1023,8 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
     ['tc-appels-nafamand', tcNomND],
     async () => {
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []).catch(() => []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       return [...p1, ...p2]
         .filter(a => a.indicateur === 'NAFAMA' && (!tcNomND || a.tc_nom === tcNomND))
@@ -1042,8 +1042,8 @@ function TabDecliningPDVs({ annee, mois, teleFilter }) {
       const u = useAuthStore.getState().user;
       const tcNom = ((u?.prenom || '') + ' ' + (u?.nom || '')).trim();
       const [p1, p2] = await Promise.all([
-        api.get('/appels-tc', { params: { limit: 200, skip: 0 } }).then(r => r.data?.items || []),
-        api.get('/appels-tc', { params: { limit: 200, skip: 200 } }).then(r => r.data?.items || []).catch(() => []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 0, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []),
+        api.get('/appels-tc', { params: { limit: 200, skip: 200, depuis: new Date(Date.now() - 31 * 864e5).toISOString().slice(0, 10) } }).then(r => r.data?.items || []).catch(() => []),
       ]);
       const all = [...p1, ...p2];
       return all.filter(a => a.indicateur === 'NAFAMA' && (!tcNom || a.tc_nom === tcNom)).map(a => a.numero_pdv);
