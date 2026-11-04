@@ -36,14 +36,22 @@ router = APIRouter()
 
 ROLES_ACCES = {"admin", "manager", "rc", "conformite"}
 
-SEUIL_OPS_PRODUCTIF = 30      # opérations sur le dernier mois
-SEUIL_JOURS_ENDORMI = 30      # jours sans opération
+SEUIL_JOURS_ENDORMI = 30
+
+# ── Seuils de productivité (validés par la direction) ──
+# Productif si : ≥ 5 M sur 2 mois, OU ≥ 2 M sur un mois,
+#                OU ≥ 2 M sur 3 semaines consécutives
+SEUIL_PRODUCTIF_2_MOIS = 5_000_000
+SEUIL_PRODUCTIF_MOIS = 2_000_000
+SEUIL_PRODUCTIF_3_SEMAINES = 2_000_000
+# En dessous de ce total sur 2 mois : PDV à revoir / récupérer
+SEUIL_CONSOLIDER_2_MOIS = 1_000_000
 
 LIBELLE_STATUT = {
-    "JAMAIS_ACTIF": "Jamais actif",
-    "ENDORMI": "Endormi",
-    "FAIBLE": "Faible",
     "PRODUCTIF": "Productif",
+    "A_CONSOLIDER": "À consolider",
+    "A_RECUPERER": "À récupérer",
+    "INACTIF": "Inactif",
 }
 
 
@@ -102,14 +110,17 @@ def _pct(avant: float, apres: float) -> Optional[float]:
     return None
 
 
-def _statut(ops_total: int, ops_dernier: int, jours_sans: Optional[int]) -> str:
+def _statut(total_2_mois: float, meilleur_mois: float, meilleures_3_semaines: float,
+            ops_total: int) -> str:
     if ops_total == 0:
-        return "JAMAIS_ACTIF"
-    if jours_sans is not None and jours_sans > SEUIL_JOURS_ENDORMI:
-        return "ENDORMI"
-    if ops_dernier < SEUIL_OPS_PRODUCTIF:
-        return "FAIBLE"
-    return "PRODUCTIF"
+        return "INACTIF"
+    if (total_2_mois >= SEUIL_PRODUCTIF_2_MOIS
+            or meilleur_mois >= SEUIL_PRODUCTIF_MOIS
+            or meilleures_3_semaines >= SEUIL_PRODUCTIF_3_SEMAINES):
+        return "PRODUCTIF"
+    if total_2_mois >= SEUIL_CONSOLIDER_2_MOIS:
+        return "A_CONSOLIDER"
+    return "A_RECUPERER"
 
 
 # ── Construction des données ─────────────────────────────────────────────────
@@ -225,7 +236,20 @@ def _construire(db: Session) -> Dict[str, Any]:
         if len(ca3) == 3 and ca3[0] > 0 and ca3[0] > ca3[1] > ca3[2]:
             en_baisse = True
 
-        statut = _statut(total_ops, dernier_mois_serie["operations"], jours_sans_operation)
+        # Montants sur les 2 derniers mois disponibles
+        total_2_mois = sum(x["ca"] for x in serie[-2:])
+        meilleur_mois = max((x["ca"] for x in serie), default=0.0)
+
+        # Meilleur cumul de 3 semaines consécutives
+        semaines_triees = sorted(semaines, key=lambda w: (w.annee, w.semaine))
+        ca_semaines = [(w.montant_transaction or 0) for w in semaines_triees]
+        meilleures_3_semaines = 0.0
+        for i in range(len(ca_semaines) - 2):
+            total = sum(ca_semaines[i:i + 3])
+            if total > meilleures_3_semaines:
+                meilleures_3_semaines = total
+
+        statut = _statut(total_2_mois, meilleur_mois, meilleures_3_semaines, total_ops)
 
         dev = pr.puce_assigned_to or pr.visit_assigned_to or pr.submitted_by
 
@@ -252,6 +276,10 @@ def _construire(db: Session) -> Dict[str, Any]:
             "total_ca": round(total_ca, 2),
             "total_operations": total_ops,
             "panier_moyen": round(total_ca / total_ops, 2) if total_ops else 0.0,
+            "total_2_mois": round(total_2_mois, 2),
+            "meilleur_mois": round(meilleur_mois, 2),
+            "meilleures_3_semaines": round(meilleures_3_semaines, 2),
+            "a_revoir": statut in ("A_RECUPERER", "INACTIF"),
             "ca_dernier_mois": dernier_mois_serie["ca"],
             "operations_dernier_mois": dernier_mois_serie["operations"],
             "evolution_pct": evolution,
@@ -265,7 +293,7 @@ def _construire(db: Session) -> Dict[str, Any]:
         })
 
     lignes.sort(key=lambda x: (x["reactivation"],
-                               x["statut_activation"] != "JAMAIS_ACTIF",
+                               x["statut_activation"] != "INACTIF",
                                x["jours_sans_operation"] or 0,
                                -x["total_ca"]))
     return {"pdvs": lignes, "dernier_mois": dernier_mois, "mois_disponibles": []}
@@ -356,7 +384,7 @@ def synthese_activations(
         c["ops"] += l["total_operations"]
         if l["statut_activation"] == "PRODUCTIF":
             c["productifs"] += 1
-        if l["statut_activation"] == "JAMAIS_ACTIF":
+        if l["statut_activation"] == "INACTIF":
             c["jamais_actifs"] += 1
 
     devs: Dict[str, dict] = {}
@@ -368,7 +396,7 @@ def synthese_activations(
         d["ca"] += l["total_ca"]
         if l["statut_activation"] == "PRODUCTIF":
             d["productifs"] += 1
-        if l["statut_activation"] == "JAMAIS_ACTIF":
+        if l["statut_activation"] == "INACTIF":
             d["jamais_actifs"] += 1
 
     return {
@@ -418,9 +446,9 @@ def exporter_activations(
     kpis = [
         ("PDV activés", len(lignes)),
         ("Productifs", sum(1 for l in lignes if l["statut_activation"] == "PRODUCTIF")),
-        ("Faibles", sum(1 for l in lignes if l["statut_activation"] == "FAIBLE")),
-        ("Endormis", sum(1 for l in lignes if l["statut_activation"] == "ENDORMI")),
-        ("Jamais actifs", sum(1 for l in lignes if l["statut_activation"] == "JAMAIS_ACTIF")),
+        ("À consolider", sum(1 for l in lignes if l["statut_activation"] == "A_CONSOLIDER")),
+        ("À récupérer", sum(1 for l in lignes if l["statut_activation"] == "A_RECUPERER")),
+        ("Jamais actifs", sum(1 for l in lignes if l["statut_activation"] == "INACTIF")),
         ("CA cumulé", round(sum(l["total_ca"] for l in lignes), 0)),
         ("Opérations cumulées", sum(l["total_operations"] for l in lignes)),
     ]
@@ -436,7 +464,7 @@ def exporter_activations(
         c = cohortes.setdefault(l["mois_activation"], {"nb": 0, "prod": 0, "jamais": 0, "ca": 0, "ops": 0})
         c["nb"] += 1; c["ca"] += l["total_ca"]; c["ops"] += l["total_operations"]
         if l["statut_activation"] == "PRODUCTIF": c["prod"] += 1
-        if l["statut_activation"] == "JAMAIS_ACTIF": c["jamais"] += 1
+        if l["statut_activation"] == "INACTIF": c["jamais"] += 1
     rr = r + 2
     for co, c in sorted(cohortes.items(), key=lambda x: (x[0][3:], x[0][:2])):
         ws.cell(row=rr, column=1, value=co)
@@ -454,7 +482,8 @@ def exporter_activations(
     _entete(ws2, 1, ["N° PDV", "Nom", "Zone", "Superviseur", "Développeur",
                      "Activé le", "Ancienneté", "Cohorte", "Statut",
                      "Délai démarrage (j)", "Jours sans opération",
-                     "CA cumulé", "Opérations cumulées", "Panier moyen",
+                     "CA cumulé", "CA 2 derniers mois", "Meilleur mois", "Meilleures 3 sem.",
+                     "Opérations cumulées", "Panier moyen",
                      "CA dernier mois", "Opérations dernier mois", "Évolution %"])
     for i, l in enumerate(lignes, start=2):
         ws2.cell(row=i, column=1, value=l["numero_pdv"])
@@ -469,17 +498,21 @@ def exporter_activations(
         ws2.cell(row=i, column=10, value=l["delai_demarrage_jours"])
         ws2.cell(row=i, column=11, value=l["jours_sans_operation"])
         ws2.cell(row=i, column=12, value=round(l["total_ca"], 0))
-        ws2.cell(row=i, column=13, value=l["total_operations"])
-        ws2.cell(row=i, column=14, value=round(l["panier_moyen"], 0))
-        ws2.cell(row=i, column=15, value=round(l["ca_dernier_mois"], 0))
-        ws2.cell(row=i, column=16, value=l["operations_dernier_mois"])
-        ws2.cell(row=i, column=17, value=l["evolution_pct"])
+        ws2.cell(row=i, column=13, value=round(l["total_2_mois"], 0))
+        ws2.cell(row=i, column=14, value=round(l["meilleur_mois"], 0))
+        ws2.cell(row=i, column=15, value=round(l["meilleures_3_semaines"], 0))
+        ws2.cell(row=i, column=16, value=l["total_operations"])
+        ws2.cell(row=i, column=17, value=round(l["panier_moyen"], 0))
+        ws2.cell(row=i, column=18, value=round(l["ca_dernier_mois"], 0))
+        ws2.cell(row=i, column=19, value=l["operations_dernier_mois"])
+        ws2.cell(row=i, column=20, value=l["evolution_pct"])
     largeurs = {1: 12, 2: 30, 3: 12, 4: 24, 5: 24, 6: 12, 7: 16, 8: 10, 9: 14,
-                10: 18, 11: 20, 12: 16, 13: 18, 14: 14, 15: 16, 16: 20, 17: 12}
+                10: 18, 11: 20, 12: 16, 13: 18, 14: 14, 15: 18, 16: 18, 17: 14,
+                18: 16, 19: 20, 20: 12}
     for col, w in largeurs.items():
         ws2.column_dimensions[get_column_letter(col)].width = w
     ws2.freeze_panes = "C2"
-    ws2.auto_filter.ref = f"A1:Q{max(len(lignes) + 1, 2)}"
+    ws2.auto_filter.ref = f"A1:T{max(len(lignes) + 1, 2)}"
 
     # 3. Évolution mensuelle
     ws3 = wb.create_sheet("Évolution")

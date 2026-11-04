@@ -11,19 +11,14 @@ import api from '../services/api';
 
 const STATUTS = {
   PRODUCTIF:    { label: 'Productif',    couleur: '#00d68f' },
-  FAIBLE:       { label: 'Faible',       couleur: '#ffa502' },
-  ENDORMI:      { label: 'Endormi',      couleur: '#ff7f50' },
-  JAMAIS_ACTIF: { label: 'Jamais actif', couleur: '#ff4757' },
+  A_CONSOLIDER: { label: 'À consolider', couleur: '#ffa502' },
+  A_RECUPERER:  { label: 'À récupérer',  couleur: '#ff7f50' },
+  INACTIF:      { label: 'Inactif',      couleur: '#ff4757' },
 };
 
 const fmtF = (v) => (v == null ? '—' : `${Math.round(Number(v)).toLocaleString('fr-FR')} F`);
-const fmtCourt = (v) => {
-  const n = Number(v || 0);
-  if (Math.abs(n) >= 1e9) return `${(n / 1e9).toFixed(2)} Md`;
-  if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(1)} M`;
-  if (Math.abs(n) >= 1e3) return `${(n / 1e3).toFixed(0)} k`;
-  return String(Math.round(n));
-};
+// Montants affichés en entier (demande de la direction)
+const fmtEntier = (v) => `${Math.round(Number(v || 0)).toLocaleString('fr-FR')} F`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
 
 const champ = {
@@ -135,12 +130,12 @@ export default function ActivationsPage() {
       {/* KPI */}
       <div className="grid-4" style={{ marginBottom: 12 }}>
         <Kpi label="PDV activés" valeur={k.total ?? '—'}
-          sous={`CA cumulé ${fmtCourt(items.reduce((s, l) => s + l.total_ca, 0))}`} couleur="#4a9eff" />
+          sous={`CA cumulé ${fmtEntier(items.reduce((s, l) => s + l.total_ca, 0))}`} couleur="#4a9eff" />
         <Kpi label="Productifs" valeur={k.par_statut?.PRODUCTIF ?? 0}
-          sous="≥ 30 opérations / mois" couleur="#00d68f" />
-        <Kpi label="Endormis + jamais actifs"
-          valeur={(k.par_statut?.ENDORMI ?? 0) + (k.par_statut?.JAMAIS_ACTIF ?? 0)}
-          sous={`jamais actifs : ${k.par_statut?.JAMAIS_ACTIF ?? 0}`} couleur="#ff4757" />
+          sous="≥ 5 M / 2 mois ou ≥ 2 M / mois" couleur="#00d68f" />
+        <Kpi label="À revoir"
+          valeur={(k.par_statut?.A_CONSOLIDER ?? 0) + (k.par_statut?.A_RECUPERER ?? 0) + (k.par_statut?.INACTIF ?? 0)}
+          sous={`à récupérer : ${k.par_statut?.A_RECUPERER ?? 0} · inactifs : ${k.par_statut?.INACTIF ?? 0}`} couleur="#ff4757" />
         <Kpi label="Délai moyen de démarrage"
           valeur={k.delai_moyen_demarrage != null ? `${k.delai_moyen_demarrage} j` : '—'}
           sous="activation → 1re opération" couleur="#ffa502" />
@@ -150,7 +145,7 @@ export default function ActivationsPage() {
         <Kpi label="Survie 30 j" valeur={survie.j30 != null ? `${survie.j30} %` : '—'} couleur="#a855f7" />
         <Kpi label="Survie 60 j" valeur={survie.j60 != null ? `${survie.j60} %` : '—'} couleur="#a855f7" />
         <Kpi label="Survie 90 j" valeur={survie.j90 != null ? `${survie.j90} %` : '—'} couleur="#a855f7" />
-        <Kpi label="Faibles" valeur={k.par_statut?.FAIBLE ?? 0} sous="< 30 opérations / mois" couleur="#ffa502" />
+        <Kpi label="À consolider" valeur={k.par_statut?.A_CONSOLIDER ?? 0} sous="activité réelle, sous les seuils" couleur="#ffa502" />
       </div>
 
       {/* Filtres */}
@@ -195,7 +190,8 @@ export default function ActivationsPage() {
                   ['superviseur', 'Superviseur'], ['date_activation', 'Activé le'],
                   ['anciennete', 'Ancienneté'], ['statut', 'Statut'],
                   ['delai_demarrage_jours', 'Démarrage'], ['jours_sans_operation', 'Sans op.'],
-                  ['total_ca', 'CA cumulé'], ['evolution_pct', 'Évolution'], [null, 'Tendance'],
+                  ['total_ca', 'CA cumulé'], ['total_2_mois', 'CA 2 mois'],
+                  ['meilleur_mois', 'Meilleur mois'], ['evolution_pct', 'Évolution'], [null, 'Tendance'],
                 ].map(([cle, label]) => (
                   <th key={label} style={{
                     textAlign: 'left', padding: '10px 10px', fontSize: 10, textTransform: 'uppercase',
@@ -258,7 +254,9 @@ export default function ActivationsPage() {
                       <td style={{ padding: '9px 10px', whiteSpace: 'nowrap', color: (l.jours_sans_operation || 0) > 30 ? '#ff8b96' : 'var(--text-secondary)' }}>
                         {l.jours_sans_operation != null ? `${l.jours_sans_operation} j` : '—'}
                       </td>
-                      <td style={{ padding: '9px 10px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{fmtCourt(l.total_ca)}</td>
+                      <td style={{ padding: '9px 10px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{fmtEntier(l.total_ca)}</td>
+                      <td style={{ padding: '9px 10px', whiteSpace: 'nowrap', color: l.total_2_mois >= 5000000 ? '#63e6a0' : '#ff8b96', fontWeight: 700 }}>{fmtEntier(l.total_2_mois)}</td>
+                      <td style={{ padding: '9px 10px', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{fmtEntier(l.meilleur_mois)}</td>
                       <td style={{ padding: '9px 10px', whiteSpace: 'nowrap', color: (l.evolution_pct || 0) >= 0 ? '#63e6a0' : '#ff8b96' }}>
                         {l.evolution_pct == null ? '—' : `${l.evolution_pct > 0 ? '↗' : l.evolution_pct < 0 ? '↘' : '→'} ${l.evolution_pct} %`}
                       </td>
@@ -267,7 +265,7 @@ export default function ActivationsPage() {
 
                     {estOuvert && (
                       <tr>
-                        <td colSpan={12} style={{ padding: 0, background: 'rgba(255,255,255,0.02)' }}>
+                        <td colSpan={14} style={{ padding: 0, background: 'rgba(255,255,255,0.02)' }}>
                           <div style={{ padding: 16 }}>
                             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
                               <span>Développeur : <b style={{ color: 'var(--text-primary)' }}>{l.developpeur || '—'}</b></span>
@@ -294,7 +292,7 @@ export default function ActivationsPage() {
                                 <tr>
                                   {l.serie.map(m => (
                                     <td key={`${m.annee}-${m.mois}`} style={{ padding: '6px 10px', textAlign: 'center', color: m.ca > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                                      {fmtCourt(m.ca)}
+                                      {fmtEntier(m.ca)}
                                       <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{m.operations} ops</div>
                                     </td>
                                   ))}
@@ -312,7 +310,7 @@ export default function ActivationsPage() {
                                   <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--text-secondary)' }}>
                                     {l.mois_anterieurs.map(m => (
                                       <span key={`${m.annee}-${m.mois}`} style={{ marginRight: 14 }}>
-                                        {String(m.mois).padStart(2, '0')}/{String(m.annee).slice(2)} : <b style={{ color: 'var(--text-primary)' }}>{fmtCourt(m.ca)}</b> · {m.operations} ops
+                                        {String(m.mois).padStart(2, '0')}/{String(m.annee).slice(2)} : <b style={{ color: 'var(--text-primary)' }}>{fmtEntier(m.ca)}</b> · {m.operations} ops
                                       </span>
                                     ))}
                                   </div>
