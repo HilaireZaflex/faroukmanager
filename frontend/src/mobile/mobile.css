@@ -326,3 +326,39 @@ body.fm-mobile {
 }
 .m-drawer-item:active { background: rgba(255, 255, 255, 0.07); }
 .m-drawer-item .arrow { margin-left: auto; color: var(--fm-muted); }
+
+/* ── Carte héros (design 2026, couleurs conservées) ── */
+.m-hero {
+  position: relative;
+  border-radius: 20px;
+  padding: 18px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 120% at 100% 0%, rgba(255, 140, 58, 0.30) 0%, rgba(255, 105, 0, 0.06) 45%, transparent 70%),
+    linear-gradient(135deg, #1a1a2e 0%, #14141f 100%);
+  border: 1px solid rgba(255, 140, 58, 0.22);
+}
+.m-hero::after {
+  content: '';
+  position: absolute;
+  right: -40px; top: -40px;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 105, 0, 0.35) 0%, transparent 65%);
+  pointer-events: none;
+}
+.m-hero-role {
+  display: inline-block; margin-top: 8px;
+  font-size: 9.5px; font-weight: 900; letter-spacing: 1px;
+  color: #ffb066; text-transform: uppercase;
+}
+
+/* ── Barre du bas : pastille active ── */
+.m-nav-item.active .m-nav-ico {
+  background: linear-gradient(135deg, #FF6900, #ff8c3a);
+  color: #fff;
+  border-radius: 12px;
+  padding: 6px 12px;
+  box-shadow: 0 4px 14px rgba(255, 105, 0, 0.4);
+}

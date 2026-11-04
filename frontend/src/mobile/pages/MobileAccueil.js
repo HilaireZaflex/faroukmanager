@@ -68,10 +68,12 @@ export default function MobileAccueil() {
 
   return (
     <div>
-      <div className="m-card">
-        <div style={{ fontSize: 13, color: 'var(--fm-muted)' }}>Bonjour 👋</div>
-        <div style={{ fontSize: 19, fontWeight: 900, color: '#fff', marginTop: 2 }}>{user?.nom || 'Utilisateur'}</div>
-        {titre && <div style={{ fontSize: 11.5, color: 'var(--fm-muted)', marginTop: 2 }}>{titre}</div>}
+      <div className="m-hero">
+        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.62)' }}>Bonjour 👋</div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.5px', lineHeight: 1.1, marginTop: 2 }}>
+          {user?.nom || user?.prenom || 'Utilisateur'}
+        </div>
+        {titre && <div className="m-hero-role">{titre}</div>}
       </div>
 
       {groupe === 'manager' && (
