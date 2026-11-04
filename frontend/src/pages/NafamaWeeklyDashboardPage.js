@@ -906,6 +906,21 @@ function OngletInactifs({
       <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 13, fontWeight: 700 }}>😴 PDVs Inactifs — Semaine {semaine} · {annee}</span>
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => {
+                const XLSX = window.XLSX || require('xlsx');
+                const rows = pdvs.map((p, i) => ({
+                  'Rang': i + 1,
+                  'PDV Numéro': p.numero_pdv || '-',
+                  'PDV Nom': p.nom || '-',
+                  'Superviseur': p.superviseur || '-',
+                  'Zone': p.zone || '-',
+                  'Téléconseillère': p.teleconseillere || '-',
+                }));
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Liste');
+                XLSX.writeFile(wb, `nafama_inactifs_S${semaine}_${annee}.xlsx`);
+              }}>⬇ Export</button>
           <span style={{ fontSize: 12, color: '#ff4757' }}>{displayed.length} PDVs</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
@@ -1113,6 +1128,21 @@ function OngletBaisse({
       <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 13, fontWeight: 700 }}>📉 PDVs En Baisse — Semaine {semaine} · {annee}</span>
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => {
+                const XLSX = window.XLSX || require('xlsx');
+                const rows = pdvs.map((p, i) => ({
+                  'Rang': i + 1,
+                  'PDV Numéro': p.numero_pdv || '-',
+                  'PDV Nom': p.nom || '-',
+                  'Superviseur': p.superviseur || '-',
+                  'Zone': p.zone || '-',
+                  'Téléconseillère': p.teleconseillere || '-',
+                }));
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Liste');
+                XLSX.writeFile(wb, `nafama_baisse_S${semaine}_${annee}.xlsx`);
+              }}>⬇ Export</button>
           <span style={{ fontSize: 12, color: '#ff4757' }}>{displayed.length} PDVs</span>
         </div>
         <div style={{ overflowX: 'auto' }}>
