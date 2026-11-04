@@ -167,7 +167,7 @@ def _construire(db: Session) -> Dict[str, Any]:
     lignes = []
     for pr in prospects:
         pdv = pdvs.get(pr.activated_pdv_id)
-        if pdv is None or pdv.statut == PDVStatut.DESACTIVE:
+        if pdv is None:
             continue
 
         date_activation = pr.activated_at.date() if isinstance(pr.activated_at, datetime) else pr.activated_at
@@ -270,6 +270,7 @@ def _construire(db: Session) -> Dict[str, Any]:
             "gestionnaire": pdv.gestionnaire,
             "telephone": pdv.telephone,
             "statut_pdv": pdv.statut.value if pdv.statut else None,
+            "pdv_desactive": pdv.statut == PDVStatut.DESACTIVE,
             "date_activation": date_activation.isoformat(),
             "mois_activation": f"{mois_activation[1]:02d}/{mois_activation[0]}",
             "anciennete": _anciennete(date_activation),
