@@ -3,6 +3,7 @@ import { useMutation } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { Hero } from '../ui';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Création d'un prospect — équivalent mobile du formulaire web de Prospection.
@@ -91,7 +92,8 @@ export default function MobileNouveauProspect() {
   return (
     <div>
       <button className="m-back" onClick={() => navigate(-1)}>‹ Retour</button>
-      <div className="m-section-title">➕ Nouveau prospect</div>
+      <Hero titre="Nouveau prospect" role="Prospection"
+        sousTitre="Renseignez le commerce, puis soumettez le dossier" />
 
       <div className="m-note">Renseignez les informations recueillies sur le terrain. Les champs marqués * sont obligatoires.</div>
 

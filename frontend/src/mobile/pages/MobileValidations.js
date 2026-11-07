@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import useAuthStore from '../../store/authStore';
 import { fmtN, fmtDate, libelleStatutProspect, classeStatutProspect, libelleQualification } from '../format';
+import { Hero } from '../ui';
 
 const DECISIONS_RC = [
   { value: 'approve', label: 'Approuver', icone: '✅', desc: 'Le dossier passe à l’attribution de puce' },
@@ -134,7 +135,8 @@ export default function MobileValidations() {
 
   return (
     <div>
-      <div className="m-section-title">📋 Validations en attente</div>
+      <Hero titre="Validations" role="Dossiers en attente"
+        sousTitre="Décisions RC, attributions de puces et conformité" />
 
       <div className="m-chips">
         {compteurs.map(c => (

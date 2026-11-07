@@ -3,6 +3,7 @@ import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { fmtN, fmtDate, lienItineraire } from '../format';
+import { Hero, Kpi } from '../ui';
 
 const maintenant = () => new Date();
 
@@ -31,7 +32,13 @@ export default function MobilePlanning() {
 
   return (
     <div>
-      <div className="m-section-title">📅 Mes visites terrain{data ? ` · ${fmtN(liste.length)}` : ''}</div>
+      <Hero titre="Mes visites" role="Planning terrain"
+        sousTitre={data ? `${fmtN(liste.length)} visite(s) affectée(s)` : undefined} />
+
+      <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
+        <Kpi icone="📅" label="Visites à faire" valeur={fmtN(liste.length)} sub="affectées à moi" couleur="#ffa502" />
+        <Kpi icone="⏰" label="En retard" valeur={fmtN(enRetard)} sub="échéance dépassée" couleur="#ff4757" />
+      </div>
 
       {enRetard > 0 && (
         <div className="m-note err">

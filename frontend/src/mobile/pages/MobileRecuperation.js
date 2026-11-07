@@ -3,6 +3,7 @@ import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { fmtN, fmtCourt, fmtPct, couleurVariation, libellePriorite, classePriorite } from '../format';
+import { Hero, Kpi } from '../ui';
 
 const PRIO_FILTRES = [
   { id: 'TOUS', label: 'Tous' },
@@ -16,14 +17,6 @@ const METRIQUES = [
   { id: 'volume', label: 'Volume' },
   { id: 'real', label: 'Gain réel' },
 ];
-
-const KPI = ({ label, value, sub, color }) => (
-  <div className="m-kpi" style={{ borderLeftColor: color }}>
-    <div className="lbl">{label}</div>
-    <div className="val" style={{ color }}>{value}</div>
-    {sub && <div className="sub">{sub}</div>}
-  </div>
-);
 
 /**
  * « PDV à récupérer » — PDV de mon réseau dont l'activité baisse.
@@ -53,7 +46,11 @@ export default function MobileRecuperation() {
 
   return (
     <div>
-      <div className="m-section-title">🎯 PDV à récupérer{data ? ` · ${fmtN(k.nb_pdv_analyses || 0)} analysés` : ''}</div>
+      <Hero
+        titre="PDV à récupérer"
+        role="Priorités · Mon réseau"
+        sousTitre={data ? `${fmtN(k.nb_pdv_analyses || 0)} PDV analysés` : undefined}
+      />
 
       <div className="m-toggle">
         <button className={mode === 'hebdo' ? 'active' : ''} onClick={() => setMode('hebdo')}>🗓️ Semaine</button>
@@ -68,11 +65,11 @@ export default function MobileRecuperation() {
         ))}
       </div>
 
-      <div className="m-grid m-grid-2" style={{ marginBottom: 12 }}>
-        <KPI label="PDV en baisse" value={fmtN(k.nb_baisse)} color="#4a9eff" sub={libelleMetrique} />
-        <KPI label="Perte de valeur" value={fmtCourt(k.perte_totale)} color="#ff4757" sub={`${unite} · récupérable`} />
-        <KPI label="Urgents (P1)" value={fmtN(k.nb_p1)} color="#ff4757" sub="score le plus élevé" />
-        <KPI label="Élevés (P2)" value={fmtN(k.nb_p2)} color="#ffa502" sub="à traiter ensuite" />
+      <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
+        <Kpi icone="📉" label="PDV en baisse" valeur={fmtN(k.nb_baisse)} sub={libelleMetrique} couleur="#4a9eff" />
+        <Kpi icone="💸" label="Perte de valeur" valeur={fmtCourt(k.perte_totale)} sub={`${unite} · récupérable`} couleur="#ff4757" />
+        <Kpi icone="🔴" label="Urgents (P1)" valeur={fmtN(k.nb_p1)} sub="score le plus élevé" couleur="#ff4757" />
+        <Kpi icone="🟠" label="Élevés (P2)" valeur={fmtN(k.nb_p2)} sub="à traiter ensuite" couleur="#ffa502" />
       </div>
 
       <div className="m-chips">

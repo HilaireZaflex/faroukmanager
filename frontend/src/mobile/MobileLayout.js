@@ -9,7 +9,8 @@ import { resynchroniserPush } from './push';
 export function groupeRole(role) {
   const r = (role || '').toLowerCase().replace('userrole.', '');
   if (r === 'superviseur') return 'superviseur';
-  if (r === 'developpeur' || r === 'commercial') return 'developpeur';
+  if (r === 'developpeur') return 'developpeur';
+  if (r === 'commercial') return 'commercial';
   if (['admin', 'manager', 'rc', 'conformite'].includes(r) || r.includes('responsable')) return 'manager';
   return 'autre';
 }
@@ -27,6 +28,11 @@ export const ONGLETS = {
     { to: '/m/pdv',          icon: '🏪', label: 'PDV' },
     { to: '/m/prospection',  icon: '👥', label: 'Prospect' },
     { to: '/m/reclamations', icon: '📣', label: 'Réclam.' },
+  ],
+  commercial: [
+    { to: '/m/accueil',          icon: '🏠', label: 'Accueil' },
+    { to: '/m/prospection',      icon: '👥', label: 'Prospect' },
+    { to: '/m/prospect/nouveau', icon: '➕', label: 'Nouveau' },
   ],
   manager: [
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
@@ -77,18 +83,48 @@ export default function MobileLayout({ children }) {
   const groupe = groupeRole(user?.role);
   const libelleEspace = groupe === 'superviseur' ? 'Espace de gestion · Superviseur'
     : groupe === 'developpeur' ? 'Espace de gestion · Développeur'
+    : groupe === 'commercial' ? 'Espace de gestion · Commercial'
     : groupe === 'manager' ? 'Espace de gestion · Encadrement' : 'Espace de gestion';
   const raccourcis = ONGLETS[groupe] || ONGLETS.autre;
 
-  // Le tiroir reprend EXACTEMENT les menus dont dispose le rôle dans la version web.
-  const liens = [
-    { ok: true,                       to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
-    { ok: true,                       to: '/m/pdv',          icon: '🏪', label: 'Points de vente' },
-    { ok: canAccess('prospection'),   to: '/m/prospection',  icon: '👥', label: 'Prospection' },
-    { ok: canAccess('alerts'),        to: '/m/alertes',      icon: '🔔', label: 'Alertes' },
-    { ok: canAccess('reclamations'),  to: '/m/reclamations', icon: '📣', label: 'Réclamations' },
-    // ⏳ Encore à porter sur mobile : Évaluations
-  ].filter(l => l.ok);
+  // Menu mobile : une liste par métier, pour que chaque rôle retrouve
+  // exactement ce qu'il fait sur le terrain — avec le même design.
+  const ITEMS = {
+    accueil:      { to: '/m/accueil',           icon: '🏠', label: 'Accueil' },
+    pdv:          { to: '/m/pdv',               icon: '🏪', label: 'Points de vente' },
+    prospection:  { to: '/m/prospection',       icon: '👥', label: 'Prospection' },
+    nouveau:      { to: '/m/prospect/nouveau',  icon: '➕', label: 'Nouveau prospect' },
+    planning:     { to: '/m/planning',          icon: '📅', label: 'Mes visites' },
+    activations:  { to: '/m/activations',       icon: '⚡', label: 'Mes activations' },
+    recuperation: { to: '/m/recuperation',      icon: '🎯', label: 'À récupérer' },
+    alertes:      { to: '/m/alertes',           icon: '🔔', label: 'Alertes' },
+    reclamations: { to: '/m/reclamations',      icon: '📣', label: 'Réclamations' },
+    pilotage:     { to: '/m/pilotage',          icon: '📊', label: 'Pilotage' },
+    equipe:       { to: '/m/equipe',            icon: '🌐', label: 'Équipe & réseau' },
+    validations:  { to: '/m/validations',       icon: '📋', label: 'Validations' },
+  };
+
+  const MENUS_MOBILE = {
+    commercial:  ['accueil', 'prospection', 'nouveau', 'pdv'],
+    developpeur: ['accueil', 'prospection', 'planning', 'activations', 'pdv', 'reclamations'],
+    superviseur: ['accueil', 'pdv', 'recuperation', 'alertes', 'prospection', 'reclamations'],
+    manager:     ['accueil', 'pdv', 'prospection', 'alertes', 'reclamations', 'activations', 'pilotage', 'equipe', 'validations'],
+    autre:       ['accueil', 'pdv'],
+  };
+
+  // L'encadrement garde les droits web (menus cochés dans Paramètres).
+  const autorise = (id) => {
+    if (groupe !== 'manager') return true;
+    if (id === 'prospection') return canAccess('prospection');
+    if (id === 'alertes') return canAccess('alerts');
+    if (id === 'activations') return canAccess('activations');
+    return true;
+  };
+
+  const liens = (MENUS_MOBILE[groupe] || MENUS_MOBILE.autre)
+    .filter(autorise)
+    .map(id => ITEMS[id])
+    .filter(Boolean);
 
   // Dashboards OMY / NAFAMA / KAABU : mêmes droits que la version web.
   const dashboards = [

@@ -3,6 +3,7 @@ import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { fmtN, fmtDate, fmtDateHeure } from '../format';
+import { Hero, Kpi } from '../ui';
 
 const A_ACTIVER = ['PUCE_ATTRIBUEE', 'EN_ATTENTE_CONFORMITE'];
 const ACTIVEE = 'PUCE_ACTIVEE';
@@ -43,7 +44,13 @@ export default function MobileActivations() {
 
   return (
     <div>
-      <div className="m-section-title">✅ Mes activations</div>
+      <Hero titre="Mes activations" role="Puces attribuées"
+        sousTitre={`${fmtN(aFaire.length)} à activer · ${fmtN(faites.length)} activée(s)`} />
+
+      <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
+        <Kpi icone="⚡" label="À activer" valeur={fmtN(aFaire.length)} sub="puces attribuées" couleur="#4a9eff" />
+        <Kpi icone="⏰" label="En retard" valeur={fmtN(enRetard)} sub="échéance dépassée" couleur="#ff4757" />
+      </div>
 
       <div className="m-toggle">
         <button className={vue === 'a_faire' ? 'active' : ''} onClick={() => setVue('a_faire')}>

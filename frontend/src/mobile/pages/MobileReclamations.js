@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { fmtDateHeure } from '../format';
+import { Hero } from '../ui';
 
 // ─── Réclamations — liste + création (miroir de la version web) ──────────────
 
@@ -60,7 +61,8 @@ export default function MobileReclamations() {
 
   return (
     <div>
-      <div className="m-section-title">📣 Mes réclamations{data ? ` · ${liste.length}` : ''}</div>
+      <Hero titre="Réclamations" role="Suivi et création"
+        sousTitre={data ? `${liste.length} réclamation(s)` : undefined} />
 
       <div className="m-chips">
         {FILTRES.map(f => (

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from 'react-query';
 import api from '../../services/api';
 import { fmtN, fmtCourt, fmtPct } from '../format';
+import { Hero } from '../ui';
 
 const COULEUR_SCORE = (s) => (s >= 70 ? '#22c55e' : s >= 50 ? '#ffa502' : '#ff4757');
 
@@ -51,9 +52,7 @@ export default function MobileEquipe() {
 
   return (
     <div>
-      <div className="m-section-title">
-        👥 Équipe &amp; Réseau{data?.periode_courante ? ` · ${data.periode_courante}` : ''}
-      </div>
+      <Hero titre="Équipe & Réseau" role="Encadrement" sousTitre={data?.periode_courante} />
 
       <div className="m-toggle">
         <button className={mode === 'hebdo' ? 'active' : ''} onClick={() => setMode('hebdo')}>🗓️ Semaine</button>

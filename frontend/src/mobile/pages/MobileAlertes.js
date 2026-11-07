@@ -3,6 +3,7 @@ import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { fmtN, fmtCourt, fmtDate, classePrioriteAlerte } from '../format';
+import { Hero, Kpi } from '../ui';
 
 const FILTRES = [
   { id: 'TOUS', label: 'Tous' },
@@ -34,22 +35,15 @@ export default function MobileAlertes() {
 
   return (
     <div>
-      <div className="m-section-title">
-        🔔 PDV inactifs{data ? ` · ${fmtN(total)}` : ''}
-        {data?.semaine ? ` (S${data.semaine} ${data.annee})` : ''}
-      </div>
+      <Hero
+        titre="Alertes"
+        role="PDV inactifs · Mon réseau"
+        sousTitre={data?.semaine ? `Semaine ${data.semaine} ${data.annee}` : undefined}
+      />
 
-      <div className="m-grid m-grid-2" style={{ marginBottom: 12 }}>
-        <div className="m-kpi" style={{ borderLeftColor: '#ff4757' }}>
-          <div className="lbl">Sans activité</div>
-          <div className="val" style={{ color: '#ff4757' }}>{fmtN(total)}</div>
-          <div className="sub">PDV de votre réseau</div>
-        </div>
-        <div className="m-kpi" style={{ borderLeftColor: '#ffa502' }}>
-          <div className="lbl">Critiques</div>
-          <div className="val" style={{ color: '#ffa502' }}>{fmtN(critiques)}</div>
-          <div className="sub">inactifs depuis longtemps</div>
-        </div>
+      <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
+        <Kpi icone="🔕" label="Sans activité" valeur={fmtN(total)} sub="PDV de mon réseau" couleur="#ff4757" />
+        <Kpi icone="🔴" label="Critiques" valeur={fmtN(critiques)} sub="inactifs depuis longtemps" couleur="#ffa502" />
       </div>
 
       <div className="m-chips">

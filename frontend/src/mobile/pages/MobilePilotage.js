@@ -3,6 +3,7 @@ import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { fmtN, fmtCourt, fmtPct, couleurVariation, classePriorite, libellePriorite } from '../format';
+import { Hero } from '../ui';
 
 const KPI = ({ label, value, sub, color }) => (
   <div className="m-kpi" style={{ borderLeftColor: color }}>
@@ -44,9 +45,7 @@ export default function MobilePilotage() {
 
   return (
     <div>
-      <div className="m-section-title">
-        📊 Pilotage{data?.periode_courante ? ` · ${data.periode_courante}` : ''}
-      </div>
+      <Hero titre="Pilotage" role="Performance du réseau" sousTitre={data?.periode_courante} />
 
       <div className="m-toggle">
         <button className={mode === 'hebdo' ? 'active' : ''} onClick={() => setMode('hebdo')}>🗓️ Semaine</button>
