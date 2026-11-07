@@ -476,3 +476,17 @@ body.fm-mobile .m-content {
   padding: 0 4px; border: 2px solid #101020;
 }
 body.fm-mobile .m-content { padding-top: 14px; }
+
+/* En-tête : une seule ligne, garanti */
+.m-header {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 10px;
+}
+.m-header .m-title { flex: 1 1 auto; min-width: 0; }
+.m-header .m-title b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.m-header .m-title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.m-header .m-logo { flex-shrink: 0; }
+.m-header .m-icon-btn { flex-shrink: 0; }

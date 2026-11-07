@@ -60,7 +60,7 @@ export default function MobileLayout({ children }) {
   // Le tiroir reprend EXACTEMENT les menus dont dispose le rôle dans la version web.
   const liens = [
     { ok: true,                       to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
-    { ok: canAccess('pdvs'),          to: '/m/pdv',          icon: '🏪', label: 'Points de vente' },
+    { ok: true,                       to: '/m/pdv',          icon: '🏪', label: 'Points de vente' },
     { ok: canAccess('prospection'),   to: '/m/prospection',  icon: '👥', label: 'Prospection' },
     { ok: canAccess('alerts'),        to: '/m/alertes',      icon: '🔔', label: 'Alertes' },
     { ok: canAccess('reclamations'),  to: '/m/reclamations', icon: '📣', label: 'Réclamations' },
