@@ -83,7 +83,10 @@ export default function MobileLayout({ children }) {
         position: 'sticky', top: 0, zIndex: 20,
         display: 'flex', flexDirection: 'row', flexWrap: 'nowrap',
         alignItems: 'center', gap: 10,
-        padding: '10px 14px',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)',
+        paddingBottom: 10,
+        paddingLeft: 14,
+        paddingRight: 14,
         background: 'rgba(15,15,30,0.94)',
         borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}>
