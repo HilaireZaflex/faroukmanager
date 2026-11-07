@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import useAuthStore from '../../store/authStore';
 import { fmtN, fmtDate, libelleStatutProspect, classeStatutProspect } from '../format';
 
 const FILTRES = [
@@ -31,6 +32,7 @@ const KpiCard = ({ icone, label, valeur, couleur, to }) => (
 );
 
 export default function MobileProspection() {
+  const user = useAuthStore(s => s.user);
   const [q, setQ] = useState('');
   const [filtre, setFiltre] = useState('TOUTES');
 
@@ -54,6 +56,14 @@ export default function MobileProspection() {
 
   return (
     <div>
+      <div className="m-hero">
+        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.62)' }}>Bonjour 👋</div>
+        <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.5px', lineHeight: 1.1, marginTop: 2 }}>
+          {user?.nom || user?.prenom || 'Utilisateur'}
+        </div>
+        <div className="m-hero-role">ESPACE DÉVELOPPEUR</div>
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ fontSize: 15, fontWeight: 900, color: '#fff' }}>👥 Ma prospection</div>
         <span style={{
