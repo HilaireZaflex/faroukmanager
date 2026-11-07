@@ -44,6 +44,7 @@ export default function MobileLayout({ children }) {
   const user = useAuthStore(s => s.user);
   const logout = useAuthStore(s => s.logout);
   const canAccess = useAuthStore(s => s.canAccess);
+  const queryClient = useQueryClient();
   const [menuOuvert, setMenuOuvert] = useState(false);
   const [notifsOuvert, setNotifsOuvert] = useState(false);
 
@@ -66,7 +67,6 @@ export default function MobileLayout({ children }) {
     const t = setTimeout(() => { resynchroniserPush().catch(() => {}); }, 2500);
     return () => clearTimeout(t);
   }, []);
-  const queryClient = useQueryClient();
   const { data: notifsData } = useQuery('m-notifs',
     () => api.get('/notifications/pending').then(r => r.data).catch(() => []),
     { refetchInterval: 60000, staleTime: 30000 });
