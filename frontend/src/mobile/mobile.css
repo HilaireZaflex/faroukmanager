@@ -379,3 +379,11 @@ body.fm-mobile {
 .m-kpi .lbl { font-size: 10.5px; line-height: 1.2; }
 .m-kpi .val { font-size: 23px; line-height: 1.1; margin-top: 3px; }
 .m-kpi .sub { font-size: 10px; margin-top: 3px; }
+
+.m-kpi2 { display:flex; align-items:center; gap:10px; padding:13px 12px; border-radius:16px; min-height:82px; box-shadow:0 4px 16px rgba(0,0,0,0.22); }
+.m-kpi2-ico { width:36px; height:36px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+.m-kpi2-body { flex:1; min-width:0; }
+.m-kpi2-lbl { font-size:10.5px; color:rgba(255,255,255,0.78); line-height:1.2; }
+.m-kpi2-val { font-size:23px; font-weight:900; color:#fff; line-height:1.1; margin-top:2px; }
+.m-kpi2-sub { font-size:10px; color:rgba(255,255,255,0.5); margin-top:1px; }
+.m-kpi2-chev { color:rgba(255,255,255,0.35); font-size:18px; flex-shrink:0; }
