@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from 'react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import useAuthStore from '../../store/authStore';
 import { fmtN, fmtDate, libelleStatutProspect, classeStatutProspect } from '../format';
@@ -34,7 +34,13 @@ const KpiCard = ({ icone, label, valeur, couleur, to }) => (
 export default function MobileProspection() {
   const user = useAuthStore(s => s.user);
   const [q, setQ] = useState('');
-  const [filtre, setFiltre] = useState('TOUTES');
+  const [parametres] = useSearchParams();
+  // Une notification push peut ouvrir directement la liste filtrée
+  // (ex. « visite terrain à effectuer » → /m/prospection?filtre=EN_VISITE).
+  const filtreDemande = (parametres.get('filtre') || '').toUpperCase();
+  const [filtre, setFiltre] = useState(
+    FILTRES.some(f => f.id === filtreDemande) ? filtreDemande : 'TOUTES'
+  );
 
   const { data, isLoading, isError } = useQuery('m-prospects',
     () => api.get('/prospects', { params: { limit: 200 } }).then(r => r.data), { staleTime: 60000 });

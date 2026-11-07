@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import MobileLayout from './MobileLayout';
 import MobileLogin from './pages/MobileLogin';
@@ -19,10 +19,22 @@ import MobileReclamationDetail from './pages/MobileReclamationDetail';
 import MobilePilotage from './pages/MobilePilotage';
 import MobileEquipe from './pages/MobileEquipe';
 import MobileValidations from './pages/MobileValidations';
+import { ecouterNavigationPush } from './push';
 import './mobile.css';
 
 export default function MobileApp() {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
+  const naviguer = useNavigate();
+
+  // Une notification touchée pendant que l'application est ouverte nous envoie
+  // un message : on ouvre alors l'écran concerné sans recharger la page.
+  useEffect(() => ecouterNavigationPush((url) => {
+    try {
+      const cible = new URL(url, window.location.origin);
+      if (cible.origin !== window.location.origin) return;
+      naviguer(cible.pathname + cible.search);
+    } catch (e) { /* url invalide : on ignore */ }
+  }), [naviguer]);
 
   useEffect(() => {
     document.body.classList.add('fm-mobile');

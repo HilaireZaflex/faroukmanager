@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { useQuery } from 'react-query';
+import React, { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from 'react-query';
 import api from '../services/api';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import { resynchroniserPush } from './push';
 
 // ── Groupes de rôles ──
 export function groupeRole(role) {
@@ -45,6 +46,27 @@ export default function MobileLayout({ children }) {
   const canAccess = useAuthStore(s => s.canAccess);
   const [menuOuvert, setMenuOuvert] = useState(false);
   const [notifsOuvert, setNotifsOuvert] = useState(false);
+
+  // Une notification push reçue pendant que l'application est ouverte :
+  // on rafraîchit la cloche immédiatement.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return undefined;
+    const gestion = (evenement) => {
+      if (evenement && evenement.data && evenement.data.type === 'fm-push') {
+        queryClient.invalidateQueries('m-notifs');
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', gestion);
+    return () => navigator.serviceWorker.removeEventListener('message', gestion);
+  }, [queryClient]);
+
+  // Appareil déjà autorisé : on vérifie discrètement que l'abonnement est
+  // toujours valide (après un redéploiement, un nettoyage du navigateur, etc.).
+  useEffect(() => {
+    const t = setTimeout(() => { resynchroniserPush().catch(() => {}); }, 2500);
+    return () => clearTimeout(t);
+  }, []);
+  const queryClient = useQueryClient();
   const { data: notifsData } = useQuery('m-notifs',
     () => api.get('/notifications/pending').then(r => r.data).catch(() => []),
     { refetchInterval: 60000, staleTime: 30000 });

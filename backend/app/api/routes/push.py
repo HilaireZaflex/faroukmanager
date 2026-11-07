@@ -93,6 +93,26 @@ def unsubscribe(body: DesabonnementIn, db: Session = Depends(get_db),
     return {"success": True}
 
 
+@router.post("/push/test")
+def tester(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Envoie une notification de test aux appareils de l'utilisateur connecté."""
+    from app.services.push_service import envoyer_push_sync
+
+    appareils = db.query(func.count(PushSubscription.id)).filter(
+        PushSubscription.user_id == current_user.id).scalar() or 0
+    if appareils == 0:
+        raise HTTPException(400, "Aucun appareil abonné : activez d'abord les notifications.")
+
+    envoyes = envoyer_push_sync(
+        current_user.id,
+        titre="🔔 Farouk Manager — test",
+        message="Les notifications fonctionnent sur cet appareil. Vous serez prévenu des visites, décisions et activations.",
+        url="/m/profil",
+        tag="test",
+    )
+    return {"success": True, "appareils": appareils, "envoyes": envoyes}
+
+
 @router.get("/push/status")
 def statut(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Nombre d'appareils abonnés pour cet utilisateur (et au total)."""

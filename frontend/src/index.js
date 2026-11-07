@@ -45,17 +45,24 @@ root.render(
   </React.StrictMode>
 );
 
-// ── PWA : service worker DÉSACTIVÉ (20/10/2026) ──
-// Il servait une version mise en cache de l'application : après un déploiement,
-// les navigateurs continuaient d'exécuter l'ancienne version (écran blanc,
-// connexion impossible) sans jamais recontacter le serveur.
-// On ne l'enregistre plus. Les anciens service workers installés se
-// désenregistrent d'eux-mêmes via public/service-worker de désinstallation.
+// ── PWA : service worker « notifications push » ──
+// Le service worker ne met PLUS rien en cache et n'intercepte aucune requête :
+// il ne sert qu'à recevoir les notifications et à ouvrir le bon écran au clic.
+// Les anciens service workers (qui servaient une version périmée de
+// l'application) sont remplacés par celui-ci : même adresse, donc mise à jour
+// automatique, et son activation efface les anciens caches.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.getRegistrations()
-      .then(inscriptions => Promise.all(inscriptions.map(i => i.unregister().catch(() => false))))
-      .catch(() => {});
+      .then(inscriptions => Promise.all(inscriptions
+        // Tout autre service worker (ancienne version) est supprimé.
+        .filter(i => !(i.active && i.active.scriptURL.endsWith('/service-worker.js')) &&
+                      !(i.installing && i.installing.scriptURL.endsWith('/service-worker.js')) &&
+                      !(i.waiting && i.waiting.scriptURL.endsWith('/service-worker.js')))
+        .map(i => i.unregister().catch(() => false))))
+      .catch(() => {})
+      .finally(() => {
+        navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).catch(() => {});
+      });
   });
 }
-

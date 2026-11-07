@@ -36,6 +36,16 @@ def create_notif(
     db.add(notif)
     db.commit()
     db.refresh(notif)
+
+    # Relais vers le téléphone : la notification doit apparaître même quand
+    # l'application est fermée. L'envoi est fait en tâche de fond et ne peut
+    # jamais faire échouer l'action métier.
+    try:
+        from app.services.push_service import notifier_push_etape
+        notifier_push_etape(db, notif)
+    except Exception:
+        pass
+
     return notif
 
 
