@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import useAuthStore from '../../store/authStore';
 import { groupeRole, ONGLETS } from '../MobileLayout';
-import { fmtCourt, fmtN } from '../format';
+import { fmtCourt, fmtN, nomComplet } from '../format';
 import { Hero, Kpi } from '../ui';
 
 const fmtF = (v) => (v == null ? '—' : `${fmtN(v)} F`);
@@ -70,7 +70,7 @@ export default function MobileAccueil() {
   return (
     <div>
       <Hero
-        titre={user?.prenom || user?.nom || 'Bonjour 👋'}
+        titre={nomComplet(user)}
         sousTitre={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         role={titre}
       />

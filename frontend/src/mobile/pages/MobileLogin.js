@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from 'react-query';
 import api from '../../services/api';
 import useAuthStore from '../../store/authStore';
 
@@ -11,6 +12,7 @@ export default function MobileLogin() {
   const login = useAuthStore(s => s.login);
   const loadPermissions = useAuthStore(s => s.loadPermissions);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const submit = async (e) => {
     e.preventDefault();
@@ -18,6 +20,8 @@ export default function MobileLogin() {
     try {
       const res = await api.post('/auth/login', { email: email.trim(), password });
       const { user, access_token } = res.data;
+      // Nouveau compte : on repart de zéro (aucune donnée du compte précédent).
+      queryClient.clear();
       login(user, access_token);
       try { await loadPermissions(); } catch (e) { /* non bloquant */ }
       navigate('/m/accueil', { replace: true });

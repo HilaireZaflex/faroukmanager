@@ -118,3 +118,35 @@ export const lienItineraire = (lat, lng) =>
     ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
     : null;
 
+
+/** Nom complet de l'utilisateur : « NOUHOUM BAGAYOKO ».
+ *  Afficher le prénom sur un écran et le nom sur un autre faisait croire
+ *  à deux comptes différents : on affiche désormais toujours le nom complet. */
+export const nomComplet = (u) => {
+  if (!u) return 'Utilisateur';
+  const prenom = String(u.prenom || '').trim();
+  const nom = String(u.nom || '').trim();
+  if (prenom && nom) return `${prenom} ${nom}`;
+  return prenom || nom || String(u.email || '').trim() || 'Utilisateur';
+};
+
+/** Initiale affichée dans l'avatar. */
+export const initiale = (u) => (nomComplet(u).trim().slice(0, 1) || '?').toUpperCase();
+
+const ROLES_LISIBLES = {
+  ADMIN: 'Administrateur',
+  MANAGER: 'Manager',
+  RC: 'Responsable commercial',
+  SUPERVISEUR: 'Superviseur',
+  DEVELOPPEUR: 'Développeur',
+  COMMERCIAL: 'Commercial',
+  CONFORMITE: 'Conformité',
+  TELECONSEILLERE: 'Téléconseillère',
+  RESPONSABLE_PRODUIT: 'Responsable produit',
+};
+
+/** Libellé lisible d'un rôle (les API renvoient DEVELOPPEUR, UserRole.ADMIN…). */
+export const libelleRole = (role) => {
+  const cle = String(role || '').replace('UserRole.', '').toUpperCase();
+  return ROLES_LISIBLES[cle] || (cle ? cle.charAt(0) + cle.slice(1).toLowerCase() : '—');
+};

@@ -3,7 +3,7 @@ import { useQuery } from 'react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import useAuthStore from '../../store/authStore';
-import { fmtN, fmtDate, libelleStatutProspect, classeStatutProspect } from '../format';
+import { fmtN, fmtDate, libelleStatutProspect, classeStatutProspect, nomComplet } from '../format';
 
 const FILTRES = [
   { id: 'TOUTES',      label: 'Toutes',    icone: '▦' },
@@ -66,7 +66,7 @@ export default function MobileProspection() {
         <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: 0.8, color: "#ffb066", textTransform: "uppercase", marginBottom: 6 }}>Farouk Manager</div>
         <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.62)' }}>Bonjour 👋</div>
         <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', letterSpacing: '-0.5px', lineHeight: 1.1, marginTop: 2 }}>
-          {user?.nom || user?.prenom || 'Utilisateur'}
+          {nomComplet(user)}
         </div>
         <div className="m-hero-role">ESPACE DÉVELOPPEUR</div>
       </div>

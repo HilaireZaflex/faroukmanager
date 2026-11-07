@@ -4,6 +4,7 @@ import api from '../services/api';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { resynchroniserPush } from './push';
+import { nomComplet, libelleRole } from './format';
 
 // ── Groupes de rôles ──
 export function groupeRole(role) {
@@ -154,6 +155,14 @@ export default function MobileLayout({ children }) {
     navigate('/accueil');
   };
 
+  // À la déconnexion on vide aussi le cache des requêtes : sans cela, le compte
+  // suivant voyait brièvement les chiffres du compte précédent.
+  const seDeconnecter = () => {
+    queryClient.clear();
+    logout();
+    navigate('/m/login');
+  };
+
   return (
     <div className="m-app">
 
@@ -218,9 +227,9 @@ export default function MobileLayout({ children }) {
             <div className="m-drawer-head">
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {user?.nom || 'Utilisateur'}
+                  {nomComplet(user)}
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--fm-muted)' }}>{user?.role || ''}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--fm-muted)' }}>{libelleRole(user?.role)}</div>
               </div>
               <button className="m-icon-btn" onClick={() => setMenuOuvert(false)}>✕</button>
             </div>
@@ -251,7 +260,7 @@ export default function MobileLayout({ children }) {
               <span>🖥️</span>Version bureau<span className="arrow">›</span>
             </button>
             <button className="m-drawer-item" style={{ color: '#ff8b96' }}
-              onClick={() => { logout(); navigate('/m/login'); }}>
+              onClick={seDeconnecter}>
               <span>⏻</span>Se déconnecter<span className="arrow">›</span>
             </button>
           </div>
