@@ -44,6 +44,7 @@ export default function MobileLayout({ children }) {
   const user = useAuthStore(s => s.user);
   const logout = useAuthStore(s => s.logout);
   const canAccess = useAuthStore(s => s.canAccess);
+  const canAccessDash = useAuthStore(s => s.canAccessDash);
   const queryClient = useQueryClient();
   const [menuOuvert, setMenuOuvert] = useState(false);
   const [notifsOuvert, setNotifsOuvert] = useState(false);
@@ -86,11 +87,15 @@ export default function MobileLayout({ children }) {
     { ok: canAccess('prospection'),   to: '/m/prospection',  icon: '👥', label: 'Prospection' },
     { ok: canAccess('alerts'),        to: '/m/alertes',      icon: '🔔', label: 'Alertes' },
     { ok: canAccess('reclamations'),  to: '/m/reclamations', icon: '📣', label: 'Réclamations' },
-    // ⏳ Encore à porter sur mobile : Évaluations, dashboards OMY / NAFAMA / KAABU
+    // ⏳ Encore à porter sur mobile : Évaluations
   ].filter(l => l.ok);
 
-  // Dashboards OMY / NAFAMA / KAABU : portage mobile en cours.
-  const dashboards = [].filter(d => d.ok);
+  // Dashboards OMY / NAFAMA / KAABU : mêmes droits que la version web.
+  const dashboards = [
+    { ok: canAccessDash('omy'),    to: '/m/dashboard/omy',    icon: '💸', label: 'Dashboard OMY' },
+    { ok: canAccessDash('nafama'), to: '/m/dashboard/nafama', icon: '💰', label: 'Dashboard NAFAMA' },
+    { ok: canAccessDash('kaabu'),  to: '/m/dashboard/kaabu',  icon: '📶', label: 'Dashboard KAABU' },
+  ].filter(d => d.ok);
 
   const retourBureau = () => {
     document.body.classList.remove('fm-mobile');

@@ -169,6 +169,16 @@ async def generer_rapport_superviseur(request: Request):
 def health_check():
     return {"status": "ok"}
 
+
+@app.get("/version")
+def version():
+    """Version réellement déployée (utilisée pour vérifier un déploiement)."""
+    return {
+        "version": settings.APP_VERSION,
+        "commit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7],
+        "branch": os.getenv("RAILWAY_GIT_BRANCH") or "",
+    }
+
 @app.get("/")
 def root():
     return {"message": "FaroukManager API", "version": settings.APP_VERSION, "status": "running"}

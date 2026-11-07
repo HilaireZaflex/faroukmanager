@@ -19,6 +19,9 @@ import MobileReclamationDetail from './pages/MobileReclamationDetail';
 import MobilePilotage from './pages/MobilePilotage';
 import MobileEquipe from './pages/MobileEquipe';
 import MobileValidations from './pages/MobileValidations';
+import MobileOMy from './pages/MobileOMy';
+import MobileNafama from './pages/MobileNafama';
+import MobileKaabu from './pages/MobileKaabu';
 import { ecouterNavigationPush } from './push';
 import './mobile.css';
 
@@ -74,6 +77,9 @@ export default function MobileApp() {
         <Route path="pilotage" element={<MobilePilotage />} />
         <Route path="equipe" element={<MobileEquipe />} />
         <Route path="validations" element={<MobileValidations />} />
+        <Route path="dashboard/omy" element={<MobileOMy />} />
+        <Route path="dashboard/nafama" element={<MobileNafama />} />
+        <Route path="dashboard/kaabu" element={<MobileKaabu />} />
 
         <Route path="profil" element={<MobileProfil />} />
         <Route path="*" element={<Navigate to="/m/accueil" replace />} />
