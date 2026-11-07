@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from 'react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import { fmtN, libelleStatut, classeStatut } from '../format';
 
@@ -17,7 +17,8 @@ const FILTRES = [
  */
 export default function MobilePDV() {
   const [q, setQ] = useState('');
-  const [statut, setStatut] = useState('TOUS');
+  const [paramsUrl] = useSearchParams();
+  const [statut, setStatut] = useState((paramsUrl.get('statut') || 'TOUS').toUpperCase());
 
   const { data, isLoading, isError } = useQuery(
     'm-pdvs',
