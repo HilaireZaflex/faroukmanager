@@ -23,6 +23,28 @@ VAPID_SUBJECT = "mailto:admin@faroukdistribution.com"
 TTL_SECONDES = 24 * 3600
 
 
+def _cle_privee_webpush(pem: str) -> str:
+    """Convertit la clé stockée (PEM PKCS8) au format attendu par py-vapid.
+
+    py-vapid n'accepte que la valeur scalaire brute encodée en base64url (ou un
+    PEM « EC PRIVATE KEY » selon les versions). Notre clé est conservée en PEM
+    PKCS8 : on en extrait la valeur privée, sans changer la paire de clés — les
+    abonnements déjà enregistrés sur les téléphones restent donc valides.
+    """
+    if not pem:
+        return ""
+    texte = pem.strip()
+    if "BEGIN" not in texte:
+        # Déjà au format brut (base64url) : on le garde tel quel.
+        return texte
+    from cryptography.hazmat.primitives import serialization
+    import base64 as _base64
+
+    cle = serialization.load_pem_private_key(texte.encode(), password=None)
+    brut = cle.private_numbers().private_value.to_bytes(32, "big")
+    return _base64.urlsafe_b64encode(brut).decode().rstrip("=")
+
+
 def _resume(texte: str, maximum: int = 170) -> str:
     """Message court pour l'écran de verrouillage : une phrase, sans sauts de ligne."""
     if not texte:
@@ -88,7 +110,7 @@ def _envoyer_vers(user_id: int, charge: dict, diagnostic: list = None) -> int:
                         "keys": {"p256dh": abonnement.p256dh, "auth": abonnement.auth},
                     },
                     data=corps,
-                    vapid_private_key=cles.private_key,
+                    vapid_private_key=_cle_privee_webpush(cles.private_key),
                     vapid_claims={"sub": VAPID_SUBJECT},
                     ttl=TTL_SECONDES,
                 )
