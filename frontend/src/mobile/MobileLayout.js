@@ -68,6 +68,7 @@ export default function MobileLayout({ children }) {
     <div className="m-app">
 
 
+      <button className="m-menu-fab" onClick={() => setMenuOuvert(true)} aria-label="Menu">☰</button>
       <main className="m-content">{children}</main>
 
       <nav className="m-nav">
@@ -78,10 +79,6 @@ export default function MobileLayout({ children }) {
             <span className="m-nav-lbl">{o.label}</span>
           </NavLink>
         ))}
-        <button className="m-nav-item" onClick={() => setMenuOuvert(true)}>
-          <span className="m-nav-ico">⊞</span>
-          <span className="m-nav-lbl">Menu</span>
-        </button>
       </nav>
 
       {/* ── Tiroir : tous les menus du rôle, comme sur le web ── */}
