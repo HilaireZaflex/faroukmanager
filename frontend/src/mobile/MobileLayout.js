@@ -79,15 +79,35 @@ export default function MobileLayout({ children }) {
     <div className="m-app">
 
 
-      <header className="m-header">
-        <button className="m-icon-btn" onClick={() => setMenuOuvert(true)} aria-label="Menu">☰</button>
-        <img src="/icons/icon-192.png" className="m-logo" alt="" />
-        <div className="m-title">
-          <b>Farouk Manager</b>
-          <span>{libelleEspace}</span>
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 20,
+        display: 'flex', flexDirection: 'row', flexWrap: 'nowrap',
+        alignItems: 'center', gap: 10,
+        padding: '10px 14px',
+        background: 'rgba(15,15,30,0.94)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+      }}>
+        <button className="m-icon-btn" onClick={() => setMenuOuvert(true)} aria-label="Menu"
+          style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 11, border: '1px solid rgba(255,255,255,0.12)',
+                   background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 18, display: 'flex',
+                   alignItems: 'center', justifyContent: 'center' }}>☰</button>
+
+        <img src="/icons/icon-192.png" alt=""
+          style={{ width: 36, height: 36, borderRadius: 10, background: '#fff', padding: 2, flexShrink: 0 }} />
+
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+          <b style={{ fontSize: 15, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            Farouk Manager
+          </b>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {libelleEspace}
+          </span>
         </div>
-        <button className="m-icon-btn" style={{ position: 'relative' }}
-          onClick={() => setNotifsOuvert(true)} aria-label="Notifications">
+
+        <button onClick={() => setNotifsOuvert(true)} aria-label="Notifications"
+          style={{ position: 'relative', flexShrink: 0, width: 40, height: 40, borderRadius: 11,
+                   border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
+                   color: '#fff', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           🔔
           {notifs.length > 0 && (
             <span className="m-bell-badge">{notifs.length > 99 ? '99+' : notifs.length}</span>
