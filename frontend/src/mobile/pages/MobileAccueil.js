@@ -131,7 +131,7 @@ export default function MobileAccueil() {
         </>
       )}
 
-      {groupe === 'superviseur' && (
+      {groupe !== 'manager' && (
         <>
           <div className="m-section-title">🏪 Mon réseau</div>
           <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
