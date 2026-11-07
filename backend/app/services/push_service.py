@@ -138,12 +138,62 @@ def envoyer_push_sync(user_id: int, *, titre: str, message: str,
     return _envoyer_vers(user_id, charge)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# File d'attente « après commit »
+#
+# Une notification ne doit partir que si la transaction qui la justifie est
+# réellement validée : inutile d'alerter un développeur pour un prospect dont
+# l'enregistrement a échoué. On met donc les envois en attente sur la session,
+# et SQLAlchemy les déclenche une fois le commit effectué.
+# ─────────────────────────────────────────────────────────────────────────────
+def _apres_commit(session):
+    taches = session.info.pop("_fm_push_a_envoyer", None)
+    if not taches:
+        return
+    for tache in taches:
+        try:
+            envoyer_push(**tache)
+        except Exception as erreur:
+            logger.warning("Push : mise en file impossible : %s", erreur)
+
+
+def _installer_ecouteur():
+    from sqlalchemy import event
+    from app.core.database import SessionLocal
+
+    if getattr(SessionLocal, "_fm_push_ecoute", False):
+        return
+    event.listen(SessionLocal, "after_commit", _apres_commit)
+    SessionLocal._fm_push_ecoute = True
+
+
+def programmer_push(db, *, user_id, titre, message, url=None, tag=None,
+                    prospect_id=None, payload=None) -> None:
+    """Programme un envoi qui ne partira qu'après la validation de la transaction."""
+    if not user_id:
+        return
+    try:
+        _installer_ecouteur()
+        db.info.setdefault("_fm_push_a_envoyer", []).append({
+            "user_id": user_id,
+            "titre": titre,
+            "message": message,
+            "url": url,
+            "tag": tag,
+            "prospect_id": prospect_id,
+            "payload": payload,
+        })
+    except Exception as erreur:
+        logger.warning("Push : programmation impossible : %s", erreur)
+
+
 def notifier_push_etape(db, notification) -> None:
     """Envoie le push correspondant à une notification workflow qui vient d'être créée."""
     try:
         payload = notification.payload or {}
-        envoyer_push(
-            notification.recipient_user_id,
+        programmer_push(
+            db,
+            user_id=notification.recipient_user_id,
             titre=notification.title,
             message=notification.message,
             prospect_id=notification.related_prospect_id,

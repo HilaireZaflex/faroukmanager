@@ -102,6 +102,25 @@ def notifier(db: Session, reclamation_id: int, destinataire_id: int, message: st
     )
     db.add(notif)
 
+    # Relais vers le téléphone, après validation de la transaction.
+    try:
+        from app.services.push_service import programmer_push
+        titres = {
+            "NOUVELLE": "📣 Nouvelle réclamation",
+            "COMMENTAIRE": "💬 Nouveau commentaire",
+            "RELANCE": "⏰ Relance de réclamation",
+        }
+        programmer_push(
+            db,
+            user_id=destinataire_id,
+            titre=titres.get(type_notif, "📣 Réclamation"),
+            message=message,
+            url=f"/m/reclamation/{reclamation_id}",
+            tag=f"reclamation-{reclamation_id}",
+        )
+    except Exception:
+        pass
+
 def notifier_admin_et_responsable(db: Session, r: Reclamation, message: str, type_notif: str, exclude_id: int = None):
     """Notifier tous les admins + le responsable assigné."""
     admins = _admins(db)
