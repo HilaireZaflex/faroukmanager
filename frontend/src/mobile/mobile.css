@@ -415,3 +415,8 @@ a.m-tile {
 a.m-tile:active { transform: scale(0.97); }
 .m-tile-ico { font-size: 21px; line-height: 1; }
 .m-tile-lbl { font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.15; color: rgba(255,255,255,0.85); }
+
+/* En-tête supprimé : on laisse la place à l'encoche système */
+body.fm-mobile .m-content {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
+}

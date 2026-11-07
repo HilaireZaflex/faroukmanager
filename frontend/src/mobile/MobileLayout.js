@@ -66,14 +66,7 @@ export default function MobileLayout({ children }) {
 
   return (
     <div className="m-app">
-      <header className="m-header">
-        <button className="m-icon-btn" onClick={() => setMenuOuvert(true)} aria-label="Menu">☰</button>
-        <div className="m-title">
-          <b>Farouk Manager</b>
-          <span>{(user?.nom || user?.email || '')} · {user?.role || ''}</span>
-        </div>
-        <button className="m-icon-btn" onClick={() => { logout(); navigate('/m/login'); }} title="Déconnexion">⏻</button>
-      </header>
+
 
       <main className="m-content">{children}</main>
 
