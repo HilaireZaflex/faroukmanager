@@ -80,6 +80,22 @@ export default function MobileLayout({ children }) {
   const notifs = Array.isArray(notifsData) ? notifsData
     : (notifsData?.items || notifsData?.notifications || []);
 
+  // Compteur affiché sous l'onglet « PDV » (comme sur les maquettes).
+  const { data: statsNav } = useQuery('m-nav-stats',
+    () => api.get('/pdvs/stats').then(r => r.data).catch(() => null),
+    { refetchInterval: 180000, staleTime: 120000 });
+  const nombreCompact = (n) => {
+    const v = Number(n) || 0;
+    if (v >= 1000000) return `${(v / 1000000).toFixed(1)} M`;
+    if (v >= 1000) return `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} k`;
+    return String(v);
+  };
+  const pastille = (to) => {
+    if (to === '/m/pdv' && statsNav?.total_pdvs) return nombreCompact(statsNav.total_pdvs);
+    if (to === '/m/reclamations') return null;
+    return null;
+  };
+
   const groupe = groupeRole(user?.role);
   const libelleEspace = groupe === 'superviseur' ? 'Espace de gestion · Superviseur'
     : groupe === 'developpeur' ? 'Espace de gestion · Développeur'
@@ -186,7 +202,10 @@ export default function MobileLayout({ children }) {
         {raccourcis.map(o => (
           <NavLink key={o.to} to={o.to}
             className={({ isActive }) => 'm-nav-item' + (isActive ? ' active' : '')}>
-            <span className="m-nav-ico">{o.icon}</span>
+            <span className="m-nav-ico">
+              {o.icon}
+              {pastille(o.to) && <span className="m-nav-badge">{pastille(o.to)}</span>}
+            </span>
             <span className="m-nav-lbl">{o.label}</span>
           </NavLink>
         ))}
