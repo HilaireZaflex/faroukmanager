@@ -387,3 +387,12 @@ body.fm-mobile {
 .m-kpi2-val { font-size:23px; font-weight:900; color:#fff; line-height:1.1; margin-top:2px; }
 .m-kpi2-sub { font-size:10px; color:rgba(255,255,255,0.5); margin-top:1px; }
 .m-kpi2-chev { color:rgba(255,255,255,0.35); font-size:18px; flex-shrink:0; }
+
+/* Les KPI sont des liens : on neutralise le style par défaut des <a> */
+a.m-kpi2,
+a.m-kpi2:hover,
+a.m-kpi2:visited,
+a.m-kpi2:active {
+  text-decoration: none;
+  color: inherit;
+}
