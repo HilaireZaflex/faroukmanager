@@ -63,3 +63,5 @@ from app.models.mission_appel import (
 from app.models.formation import (
     FormationPersonnel, FormationModule, FormationSession,
 )
+
+from app.models.push import PushSubscription, PushVapid

@@ -1,0 +1,102 @@
+"""Notifications push (PWA) : clé publique VAPID et abonnements des appareils."""
+import base64
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.api.routes.auth import get_current_user
+from app.core.database import get_db
+from app.models.push import PushSubscription, PushVapid
+from app.models.user import User
+
+router = APIRouter()
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode().rstrip("=")
+
+
+def _vapid_keys(db: Session) -> PushVapid:
+    """Récupère (ou génère) la paire de clés VAPID."""
+    row = db.query(PushVapid).first()
+    if row:
+        return row
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    cle = ec.generate_private_key(ec.SECP256R1())
+    privee = cle.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    publique = cle.public_key().public_bytes(
+        encoding=serialization.Encoding.X962,
+        format=serialization.PublicFormat.UncompressedPoint,
+    )
+    row = PushVapid(private_key=privee, public_key=_b64url(publique))
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+class AbonnementIn(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+    user_agent: str | None = None
+
+
+class DesabonnementIn(BaseModel):
+    endpoint: str
+
+
+@router.get("/push/public-key")
+def public_key(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Clé publique VAPID, nécessaire au navigateur pour s'abonner."""
+    return {"public_key": _vapid_keys(db).public_key}
+
+
+@router.post("/push/subscribe")
+def subscribe(body: AbonnementIn, db: Session = Depends(get_db),
+              current_user: User = Depends(get_current_user)):
+    """Enregistre (ou met à jour) l'appareil de l'utilisateur."""
+    if not body.endpoint or not body.p256dh or not body.auth:
+        raise HTTPException(400, "Abonnement incomplet.")
+    row = db.query(PushSubscription).filter(PushSubscription.endpoint == body.endpoint).first()
+    if row:
+        row.user_id = current_user.id
+        row.p256dh = body.p256dh
+        row.auth = body.auth
+        row.user_agent = body.user_agent
+    else:
+        row = PushSubscription(
+            user_id=current_user.id, endpoint=body.endpoint, p256dh=body.p256dh,
+            auth=body.auth, user_agent=body.user_agent,
+        )
+        db.add(row)
+    db.commit()
+    return {"success": True, "id": row.id}
+
+
+@router.post("/push/unsubscribe")
+def unsubscribe(body: DesabonnementIn, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    db.query(PushSubscription).filter(
+        PushSubscription.endpoint == body.endpoint,
+        PushSubscription.user_id == current_user.id,
+    ).delete()
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/push/status")
+def statut(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Nombre d'appareils abonnés pour cet utilisateur (et au total)."""
+    miens = db.query(func.count(PushSubscription.id)).filter(
+        PushSubscription.user_id == current_user.id).scalar() or 0
+    total = db.query(func.count(PushSubscription.id)).scalar() or 0
+    return {"mes_appareils": miens, "total_abonnements": total}
