@@ -103,20 +103,59 @@ def tester(db: Session = Depends(get_db), current_user: User = Depends(get_curre
     if appareils == 0:
         raise HTTPException(400, "Aucun appareil abonné : activez d'abord les notifications.")
 
-    envoyes = envoyer_push_sync(
+    resultat = envoyer_push_sync(
         current_user.id,
         titre="🔔 Farouk Manager — test",
         message="Les notifications fonctionnent sur cet appareil. Vous serez prévenu des visites, décisions et activations.",
         url="/m/profil",
         tag="test",
     )
-    return {"success": True, "appareils": appareils, "envoyes": envoyes}
+    if resultat["envoyes"] == 0:
+        detail = resultat["erreurs"][0] if resultat["erreurs"] else "Le service de notification a refusé l'envoi."
+        raise HTTPException(502, f"Envoi impossible : {detail}")
+    return {"success": True, "appareils": appareils, "envoyes": resultat["envoyes"]}
+
+
+@router.post("/push/test/{user_id}")
+def tester_pour(user_id: int, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    """Support : envoie un test aux appareils d'un utilisateur (admin uniquement)."""
+    role = str(getattr(current_user, "role", "")).split(".")[-1].lower()
+    if role != "admin":
+        raise HTTPException(403, "Réservé à l'administrateur.")
+
+    from app.services.push_service import envoyer_push_sync
+
+    appareils = db.query(func.count(PushSubscription.id)).filter(
+        PushSubscription.user_id == user_id).scalar() or 0
+    if appareils == 0:
+        raise HTTPException(400, f"Aucun appareil abonné pour l'utilisateur {user_id}.")
+
+    resultat = envoyer_push_sync(
+        user_id,
+        titre="🔔 Farouk Manager — test",
+        message="Test envoyé par l'administrateur : les notifications fonctionnent sur cet appareil.",
+        url="/m/profil",
+        tag="test-admin",
+    )
+    return {
+        "success": resultat["envoyes"] > 0,
+        "appareils": appareils,
+        "envoyes": resultat["envoyes"],
+        "erreurs": resultat["erreurs"],
+    }
 
 
 @router.get("/push/status")
 def statut(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Nombre d'appareils abonnés pour cet utilisateur (et au total)."""
+    from app.services.push_service import moteur_disponible
+
     miens = db.query(func.count(PushSubscription.id)).filter(
         PushSubscription.user_id == current_user.id).scalar() or 0
     total = db.query(func.count(PushSubscription.id)).scalar() or 0
-    return {"mes_appareils": miens, "total_abonnements": total}
+    return {
+        "mes_appareils": miens,
+        "total_abonnements": total,
+        "moteur_push": moteur_disponible(),
+    }

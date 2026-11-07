@@ -50,7 +50,7 @@ def _url_depuis_payload(payload: Optional[dict], prospect_id: Optional[int] = No
     return "/m/prospection"
 
 
-def _envoyer_vers(user_id: int, charge: dict) -> int:
+def _envoyer_vers(user_id: int, charge: dict, diagnostic: list = None) -> int:
     """Envoie la charge utile à tous les appareils d'un utilisateur. Renvoie le nombre d'envois réussis."""
     from app.core.database import SessionLocal
     from app.models.push import PushSubscription, PushVapid
@@ -75,6 +75,8 @@ def _envoyer_vers(user_id: int, charge: dict) -> int:
             from pywebpush import webpush, WebPushException
         except ImportError:
             logger.warning("Push : pywebpush absent, envoi ignoré.")
+            if diagnostic is not None:
+                diagnostic.append("pywebpush n'est pas installé sur le serveur.")
             return 0
 
         corps = json.dumps(charge, ensure_ascii=False)
@@ -101,8 +103,12 @@ def _envoyer_vers(user_id: int, charge: dict) -> int:
                     logger.info("Push : appareil expiré supprimé (%s).", statut)
                 else:
                     logger.warning("Push : échec d'envoi (statut %s) : %s", statut, erreur)
+                    if diagnostic is not None:
+                        diagnostic.append(f"Statut {statut} : {str(erreur)[:300]}")
             except Exception as erreur:  # réseau, chiffrement, etc.
                 logger.warning("Push : erreur inattendue : %s", erreur)
+                if diagnostic is not None:
+                    diagnostic.append(f"Erreur : {str(erreur)[:300]}")
         return envoyes
     except Exception as erreur:
         logger.warning("Push : envoi impossible : %s", erreur)
@@ -127,15 +133,26 @@ def envoyer_push(user_id: int, *, titre: str, message: str,
 
 
 def envoyer_push_sync(user_id: int, *, titre: str, message: str,
-                      url: Optional[str] = None, tag: Optional[str] = None) -> int:
-    """Envoi immédiat (utilisé par l'endpoint de test). Renvoie le nombre d'appareils touchés."""
+                      url: Optional[str] = None, tag: Optional[str] = None) -> dict:
+    """Envoi immédiat (endpoint de test). Renvoie le détail utile au diagnostic."""
     charge = {
         "title": titre,
         "body": _resume(message),
         "url": url or "/m/accueil",
         "tag": tag,
     }
-    return _envoyer_vers(user_id, charge)
+    erreurs = []
+    envoyes = _envoyer_vers(user_id, charge, diagnostic=erreurs)
+    return {"envoyes": envoyes, "erreurs": erreurs}
+
+
+def moteur_disponible() -> bool:
+    """Vrai si la bibliothèque d'envoi Web Push est installée sur le serveur."""
+    try:
+        import pywebpush  # noqa: F401
+        return True
+    except Exception:
+        return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
