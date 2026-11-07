@@ -490,3 +490,11 @@ body.fm-mobile .m-content { padding-top: 14px; }
 .m-header .m-title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .m-header .m-logo { flex-shrink: 0; }
 .m-header .m-icon-btn { flex-shrink: 0; }
+
+/* Grille des KPI : 2 cartes par ligne */
+.m-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
