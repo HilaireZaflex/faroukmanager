@@ -420,3 +420,26 @@ a.m-tile:active { transform: scale(0.97); }
 body.fm-mobile .m-content {
   padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
 }
+
+/* ── Barre du bas : finitions + animation ── */
+.m-nav { padding-top: 4px; }
+.m-nav-item {
+  transition: color 0.2s ease, transform 0.18s ease;
+}
+.m-nav-item:active { transform: scale(0.93); }
+
+.m-nav-item .m-nav-ico {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 40px; height: 30px;
+  transition: transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.24s ease, color 0.24s ease, box-shadow 0.24s ease;
+}
+.m-nav-item.active .m-nav-ico {
+  animation: m-nav-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes m-nav-pop {
+  0%   { transform: scale(0.82); }
+  60%  { transform: scale(1.10); }
+  100% { transform: scale(1); }
+}
+.m-nav-lbl { transition: color 0.2s ease, font-weight 0.2s ease; }

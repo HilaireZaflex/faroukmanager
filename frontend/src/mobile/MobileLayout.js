@@ -79,7 +79,7 @@ export default function MobileLayout({ children }) {
           </NavLink>
         ))}
         <button className="m-nav-item" onClick={() => setMenuOuvert(true)}>
-          <span className="m-nav-ico">☰</span>
+          <span className="m-nav-ico">⊞</span>
           <span className="m-nav-lbl">Menu</span>
         </button>
       </nav>
