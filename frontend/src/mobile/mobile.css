@@ -396,3 +396,22 @@ a.m-kpi2:active {
   text-decoration: none;
   color: inherit;
 }
+
+/* ── Accès rapides : tuiles (design 2026) ── */
+.m-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(66px, 1fr));
+  gap: 9px;
+  margin-bottom: 16px;
+}
+a.m-tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 7px; padding: 14px 6px; min-height: 82px;
+  border-radius: 16px; text-decoration: none; color: #fff;
+  background: linear-gradient(150deg, rgba(255, 105, 0, 0.20) 0%, rgba(255, 255, 255, 0.03) 70%);
+  border: 1px solid rgba(255, 105, 0, 0.32);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+a.m-tile:active { transform: scale(0.97); }
+.m-tile-ico { font-size: 21px; line-height: 1; }
+.m-tile-lbl { font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.15; color: rgba(255,255,255,0.85); }

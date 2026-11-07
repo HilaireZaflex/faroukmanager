@@ -153,12 +153,15 @@ export default function MobileAccueil() {
         </>
       )}
 
-      <div className="m-section-title">🛰️ Accès rapides</div>
-      {liens.map(t => (
-        <Link key={t.to} to={t.to} className="m-link-row">
-          <span className="ico">{t.icon}</span>{t.label}<span className="arrow">›</span>
-        </Link>
-      ))}
+      <div className="m-section-title">⚡ Accès rapides</div>
+      <div className="m-tiles">
+        {liens.map(t => (
+          <Link key={t.to} to={t.to} className="m-tile">
+            <span className="m-tile-ico">{t.icon}</span>
+            <span className="m-tile-lbl">{t.label}</span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
