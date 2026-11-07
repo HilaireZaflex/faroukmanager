@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useQuery } from 'react-query';
+import api from '../services/api';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 
@@ -42,8 +44,17 @@ export default function MobileLayout({ children }) {
   const logout = useAuthStore(s => s.logout);
   const canAccess = useAuthStore(s => s.canAccess);
   const [menuOuvert, setMenuOuvert] = useState(false);
+  const [notifsOuvert, setNotifsOuvert] = useState(false);
+  const { data: notifsData } = useQuery('m-notifs',
+    () => api.get('/notifications/pending').then(r => r.data).catch(() => []),
+    { refetchInterval: 60000, staleTime: 30000 });
+  const notifs = Array.isArray(notifsData) ? notifsData
+    : (notifsData?.items || notifsData?.notifications || []);
 
   const groupe = groupeRole(user?.role);
+  const libelleEspace = groupe === 'superviseur' ? 'Espace de gestion · Superviseur'
+    : groupe === 'developpeur' ? 'Espace de gestion · Développeur'
+    : groupe === 'manager' ? 'Espace de gestion · Encadrement' : 'Espace de gestion';
   const raccourcis = ONGLETS[groupe] || ONGLETS.autre;
 
   // Le tiroir reprend EXACTEMENT les menus dont dispose le rôle dans la version web.
@@ -68,7 +79,21 @@ export default function MobileLayout({ children }) {
     <div className="m-app">
 
 
-      <button className="m-menu-fab" onClick={() => setMenuOuvert(true)} aria-label="Menu">☰</button>
+      <header className="m-header">
+        <button className="m-icon-btn" onClick={() => setMenuOuvert(true)} aria-label="Menu">☰</button>
+        <img src="/icons/icon-192.png" className="m-logo" alt="" />
+        <div className="m-title">
+          <b>Farouk Manager</b>
+          <span>{libelleEspace}</span>
+        </div>
+        <button className="m-icon-btn" style={{ position: 'relative' }}
+          onClick={() => setNotifsOuvert(true)} aria-label="Notifications">
+          🔔
+          {notifs.length > 0 && (
+            <span className="m-bell-badge">{notifs.length > 99 ? '99+' : notifs.length}</span>
+          )}
+        </button>
+      </header>
       <main className="m-content">{children}</main>
 
       <nav className="m-nav">
@@ -124,6 +149,33 @@ export default function MobileLayout({ children }) {
               onClick={() => { logout(); navigate('/m/login'); }}>
               <span>⏻</span>Se déconnecter<span className="arrow">›</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {notifsOuvert && (
+        <div className="m-drawer-overlay" onClick={() => setNotifsOuvert(false)}>
+          <div className="m-sheet" style={{ maxHeight: '80vh' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>🔔 Notifications ({notifs.length})</h3>
+              <button className="m-icon-btn" onClick={() => setNotifsOuvert(false)}>✕</button>
+            </div>
+            {notifs.length === 0 && <div className="m-empty">Aucune notification pour le moment.</div>}
+            {notifs.map((n, i) => (
+              <div key={n.id || i} className="m-card" style={{ marginBottom: 9 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{n.title || n.titre || 'Notification'}</div>
+                {(n.message || n.body) && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4, lineHeight: 1.5 }}>
+                    {n.message || n.body}
+                  </div>
+                )}
+                {n.created_at && (
+                  <div style={{ fontSize: 10.5, color: 'var(--fm-muted)', marginTop: 6 }}>
+                    {new Date(n.created_at).toLocaleString('fr-FR')}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
