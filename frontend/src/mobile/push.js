@@ -215,7 +215,13 @@ export async function testPush() {
     await api.post('/push/test');
     return { ok: true };
   } catch (e) {
-    return { ok: false, message: "Le test n'a pas pu être envoyé." };
+    const detail = e?.response?.data?.detail;
+    return {
+      ok: false,
+      message: detail
+        ? String(detail)
+        : "Le test n'a pas pu être envoyé. Vérifiez votre connexion, puis réessayez.",
+    };
   }
 }
 
