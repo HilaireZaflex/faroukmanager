@@ -47,6 +47,7 @@ export default function ProspectionEnergiaPage() {
   const [search, setSearch] = useState('');
   const [filtreKit, setFiltreKit] = useState('');
   const [installation, setInstallation] = useState(null);
+  const [detail, setDetail] = useState(null);
 
   // Données ENERGIA
   const { data: energiaData, isLoading, refetch } = useQuery(
@@ -149,7 +150,7 @@ export default function ProspectionEnergiaPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
           {filtered.map((p, i) => (
-            <div key={p.id} style={{ background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: '16px 18px' }}>
+            <div key={p.id} onClick={() => setDetail(p)} style={{ cursor: 'pointer', background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 14, padding: '16px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{p.nom} {p.prenom}</div>
@@ -214,6 +215,11 @@ export default function ProspectionEnergiaPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {detail && (
+        <EnergiaDetailModal prospect={detail} onClose={() => setDetail(null)}
+          onInstaller={() => { const p = detail; setDetail(null); setInstallation(p); }} />
       )}
 
       {/* Formulaire d'installation */}
@@ -336,6 +342,7 @@ function EnergiaInstallationModal({ prospect, onClose, onSuccess }) {
     piece_identite: prospect?.piece_identite || '',
     latitude: prospect?.latitude || '',
     longitude: prospect?.longitude || '',
+    photo: null,
   });
   const [loading, setLoading] = useState(false);
   const set = (k, v) => setData(d => ({ ...d, [k]: v }));
@@ -362,6 +369,11 @@ function EnergiaInstallationModal({ prospect, onClose, onSuccess }) {
         latitude: data.latitude === '' ? undefined : Number(data.latitude),
         longitude: data.longitude === '' ? undefined : Number(data.longitude),
       });
+      if (data.photo) {
+        const envoi = new FormData();
+        envoi.append('file', data.photo);
+        await api.post(`/energia/prospects/${prospect.id}/pieces`, envoi);
+      }
       toast.success('Installation enregistrée');
       onSuccess();
     } catch (err) {
@@ -390,6 +402,10 @@ function EnergiaInstallationModal({ prospect, onClose, onSuccess }) {
           <AFL label="Pièce d'identité (si non renseignée)">
             <AFI value={data.piece_identite} onChange={e => set('piece_identite', e.target.value)} placeholder="CNI / NIF / RCCM + numéro" />
           </AFL>
+          <AFL label="Photo de la pièce (appareil photo)">
+            <input type="file" accept="image/*" capture="environment" onChange={e => set('photo', e.target.files?.[0] || null)}
+              style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px dashed rgba(34,197,94,0.4)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 12 }} />
+          </AFL>
           <AFL label="Coordonnées géographiques">
             <div style={{ display: 'flex', gap: 8 }}>
               <AFI value={data.latitude} onChange={e => set('latitude', e.target.value)} placeholder="Latitude" />
@@ -405,6 +421,63 @@ function EnergiaInstallationModal({ prospect, onClose, onSuccess }) {
           {loading ? 'Enregistrement…' : '✅ Valider l’installation'}
         </button>
       </form>
+    </div>
+  );
+}
+
+
+// ─── Fiche prospect ENERGIA (données de prospection + pièces) ────────────────
+function EnergiaDetailModal({ prospect, onClose, onInstaller }) {
+  const { data: pieces } = useQuery(['energia-pieces', prospect.id],
+    () => api.get(`/energia/prospects/${prospect.id}/pieces`).then(r => r.data).catch(() => []),
+    { staleTime: 30000 });
+
+  const Ligne = ({ l, v }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13 }}>
+      <span style={{ color: '#8a8a9a' }}>{l}</span>
+      <b style={{ color: '#fff', textAlign: 'right' }}>{v || '—'}</b>
+    </div>
+  );
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#12121e', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 18, color: '#fff' }}>{prospect.nom} {prospect.prenom}</h2>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ fontSize: 12, color: '#22c55e', marginBottom: 12 }}>{prospect.reference} · {prospect.nom_kit}</div>
+
+        <Ligne l="Téléphone" v={prospect.telephone} />
+        <Ligne l="Quartier" v={prospect.quartier} />
+        <Ligne l="Prospecté le" v={prospect.date_prospection?.slice(0, 10)} />
+        <Ligne l="Prêt à payer" v={prospect.pret_payer_immediatement ? 'Oui' : 'Non'} />
+        <Ligne l="Pièce d'identité" v={prospect.piece_identite} />
+        <Ligne l="GPS" v={prospect.latitude ? `${prospect.latitude}, ${prospect.longitude}` : null} />
+        <Ligne l="Statut" v={prospect.statut} />
+        <Ligne l="N° batterie" v={prospect.numero_batterie} />
+        <Ligne l="Date d'activation" v={prospect.date_activation?.slice(0, 10)} />
+        {prospect.notes && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 10 }}>📝 {prospect.notes}</div>}
+
+        {pieces?.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Pièces jointes ({pieces.length})</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {pieces.map(pc => (
+                <a key={pc.filename} href={pc.url} target="_blank" rel="noreferrer">
+                  <img src={pc.url} alt={pc.filename} style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)' }} />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {prospect.statut !== 'INSTALLE' && prospect.statut !== 'SUIVI' && (
+          <button onClick={onInstaller} style={{ marginTop: 18, width: '100%', padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>
+            🛠️ Enregistrer l'installation
+          </button>
+        )}
+      </div>
     </div>
   );
 }

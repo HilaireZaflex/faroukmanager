@@ -24,6 +24,8 @@ export default function MobileEnergia() {
   const [q, setQ] = useState('');
   const [creation, setCreation] = useState(false);
   const [installation, setInstallation] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [photo, setPhoto] = useState(null);
   const [inst, setInst] = useState({ numero_batterie: '', date_activation: new Date().toISOString().slice(0, 10), piece_identite: '', latitude: '', longitude: '' });
   const [form, setForm] = useState({ nom: '', prenom: '', telephone: '', quartier: '', nom_kit: 'DIABARANI', notes: '' });
 
@@ -111,8 +113,14 @@ export default function MobileEnergia() {
         <form className="m-card" onSubmit={(e) => {
           e.preventDefault();
           if (!inst.numero_batterie.trim()) { toast.error('Numéro de batterie obligatoire'); return; }
+          const cible = installation.id;
+          if (photo) {
+            const fd = new FormData();
+            fd.append('file', photo);
+            api.post(`/energia/prospects/${cible}/pieces`, fd).catch(() => {});
+          }
           changer.mutate({
-            id: installation.id, statut: 'INSTALLE',
+            id: cible, statut: 'INSTALLE',
             numero_batterie: inst.numero_batterie.trim(),
             date_activation: inst.date_activation || undefined,
             piece_identite: inst.piece_identite || undefined,
@@ -135,6 +143,9 @@ export default function MobileEnergia() {
             <input className="m-input" placeholder="Longitude" value={inst.longitude}
               onChange={e => setInst({ ...inst, longitude: e.target.value })} />
           </div>
+          <label style={{ fontSize: 11, color: 'var(--fm-muted)' }}>Photo de la pièce</label>
+          <input className="m-input" type="file" accept="image/*" capture="environment"
+            onChange={e => setPhoto(e.target.files?.[0] || null)} style={{ padding: 8 }} />
           <button type="button" className="m-btn secondary" style={{ padding: 10, fontSize: 12 }}
             onClick={() => {
               if (!navigator.geolocation) { toast.error('GPS indisponible'); return; }
@@ -163,10 +174,34 @@ export default function MobileEnergia() {
         <div className="m-empty">Aucun prospect ENERGIA {filtre !== 'TOUS' ? 'avec ce statut' : 'pour le moment'}.<br />Utilisez ＋ pour en ajouter.</div>
       )}
 
+      {detail && (
+        <div className="m-drawer-overlay" onClick={() => setDetail(null)}>
+          <div className="m-drawer" onClick={e => e.stopPropagation()} style={{ height: 'auto', maxHeight: '85vh', borderRadius: 18, margin: 'auto 0 0 0', padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <b style={{ color: '#fff', fontSize: 15 }}>{detail.nom} {detail.prenom}</b>
+              <button className="m-icon-btn" onClick={() => setDetail(null)}>✕</button>
+            </div>
+            {[['Référence', detail.reference], ['Kit', detail.nom_kit], ['Téléphone', detail.telephone],
+              ['Quartier', detail.quartier], ['Prospecté le', detail.date_prospection],
+              ['Prêt à payer', detail.pret_payer_immediatement ? 'Oui' : 'Non'],
+              ["Pièce d'identité", detail.piece_identite],
+              ['GPS', detail.latitude ? `${detail.latitude}, ${detail.longitude}` : null],
+              ['N° batterie', detail.numero_batterie], ["Date d'activation", detail.date_activation],
+            ].map(([l, v]) => (
+              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--fm-border)', fontSize: 12.5 }}>
+                <span style={{ color: 'var(--fm-muted)' }}>{l}</span>
+                <b style={{ color: '#fff', textAlign: 'right' }}>{v || '—'}</b>
+              </div>
+            ))}
+            {detail.notes && <div style={{ fontSize: 12, color: 'var(--fm-muted)', marginTop: 10 }}>📝 {detail.notes}</div>}
+          </div>
+        </div>
+      )}
+
       {liste.map(p => {
         const st = STATUTS[p.statut || 'PROSPECT'] || STATUTS.PROSPECT;
         return (
-          <div key={p.id} className="m-item">
+          <div key={p.id} className="m-item" onClick={() => setDetail(p)} style={{ cursor: 'pointer' }}>
             <div className="m-item-top">
               <div className="m-item-title">{p.nom} {p.prenom}</div>
               <span className="m-badge" style={{ background: `${st.couleur}22`, color: st.couleur }}>
@@ -186,11 +221,11 @@ export default function MobileEnergia() {
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               {(!p.statut || p.statut === 'PROSPECT') && (
                 <button className="m-btn vert" style={{ flex: 1, padding: 10, fontSize: 13 }}
-                  onClick={() => { setInst({ numero_batterie: '', date_activation: new Date().toISOString().slice(0, 10), piece_identite: p.piece_identite || '', latitude: p.latitude || '', longitude: p.longitude || '' }); setInstallation(p); }}>🛠️ Installer</button>
+                  onClick={(e) => { e.stopPropagation(); setInst({ numero_batterie: '', date_activation: new Date().toISOString().slice(0, 10), piece_identite: p.piece_identite || '', latitude: p.latitude || '', longitude: p.longitude || '' }); setInstallation(p); }}>🛠️ Installer</button>
               )}
               {p.statut === 'INSTALLE' && (
                 <button className="m-btn secondary" style={{ flex: 1, padding: 10, fontSize: 13 }}
-                  onClick={() => changer.mutate({ id: p.id, statut: 'SUIVI' })}>📞 Passer en suivi</button>
+                  onClick={(e) => { e.stopPropagation(); changer.mutate({ id: p.id, statut: 'SUIVI' }); }}>📞 Passer en suivi</button>
               )}
               <a className="m-btn" style={{ padding: 10, fontSize: 13, width: 52, flexShrink: 0 }} href={`tel:${p.telephone}`}>📞</a>
             </div>

@@ -73,6 +73,8 @@ function proxyVersApi(prefixe) {
 
 app.use('/api', proxyVersApi('/api'));
 app.use('/health', proxyVersApi('/health'));
+// Photos des pièces justificatives ENERGIA (servies par le backend)
+app.use('/uploads', proxyVersApi('/uploads'));
 
 // Le navigateur doit revérifier ce fichier à CHAQUE visite : c'est ainsi que les
 // anciens service workers — qui servaient une version périmée de l'application —
