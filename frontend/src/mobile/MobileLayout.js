@@ -21,7 +21,7 @@ export const ONGLETS = {
   superviseur: [
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
     { to: '/m/pdv',          icon: '🏪', label: 'PDV' },
-    { to: '/m/recuperation', icon: '🎯', label: 'Récupérer' },
+    { to: '/m/recuperation', icon: '🚨', label: 'En urgence' },
     { to: '/m/alertes',      icon: '🔔', label: 'Alertes' },
   ],
   developpeur: [
@@ -125,7 +125,7 @@ export default function MobileLayout({ children }) {
     nouveau:      { to: '/m/prospect/nouveau',  icon: '➕', label: 'Nouveau prospect' },
     planning:     { to: '/m/planning',          icon: '📅', label: 'Mes visites' },
     activations:  { to: '/m/activations',       icon: '⚡', label: 'Mes activations' },
-    recuperation: { to: '/m/recuperation',      icon: '🎯', label: 'À récupérer' },
+    recuperation: { to: '/m/recuperation',      icon: '🚨', label: 'En urgence' },
     alertes:      { to: '/m/alertes',           icon: '🔔', label: 'Alertes' },
     reclamations: { to: '/m/reclamations',      icon: '📣', label: 'Réclamations' },
     pilotage:     { to: '/m/pilotage',          icon: '📊', label: 'Pilotage' },

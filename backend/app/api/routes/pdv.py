@@ -24,13 +24,29 @@ def get_stats(
     nouvelle_activation: Optional[bool] = Query(None, description="Filtrer uniquement les PDV activés via prospection"),
     date_debut: Optional[str] = Query(None, description="Date début (YYYY-MM-DD)"),
     date_fin: Optional[str] = Query(None, description="Date fin (YYYY-MM-DD)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Statistiques globales du réseau PDV — M1"""
+    """Statistiques du réseau PDV — restreintes au périmètre de l'utilisateur."""
     from sqlalchemy import and_, func
     from app.models.performance import MonthlyPerformance
     from datetime import datetime, timedelta
+    from app.api.routes.auth import get_pdv_filters
+
     query = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+
+    # Périmètre automatique : un superviseur ne compte que SES PDV.
+    f_user = get_pdv_filters(current_user)
+    if f_user.get('superviseur'):
+        query = query.filter(PDV.superviseur == f_user['superviseur'])
+    if f_user.get('gestionnaire'):
+        query = query.filter(PDV.gestionnaire == f_user['gestionnaire'])
+    if f_user.get('zone'):
+        query = query.filter(PDV.zone == f_user['zone'])
+    if f_user.get('developpeur'):
+        query = query.filter(PDV.developpeur == f_user['developpeur'])
+    if f_user.get('teleconseillere'):
+        query = query.filter(PDV.teleconseillere == f_user['teleconseillere'])
     if zone:
         query = query.filter(PDV.zone == zone)
     if type_pdv:

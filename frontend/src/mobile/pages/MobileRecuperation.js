@@ -47,8 +47,8 @@ export default function MobileRecuperation() {
   return (
     <div>
       <Hero
-        titre="PDV à récupérer"
-        role="Priorités · Mon réseau"
+        titre="En urgence"
+        role="PDV à récupérer · Mon réseau"
         sousTitre={data ? `${fmtN(k.nb_pdv_analyses || 0)} PDV analysés` : undefined}
       />
 
