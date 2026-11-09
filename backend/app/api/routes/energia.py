@@ -114,7 +114,7 @@ def create_energia_prospect(
 @router.get("/energia/prospects")
 def list_energia_prospects(
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=1000),
     nom_kit: Optional[str] = None,
     pret_payer: Optional[bool] = None,
     search: Optional[str] = None,
