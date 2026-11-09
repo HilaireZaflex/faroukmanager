@@ -92,6 +92,8 @@ export default function MobileLayout({ children }) {
     if (v >= 1000) return `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} k`;
     return String(v);
   };
+  const groupe = groupeRole(user?.role);
+
   // Nombre d'alertes du réseau (superviseur) : pastille sur l'onglet Alertes.
   const { data: alertesNav } = useQuery('m-nav-alertes',
     () => api.get('/alerts/inactive').then(r => r.data).catch(() => null),
@@ -104,7 +106,6 @@ export default function MobileLayout({ children }) {
     return null;
   };
 
-  const groupe = groupeRole(user?.role);
   const libelleEspace = groupe === 'superviseur' ? 'Espace de gestion · Superviseur'
     : groupe === 'developpeur' ? 'Espace de gestion · Développeur'
     : groupe === 'commercial' ? 'Espace de gestion · Commercial'
