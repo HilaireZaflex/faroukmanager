@@ -19,7 +19,7 @@ class RolePermission(Base):
 # ── Menus par défaut tous rôles non-admin ─────────────────────────────────────
 DEFAULT_MENUS_NON_ADMIN = ["pdvs", "prospection", "evaluations", "alerts"]
 DEFAULT_DASHBOARDS_NON_ADMIN = ["omy", "nafama", "kaabu"]
-ALL_MENUS = ["pdvs", "prospection", "indicateurs", "commissions", "evaluations", "alerts", "reseau", "ia", "carte", "recovery", "import", "reports", "settings", "challenge", "suivi_tc", "reclamations", "missions_appels", "analyse_perf", "formations", "activations"]
+ALL_MENUS = ["pdvs", "prospection", "prospection_energia", "indicateurs", "commissions", "evaluations", "alerts", "reseau", "ia", "carte", "recovery", "import", "reports", "settings", "challenge", "suivi_tc", "reclamations", "missions_appels", "analyse_perf", "formations", "activations"]
 ALL_DASHBOARDS = ["omy", "nafama", "kaabu"]
 
 # ── Missions d'appels : accès réservé à l'encadrement ─────────────────────────
@@ -76,6 +76,7 @@ EXTRA_MENUS_AVAILABLE = [
     {"id": "analyse_perf", "label": "Analyse Performance"},
     {"id": "formations", "label": "Suivi Formation"},
     {"id": "activations", "label": "Suivi des activations"},
+    {"id": "prospection_energia", "label": "Prospection ENERGIA"},
     {"id": "suivi_tc",     "label": "Suivi TC (Téléconseillères)"},
     {"id": "reclamations", "label": "Réclamations"},
     {"id": "challenge",    "label": "Orange Awards 2026"},
@@ -458,21 +459,34 @@ def set_user_permissions(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """Attribue des menus extras à un utilisateur (admin only)."""
-    extra_menus = body.get("extra_menus", [])
+    """Attribue des menus à un utilisateur (admin only).
+
+    `extra_menus` ajoute des menus à ceux du rôle ; `menus` (facultatif) les
+    REMPLACE entièrement, ce qui permet de restreindre un compte à un seul
+    module (ex. prospection ENERGIA uniquement).
+    """
+    extra_menus = body.get("extra_menus")
+    menus = body.get("menus")
+    dashboards = body.get("dashboards")
+
     user_key = f"user_{user_id}"
     row = db.query(RolePermission).filter(RolePermission.role_id == user_key).first()
+    config = dict(row.sidebar_config or {}) if row else {}
+
+    if extra_menus is not None:
+        config["extra_menus"] = extra_menus
+    if menus is not None:
+        config["menus"] = menus
+    if dashboards is not None:
+        config["dashboards"] = dashboards
+
     if row:
-        row.sidebar_config = {"extra_menus": extra_menus}
+        row.sidebar_config = config
     else:
-        row = RolePermission(
-            role_id=user_key,
-            sidebar_config={"extra_menus": extra_menus},
-            permissions={},
-        )
+        row = RolePermission(role_id=user_key, sidebar_config=config, permissions={})
         db.add(row)
     db.commit()
-    return {"success": True, "user_id": user_id, "extra_menus": extra_menus}
+    return {"success": True, "user_id": user_id, "sidebar_config": config}
 
 
 @router.get("/all-users-permissions")

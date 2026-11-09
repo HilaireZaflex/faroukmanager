@@ -37,6 +37,11 @@ class ProspectEnergia(Base):
     # Pièce d'identité / RCCM
     piece_identite = Column(String, nullable=True)  # Type de pièce + numéro
 
+    # Installation et suivi (le prospecteur installe lui-même le kit puis assure le suivi)
+    statut = Column(String(30), default="PROSPECT", nullable=False)   # PROSPECT | INSTALLE | SUIVI
+    date_installation = Column(Date, nullable=True)
+    date_relance = Column(Date, nullable=True)                        # prochaine action de suivi
+
     # Métadonnées
     created_by = Column(Integer, nullable=True)  # user id
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

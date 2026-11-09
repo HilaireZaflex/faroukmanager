@@ -69,6 +69,16 @@ export default function ProspectionEnergiaPage() {
     return true;
   });
 
+  const changerStatut = async (id, statut) => {
+    try {
+      await api.patch(`/energia/prospects/${id}/statut`, { statut });
+      toast.success(statut === 'INSTALLE' ? 'Marqué comme installé' : 'Passé en suivi');
+      refetch();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Mise à jour impossible');
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm('Supprimer ce prospect ENERGIA ?')) return;
     try {
@@ -96,7 +106,7 @@ export default function ProspectionEnergiaPage() {
 
       {/* KPI Cards */}
       {energiaStats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 24 }}>
           <KPICard icon="☀️" label="Total Prospects" value={energiaStats.total} color={ENERGIA_GREEN} sub="Tous les prospects"/>
           <KPICard icon="🌞" label="DIABARANI" value={energiaStats.diabarani} color="#ffa502" sub="Kit solaire standard"/>
           <KPICard icon="💡" label="YELEN" value={energiaStats.yelen} color="#a29bfe" sub="Kit solaire premium"/>
@@ -104,6 +114,9 @@ export default function ProspectionEnergiaPage() {
             value={`${energiaStats.prets_payer} (${energiaStats.taux_pret}%)`}
             color={energiaStats.taux_pret > 50 ? ENERGIA_GREEN : '#ff4757'}
             sub="Intéressés immédiatement"/>
+          <KPICard icon="🛠️" label="À installer" value={energiaStats.a_installer} color="#ffa502" sub="Prospects à équiper"/>
+          <KPICard icon="🏠" label="Installés" value={energiaStats.installes} color="#22c55e" sub="Kits posés"/>
+          <KPICard icon="📞" label="En suivi" value={energiaStats.suivis} color="#4a9eff" sub="Suivi après installation"/>
         </div>
       )}
 
@@ -164,8 +177,29 @@ export default function ProspectionEnergiaPage() {
                   </span>
                 )}
               </div>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 800,
+                  background: p.statut === 'INSTALLE' ? 'rgba(34,197,94,0.15)' : p.statut === 'SUIVI' ? 'rgba(74,158,255,0.15)' : 'rgba(255,165,2,0.15)',
+                  color: p.statut === 'INSTALLE' ? '#22c55e' : p.statut === 'SUIVI' ? '#4a9eff' : '#ffa502' }}>
+                  {p.statut === 'INSTALLE' ? '🏠 Installé' : p.statut === 'SUIVI' ? '📞 En suivi' : '☀️ Prospect'}
+                </span>
+                {p.date_installation && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>installé le {p.date_installation.slice(0, 10)}</span>}
+                {p.date_relance && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>relance {p.date_relance.slice(0, 10)}</span>}
+              </div>
               {p.notes && <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, fontStyle: 'italic' }}>{p.notes.slice(0, 80)}{p.notes.length > 80 ? '...' : ''}</div>}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                {p.statut !== 'INSTALLE' && p.statut !== 'SUIVI' && (
+                  <button onClick={() => changerStatut(p.id, 'INSTALLE')}
+                    style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.12)', color: '#22c55e', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+                    🛠️ Installé
+                  </button>
+                )}
+                {p.statut === 'INSTALLE' && (
+                  <button onClick={() => changerStatut(p.id, 'SUIVI')}
+                    style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid rgba(74,158,255,0.4)', background: 'rgba(74,158,255,0.12)', color: '#4a9eff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+                    📞 Suivi
+                  </button>
+                )}
                 <button onClick={() => { setEditProspect(p); setShowForm(true); }}
                   style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: ENERGIA_GREEN, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                   ✏️ Modifier
@@ -217,7 +251,7 @@ function EnergiaFormModal({ prospect, onClose, onSuccess }) {
     setLoading(true);
     try {
       if (isEdit) {
-        await api.put(`/energia/prospects/${prospect.id}`, data);
+        await api.patch(`/energia/prospects/${prospect.id}`, data);
         toast.success('Prospect mis à jour !');
       } else {
         await api.post('/energia/prospects', data);

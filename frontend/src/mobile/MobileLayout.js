@@ -131,8 +131,10 @@ export default function MobileLayout({ children }) {
 
   // L'encadrement garde les droits web (menus cochés dans Paramètres).
   const autorise = (id) => {
-    if (groupe !== 'manager') return true;
+    // Un compte peut n'avoir que la prospection ENERGIA : on masque alors
+    // la prospection OM partout, y compris dans le menu mobile.
     if (id === 'prospection') return canAccess('prospection');
+    if (groupe !== 'manager') return true;
     if (id === 'alertes') return canAccess('alerts');
     if (id === 'activations') return canAccess('activations');
     return true;

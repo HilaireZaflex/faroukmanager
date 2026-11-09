@@ -233,6 +233,10 @@ async def auto_migrate():
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS adresse VARCHAR(300)",
+        # ── Prospection ENERGIA : installation et suivi par le prospecteur ──
+        "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS statut VARCHAR(30) DEFAULT 'PROSPECT'",
+        "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS date_installation DATE",
+        "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS date_relance DATE",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS developpeur VARCHAR(200)",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS gestionnaire VARCHAR(200)",
         # Tables réclamations (sans FK pour éviter les erreurs de migration)

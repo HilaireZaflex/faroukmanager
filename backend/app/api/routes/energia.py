@@ -18,6 +18,29 @@ import string
 router = APIRouter()
 
 
+# Rôles qui voient TOUS les prospects Energia. Les autres (commerciaux,
+# développeurs, prospecteurs Energia) ne voient que les leurs.
+ROLES_ENCADREMENT = {
+    "admin", "manager", "rc", "conformite", "superviseur",
+    "responsable_produit_et_qualit_oprationnelle_",
+}
+
+
+def _role(user: User) -> str:
+    return str(getattr(user, "role", "")).replace("UserRole.", "").lower()
+
+
+def _voit_tout(user: User) -> bool:
+    return _role(user) in ROLES_ENCADREMENT
+
+
+def _portee(q, user: User):
+    """Restreint la requête aux prospects de l'utilisateur (hors encadrement)."""
+    if _voit_tout(user):
+        return q
+    return q.filter(ProspectEnergia.created_by == user.id)
+
+
 def _generate_ref() -> str:
     suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     return f"ENRG-{suffix}"
@@ -98,8 +121,8 @@ def list_energia_prospects(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Lister les prospects Energia avec filtres."""
-    q = db.query(ProspectEnergia)
+    """Lister les prospects Energia avec filtres (chacun ne voit que les siens)."""
+    q = _portee(db.query(ProspectEnergia), current_user)
     if nom_kit:
         q = q.filter(ProspectEnergia.nom_kit == nom_kit)
     if pret_payer is not None:
@@ -127,6 +150,8 @@ def get_energia_prospect(
     p = db.query(ProspectEnergia).filter(ProspectEnergia.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect Energia non trouvé")
+    if not _voit_tout(current_user) and p.created_by != current_user.id:
+        raise HTTPException(403, "Ce prospect appartient à un autre prospecteur.")
     return _fmt(p)
 
 
@@ -141,8 +166,52 @@ def update_energia_prospect(
     p = db.query(ProspectEnergia).filter(ProspectEnergia.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect Energia non trouvé")
+    if not _voit_tout(current_user) and p.created_by != current_user.id:
+        raise HTTPException(403, "Ce prospect appartient à un autre prospecteur.")
     for field, value in body.dict(exclude_unset=True).items():
         setattr(p, field, value)
+    db.commit()
+    db.refresh(p)
+    return _fmt(p)
+
+
+class EnergiaStatutIn(BaseModel):
+    statut: str                              # PROSPECT | INSTALLE | SUIVI
+    date_installation: Optional[date] = None
+    date_relance: Optional[date] = None
+    notes: Optional[str] = None
+
+
+STATUTS_ENERGIA = {"PROSPECT", "INSTALLE", "SUIVI"}
+
+
+@router.patch("/energia/prospects/{prospect_id}/statut")
+def changer_statut_energia(
+    prospect_id: int,
+    body: EnergiaStatutIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Marque un prospect comme installé ou en suivi (par son prospecteur)."""
+    p = db.query(ProspectEnergia).filter(ProspectEnergia.id == prospect_id).first()
+    if not p:
+        raise HTTPException(404, "Prospect Energia non trouvé")
+    if not _voit_tout(current_user) and p.created_by != current_user.id:
+        raise HTTPException(403, "Ce prospect appartient à un autre prospecteur.")
+
+    statut = (body.statut or "").upper()
+    if statut not in STATUTS_ENERGIA:
+        raise HTTPException(400, f"Statut invalide : {body.statut}")
+
+    p.statut = statut
+    if body.date_installation:
+        p.date_installation = body.date_installation
+    elif statut in ("INSTALLE", "SUIVI") and not p.date_installation:
+        p.date_installation = date.today()
+    if body.date_relance is not None:
+        p.date_relance = body.date_relance
+    if body.notes is not None:
+        p.notes = body.notes
     db.commit()
     db.refresh(p)
     return _fmt(p)
@@ -212,6 +281,8 @@ def delete_energia_prospect(
     p = db.query(ProspectEnergia).filter(ProspectEnergia.id == prospect_id).first()
     if not p:
         raise HTTPException(404, "Prospect Energia non trouvé")
+    if not _voit_tout(current_user) and p.created_by != current_user.id:
+        raise HTTPException(403, "Ce prospect appartient à un autre prospecteur.")
     db.delete(p)
     db.commit()
     return {"success": True}
@@ -222,17 +293,23 @@ def get_energia_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Statistiques globales Vente Energia."""
-    total = db.query(func.count(ProspectEnergia.id)).scalar()
-    diabarani = db.query(func.count(ProspectEnergia.id)).filter(ProspectEnergia.nom_kit == NomKitEnergia.DIABARANI).scalar()
-    yelen = db.query(func.count(ProspectEnergia.id)).filter(ProspectEnergia.nom_kit == NomKitEnergia.YELEN).scalar()
-    prets = db.query(func.count(ProspectEnergia.id)).filter(ProspectEnergia.pret_payer_immediatement == True).scalar()
+    """Statistiques Energia du périmètre de l'utilisateur."""
+    base = _portee(db.query(ProspectEnergia), current_user)
+    total = base.count()
+    diabarani = base.filter(ProspectEnergia.nom_kit == NomKitEnergia.DIABARANI).count()
+    yelen = base.filter(ProspectEnergia.nom_kit == NomKitEnergia.YELEN).count()
+    prets = base.filter(ProspectEnergia.pret_payer_immediatement == True).count()  # noqa: E712
+    installes = base.filter(ProspectEnergia.statut == "INSTALLE").count()
+    suivis = base.filter(ProspectEnergia.statut == "SUIVI").count()
     return {
         "total": total,
         "diabarani": diabarani,
         "yelen": yelen,
         "prets_payer": prets,
         "taux_pret": round(prets / total * 100, 1) if total else 0,
+        "installes": installes,
+        "suivis": suivis,
+        "a_installer": max(0, total - installes - suivis),
     }
 
 
@@ -253,6 +330,9 @@ def _fmt(p: ProspectEnergia) -> dict:
         "longitude": p.longitude,
         "piece_identite": p.piece_identite,
         "notes": p.notes,
+        "statut": p.statut or "PROSPECT",
+        "date_installation": p.date_installation.isoformat() if p.date_installation else None,
+        "date_relance": p.date_relance.isoformat() if p.date_relance else None,
         "created_by": p.created_by,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }

@@ -33,6 +33,7 @@ const FEATURES = [
     { id: 'menu_activations', label: 'Suivi des activations', sidebarKey: 'activations' },
     { id: 'menu_pdvs',        label: 'Points de Vente',      sidebarKey: 'pdvs' },
     { id: 'menu_prospection', label: 'Prospection OM',       sidebarKey: 'prospection' },
+    { id: 'menu_prospection_energia', label: 'Prospection ENERGIA', sidebarKey: 'prospection_energia' },
     { id: 'menu_indicateurs', label: 'Indicateurs',          sidebarKey: 'indicateurs' },
     { id: 'menu_commissions', label: 'Commissions',          sidebarKey: 'commissions' },
     { id: 'menu_evaluations', label: 'Évaluations',          sidebarKey: 'evaluations' },

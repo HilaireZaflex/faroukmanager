@@ -11,6 +11,7 @@ export const MENU_ROUTES = {
   formations:   ['/suivi-formation'],
   activations:  ['/activations'],
   prospection:  ['/prospection'],
+  prospection_energia: ['/prospection-energia'],
   evaluations:  ['/evaluations'],
   alerts:       ['/alerts'],
   indicateurs:  ['/indicateurs'],
@@ -114,8 +115,11 @@ const useAuthStore = create(
         if (menuId === 'suivi_tc' && permissions?.menus?.includes('suivi_tc')) return true;
         if (menuId === 'reclamations' && permissions?.menus?.includes('reclamations')) return true;
         if (role === 'admin') return true;
-        // Commerciaux et Développeurs : uniquement prospection
-        if (role === 'commercial') return menuId === 'prospection';
+        // Commerciaux : prospection, sauf permissions individuelles (ex. ENERGIA seul)
+        if (role === 'commercial') {
+          const menus = permissions?.menus || DEFAULT_MENUS;
+          return menus.includes(menuId);
+        }
         if (role === 'developpeur') return menuId === 'prospection';
         // Téléconseillères : uniquement les dashboards + pdvs
         if (role === 'teleconseillere') return ['pdvs'].includes(menuId);
