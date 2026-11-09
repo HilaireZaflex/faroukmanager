@@ -21,8 +21,8 @@ export const ONGLETS = {
   superviseur: [
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
     { to: '/m/pdv',          icon: '🏪', label: 'PDV' },
-    { to: '/m/prospection',  icon: '👥', label: 'Prospect' },
     { to: '/m/recuperation', icon: '🎯', label: 'Récupérer' },
+    { to: '/m/alertes',      icon: '🔔', label: 'Alertes' },
   ],
   developpeur: [
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
@@ -92,9 +92,15 @@ export default function MobileLayout({ children }) {
     if (v >= 1000) return `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} k`;
     return String(v);
   };
+  // Nombre d'alertes du réseau (superviseur) : pastille sur l'onglet Alertes.
+  const { data: alertesNav } = useQuery('m-nav-alertes',
+    () => api.get('/alerts/inactive').then(r => r.data).catch(() => null),
+    { enabled: groupe === 'superviseur', refetchInterval: 180000, staleTime: 120000 });
+  const nbAlertesNav = alertesNav?.pdvs?.length || 0;
+
   const pastille = (to) => {
     if (to === '/m/pdv' && statsNav?.total_pdvs) return nombreCompact(statsNav.total_pdvs);
-    if (to === '/m/reclamations') return null;
+    if (to === '/m/alertes' && nbAlertesNav) return nbAlertesNav > 99 ? '99+' : String(nbAlertesNav);
     return null;
   };
 

@@ -16,6 +16,7 @@ const fmtF = (v) => (v == null ? '—' : `${fmtN(v)} F`);
  */
 export default function MobileAccueil() {
   const user = useAuthStore(s => s.user);
+  const canAccessDash = useAuthStore(s => s.canAccessDash);
   const groupe = groupeRole(user?.role);
   const estTerrain = groupe === 'developpeur' || groupe === 'commercial';
 
@@ -139,6 +140,32 @@ export default function MobileAccueil() {
             <Kpi label="Actifs" to="/m/pdv?statut=ACTIF" icone="✅" valeur={fmtN(stats?.actifs)} couleur="#22c55e" />
             <Kpi label="Inactifs" to="/m/pdv?statut=INACTIF" icone="⚠️" valeur={fmtN(stats?.inactifs)} couleur="#ff4757" />
             <Kpi label="Récupération" to="/m/pdv?statut=RECUPERATION" icone="♻️" valeur={fmtN(stats?.en_recuperation)} couleur="#ffa502" />
+          </div>
+        </>
+      )}
+
+      {groupe === 'superviseur' && (
+        <>
+          <div className="m-section-title">📊 Mes dashboards</div>
+          <div className="m-tiles" style={{ marginBottom: 12 }}>
+            {canAccessDash('omy') && (
+              <Link to="/m/dashboard/omy" className="m-tile">
+                <span className="m-tile-ico">💸</span><span className="m-tile-lbl">OMY</span>
+              </Link>
+            )}
+            {canAccessDash('nafama') && (
+              <Link to="/m/dashboard/nafama" className="m-tile">
+                <span className="m-tile-ico">💰</span><span className="m-tile-lbl">NAFAMA</span>
+              </Link>
+            )}
+            {canAccessDash('kaabu') && (
+              <Link to="/m/dashboard/kaabu" className="m-tile">
+                <span className="m-tile-ico">📶</span><span className="m-tile-lbl">KAABU</span>
+              </Link>
+            )}
+            <Link to="/m/alertes" className="m-tile">
+              <span className="m-tile-ico">🔔</span><span className="m-tile-lbl">Alertes</span>
+            </Link>
           </div>
         </>
       )}
