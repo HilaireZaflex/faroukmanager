@@ -5,7 +5,10 @@ Prefix: /api/nafama
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.api.routes.auth import get_current_user
+from app.models.user import User
 from app.services import nafama_service
+from app.services.perimetre import numeros_pdv_autorises
 from typing import Optional
 import pandas as pd
 import io
@@ -33,9 +36,11 @@ def monthly_overview(
     annee: int = Query(...),
     mois: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Vue d'ensemble enrichie : KPIs + CA par superviseur/zone/gestionnaire + classement."""
-    return nafama_service.get_monthly_overview(db, annee, mois)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_overview(db, annee, mois, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/summary")
@@ -43,9 +48,11 @@ def monthly_summary(
     annee: int = Query(..., description="Année"),
     mois: int = Query(..., description="Mois (1-12)"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """KPIs principaux du mois : CA total, nb PDVs actifs, évolution vs mois précédent."""
-    return nafama_service.get_monthly_summary(db, annee, mois)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_summary(db, annee, mois, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/top")
@@ -54,21 +61,37 @@ def monthly_top(
     mois: int = Query(...),
     limit: int = Query(20, ge=5, le=200),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Top PDVs du mois par CA — enrichi avec infos PDV et évolution."""
-    return nafama_service.get_monthly_top_pdv(db, annee, mois, limit)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_top_pdv(db, annee, mois, limit, pdv_numeros=nums)
 
 
 @router.get("/nafama/pdv/{numero_pdv}/monthly-history")
-def pdv_monthly_history(numero_pdv: str, db: Session = Depends(get_db)):
+def pdv_monthly_history(
+    numero_pdv: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Historique mensuel d'un PDV NAFAMA (courbe d'évolution)."""
-    return nafama_service.get_pdv_monthly_history(db, numero_pdv)
+    nums = numeros_pdv_autorises(db, current_user)
+    if nums is not None and numero_pdv not in nums:
+        raise HTTPException(status_code=403, detail="PDV hors de votre périmètre")
+    return nafama_service.get_pdv_monthly_history(db, numero_pdv, pdv_numeros=nums)
 
 
 @router.get("/nafama/pdv/{numero_pdv}/weekly-history")
-def pdv_weekly_history(numero_pdv: str, db: Session = Depends(get_db)):
+def pdv_weekly_history(
+    numero_pdv: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Historique hebdomadaire d'un PDV NAFAMA (courbe d'évolution)."""
-    return nafama_service.get_pdv_weekly_history(db, numero_pdv)
+    nums = numeros_pdv_autorises(db, current_user)
+    if nums is not None and numero_pdv not in nums:
+        raise HTTPException(status_code=403, detail="PDV hors de votre périmètre")
+    return nafama_service.get_pdv_weekly_history(db, numero_pdv, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/pareto")
@@ -76,18 +99,22 @@ def monthly_pareto(
     annee: int = Query(...),
     mois: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Analyse Pareto mensuelle."""
-    return nafama_service.get_monthly_pareto(db, annee, mois)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_pareto(db, annee, mois, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/evolution")
 def monthly_evolution(
     annee: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Évolution CA mois par mois sur l'année."""
-    return nafama_service.get_monthly_evolution(db, annee)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_evolution(db, annee, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/evolution-detail")
@@ -95,9 +122,11 @@ def monthly_evolution_detail(
     annee: int = Query(...),
     mois: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Évolution détaillée mensuelle : CA actuel vs M-1 par PDV/superviseur/gestionnaire."""
-    return nafama_service.get_monthly_evolution_detail(db, annee, mois)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_evolution_detail(db, annee, mois, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/inactive")
@@ -105,27 +134,33 @@ def monthly_inactive(
     annee: int = Query(...),
     mois: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """PDVs inactifs ce mois (actifs le mois précédent)."""
-    return nafama_service.get_monthly_inactive_pdv(db, annee, mois)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_inactive_pdv(db, annee, mois, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/progression")
 def monthly_progression(
     annee: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Historique mensuel complet de tous les PDVs NAFAMA pour l'année."""
-    return nafama_service.get_monthly_progression(db, annee)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_progression(db, annee, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/progression")
 def weekly_progression(
     annee: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Historique hebdomadaire complet de tous les PDVs NAFAMA pour l'année."""
-    return nafama_service.get_weekly_progression(db, annee)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_progression(db, annee, pdv_numeros=nums)
 
 
 @router.get("/nafama/monthly/comparaison")
@@ -134,11 +169,15 @@ def monthly_comparaison(
     annee_ref: int = Query(...),
     mois_list: str = Query(..., description="Mois à comparer, ex: '2026-07,2026-08,2026-09'"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Comparaison multi-mois des PDVs NAFAMA avec alertes et plan d'action."""
     from app.models.nafama import NafamaTransaction
     from app.models.pdv import PDV
     from sqlalchemy import func
+
+    # Périmètre de PDV de l'utilisateur (None = tout le réseau)
+    nums = numeros_pdv_autorises(db, current_user)
 
     # Parser les mois à comparer
     mois_comp = []
@@ -157,13 +196,16 @@ def monthly_comparaison(
     mois_data = {}
     for (ann, mo) in tous_mois:
         key = f"{ann}-{mo:02d}"
-        rows = db.query(
+        q = db.query(
             NafamaTransaction.numero_pdv,
             func.sum(NafamaTransaction.montant).label("ca")
         ).filter(
             NafamaTransaction.annee == ann,
             NafamaTransaction.mois == mo
-        ).group_by(NafamaTransaction.numero_pdv).all()
+        )
+        if nums is not None:
+            q = q.filter(NafamaTransaction.numero_pdv.in_(nums))
+        rows = q.group_by(NafamaTransaction.numero_pdv).all()
         mois_data[key] = {row.numero_pdv: int(row.ca) for row in rows}
 
     # Tous les PDVs présents dans au moins un mois
@@ -257,9 +299,11 @@ def monthly_declining(
     mois: int = Query(...),
     seuil: float = Query(-20.0, description="Seuil de baisse en % (ex: -20)"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """PDVs en baisse significative vs mois précédent."""
-    return nafama_service.get_monthly_declining_pdv(db, annee, mois, seuil)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_monthly_declining_pdv(db, annee, mois, seuil, pdv_numeros=nums)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -271,9 +315,11 @@ def weekly_overview(
     annee: int = Query(...),
     semaine: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Vue d'ensemble hebdo enrichie : KPIs + zones + superviseurs + classement."""
-    return nafama_service.get_weekly_overview(db, annee, semaine)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_overview(db, annee, semaine, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/summary")
@@ -281,9 +327,11 @@ def weekly_summary(
     annee: int = Query(...),
     semaine: int = Query(..., description="Numéro de semaine ISO (ex: 14)"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """KPIs principaux de la semaine."""
-    return nafama_service.get_weekly_summary(db, annee, semaine)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_summary(db, annee, semaine, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/top")
@@ -292,9 +340,11 @@ def weekly_top(
     semaine: int = Query(...),
     limit: int = Query(20, ge=5, le=200),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Top PDVs de la semaine par CA — enrichi avec infos PDV et évolution."""
-    return nafama_service.get_weekly_top_pdv(db, annee, semaine, limit)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_top_pdv(db, annee, semaine, limit, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/pareto")
@@ -302,18 +352,22 @@ def weekly_pareto(
     annee: int = Query(...),
     semaine: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Pareto hebdomadaire."""
-    return nafama_service.get_weekly_pareto(db, annee, semaine)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_pareto(db, annee, semaine, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/evolution")
 def weekly_evolution(
     annee: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Évolution CA semaine par semaine."""
-    return nafama_service.get_weekly_evolution(db, annee)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_evolution(db, annee, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/evolution-detail")
@@ -321,9 +375,11 @@ def weekly_evolution_detail(
     annee: int = Query(...),
     semaine: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Évolution détaillée hebdomadaire : CA actuel vs S-1 par PDV/superviseur/gestionnaire."""
-    return nafama_service.get_weekly_evolution_detail(db, annee, semaine)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_evolution_detail(db, annee, semaine, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/inactive")
@@ -331,9 +387,11 @@ def weekly_inactive(
     annee: int = Query(...),
     semaine: int = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """PDVs inactifs cette semaine."""
-    return nafama_service.get_weekly_inactive_pdv(db, annee, semaine)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_inactive_pdv(db, annee, semaine, pdv_numeros=nums)
 
 
 @router.get("/nafama/weekly/declining")
@@ -342,9 +400,11 @@ def weekly_declining(
     semaine: int = Query(...),
     seuil: float = Query(-20.0),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """PDVs en baisse vs semaine précédente."""
-    return nafama_service.get_weekly_declining_pdv(db, annee, semaine, seuil)
+    nums = numeros_pdv_autorises(db, current_user)
+    return nafama_service.get_weekly_declining_pdv(db, annee, semaine, seuil, pdv_numeros=nums)
 
 
 # ─────────────────────────────────────────────────────────────

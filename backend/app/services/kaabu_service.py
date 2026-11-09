@@ -2,7 +2,7 @@
 Service KAABU Mobile — Toute la logique métier pour les dashboards hebdo.
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import func, distinct, case
+from sqlalchemy import func, distinct, case, false
 from app.models.kaabu import KaabuTransaction
 from typing import List, Dict, Any, Optional
 import os
@@ -12,6 +12,28 @@ import os
 
 def _pct(a, b): return round(a / b * 100, 1) if b else 0
 def _taux(op, total): return round(op / total, 4) if total else 0
+
+
+def _filtrer_superviseur(query, superviseur: Optional[str] = None):
+    """Restreint une query KAABU au périmètre d'un superviseur.
+
+    KAABU porte sa propre colonne `superviseur` (pas besoin de joindre PDV).
+    - `None` → aucune restriction : comportement historique inchangé
+      (admin, manager, rc, conformité) ;
+    - nom    → uniquement les lignes de ce superviseur. La comparaison est
+      insensible à la casse et aux espaces de bord, car les fichiers importés
+      écrivent souvent le nom en MAJUSCULES alors que le compte utilisateur,
+      lui, est saisi normalement.
+    """
+    if superviseur is None:
+        return query
+    nom = str(superviseur).strip()
+    if not nom:
+        # Nom vide → aucun résultat (et surtout pas les lignes sans superviseur).
+        return query.filter(false())
+    return query.filter(
+        func.lower(func.trim(KaabuTransaction.superviseur)) == nom.lower()
+    )
 
 
 import datetime
@@ -89,11 +111,16 @@ def get_available_periods(db: Session) -> Dict[str, Any]:
 
 # ─── VUE D'ENSEMBLE ───────────────────────────────────────────────────────────
 
-def get_vue_ensemble(db: Session, annee: int, semaine: str) -> Dict[str, Any]:
+def get_vue_ensemble(
+    db: Session, annee: int, semaine: str, *, superviseur: Optional[str] = None
+) -> Dict[str, Any]:
     """KPIs globaux pour une semaine donnée."""
-    rows = db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine == semaine
+    rows = _filtrer_superviseur(
+        db.query(KaabuTransaction).filter(
+            KaabuTransaction.annee == annee,
+            KaabuTransaction.semaine == semaine
+        ),
+        superviseur,
     ).all()
 
     if not rows:
@@ -124,9 +151,12 @@ def get_vue_ensemble(db: Session, annee: int, semaine: str) -> Dict[str, Any]:
     montant_prec = 0
     actifs_prec = 0
     if prev_sem:
-        rows_prec = db.query(KaabuTransaction).filter(
-            KaabuTransaction.annee == annee,
-            KaabuTransaction.semaine == prev_sem
+        rows_prec = _filtrer_superviseur(
+            db.query(KaabuTransaction).filter(
+                KaabuTransaction.annee == annee,
+                KaabuTransaction.semaine == prev_sem
+            ),
+            superviseur,
         ).all()
         volume_prec = sum(r.volume_kaabu or 0 for r in rows_prec)
         montant_prec = sum(r.montant_global or 0 for r in rows_prec)
@@ -170,8 +200,10 @@ def get_vue_ensemble(db: Session, annee: int, semaine: str) -> Dict[str, Any]:
 
 # ─── PAR SUPERVISEUR ──────────────────────────────────────────────────────────
 
-def get_par_superviseur(db: Session, annee: int, semaine: str) -> List[Dict]:
-    rows = (
+def get_par_superviseur(
+    db: Session, annee: int, semaine: str, *, superviseur: Optional[str] = None
+) -> List[Dict]:
+    rows = _filtrer_superviseur(
         db.query(
             KaabuTransaction.superviseur,
             func.count(distinct(KaabuTransaction.numero_pdv)).label("total_pdv"),
@@ -181,9 +213,9 @@ def get_par_superviseur(db: Session, annee: int, semaine: str) -> List[Dict]:
         )
         .filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine == semaine)
         .group_by(KaabuTransaction.superviseur)
-        .order_by(func.sum(KaabuTransaction.montant_global).desc())
-        .all()
-    )
+        .order_by(func.sum(KaabuTransaction.montant_global).desc()),
+        superviseur,
+    ).all()
     total_montant = sum(r.montant or 0 for r in rows) or 1
     result = []
     for i, r in enumerate(rows):
@@ -206,8 +238,10 @@ def get_par_superviseur(db: Session, annee: int, semaine: str) -> List[Dict]:
 
 # ─── PAR GESTIONNAIRE (Groupes) ───────────────────────────────────────────────
 
-def get_par_gestionnaire(db: Session, annee: int, semaine: str) -> List[Dict]:
-    rows = (
+def get_par_gestionnaire(
+    db: Session, annee: int, semaine: str, *, superviseur: Optional[str] = None
+) -> List[Dict]:
+    rows = _filtrer_superviseur(
         db.query(
             KaabuTransaction.groupe,
             func.count(distinct(KaabuTransaction.numero_pdv)).label("total_pdv"),
@@ -217,9 +251,9 @@ def get_par_gestionnaire(db: Session, annee: int, semaine: str) -> List[Dict]:
         )
         .filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine == semaine)
         .group_by(KaabuTransaction.groupe)
-        .order_by(func.sum(KaabuTransaction.montant_global).desc())
-        .all()
-    )
+        .order_by(func.sum(KaabuTransaction.montant_global).desc()),
+        superviseur,
+    ).all()
     total_montant = sum(r.montant or 0 for r in rows) or 1
     result = []
     for i, r in enumerate(rows):
@@ -242,8 +276,10 @@ def get_par_gestionnaire(db: Session, annee: int, semaine: str) -> List[Dict]:
 
 # ─── PAR COACH ────────────────────────────────────────────────────────────────
 
-def get_par_coach(db: Session, annee: int, semaine: str) -> List[Dict]:
-    rows = (
+def get_par_coach(
+    db: Session, annee: int, semaine: str, *, superviseur: Optional[str] = None
+) -> List[Dict]:
+    rows = _filtrer_superviseur(
         db.query(
             KaabuTransaction.coach_distri,
             func.count(distinct(KaabuTransaction.numero_pdv)).label("total_pdv"),
@@ -254,9 +290,9 @@ def get_par_coach(db: Session, annee: int, semaine: str) -> List[Dict]:
         .filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine == semaine,
                 KaabuTransaction.coach_distri.isnot(None))
         .group_by(KaabuTransaction.coach_distri)
-        .order_by(func.sum(KaabuTransaction.montant_global).desc())
-        .all()
-    )
+        .order_by(func.sum(KaabuTransaction.montant_global).desc()),
+        superviseur,
+    ).all()
     total_montant = sum(r.montant or 0 for r in rows) or 1
     result = []
     for i, r in enumerate(rows):
@@ -278,8 +314,10 @@ def get_par_coach(db: Session, annee: int, semaine: str) -> List[Dict]:
 
 # ─── PAR TÉLÉCONSEILLÈRE ──────────────────────────────────────────────────────
 
-def get_par_teleconseillere(db: Session, annee: int, semaine: str) -> List[Dict]:
-    rows = (
+def get_par_teleconseillere(
+    db: Session, annee: int, semaine: str, *, superviseur: Optional[str] = None
+) -> List[Dict]:
+    rows = _filtrer_superviseur(
         db.query(
             KaabuTransaction.teleconseillere,
             func.count(distinct(KaabuTransaction.numero_pdv)).label("total_pdv"),
@@ -290,9 +328,9 @@ def get_par_teleconseillere(db: Session, annee: int, semaine: str) -> List[Dict]
         .filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine == semaine,
                 KaabuTransaction.teleconseillere.isnot(None))
         .group_by(KaabuTransaction.teleconseillere)
-        .order_by(func.sum(KaabuTransaction.montant_global).desc())
-        .all()
-    )
+        .order_by(func.sum(KaabuTransaction.montant_global).desc()),
+        superviseur,
+    ).all()
     total_montant = sum(r.montant or 0 for r in rows) or 1
     result = []
     for i, r in enumerate(rows):
@@ -315,8 +353,10 @@ def get_par_teleconseillere(db: Session, annee: int, semaine: str) -> List[Dict]
 
 # ─── PAR DÉVELOPPEUR ──────────────────────────────────────────────────────────
 
-def get_par_developpeur(db: Session, annee: int, semaine: str) -> List[Dict]:
-    rows = (
+def get_par_developpeur(
+    db: Session, annee: int, semaine: str, *, superviseur: Optional[str] = None
+) -> List[Dict]:
+    rows = _filtrer_superviseur(
         db.query(
             KaabuTransaction.developpeur,
             func.count(distinct(KaabuTransaction.numero_pdv)).label("total_pdv"),
@@ -327,9 +367,9 @@ def get_par_developpeur(db: Session, annee: int, semaine: str) -> List[Dict]:
         .filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine == semaine,
                 KaabuTransaction.developpeur.isnot(None))
         .group_by(KaabuTransaction.developpeur)
-        .order_by(func.sum(KaabuTransaction.montant_global).desc())
-        .all()
-    )
+        .order_by(func.sum(KaabuTransaction.montant_global).desc()),
+        superviseur,
+    ).all()
     total_montant = sum(r.montant or 0 for r in rows) or 1
     result = []
     for i, r in enumerate(rows):
@@ -351,17 +391,19 @@ def get_par_developpeur(db: Session, annee: int, semaine: str) -> List[Dict]:
 
 # ─── HORS ZONE / BITTARD ──────────────────────────────────────────────────────
 
-def get_hors_zone(db: Session, annee: int, semaine: str) -> Dict[str, Any]:
-    rows = (
+def get_hors_zone(
+    db: Session, annee: int, semaine: str, *, superviseur: Optional[str] = None
+) -> Dict[str, Any]:
+    rows = _filtrer_superviseur(
         db.query(KaabuTransaction)
         .filter(
             KaabuTransaction.annee == annee,
             KaabuTransaction.semaine == semaine,
             KaabuTransaction.est_hors_zone == 1,
         )
-        .order_by(KaabuTransaction.montant_global.desc())
-        .all()
-    )
+        .order_by(KaabuTransaction.montant_global.desc()),
+        superviseur,
+    ).all()
     # Regrouper par agent hors zone
     par_agent = {}
     for r in rows:
@@ -398,18 +440,24 @@ def get_hors_zone(db: Session, annee: int, semaine: str) -> Dict[str, Any]:
 
 # ─── PDVs INACTIFS ────────────────────────────────────────────────────────────
 
-def _population_kaabu(db: Session, annee: int) -> set:
+def _population_kaabu(db: Session, annee: int, superviseur: Optional[str] = None) -> set:
     """PDV connus de KAABU sur l'année (apparus au moins une semaine)."""
-    return {r[0] for r in db.query(KaabuTransaction.numero_pdv).filter(
-        KaabuTransaction.annee == annee
+    return {r[0] for r in _filtrer_superviseur(
+        db.query(KaabuTransaction.numero_pdv).filter(
+            KaabuTransaction.annee == annee
+        ),
+        superviseur,
     ).distinct().all() if r[0]}
 
 
-def _infos_pdv_recent(db: Session, annee: int) -> Dict[str, Any]:
+def _infos_pdv_recent(db: Session, annee: int, superviseur: Optional[str] = None) -> Dict[str, Any]:
     """Dernière ligne connue par PDV (sert à afficher un PDV inactif)."""
-    rows = (db.query(KaabuTransaction)
-            .filter(KaabuTransaction.annee == annee)
-            .order_by(KaabuTransaction.semaine).all())
+    rows = _filtrer_superviseur(
+        db.query(KaabuTransaction)
+        .filter(KaabuTransaction.annee == annee)
+        .order_by(KaabuTransaction.semaine),
+        superviseur,
+    ).all()
     info: Dict[str, Any] = {}
     for r in rows:
         info[r.numero_pdv] = r
@@ -417,7 +465,8 @@ def _infos_pdv_recent(db: Session, annee: int) -> Dict[str, Any]:
 
 
 def _pdvs_inactifs(db: Session, annee: int, semaines: List[str],
-                   teleconseillere: Optional[str] = None) -> List[Any]:
+                   teleconseillere: Optional[str] = None,
+                   superviseur: Optional[str] = None) -> List[Any]:
     """PDV inactifs sur une période.
 
     Un PDV est inactif s'il fait partie de la population KAABU de l'année mais
@@ -429,14 +478,17 @@ def _pdvs_inactifs(db: Session, annee: int, semaines: List[str],
       - nouveau format 'ACTIFS KM' : la feuille ne contient que des PDV actifs,
         donc les inactifs sont les PDV du référentiel ABSENTS de la semaine.
     """
-    population = _population_kaabu(db, annee)
-    actifs = {r[0] for r in db.query(KaabuTransaction.numero_pdv).filter(
-        KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine.in_(semaines),
-        KaabuTransaction.est_actif == 1,
+    population = _population_kaabu(db, annee, superviseur=superviseur)
+    actifs = {r[0] for r in _filtrer_superviseur(
+        db.query(KaabuTransaction.numero_pdv).filter(
+            KaabuTransaction.annee == annee,
+            KaabuTransaction.semaine.in_(semaines),
+            KaabuTransaction.est_actif == 1,
+        ),
+        superviseur,
     ).distinct().all() if r[0]}
 
-    info = _infos_pdv_recent(db, annee)
+    info = _infos_pdv_recent(db, annee, superviseur=superviseur)
     result = []
     for num in sorted(population - actifs):
         r = info.get(num)
@@ -448,7 +500,10 @@ def _pdvs_inactifs(db: Session, annee: int, semaines: List[str],
     return result
 
 
-def get_inactifs(db: Session, annee: int, semaine: str, teleconseillere: Optional[str] = None) -> Dict[str, Any]:
+def get_inactifs(
+    db: Session, annee: int, semaine: str, teleconseillere: Optional[str] = None, *,
+    superviseur: Optional[str] = None,
+) -> Dict[str, Any]:
     # Semaine précédente (pour afficher le dernier volume connu)
     all_sems = [r[0] for r in db.query(KaabuTransaction.semaine).filter(
         KaabuTransaction.annee == annee
@@ -461,13 +516,16 @@ def get_inactifs(db: Session, annee: int, semaine: str, teleconseillere: Optiona
 
     prev_data = {}
     if prev_sem:
-        prev_rows = db.query(KaabuTransaction).filter(
-            KaabuTransaction.annee == annee,
-            KaabuTransaction.semaine == prev_sem,
+        prev_rows = _filtrer_superviseur(
+            db.query(KaabuTransaction).filter(
+                KaabuTransaction.annee == annee,
+                KaabuTransaction.semaine == prev_sem,
+            ),
+            superviseur,
         ).all()
         prev_data = {r.numero_pdv: r for r in prev_rows}
 
-    rows = _pdvs_inactifs(db, annee, [semaine], teleconseillere)
+    rows = _pdvs_inactifs(db, annee, [semaine], teleconseillere, superviseur=superviseur)
     # tri par superviseur puis numéro, comme avant
     rows.sort(key=lambda r: ((r.superviseur or ''), r.numero_pdv))
 
@@ -501,7 +559,10 @@ def get_inactifs(db: Session, annee: int, semaine: str, teleconseillere: Optiona
 
 # ─── PDVs EN BAISSE ───────────────────────────────────────────────────────────
 
-def get_en_baisse(db: Session, annee: int, semaine: str, seuil_pct: float = -20.0, teleconseillere: Optional[str] = None) -> Dict[str, Any]:
+def get_en_baisse(
+    db: Session, annee: int, semaine: str, seuil_pct: float = -20.0,
+    teleconseillere: Optional[str] = None, *, superviseur: Optional[str] = None,
+) -> Dict[str, Any]:
     # Semaine précédente
     all_sems = [r[0] for r in db.query(KaabuTransaction.semaine).filter(
         KaabuTransaction.annee == annee
@@ -516,20 +577,26 @@ def get_en_baisse(db: Session, annee: int, semaine: str, seuil_pct: float = -20.
         return {"total": 0, "pdvs": [], "seuil": seuil_pct}
 
     # PDVs actifs cette semaine
-    q_curr = db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine == semaine,
-        KaabuTransaction.est_actif == 1,
+    q_curr = _filtrer_superviseur(
+        db.query(KaabuTransaction).filter(
+            KaabuTransaction.annee == annee,
+            KaabuTransaction.semaine == semaine,
+            KaabuTransaction.est_actif == 1,
+        ),
+        superviseur,
     )
     if teleconseillere:
         q_curr = q_curr.filter(KaabuTransaction.teleconseillere.ilike(f"%{teleconseillere}%"))
     curr_rows = {r.numero_pdv: r for r in q_curr.all()}
 
     # PDVs précédents
-    prev_rows = {r.numero_pdv: r for r in db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine == prev_sem,
-        KaabuTransaction.est_actif == 1,
+    prev_rows = {r.numero_pdv: r for r in _filtrer_superviseur(
+        db.query(KaabuTransaction).filter(
+            KaabuTransaction.annee == annee,
+            KaabuTransaction.semaine == prev_sem,
+            KaabuTransaction.est_actif == 1,
+        ),
+        superviseur,
     ).all()}
 
     declining = []
@@ -576,8 +643,10 @@ def get_en_baisse(db: Session, annee: int, semaine: str, seuil_pct: float = -20.
 
 # ─── ÉVOLUTION MULTI-SEMAINES ─────────────────────────────────────────────────
 
-def get_evolution(db: Session, annee: int) -> List[Dict]:
-    rows = (
+def get_evolution(
+    db: Session, annee: int, *, superviseur: Optional[str] = None
+) -> List[Dict]:
+    rows = _filtrer_superviseur(
         db.query(
             KaabuTransaction.semaine,
             func.count(distinct(KaabuTransaction.numero_pdv)).label("total_pdv"),
@@ -587,9 +656,9 @@ def get_evolution(db: Session, annee: int) -> List[Dict]:
         )
         .filter(KaabuTransaction.annee == annee)
         .group_by(KaabuTransaction.semaine)
-        .order_by(KaabuTransaction.semaine)
-        .all()
-    )
+        .order_by(KaabuTransaction.semaine),
+        superviseur,
+    ).all()
     return [
         {
             "semaine": r.semaine,
@@ -611,13 +680,18 @@ def _get_semaines_filter(db, annee, mois):
     return sems
 
 
-def get_vue_ensemble_mensuel(db: Session, annee: int, mois: int) -> Dict[str, Any]:
+def get_vue_ensemble_mensuel(
+    db: Session, annee: int, mois: int, *, superviseur: Optional[str] = None
+) -> Dict[str, Any]:
     sems = _get_semaines_du_mois(db, annee, mois)
     if not sems:
         return {"annee": annee, "mois": mois, "total_pdv": 0}
-    rows = db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine.in_(sems)
+    rows = _filtrer_superviseur(
+        db.query(KaabuTransaction).filter(
+            KaabuTransaction.annee == annee,
+            KaabuTransaction.semaine.in_(sems)
+        ),
+        superviseur,
     ).all()
     pdvs = set(r.numero_pdv for r in rows)
     actifs_pdvs = set(r.numero_pdv for r in rows if r.est_actif)
@@ -632,9 +706,12 @@ def get_vue_ensemble_mensuel(db: Session, annee: int, mois: int) -> Dict[str, An
     prev_mois = mois - 1 if mois > 1 else 12
     prev_annee = annee if mois > 1 else annee - 1
     sems_prec = _get_semaines_du_mois(db, prev_annee, prev_mois)
-    rows_prec = db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == prev_annee,
-        KaabuTransaction.semaine.in_(sems_prec)
+    rows_prec = _filtrer_superviseur(
+        db.query(KaabuTransaction).filter(
+            KaabuTransaction.annee == prev_annee,
+            KaabuTransaction.semaine.in_(sems_prec)
+        ),
+        superviseur,
     ).all() if sems_prec else []
     vol_prec = sum(r.volume_kaabu or 0 for r in rows_prec)
     mnt_prec = sum(r.montant_global or 0 for r in rows_prec)
@@ -667,14 +744,14 @@ def get_vue_ensemble_mensuel(db: Session, annee: int, mois: int) -> Dict[str, An
     }
 
 
-def _classement_mensuel(db, annee, mois, col_name):
+def _classement_mensuel(db, annee, mois, col_name, superviseur: Optional[str] = None):
     """Classement générique par colonne pour les données mensuelles."""
     sems = _get_semaines_du_mois(db, annee, mois)
     if not sems:
         return []
     from sqlalchemy import func, distinct, case
     col = getattr(KaabuTransaction, col_name)
-    rows = (
+    rows = _filtrer_superviseur(
         db.query(
             col,
             func.count(distinct(KaabuTransaction.numero_pdv)).label("total_pdv"),
@@ -684,9 +761,9 @@ def _classement_mensuel(db, annee, mois, col_name):
         )
         .filter(KaabuTransaction.annee == annee, KaabuTransaction.semaine.in_(sems), col.isnot(None))
         .group_by(col)
-        .order_by(func.sum(KaabuTransaction.montant_global).desc())
-        .all()
-    )
+        .order_by(func.sum(KaabuTransaction.montant_global).desc()),
+        superviseur,
+    ).all()
     total_montant = sum(r.montant or 0 for r in rows) or 1
     result = []
     for i, r in enumerate(rows):
@@ -697,23 +774,31 @@ def _classement_mensuel(db, annee, mois, col_name):
     return result
 
 
-def get_par_superviseur_mensuel(db, annee, mois): return _classement_mensuel(db, annee, mois, "superviseur")
-def get_par_gestionnaire_mensuel(db, annee, mois): return _classement_mensuel(db, annee, mois, "groupe")
-def get_par_coach_mensuel(db, annee, mois): return _classement_mensuel(db, annee, mois, "coach_distri")
-def get_par_teleconseillere_mensuel(db, annee, mois): return _classement_mensuel(db, annee, mois, "teleconseillere")
-def get_par_developpeur_mensuel(db, annee, mois): return _classement_mensuel(db, annee, mois, "developpeur")
+def get_par_superviseur_mensuel(db, annee, mois, superviseur=None):
+    return _classement_mensuel(db, annee, mois, "superviseur", superviseur=superviseur)
+def get_par_gestionnaire_mensuel(db, annee, mois, superviseur=None):
+    return _classement_mensuel(db, annee, mois, "groupe", superviseur=superviseur)
+def get_par_coach_mensuel(db, annee, mois, superviseur=None):
+    return _classement_mensuel(db, annee, mois, "coach_distri", superviseur=superviseur)
+def get_par_teleconseillere_mensuel(db, annee, mois, superviseur=None):
+    return _classement_mensuel(db, annee, mois, "teleconseillere", superviseur=superviseur)
+def get_par_developpeur_mensuel(db, annee, mois, superviseur=None):
+    return _classement_mensuel(db, annee, mois, "developpeur", superviseur=superviseur)
 
 
-def get_hors_zone_mensuel(db, annee, mois):
+def get_hors_zone_mensuel(db, annee, mois, superviseur=None):
     sems = _get_semaines_du_mois(db, annee, mois)
     if not sems:
         return {"total_pdv": 0, "par_agent": []}
     # Réutiliser la logique hebdo mais pour toutes les semaines du mois
-    rows = (db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == annee,
-        KaabuTransaction.semaine.in_(sems),
-        KaabuTransaction.est_hors_zone == 1,
-    ).order_by(KaabuTransaction.montant_global.desc()).all())
+    rows = _filtrer_superviseur(
+        db.query(KaabuTransaction).filter(
+            KaabuTransaction.annee == annee,
+            KaabuTransaction.semaine.in_(sems),
+            KaabuTransaction.est_hors_zone == 1,
+        ).order_by(KaabuTransaction.montant_global.desc()),
+        superviseur,
+    ).all()
     par_agent = {}
     for r in rows:
         agent = r.agent_operation_speciale or r.developpeur or "—"
@@ -730,13 +815,13 @@ def get_hors_zone_mensuel(db, annee, mois):
             "par_agent": agents}
 
 
-def get_inactifs_mensuel(db, annee, mois, teleconseillere=None):
+def get_inactifs_mensuel(db, annee, mois, teleconseillere=None, superviseur=None):
     sems = _get_semaines_du_mois(db, annee, mois)
     if not sems:
         return {"total": 0, "pdvs": []}
     # Même règle que l'hebdomadaire : inactif = PDV de la population KAABU
     # de l'année sans aucune activité sur le mois.
-    rows = _pdvs_inactifs(db, annee, sems, teleconseillere)
+    rows = _pdvs_inactifs(db, annee, sems, teleconseillere, superviseur=superviseur)
     rows.sort(key=lambda r: ((r.superviseur or ''), r.numero_pdv))
     pdvs = [{"numero_pdv": r.numero_pdv, "login": r.login, "superviseur": r.superviseur,
              "groupe": r.groupe, "teleconseillere": r.teleconseillere, "localite": r.localite,
@@ -745,7 +830,7 @@ def get_inactifs_mensuel(db, annee, mois, teleconseillere=None):
     return {"total": len(pdvs), "mois": mois, "annee": annee, "pdvs": pdvs}
 
 
-def get_en_baisse_mensuel(db, annee, mois, seuil_pct=-20.0, teleconseillere=None):
+def get_en_baisse_mensuel(db, annee, mois, seuil_pct=-20.0, teleconseillere=None, superviseur=None):
     sems = _get_semaines_du_mois(db, annee, mois)
     prev_mois = mois - 1 if mois > 1 else 12; prev_annee = annee if mois > 1 else annee - 1
     sems_prec = _get_semaines_du_mois(db, prev_annee, prev_mois)
@@ -754,16 +839,22 @@ def get_en_baisse_mensuel(db, annee, mois, seuil_pct=-20.0, teleconseillere=None
     from sqlalchemy import func, distinct
 
     def _vol_par_pdv(sems_list, an):
-        return {r[0]: int(r[1]) for r in db.query(KaabuTransaction.numero_pdv, func.sum(KaabuTransaction.volume_kaabu))
-                .filter(KaabuTransaction.annee == an, KaabuTransaction.semaine.in_(sems_list), KaabuTransaction.est_actif == 1)
-                .group_by(KaabuTransaction.numero_pdv).all()}
+        return {r[0]: int(r[1]) for r in _filtrer_superviseur(
+            db.query(KaabuTransaction.numero_pdv, func.sum(KaabuTransaction.volume_kaabu))
+            .filter(KaabuTransaction.annee == an, KaabuTransaction.semaine.in_(sems_list), KaabuTransaction.est_actif == 1)
+            .group_by(KaabuTransaction.numero_pdv),
+            superviseur,
+        ).all()}
 
     curr_vol = _vol_par_pdv(sems, annee)
     prec_vol = _vol_par_pdv(sems_prec, prev_annee)
 
     # Infos PDV
-    infos = {r.numero_pdv: r for r in db.query(KaabuTransaction).filter(
-        KaabuTransaction.annee == annee, KaabuTransaction.semaine.in_(sems[:1])).all()}
+    infos = {r.numero_pdv: r for r in _filtrer_superviseur(
+        db.query(KaabuTransaction).filter(
+            KaabuTransaction.annee == annee, KaabuTransaction.semaine.in_(sems[:1])),
+        superviseur,
+    ).all()}
 
     declining = []
     for pdv, vol in curr_vol.items():
