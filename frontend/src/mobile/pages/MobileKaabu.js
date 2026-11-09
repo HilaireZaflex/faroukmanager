@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from 'react-query';
 import api from '../../services/api';
-import { fmtN, fmtCourt, fmtPct } from '../format';
+import { fmtN, fmtCourt, fmtPct, MOIS } from '../format';
 import { Hero, Kpi, Bloc, Barres, Chargement, Erreur } from '../ui';
 
 const ONGLETS = [
@@ -34,15 +34,15 @@ export default function MobileKaabu() {
   const base = estMensuel ? '/kaabu/mensuel' : '/kaabu';
   const params = estMensuel ? { annee, mois } : { annee, semaine };
 
-  const { data, isLoading, isError } = useQuery(['m-kaabu', annee, semaine],
+  const { data, isLoading, isError } = useQuery(['m-kaabu', mode, annee, semaine, mois],
     () => api.get(`${base}/vue-ensemble`, { params }).then(r => r.data),
     { enabled: estMensuel || Boolean(semaine), staleTime: 120000 });
 
-  const { data: inactifs } = useQuery(['m-kaabu-inactifs', annee, semaine],
+  const { data: inactifs } = useQuery(['m-kaabu-inactifs', mode, annee, semaine, mois],
     () => api.get(`${base}/inactifs`, { params }).then(r => r.data),
     { enabled: onglet === 'inactifs' && (estMensuel || Boolean(semaine)), staleTime: 120000 });
 
-  const { data: baisse } = useQuery(['m-kaabu-baisse', annee, semaine],
+  const { data: baisse } = useQuery(['m-kaabu-baisse', mode, annee, semaine, mois],
     () => api.get(`${base}/en-baisse`, { params: { ...params, seuil: -10 } }).then(r => r.data),
     { enabled: onglet === 'baisse' && (estMensuel || Boolean(semaine)), staleTime: 120000 });
 
@@ -63,7 +63,7 @@ export default function MobileKaabu() {
             <button className="m-chip" onClick={() => (estMensuel ? setMois(m => Math.max(1, m - 1)) : setIndex(i => Math.max(0, (i ?? 0) - 1)))}
               disabled={!estMensuel && !index} style={{ padding: '6px 10px', opacity: (!estMensuel && !index) ? 0.4 : 1 }}>‹</button>
             <div style={{ textAlign: 'center', minWidth: 80 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{estMensuel ? `Mois ${mois}` : (semaine || '—')}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{estMensuel ? MOIS[mois] : (semaine || '—')}</div>
               <div style={{ fontSize: 10.5, color: 'var(--fm-muted)' }}>{annee}</div>
             </div>
             <button className="m-chip" onClick={() => (estMensuel ? setMois(m => Math.min(12, m + 1)) : setIndex(i => Math.min(periodes.length - 1, (i ?? 0) + 1)))}
