@@ -8,7 +8,7 @@ import { fmtN, libelleStatut, classeStatut, nomComplet } from '../format';
 const FILTRES = [
   { id: 'TOUS',         label: 'Tous',         icone: '▦', couleur: '#FF6900' },
   { id: 'ACTIF',        label: 'Actifs',       icone: '✓', couleur: '#22c55e' },
-  { id: 'RECUPERATION', label: 'À récupérer',  icone: '↻', couleur: '#ffa502' },
+  { id: 'RECUPERATION', label: 'En urgence',   icone: '🚨', couleur: '#ffa502' },
   { id: 'INACTIF',      label: 'Inactifs',     icone: '✕', couleur: '#ff4757' },
 ];
 
@@ -28,30 +28,38 @@ export default function MobilePDV() {
   const user = useAuthStore(s => s.user);
   const [paramsUrl] = useSearchParams();
   const [q, setQ] = useState('');
-  const [statut, setStatut] = useState((paramsUrl.get('statut') || 'TOUS').toUpperCase());
-  // « Inactifs » / « Actifs » viennent des KPI : on filtre côté serveur sur la
-  // performance du dernier mois (même définition que les statistiques).
-  const inactifPerf = paramsUrl.get('inactif') === '1';
-  const actifPerf = paramsUrl.get('actif') === '1';
+  const statutInitial = (() => {
+    if (paramsUrl.get('inactif') === '1') return 'INACTIF';
+    if (paramsUrl.get('actif') === '1') return 'ACTIF';
+    return (paramsUrl.get('statut') || 'TOUS').toUpperCase();
+  })();
+  const [statut, setStatut] = useState(statutInitial);
 
-  const { data, isLoading, isError } = useQuery(['m-pdvs', inactifPerf, actifPerf],
+  // « Actifs » / « Inactifs » utilisent la performance du dernier mois (même
+  // définition que les KPI), pas le statut administratif du PDV.
+  const actifPerf = statut === 'ACTIF';
+  const inactifPerf = statut === 'INACTIF';
+
+  const { data, isLoading, isError } = useQuery(['m-pdvs', statut],
     () => api.get('/pdvs', {
       params: {
         limit: 1000,
         ...(inactifPerf ? { inactif_performance: true } : {}),
         ...(actifPerf ? { actif_performance: true } : {}),
+        ...(statut === 'RECUPERATION' ? { statut: 'RECUPERATION' } : {}),
       },
     }).then(r => r.data), { staleTime: 120000 });
 
   const liste = useMemo(() => {
     const terme = q.trim().toLowerCase();
     return (data || []).filter(p => {
-      if (!inactifPerf && !actifPerf && statut !== 'TOUS' && (p.statut || '').toUpperCase() !== statut) return false;
+      const parPerformance = statut === 'ACTIF' || statut === 'INACTIF';
+      if (!parPerformance && statut !== 'TOUS' && (p.statut || '').toUpperCase() !== statut) return false;
       if (!terme) return true;
       return [p.nom, p.numero_pdv, p.numero_personnel, p.quartier, p.zone, p.superviseur, p.nom_gerant, p.telephone]
         .some(v => (v || '').toString().toLowerCase().includes(terme));
     });
-  }, [data, q, statut, inactifPerf, actifPerf]);
+  }, [data, q, statut]);
 
   return (
     <div>
