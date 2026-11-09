@@ -4,7 +4,7 @@ import api from '../services/api';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { resynchroniserPush } from './push';
-import { nomComplet, libelleRole } from './format';
+import { nomComplet, libelleRole, initiale } from './format';
 
 // ── Groupes de rôles ──
 export function groupeRole(role) {
@@ -118,19 +118,19 @@ export default function MobileLayout({ children }) {
   // Menu mobile : une liste par métier, pour que chaque rôle retrouve
   // exactement ce qu'il fait sur le terrain — avec le même design.
   const ITEMS = {
-    accueil:      { to: '/m/accueil',           icon: '🏠', label: 'Accueil' },
-    pdv:          { to: '/m/pdv',               icon: '🏪', label: 'Points de vente' },
-    prospection:  { to: '/m/prospection',       icon: '👥', label: 'Prospection' },
-    energia:      { to: '/m/energia',           icon: '☀️', label: 'Prospection ENERGIA' },
-    nouveau:      { to: '/m/prospect/nouveau',  icon: '➕', label: 'Nouveau prospect' },
-    planning:     { to: '/m/planning',          icon: '📅', label: 'Mes visites' },
-    activations:  { to: '/m/activations',       icon: '⚡', label: 'Mes activations' },
-    recuperation: { to: '/m/recuperation',      icon: '🚨', label: 'En urgence' },
-    alertes:      { to: '/m/alertes',           icon: '🔔', label: 'Alertes' },
-    reclamations: { to: '/m/reclamations',      icon: '📣', label: 'Réclamations' },
-    pilotage:     { to: '/m/pilotage',          icon: '📊', label: 'Pilotage' },
-    equipe:       { to: '/m/equipe',            icon: '🌐', label: 'Équipe & réseau' },
-    validations:  { to: '/m/validations',       icon: '📋', label: 'Validations' },
+    accueil:      { to: '/m/accueil',           icon: '🏠', label: 'Accueil', couleur: '#a855f7' },
+    pdv:          { to: '/m/pdv',               icon: '🏪', label: 'Points de vente', couleur: '#60a5fa' },
+    prospection:  { to: '/m/prospection',       icon: '👥', label: 'Prospection', couleur: '#60a5fa' },
+    energia:      { to: '/m/energia',           icon: '☀️', label: 'Prospection ENERGIA', couleur: '#fbbf24' },
+    nouveau:      { to: '/m/prospect/nouveau',  icon: '➕', label: 'Nouveau prospect', couleur: '#22c55e' },
+    planning:     { to: '/m/planning',          icon: '📅', label: 'Mes visites', couleur: '#a855f7' },
+    activations:  { to: '/m/activations',       icon: '⚡', label: 'Mes activations', couleur: '#ffa502' },
+    recuperation: { to: '/m/recuperation',      icon: '🎯', label: 'En urgence', couleur: '#f472b6' },
+    alertes:      { to: '/m/alertes',           icon: '🔔', label: 'Alertes', couleur: '#fbbf24' },
+    reclamations: { to: '/m/reclamations',      icon: '📣', label: 'Réclamations', couleur: '#fbbf24' },
+    pilotage:     { to: '/m/pilotage',          icon: '📊', label: 'Pilotage', couleur: '#a855f7' },
+    equipe:       { to: '/m/equipe',            icon: '🌐', label: 'Équipe & réseau', couleur: '#60a5fa' },
+    validations:  { to: '/m/validations',       icon: '📋', label: 'Validations', couleur: '#22c55e' },
   };
 
   const MENUS_MOBILE = {
@@ -160,9 +160,9 @@ export default function MobileLayout({ children }) {
 
   // Dashboards OMY / NAFAMA / KAABU : mêmes droits que la version web.
   const dashboards = [
-    { ok: canAccessDash('omy'),    to: '/m/dashboard/omy',    icon: '💸', label: 'Dashboard OMY' },
-    { ok: canAccessDash('nafama'), to: '/m/dashboard/nafama', icon: '💰', label: 'Dashboard NAFAMA' },
-    { ok: canAccessDash('kaabu'),  to: '/m/dashboard/kaabu',  icon: '📶', label: 'Dashboard KAABU' },
+    { ok: canAccessDash('omy'),    to: '/m/dashboard/omy',    icon: '📊', label: 'Dashboard OMY', couleur: '#a855f7' },
+    { ok: canAccessDash('nafama'), to: '/m/dashboard/nafama', icon: '💰', label: 'Dashboard NAFAMA', couleur: '#fbbf24' },
+    { ok: canAccessDash('kaabu'),  to: '/m/dashboard/kaabu',  icon: '📈', label: 'Dashboard KAABU', couleur: '#2dd4bf' },
   ].filter(d => d.ok);
 
   const retourBureau = () => {
@@ -240,44 +240,69 @@ export default function MobileLayout({ children }) {
         <div className="m-drawer-overlay" onClick={() => setMenuOuvert(false)}>
           <div className="m-drawer" onClick={e => e.stopPropagation()}>
             <div className="m-drawer-head">
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {nomComplet(user)}
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--fm-muted)' }}>{libelleRole(user?.role)}</div>
+              <div className="m-avatar">
+                {initiale(user)}
+                <span className="m-avatar-dot" />
               </div>
-              <button className="m-icon-btn" onClick={() => setMenuOuvert(false)}>✕</button>
+              <div style={{ minWidth: 0 }}>
+                <div className="m-drawer-name">{nomComplet(user)}</div>
+                <div className="m-drawer-role"><span>🛡️</span>{libelleRole(user?.role)}</div>
+              </div>
+              <button className="m-drawer-close" onClick={() => setMenuOuvert(false)} aria-label="Fermer">✕</button>
             </div>
 
             <div className="m-drawer-section">Navigation</div>
             {liens.map(l => (
-              <Link key={l.to} to={l.to} className="m-drawer-item" onClick={() => setMenuOuvert(false)}>
-                <span>{l.icon}</span>{l.label}<span className="arrow">›</span>
-              </Link>
+              <NavLink key={l.to} to={l.to} onClick={() => setMenuOuvert(false)}
+                className={({ isActive }) => 'm-drawer-item' + (isActive ? ' active' : '')}>
+                <span className="m-drawer-ico" style={{ background: `${l.couleur}26`, borderColor: `${l.couleur}55` }}>
+                  {l.icon}
+                </span>
+                <span className="m-drawer-lbl">{l.label}</span>
+                <span className="m-drawer-trail">
+                  {l.to === '/m/alertes' && nbAlertesNav > 0 && (
+                    <span className="m-drawer-badge">{nbAlertesNav > 99 ? '99+' : nbAlertesNav}</span>
+                  )}
+                  <span className="arrow">›</span>
+                </span>
+              </NavLink>
             ))}
 
             {dashboards.length > 0 && (
               <>
                 <div className="m-drawer-section">Dashboards</div>
                 {dashboards.map(d => (
-                  <Link key={d.to} to={d.to} className="m-drawer-item" onClick={() => setMenuOuvert(false)}>
-                    <span>{d.icon}</span>{d.label}<span className="arrow">›</span>
-                  </Link>
+                  <NavLink key={d.to} to={d.to} onClick={() => setMenuOuvert(false)}
+                    className={({ isActive }) => 'm-drawer-item' + (isActive ? ' active' : '')}>
+                    <span className="m-drawer-ico" style={{ background: `${d.couleur}26`, borderColor: `${d.couleur}55` }}>
+                      {d.icon}
+                    </span>
+                    <span className="m-drawer-lbl">{d.label}</span>
+                    <span className="m-drawer-trail"><span className="arrow">›</span></span>
+                  </NavLink>
                 ))}
               </>
             )}
 
             <div className="m-drawer-section">Compte</div>
-            <Link to="/m/profil" className="m-drawer-item" onClick={() => setMenuOuvert(false)}>
-              <span>👤</span>Mon profil<span className="arrow">›</span>
-            </Link>
+            <NavLink to="/m/profil" onClick={() => setMenuOuvert(false)}
+              className={({ isActive }) => 'm-drawer-item' + (isActive ? ' active' : '')}>
+              <span className="m-drawer-ico" style={{ background: 'rgba(255,255,255,0.07)', borderColor: 'rgba(255,255,255,0.16)' }}>👤</span>
+              <span className="m-drawer-lbl">Mon profil</span>
+              <span className="m-drawer-trail"><span className="arrow">›</span></span>
+            </NavLink>
             <button className="m-drawer-item" onClick={retourBureau}>
-              <span>🖥️</span>Version bureau<span className="arrow">›</span>
+              <span className="m-drawer-ico" style={{ background: 'rgba(255,255,255,0.07)', borderColor: 'rgba(255,255,255,0.16)' }}>🖥️</span>
+              <span className="m-drawer-lbl">Version bureau</span>
+              <span className="m-drawer-trail"><span className="arrow">›</span></span>
             </button>
-            <button className="m-drawer-item" style={{ color: '#ff8b96' }}
-              onClick={seDeconnecter}>
-              <span>⏻</span>Se déconnecter<span className="arrow">›</span>
+            <button className="m-drawer-item danger" onClick={seDeconnecter}>
+              <span className="m-drawer-ico">⏻</span>
+              <span className="m-drawer-lbl">Se déconnecter</span>
+              <span className="m-drawer-trail"><span className="arrow">›</span></span>
             </button>
+
+            <div className="m-drawer-waves" />
           </div>
         </div>
       )}

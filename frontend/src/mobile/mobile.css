@@ -284,20 +284,25 @@ body.fm-mobile {
   .m-content { max-width: 680px; }
 }
 
-/* ── Tiroir de menu (toutes les fonctions du rôle) ── */
+/* ── Tiroir de menu — design « violet néon » ── */
 .m-drawer-overlay {
   position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(2px);
 }
 
 .m-drawer {
   position: fixed; top: 0; bottom: 0; left: 0;
-  width: 86%; max-width: 340px;
-  background: #141426;
-  border-right: 1px solid var(--fm-border);
+  width: 86%; max-width: 330px;
+  background:
+    radial-gradient(120% 55% at 100% 0%, rgba(139, 92, 246, 0.30) 0%, transparent 62%),
+    radial-gradient(110% 45% at 0% 100%, rgba(124, 58, 237, 0.28) 0%, transparent 66%),
+    linear-gradient(180deg, #14102c 0%, #0d0b1c 55%, #120c26 100%);
+  border-right: 1px solid rgba(139, 92, 246, 0.28);
+  box-shadow: 18px 0 60px rgba(0, 0, 0, 0.55);
   display: flex; flex-direction: column;
-  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px calc(env(safe-area-inset-bottom, 0px) + 10px);
   overflow-y: auto;
-  animation: m-slide-in 0.18s ease-out;
+  animation: m-slide-in 0.2s ease-out;
 }
 
 @keyframes m-slide-in {
@@ -306,26 +311,112 @@ body.fm-mobile {
 }
 
 .m-drawer-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; padding: 4px 6px 14px;
-  border-bottom: 1px solid var(--fm-border);
+  display: flex; align-items: center; gap: 12px;
+  padding: 2px 2px 6px;
+}
+
+.m-avatar {
+  width: 54px; height: 54px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 900; color: #fff; letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #a855f7 0%, #6d28d9 100%);
+  box-shadow: 0 0 22px rgba(139, 92, 246, 0.55);
+  position: relative; flex-shrink: 0;
+}
+.m-avatar-dot {
+  position: absolute; right: 0; bottom: 1px;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #22c55e; border: 2px solid #14102c;
+}
+
+.m-drawer-name {
+  font-size: 15.5px; font-weight: 900; color: #fff;
+  letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.m-drawer-role {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #b9a6ff; margin-top: 3px; font-weight: 600;
+}
+.m-drawer-close {
+  margin-left: auto; flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff; font-size: 16px; cursor: pointer;
 }
 
 .m-drawer-section {
-  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px;
-  color: var(--fm-muted); font-weight: 800; margin: 14px 6px 6px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase;
+  color: #cfc9ee; font-weight: 800;
+  margin: 18px 4px 9px;
+}
+.m-drawer-section::after {
+  content: '';
+  width: 44px; height: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, #a855f7, #6d28d9);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.7);
 }
 
 .m-drawer-item {
   display: flex; align-items: center; gap: 12px;
-  padding: 13px 12px; border-radius: 10px;
-  color: var(--fm-text); text-decoration: none;
-  font-size: 14px; font-weight: 600;
-  background: transparent; border: none; width: 100%;
-  text-align: left; cursor: pointer; font-family: inherit;
+  padding: 9px 11px; margin-bottom: 8px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #fff; text-decoration: none;
+  font-size: 14.5px; font-weight: 600;
+  width: 100%; text-align: left; cursor: pointer; font-family: inherit;
 }
-.m-drawer-item:active { background: rgba(255, 255, 255, 0.07); }
-.m-drawer-item .arrow { margin-left: auto; color: var(--fm-muted); }
+.m-drawer-item:active { background: rgba(139, 92, 246, 0.16); }
+
+.m-drawer-ico {
+  width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  background: rgba(139, 92, 246, 0.16);
+  border: 1px solid rgba(139, 92, 246, 0.32);
+}
+
+.m-drawer-lbl {
+  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.m-drawer-trail { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.m-drawer-trail .arrow { color: rgba(255, 255, 255, 0.6); font-size: 19px; margin-left: 0; }
+
+.m-drawer-badge {
+  background: #ef4444; color: #fff;
+  font-size: 11px; font-weight: 900;
+  border-radius: 999px; padding: 2px 8px; min-width: 22px; text-align: center;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.55);
+}
+
+.m-drawer-item.active {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  border-color: transparent;
+  box-shadow: 0 10px 28px rgba(124, 58, 237, 0.5);
+}
+.m-drawer-item.active .m-drawer-ico {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.m-drawer-item.danger {
+  background: rgba(255, 71, 87, 0.07);
+  border-color: rgba(255, 71, 87, 0.35);
+  color: #ff8b96;
+}
+.m-drawer-item.danger .m-drawer-ico {
+  background: rgba(255, 71, 87, 0.12);
+  border-color: rgba(255, 71, 87, 0.3);
+}
+
+.m-drawer-waves {
+  margin-top: auto; height: 64px; flex-shrink: 0;
+  background: radial-gradient(130% 130% at 50% 130%, rgba(139, 92, 246, 0.45) 0%, rgba(109, 40, 217, 0.12) 45%, transparent 72%);
+  border-radius: 50% 50% 0 0 / 70% 70% 0 0;
+}
 
 /* ── Carte héros (design 2026, couleurs conservées) ── */
 .m-hero {
