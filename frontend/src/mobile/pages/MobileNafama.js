@@ -19,8 +19,13 @@ const Appel = ({ tel }) => tel
 
 export default function MobileNafama() {
   const [onglet, setOnglet] = useState('ensemble');
+  const [mode, setMode] = useState('mensuel');       // mensuel | hebdo
   const [annee, setAnnee] = useState(maintenant.getFullYear());
   const [mois, setMois] = useState(maintenant.getMonth() + 1);
+  const [semaine, setSemaine] = useState(44);
+  const estHebdo = mode === 'hebdo';
+  const base = estHebdo ? '/nafama/weekly' : '/nafama/monthly';
+  const periode = estHebdo ? { annee, semaine } : { annee, mois };
 
   const decaler = (pas) => {
     let m = mois + pas; let a = annee;
@@ -29,21 +34,28 @@ export default function MobileNafama() {
     setMois(m); setAnnee(a);
   };
   const estMoisCourant = annee === maintenant.getFullYear() && mois === maintenant.getMonth() + 1;
+  const reculer = () => (estHebdo ? setSemaine(v => Math.max(1, v - 1)) : decaler(-1));
+  const avancer = () => (estHebdo ? setSemaine(v => Math.min(52, v + 1)) : decaler(1));
+  const donnees = estHebdo ? dataSem : data;
 
   const { data, isLoading, isError } = useQuery(['m-nafama', annee, mois],
     () => api.get('/nafama/monthly/overview', { params: { annee, mois } }).then(r => r.data),
+    { enabled: !estHebdo, staleTime: 120000 });
+
+  const { data: dataSem } = useQuery(['m-nafama-sem', annee, semaine],
+    () => api.get('/nafama/weekly/overview', { params: { annee, semaine } }).then(r => r.data),
     { staleTime: 120000 });
 
-  const { data: topData } = useQuery(['m-nafama-top', annee, mois],
-    () => api.get('/nafama/monthly/top', { params: { annee, mois, limit: 20 } }).then(r => r.data),
+  const { data: topData } = useQuery(['m-nafama-top', mode, annee, mois, semaine],
+    () => api.get(`${base}/top`, { params: { ...periode, limit: 20 } }).then(r => r.data),
     { enabled: onglet === 'top', staleTime: 120000 });
 
-  const { data: inactifs } = useQuery(['m-nafama-inactifs', annee, mois],
-    () => api.get('/nafama/monthly/inactive', { params: { annee, mois } }).then(r => r.data),
+  const { data: inactifs } = useQuery(['m-nafama-inactifs', mode, annee, mois, semaine],
+    () => api.get(`${base}/inactive`, { params: periode }).then(r => r.data),
     { enabled: onglet === 'inactifs', staleTime: 120000 });
 
-  const { data: baisse } = useQuery(['m-nafama-baisse', annee, mois],
-    () => api.get('/nafama/monthly/declining', { params: { annee, mois, seuil_pct: -10 } }).then(r => r.data),
+  const { data: baisse } = useQuery(['m-nafama-baisse', mode, annee, mois, semaine],
+    () => api.get(`${base}/declining`, { params: { ...periode, seuil_pct: -10 } }).then(r => r.data),
     { enabled: onglet === 'baisse', staleTime: 120000 });
 
   const superviseurs = Object.entries(data?.ca_by_superviseur || {})
@@ -55,16 +67,24 @@ export default function MobileNafama() {
       <Hero titre="Dashboard NAFAMA" role="Mensuel · Mon réseau"
         droite={
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="m-chip" onClick={() => decaler(-1)} style={{ padding: '6px 10px' }}>‹</button>
+            <button className="m-chip" onClick={reculer} style={{ padding: '6px 10px' }}>‹</button>
             <div style={{ textAlign: 'center', minWidth: 92 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{MOIS[mois]}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{estHebdo ? `S${String(semaine).padStart(2, '0')}` : MOIS[mois]}</div>
               <div style={{ fontSize: 10.5, color: 'var(--fm-muted)' }}>{annee}</div>
             </div>
-            <button className="m-chip" onClick={() => decaler(1)} disabled={estMoisCourant}
-              style={{ padding: '6px 10px', opacity: estMoisCourant ? 0.4 : 1 }}>›</button>
+            <button className="m-chip" onClick={avancer} disabled={!estHebdo && estMoisCourant}
+              style={{ padding: '6px 10px', opacity: !estHebdo && estMoisCourant ? 0.4 : 1 }}>›</button>
           </div>
         }
       />
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        {['mensuel', 'hebdo'].map(m => (
+          <button key={m} className={'m-chip' + (mode === m ? ' active' : '')} onClick={() => setMode(m)} style={{ flex: 1 }}>
+            {m === 'mensuel' ? '📅 Mensuel' : '🗓️ Hebdo'}
+          </button>
+        ))}
+      </div>
 
       <div className="m-chips" style={{ marginBottom: 12 }}>
         {ONGLETS.map(o => (
@@ -77,15 +97,15 @@ export default function MobileNafama() {
         <>
           {isLoading && <Chargement />}
           {isError && <Erreur />}
-          {data && (
+          {donnees && (
             <>
               <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
-                <Kpi icone="💰" label="CA du mois" valeur={fmtCourt(data.ca_total)}
-                  sub={data.evolution_pct != null ? `${data.evolution_pct > 0 ? '+' : ''}${fmtPct(data.evolution_pct)} vs M-1` : undefined} couleur="#FF6900" />
-                <Kpi icone="🏪" label="PDV actifs" valeur={fmtN(data.nb_pdv_actifs)}
-                  sub={`${fmtN(data.nb_pdv_inactifs)} inactifs`} couleur="#22c55e" to="/m/pdv?actif=1" />
-                <Kpi icone="📊" label="CA moyen / PDV" valeur={fmtCourt(data.ca_moyen)} sub="Sur le mois" couleur="#7c5cff" />
-                <Kpi icone="✨" label="Nouveaux PDV" valeur={fmtN(data.nb_nouveaux_pdv)} sub="Ouverts ce mois" couleur="#4a9eff" />
+                <Kpi icone="💰" label={estHebdo ? 'CA de la semaine' : 'CA du mois'} valeur={fmtCourt(donnees.ca_total)}
+                  sub={donnees.evolution_pct != null ? `${donnees.evolution_pct > 0 ? '+' : ''}${fmtPct(donnees.evolution_pct)} vs ${estHebdo ? 'S-1' : 'M-1'}` : undefined} couleur="#FF6900" />
+                <Kpi icone="🏪" label="PDV actifs" valeur={fmtN(donnees.nb_pdv_actifs)}
+                  sub={`${fmtN(donnees.nb_pdv_inactifs)} inactifs`} couleur="#22c55e" to="/m/pdv?actif=1" />
+                <Kpi icone="📊" label="CA moyen / PDV" valeur={fmtCourt(donnees.ca_moyen)} sub={estHebdo ? 'Sur la semaine' : 'Sur le mois'} couleur="#7c5cff" />
+                <Kpi icone="✨" label="Nouveaux PDV" valeur={fmtN(donnees.nb_nouveaux_pdv)} sub={estHebdo ? 'Ouverts cette semaine' : 'Ouverts ce mois'} couleur="#4a9eff" />
               </div>
               <Bloc titre="CA par superviseur" sousTitre={`${MOIS[mois]} ${annee}`}>
                 <Barres donnees={superviseurs} format={fmtCourt} maximum={6} couleur="#00b8a9" />

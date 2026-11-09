@@ -29,8 +29,14 @@ const ActionsPDV = ({ pdv }) => {
 
 export default function MobileOMy() {
   const [onglet, setOnglet] = useState('ensemble');
+  const [mode, setMode] = useState('mensuel');
   const [annee, setAnnee] = useState(maintenant.getFullYear());
   const [mois, setMois] = useState(maintenant.getMonth() + 1);
+  const [semaine, setSemaine] = useState(44);
+  const estHebdo = mode === 'hebdo';
+  const baseP = estHebdo ? '/dashboard/weekly' : '/dashboard/monthly';
+  const baseInactif = estHebdo ? '/dashboard/weekly-inactive' : '/dashboard/monthly-inactive';
+  const baseBaisse = estHebdo ? '/dashboard/weekly-declining' : '/dashboard/monthly-declining';
 
   const decaler = (pas) => {
     let m = mois + pas; let a = annee;
@@ -40,20 +46,20 @@ export default function MobileOMy() {
   };
   const estMoisCourant = annee === maintenant.getFullYear() && mois === maintenant.getMonth() + 1;
 
-  const { data, isLoading, isError } = useQuery(['m-omy', annee, mois],
-    () => api.get('/dashboard/monthly', { params: { annee, mois } }).then(r => r.data),
+  const { data, isLoading, isError } = useQuery(['m-omy', mode, annee, mois, semaine],
+    () => api.get(baseP, { params: estHebdo ? { annee, semaine } : { annee, mois } }).then(r => r.data),
     { staleTime: 120000 });
 
-  const { data: topData } = useQuery(['m-omy-top', annee, mois],
+  const { data: topData } = useQuery(['m-omy-top', mode, annee, mois],
     () => api.get('/dashboard/classements', { params: { annee, mois, n: 20 } }).then(r => r.data),
-    { enabled: onglet === 'top', staleTime: 120000 });
+    { enabled: onglet === 'top' && !estHebdo, staleTime: 120000 });
 
-  const { data: inactifs } = useQuery(['m-omy-inactifs', annee, mois],
-    () => api.get('/dashboard/monthly-inactive', { params: { annee, mois } }).then(r => r.data),
+  const { data: inactifs } = useQuery(['m-omy-inactifs', mode, annee, mois, semaine],
+    () => api.get(baseInactif, { params: estHebdo ? { annee, semaine } : { annee, mois } }).then(r => r.data),
     { enabled: onglet === 'inactifs', staleTime: 120000 });
 
-  const { data: baisse } = useQuery(['m-omy-baisse', annee, mois],
-    () => api.get('/dashboard/monthly-declining', { params: { annee, mois, seuil: -10 } }).then(r => r.data),
+  const { data: baisse } = useQuery(['m-omy-baisse', mode, annee, mois, semaine],
+    () => api.get(baseBaisse, { params: { ...(estHebdo ? { annee, semaine } : { annee, mois }), seuil: -10 } }).then(r => r.data),
     { enabled: onglet === 'baisse', staleTime: 120000 });
 
   const zones = Object.entries(data?.ca_by_zone || {})
@@ -65,16 +71,24 @@ export default function MobileOMy() {
       <Hero titre="Dashboard OMY" role="Mensuel · Mon réseau"
         droite={
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="m-chip" onClick={() => decaler(-1)} aria-label="Mois précédent" style={{ padding: '6px 10px' }}>‹</button>
+            <button className="m-chip" onClick={() => (estHebdo ? setSemaine(v => Math.max(1, v - 1)) : decaler(-1))} style={{ padding: '6px 10px' }}>‹</button>
             <div style={{ textAlign: 'center', minWidth: 92 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{MOIS[mois]}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{estHebdo ? `S${String(semaine).padStart(2, '0')}` : MOIS[mois]}</div>
               <div style={{ fontSize: 10.5, color: 'var(--fm-muted)' }}>{annee}</div>
             </div>
-            <button className="m-chip" onClick={() => decaler(1)} disabled={estMoisCourant}
-              aria-label="Mois suivant" style={{ padding: '6px 10px', opacity: estMoisCourant ? 0.4 : 1 }}>›</button>
+            <button className="m-chip" onClick={() => (estHebdo ? setSemaine(v => Math.min(52, v + 1)) : decaler(1))} disabled={!estHebdo && estMoisCourant}
+              style={{ padding: '6px 10px', opacity: !estHebdo && estMoisCourant ? 0.4 : 1 }}>›</button>
           </div>
         }
       />
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        {['mensuel', 'hebdo'].map(m => (
+          <button key={m} className={'m-chip' + (mode === m ? ' active' : '')} onClick={() => setMode(m)} style={{ flex: 1 }}>
+            {m === 'mensuel' ? '📅 Mensuel' : '🗓️ Hebdo'}
+          </button>
+        ))}
+      </div>
 
       <div className="m-chips" style={{ marginBottom: 12 }}>
         {ONGLETS.map(o => (
@@ -116,8 +130,9 @@ export default function MobileOMy() {
 
       {onglet === 'top' && (
         <>
-          {!topData && <Chargement />}
-          {topData && top.length === 0 && <div className="m-empty">Aucun classement pour cette période.</div>}
+          {estHebdo && <div className="m-empty">Le classement Top PDV n'existe qu'en mensuel. Passez en « Mensuel ».</div>}
+          {!estHebdo && !topData && <Chargement />}
+          {!estHebdo && topData && top.length === 0 && <div className="m-empty">Aucun classement pour cette période.</div>}
           {topData && top.map(p => (
             <div key={p.pdv_id || p.numero_pdv} className="m-item">
               <div className="m-item-top">

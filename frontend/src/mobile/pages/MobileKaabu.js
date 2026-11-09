@@ -8,7 +8,6 @@ const ONGLETS = [
   { id: 'ensemble', label: "Vue d'ensemble" },
   { id: 'inactifs', label: 'Inactifs' },
   { id: 'baisse',   label: 'En baisse' },
-  { id: 'evolution', label: 'Évolution' },
 ];
 
 const Appel = ({ tel }) => tel
@@ -17,6 +16,8 @@ const Appel = ({ tel }) => tel
 
 export default function MobileKaabu() {
   const [onglet, setOnglet] = useState('ensemble');
+  const [mode, setMode] = useState('hebdo');            // hebdo | mensuel
+  const [mois, setMois] = useState(new Date().getMonth() + 1);
   const { data: periodesData } = useQuery('m-kaabu-periods',
     () => api.get('/kaabu/periods').then(r => r.data), { staleTime: 300000 });
 
@@ -29,28 +30,28 @@ export default function MobileKaabu() {
   const periode = index != null ? periodes[index] : null;
   const annee = periode?.annee || new Date().getFullYear();
   const semaine = periode?.semaine || '';
+  const estMensuel = mode === 'mensuel';
+  const base = estMensuel ? '/kaabu/mensuel' : '/kaabu';
+  const params = estMensuel ? { annee, mois } : { annee, semaine };
 
   const { data, isLoading, isError } = useQuery(['m-kaabu', annee, semaine],
-    () => api.get('/kaabu/vue-ensemble', { params: { annee, semaine } }).then(r => r.data),
-    { enabled: Boolean(semaine), staleTime: 120000 });
+    () => api.get(`${base}/vue-ensemble`, { params }).then(r => r.data),
+    { enabled: estMensuel || Boolean(semaine), staleTime: 120000 });
 
   const { data: inactifs } = useQuery(['m-kaabu-inactifs', annee, semaine],
-    () => api.get('/kaabu/inactifs', { params: { annee, semaine } }).then(r => r.data),
-    { enabled: onglet === 'inactifs' && Boolean(semaine), staleTime: 120000 });
+    () => api.get(`${base}/inactifs`, { params }).then(r => r.data),
+    { enabled: onglet === 'inactifs' && (estMensuel || Boolean(semaine)), staleTime: 120000 });
 
   const { data: baisse } = useQuery(['m-kaabu-baisse', annee, semaine],
-    () => api.get('/kaabu/en-baisse', { params: { annee, semaine, seuil: -30 } }).then(r => r.data),
-    { enabled: onglet === 'baisse' && Boolean(semaine), staleTime: 120000 });
+    () => api.get(`${base}/en-baisse`, { params: { ...params, seuil: -10 } }).then(r => r.data),
+    { enabled: onglet === 'baisse' && (estMensuel || Boolean(semaine)), staleTime: 120000 });
 
-  const { data: evolution } = useQuery(['m-kaabu-evolution', annee],
-    () => api.get('/kaabu/evolution', { params: { annee } }).then(r => r.data),
-    { enabled: onglet === 'evolution', staleTime: 300000 });
+
 
   const taux = data?.taux_activite != null
     ? (Number(data.taux_activite) <= 1 ? Number(data.taux_activite) * 100 : Number(data.taux_activite))
     : null;
   const segments = (data?.par_segment || []).map(s => ({ label: s.segment, valeur: s.montant })).sort((a, b) => b.valeur - a.valeur);
-  const derniers = Array.isArray(evolution) ? evolution.slice(-8) : [];
   const listeInactifs = inactifs?.pdvs || [];
   const listeBaisse = baisse?.pdvs || [];
 
@@ -59,18 +60,26 @@ export default function MobileKaabu() {
       <Hero titre="Dashboard KAABU" role="Hebdomadaire · Mon réseau"
         droite={
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="m-chip" onClick={() => setIndex(i => Math.max(0, (i ?? 0) - 1))}
-              disabled={!index} style={{ padding: '6px 10px', opacity: index ? 1 : 0.4 }}>‹</button>
+            <button className="m-chip" onClick={() => (estMensuel ? setMois(m => Math.max(1, m - 1)) : setIndex(i => Math.max(0, (i ?? 0) - 1)))}
+              disabled={!estMensuel && !index} style={{ padding: '6px 10px', opacity: (!estMensuel && !index) ? 0.4 : 1 }}>‹</button>
             <div style={{ textAlign: 'center', minWidth: 80 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{semaine || '—'}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{estMensuel ? `Mois ${mois}` : (semaine || '—')}</div>
               <div style={{ fontSize: 10.5, color: 'var(--fm-muted)' }}>{annee}</div>
             </div>
-            <button className="m-chip" onClick={() => setIndex(i => Math.min(periodes.length - 1, (i ?? 0) + 1))}
-              disabled={index == null || index >= periodes.length - 1}
-              style={{ padding: '6px 10px', opacity: index != null && index < periodes.length - 1 ? 1 : 0.4 }}>›</button>
+            <button className="m-chip" onClick={() => (estMensuel ? setMois(m => Math.min(12, m + 1)) : setIndex(i => Math.min(periodes.length - 1, (i ?? 0) + 1)))}
+              disabled={!estMensuel && (index == null || index >= periodes.length - 1)}
+              style={{ padding: '6px 10px', opacity: (!estMensuel && (index == null || index >= periodes.length - 1)) ? 0.4 : 1 }}>›</button>
           </div>
         }
       />
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        {['hebdo', 'mensuel'].map(m => (
+          <button key={m} className={'m-chip' + (mode === m ? ' active' : '')} onClick={() => setMode(m)} style={{ flex: 1 }}>
+            {m === 'hebdo' ? '🗓️ Hebdo' : '📅 Mensuel'}
+          </button>
+        ))}
+      </div>
 
       <div className="m-chips" style={{ marginBottom: 12 }}>
         {ONGLETS.map(o => (
@@ -156,15 +165,6 @@ export default function MobileKaabu() {
         </>
       )}
 
-      {onglet === 'evolution' && (
-        <>
-          {!evolution && <Chargement />}
-          <Bloc titre="Évolution" sousTitre="8 dernières semaines">
-            <Barres donnees={derniers.map(s => ({ label: s.label || s.semaine, valeur: s.montant }))}
-              format={fmtCourt} maximum={8} couleur="#00b8a9" />
-          </Bloc>
-        </>
-      )}
     </div>
   );
 }
