@@ -29,19 +29,29 @@ export default function MobilePDV() {
   const [paramsUrl] = useSearchParams();
   const [q, setQ] = useState('');
   const [statut, setStatut] = useState((paramsUrl.get('statut') || 'TOUS').toUpperCase());
+  // « Inactifs » / « Actifs » viennent des KPI : on filtre côté serveur sur la
+  // performance du dernier mois (même définition que les statistiques).
+  const inactifPerf = paramsUrl.get('inactif') === '1';
+  const actifPerf = paramsUrl.get('actif') === '1';
 
-  const { data, isLoading, isError } = useQuery('m-pdvs',
-    () => api.get('/pdvs', { params: { limit: 1000 } }).then(r => r.data), { staleTime: 120000 });
+  const { data, isLoading, isError } = useQuery(['m-pdvs', inactifPerf, actifPerf],
+    () => api.get('/pdvs', {
+      params: {
+        limit: 1000,
+        ...(inactifPerf ? { inactif_performance: true } : {}),
+        ...(actifPerf ? { actif_performance: true } : {}),
+      },
+    }).then(r => r.data), { staleTime: 120000 });
 
   const liste = useMemo(() => {
     const terme = q.trim().toLowerCase();
     return (data || []).filter(p => {
-      if (statut !== 'TOUS' && (p.statut || '').toUpperCase() !== statut) return false;
+      if (!inactifPerf && !actifPerf && statut !== 'TOUS' && (p.statut || '').toUpperCase() !== statut) return false;
       if (!terme) return true;
       return [p.nom, p.numero_pdv, p.numero_personnel, p.quartier, p.zone, p.superviseur, p.nom_gerant, p.telephone]
         .some(v => (v || '').toString().toLowerCase().includes(terme));
     });
-  }, [data, q, statut]);
+  }, [data, q, statut, inactifPerf, actifPerf]);
 
   return (
     <div>

@@ -58,6 +58,17 @@ def get_stats(
         query = query.filter(PDV.superviseur == superviseur)
     if teleconseillere:
         query = query.filter(PDV.teleconseillere.ilike(f"%{teleconseillere}%"))
+    if actif_performance:
+        from app.models.performance import MonthlyPerformance as MP2
+        last_pa = db.query(MP2.annee, MP2.mois).order_by(MP2.annee.desc(), MP2.mois.desc()).first()
+        if last_pa:
+            inactifs_ids = db.query(MP2.pdv_id).filter(
+                MP2.annee == last_pa[0], MP2.mois == last_pa[1], MP2.est_actif == False
+            ).subquery()
+            query = query.filter(~PDV.id.in_(inactifs_ids))
+        else:
+            query = query.filter(PDV.id == -1)
+
     if nouvelle_activation:
         from app.models.prospect import Prospect as ProspectModelFilter
         act_q = db.query(ProspectModelFilter.activated_pdv_id).filter(
@@ -77,7 +88,7 @@ def get_stats(
     pdvs = query.all()
 
     total = len([p for p in pdvs if p.statut != PDVStatut.DESACTIVE])
-    actifs = len([p for p in pdvs if p.statut == PDVStatut.ACTIF])
+    actifs = 0  # recalculé juste après, à partir des inactifs (cohérence des KPI)
     en_recuperation = len([p for p in pdvs if p.statut == PDVStatut.RECUPERATION])
     nouvelles_creations = len([p for p in pdvs if p.nouvelle_creation])
     
@@ -137,6 +148,10 @@ def get_stats(
                 pdvs_par_zone[pdv.zone] = pdvs_par_zone.get(pdv.zone, 0) + 1
             if pdv.superviseur:
                 pdvs_par_superviseur[pdv.superviseur] = pdvs_par_superviseur.get(pdv.superviseur, 0) + 1
+
+    # Un PDV est « actif » s'il a eu au moins une opération le dernier mois.
+    # On le déduit des inactifs pour que actifs + inactifs = total, toujours.
+    actifs = max(0, total - inactifs)
 
     return {
         "total_pdvs": total,
@@ -526,6 +541,7 @@ def list_pdvs(
     quartier: Optional[str] = Query(None),
     nouvelle_activation: Optional[bool] = Query(None),
     inactif_performance: Optional[bool] = Query(None),
+    actif_performance: Optional[bool] = Query(None),
     date_debut: Optional[str] = Query(None),
     date_fin: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
@@ -585,6 +601,17 @@ def list_pdvs(
             query = query.filter(PDV.id.in_(inactif_pdv_ids))
         else:
             query = query.filter(PDV.id == -1)  # aucun résultat
+
+    if actif_performance:
+        from app.models.performance import MonthlyPerformance as MP2
+        last_pa = db.query(MP2.annee, MP2.mois).order_by(MP2.annee.desc(), MP2.mois.desc()).first()
+        if last_pa:
+            inactifs_ids = db.query(MP2.pdv_id).filter(
+                MP2.annee == last_pa[0], MP2.mois == last_pa[1], MP2.est_actif == False
+            ).subquery()
+            query = query.filter(~PDV.id.in_(inactifs_ids))
+        else:
+            query = query.filter(PDV.id == -1)
 
     if nouvelle_activation:
         from app.models.prospect import Prospect as ProspectModel

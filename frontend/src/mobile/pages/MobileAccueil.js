@@ -137,8 +137,8 @@ export default function MobileAccueil() {
           <div className="m-section-title">🏪 Mon réseau</div>
           <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
             <Kpi label="Total PDV" to="/m/pdv" icone="🏪" valeur={fmtN(stats?.total_pdvs)} couleur="#4a9eff" />
-            <Kpi label="Actifs" to="/m/pdv?statut=ACTIF" icone="✅" valeur={fmtN(stats?.actifs)} couleur="#22c55e" />
-            <Kpi label="Inactifs" to="/m/pdv?statut=INACTIF" icone="⚠️" valeur={fmtN(stats?.inactifs)} couleur="#ff4757" />
+            <Kpi label="Actifs" to="/m/pdv?actif=1" icone="✅" valeur={fmtN(stats?.actifs)} couleur="#22c55e" />
+            <Kpi label="Inactifs" to="/m/pdv?inactif=1" icone="⚠️" valeur={fmtN(stats?.inactifs)} couleur="#ff4757" />
             <Kpi label="Récupération" to="/m/pdv?statut=RECUPERATION" icone="♻️" valeur={fmtN(stats?.en_recuperation)} couleur="#ffa502" />
           </div>
         </>
