@@ -58,6 +58,7 @@ class EnergiaCreate(BaseModel):
     quartier: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    reinitialiser: bool = False             # annulation d'une installation saisie par erreur
     piece_identite: Optional[str] = None
     notes: Optional[str] = None
 
@@ -72,6 +73,7 @@ class EnergiaUpdate(BaseModel):
     quartier: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    reinitialiser: bool = False             # annulation d'une installation saisie par erreur
     piece_identite: Optional[str] = None
     notes: Optional[str] = None
 
@@ -186,6 +188,7 @@ class EnergiaStatutIn(BaseModel):
     piece_identite: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    reinitialiser: bool = False             # annulation d'une installation saisie par erreur
 
 
 STATUTS_ENERGIA = {"PROSPECT", "INSTALLE", "SUIVI"}
@@ -208,6 +211,18 @@ def changer_statut_energia(
     statut = (body.statut or "").upper()
     if statut not in STATUTS_ENERGIA:
         raise HTTPException(400, f"Statut invalide : {body.statut}")
+
+    # Annulation : on remet le prospect à l'état initial et on efface les
+    # informations d'installation (saisie par erreur).
+    if statut == "PROSPECT" or body.reinitialiser:
+        p.statut = "PROSPECT"
+        p.numero_batterie = None
+        p.date_activation = None
+        p.date_installation = None
+        p.date_relance = None
+        db.commit()
+        db.refresh(p)
+        return _fmt(p)
 
     # Une installation exige le numéro de batterie : c'est la preuve que le kit
     # a bien été posé sur place.

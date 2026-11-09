@@ -117,7 +117,7 @@ export default function ProspectionEnergiaPage() {
             color={energiaStats.taux_pret > 50 ? ENERGIA_GREEN : '#ff4757'}
             sub="Intéressés immédiatement"/>
           <KPICard icon="🛠️" label="À installer" value={energiaStats.a_installer} color="#ffa502" sub="Prospects à équiper"/>
-          <KPICard icon="🏠" label="Installés" value={energiaStats.installes} color="#22c55e" sub="Kits posés"/>
+          <KPICard icon="🏠" label="Installations" value={energiaStats.installes} color="#22c55e" sub="Kits posés"/>
           <KPICard icon="📞" label="En suivi" value={energiaStats.suivis} color="#4a9eff" sub="Suivi après installation"/>
         </div>
       )}
@@ -183,7 +183,7 @@ export default function ProspectionEnergiaPage() {
                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 800,
                   background: p.statut === 'INSTALLE' ? 'rgba(34,197,94,0.15)' : p.statut === 'SUIVI' ? 'rgba(74,158,255,0.15)' : 'rgba(255,165,2,0.15)',
                   color: p.statut === 'INSTALLE' ? '#22c55e' : p.statut === 'SUIVI' ? '#4a9eff' : '#ffa502' }}>
-                  {p.statut === 'INSTALLE' ? '🏠 Installé' : p.statut === 'SUIVI' ? '📞 En suivi' : '☀️ Prospect'}
+                  {p.statut === 'INSTALLE' ? '🏠 Installation' : p.statut === 'SUIVI' ? '📞 En suivi' : '☀️ Prospect'}
                 </span>
                 {p.date_installation && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>installé le {p.date_installation.slice(0, 10)}</span>}
                 {p.date_relance && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>relance {p.date_relance.slice(0, 10)}</span>}
@@ -194,7 +194,17 @@ export default function ProspectionEnergiaPage() {
                 {p.statut !== 'INSTALLE' && p.statut !== 'SUIVI' && (
                   <button onClick={() => setInstallation(p)}
                     style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.12)', color: '#22c55e', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
-                    🛠️ Installé
+                    🛠️ Installation
+                  </button>
+                )}
+                {(p.statut === 'INSTALLE' || p.statut === 'SUIVI') && (
+                  <button onClick={async () => {
+                    if (!window.confirm('Annuler cette installation ? Les informations saisies seront effacées.')) return;
+                    try { await api.patch(`/energia/prospects/${p.id}/statut`, { statut: 'PROSPECT', reinitialiser: true }); toast.success('Installation annulée'); refetch(); }
+                    catch { toast.error('Annulation impossible'); }
+                  }}
+                    style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid rgba(255,71,87,0.35)', background: 'rgba(255,71,87,0.08)', color: '#ff4757', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    ↩️ Annuler
                   </button>
                 )}
                 {p.statut === 'INSTALLE' && (
@@ -218,8 +228,7 @@ export default function ProspectionEnergiaPage() {
       )}
 
       {detail && (
-        <EnergiaDetailModal prospect={detail} onClose={() => setDetail(null)}
-          onInstaller={() => { const p = detail; setDetail(null); setInstallation(p); }} />
+        <EnergiaDetailModal prospect={detail} onClose={() => setDetail(null)} />
       )}
 
       {/* Formulaire d'installation */}
@@ -427,10 +436,55 @@ function EnergiaInstallationModal({ prospect, onClose, onSuccess }) {
 
 
 // ─── Fiche prospect ENERGIA (données de prospection + pièces) ────────────────
-function EnergiaDetailModal({ prospect, onClose, onInstaller }) {
-  const { data: pieces } = useQuery(['energia-pieces', prospect.id],
+function EnergiaDetailModal({ prospect, onClose }) {
+  const qc = useQueryClient();
+  const { data: pieces, refetch: refetchPieces } = useQuery(['energia-pieces', prospect.id],
     () => api.get(`/energia/prospects/${prospect.id}/pieces`).then(r => r.data).catch(() => []),
     { staleTime: 30000 });
+
+  const dejaInstalle = prospect.statut === 'INSTALLE' || prospect.statut === 'SUIVI';
+  const [form, setForm] = useState({
+    numero_batterie: prospect.numero_batterie || '',
+    date_activation: prospect.date_activation?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+    piece_identite: prospect.piece_identite || '',
+    latitude: prospect.latitude || '',
+    longitude: prospect.longitude || '',
+    photo: null,
+  });
+  const [loading, setLoading] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const position = () => {
+    if (!navigator.geolocation) { toast.error('GPS indisponible'); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => { set('latitude', pos.coords.latitude.toFixed(6)); set('longitude', pos.coords.longitude.toFixed(6)); toast.success('Position enregistrée'); },
+      () => toast.error('Position refusée'), { enableHighAccuracy: true, timeout: 10000 });
+  };
+
+  const installer = async (e) => {
+    e.preventDefault();
+    if (!form.numero_batterie.trim()) { toast.error('Numéro de batterie obligatoire'); return; }
+    setLoading(true);
+    try {
+      await api.patch(`/energia/prospects/${prospect.id}/statut`, {
+        statut: 'INSTALLE',
+        numero_batterie: form.numero_batterie.trim(),
+        date_activation: form.date_activation || undefined,
+        piece_identite: form.piece_identite || undefined,
+        latitude: form.latitude === '' ? undefined : Number(form.latitude),
+        longitude: form.longitude === '' ? undefined : Number(form.longitude),
+      });
+      if (form.photo) {
+        const fd = new FormData(); fd.append('file', form.photo);
+        await api.post(`/energia/prospects/${prospect.id}/pieces`, fd).catch(() => {});
+      }
+      toast.success('Installation enregistrée');
+      qc.invalidateQueries('energia-prospects');
+      qc.invalidateQueries('energia-stats');
+      onClose();
+    } catch (err) { toast.error(err?.response?.data?.detail || 'Enregistrement impossible'); }
+    finally { setLoading(false); }
+  };
 
   const Ligne = ({ l, v }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13 }}>
@@ -440,42 +494,82 @@ function EnergiaDetailModal({ prospect, onClose, onInstaller }) {
   );
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#12121e', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#12121e', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 16, padding: 22, width: '100%', maxWidth: 560, maxHeight: '92vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ margin: 0, fontSize: 18, color: '#fff' }}>{prospect.nom} {prospect.prenom}</h2>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
-        <div style={{ fontSize: 12, color: '#22c55e', marginBottom: 12 }}>{prospect.reference} · {prospect.nom_kit}</div>
+        <div style={{ fontSize: 12, color: '#22c55e', marginBottom: 14 }}>{prospect.reference} · {prospect.nom_kit}</div>
 
+        {/* Informations de prospection */}
+        <div style={{ fontSize: 11, color: '#8a8a9a', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>Prospection</div>
         <Ligne l="Téléphone" v={prospect.telephone} />
         <Ligne l="Quartier" v={prospect.quartier} />
         <Ligne l="Prospecté le" v={prospect.date_prospection?.slice(0, 10)} />
         <Ligne l="Prêt à payer" v={prospect.pret_payer_immediatement ? 'Oui' : 'Non'} />
         <Ligne l="Pièce d'identité" v={prospect.piece_identite} />
         <Ligne l="GPS" v={prospect.latitude ? `${prospect.latitude}, ${prospect.longitude}` : null} />
-        <Ligne l="Statut" v={prospect.statut} />
-        <Ligne l="N° batterie" v={prospect.numero_batterie} />
-        <Ligne l="Date d'activation" v={prospect.date_activation?.slice(0, 10)} />
-        {prospect.notes && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 10 }}>📝 {prospect.notes}</div>}
+        <Ligne l="Statut" v={prospect.statut === 'INSTALLE' ? 'Installation' : prospect.statut === 'SUIVI' ? 'En suivi' : 'Prospect'} />
+        {prospect.notes && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>📝 {prospect.notes}</div>}
 
         {pieces?.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 12, color: '#8a8a9a', marginBottom: 6 }}>Pièces jointes ({pieces.length})</div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 6 }}>Pièces ({pieces.length})</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {pieces.map(pc => (
                 <a key={pc.filename} href={pc.url} target="_blank" rel="noreferrer">
-                  <img src={pc.url} alt={pc.filename} style={{ width: 84, height: 84, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)' }} />
+                  <img src={pc.url} alt={pc.filename} style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)' }} />
                 </a>
               ))}
             </div>
           </div>
         )}
 
-        {prospect.statut !== 'INSTALLE' && prospect.statut !== 'SUIVI' && (
-          <button onClick={onInstaller} style={{ marginTop: 18, width: '100%', padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>
-            🛠️ Enregistrer l'installation
-          </button>
+        {/* Formulaire d'installation, dans la même fiche */}
+        {!dejaInstalle ? (
+          <form onSubmit={installer} style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
+            <div style={{ fontSize: 11, color: '#22c55e', textTransform: 'uppercase', fontWeight: 800, marginBottom: 8 }}>Installation</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <AFL label="Numéro de la batterie" required>
+                <AFI value={form.numero_batterie} onChange={e => set('numero_batterie', e.target.value)} placeholder="Ex. BAT-2026-00123" />
+              </AFL>
+              <AFL label="Date d'activation" required>
+                <AFI type="date" value={form.date_activation} onChange={e => set('date_activation', e.target.value)} />
+              </AFL>
+              <AFL label="Pièce d'identité (si non renseignée)">
+                <AFI value={form.piece_identite} onChange={e => set('piece_identite', e.target.value)} placeholder="CNI / NIF / RCCM + numéro" />
+              </AFL>
+              <AFL label="Photo de la pièce">
+                <input type="file" accept="image/*" capture="environment" onChange={e => set('photo', e.target.files?.[0] || null)}
+                  style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px dashed rgba(34,197,94,0.4)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 12 }} />
+              </AFL>
+              <AFL label="Coordonnées géographiques">
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <AFI value={form.latitude} onChange={e => set('latitude', e.target.value)} placeholder="Latitude" />
+                  <AFI value={form.longitude} onChange={e => set('longitude', e.target.value)} placeholder="Longitude" />
+                </div>
+                <button type="button" onClick={position} style={{ marginTop: 8, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>📍 Utiliser ma position</button>
+              </AFL>
+            </div>
+            <button type="submit" disabled={loading} style={{ marginTop: 16, width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+              {loading ? 'Enregistrement…' : '✅ Valider l’installation'}
+            </button>
+          </form>
+        ) : (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', gap: 12, fontSize: 12.5, color: '#94a3b8', marginBottom: 10 }}>
+              <span>🔋 {prospect.numero_batterie || '—'}</span>
+              <span>⚡ {prospect.date_activation?.slice(0, 10) || '—'}</span>
+            </div>
+            <button onClick={async () => {
+              if (!window.confirm('Annuler cette installation ?')) return;
+              try { await api.patch(`/energia/prospects/${prospect.id}/statut`, { statut: 'PROSPECT', reinitialiser: true }); toast.success('Installation annulée'); qc.invalidateQueries('energia-prospects'); qc.invalidateQueries('energia-stats'); onClose(); }
+              catch { toast.error('Annulation impossible'); }
+            }} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid rgba(255,71,87,0.35)', background: 'rgba(255,71,87,0.08)', color: '#ff4757', fontWeight: 800, cursor: 'pointer' }}>
+              ↩️ Annuler l'installation
+            </button>
+          </div>
         )}
       </div>
     </div>

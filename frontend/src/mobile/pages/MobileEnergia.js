@@ -7,14 +7,14 @@ import { Hero, Kpi } from '../ui';
 
 const STATUTS = {
   PROSPECT: { label: 'Prospect', icone: '☀️', couleur: '#ffa502' },
-  INSTALLE: { label: 'Installé', icone: '🏠', couleur: '#22c55e' },
+  INSTALLE: { label: 'Installation', icone: '🏠', couleur: '#22c55e' },
   SUIVI:    { label: 'En suivi', icone: '📞', couleur: '#4a9eff' },
 };
 
 const FILTRES = [
   { id: 'TOUS',     label: 'Tous' },
   { id: 'PROSPECT', label: '☀️ À installer' },
-  { id: 'INSTALLE', label: '🏠 Installés' },
+  { id: 'INSTALLE', label: '🏠 Installations' },
   { id: 'SUIVI',    label: '📞 Suivi' },
 ];
 
@@ -82,7 +82,7 @@ export default function MobileEnergia() {
 
       <div className="m-kpi-grid" style={{ marginBottom: 12 }}>
         <Kpi icone="☀️" label="À installer" valeur={fmtN(stats?.a_installer)} sub="prospects" couleur="#ffa502" />
-        <Kpi icone="🏠" label="Installés" valeur={fmtN(stats?.installes)} sub="kits posés" couleur="#22c55e" />
+        <Kpi icone="🏠" label="Installations" valeur={fmtN(stats?.installes)} sub="kits posés" couleur="#22c55e" />
         <Kpi icone="📞" label="En suivi" valeur={fmtN(stats?.suivis)} sub="après installation" couleur="#4a9eff" />
         <Kpi icone="💡" label="YELEN" valeur={fmtN(stats?.yelen)} sub={`${fmtN(stats?.diabarani)} DIABARANI`} couleur="#a29bfe" />
       </div>
@@ -194,6 +194,56 @@ export default function MobileEnergia() {
               </div>
             ))}
             {detail.notes && <div style={{ fontSize: 12, color: 'var(--fm-muted)', marginTop: 10 }}>📝 {detail.notes}</div>}
+
+            {detail.statut !== 'INSTALLE' && detail.statut !== 'SUIVI' ? (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!inst.numero_batterie.trim()) { toast.error('Numéro de batterie obligatoire'); return; }
+                const cible = detail.id;
+                if (photo) {
+                  const fd = new FormData(); fd.append('file', photo);
+                  api.post(`/energia/prospects/${cible}/pieces`, fd).catch(() => {});
+                }
+                changer.mutate({ id: cible, statut: 'INSTALLE', numero_batterie: inst.numero_batterie.trim(),
+                  date_activation: inst.date_activation || undefined, piece_identite: inst.piece_identite || undefined,
+                  latitude: inst.latitude === '' ? undefined : Number(inst.latitude),
+                  longitude: inst.longitude === '' ? undefined : Number(inst.longitude) });
+                setDetail(null); setPhoto(null);
+              }} style={{ marginTop: 14, borderTop: '1px solid var(--fm-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 900, textTransform: 'uppercase' }}>Installation</div>
+                <input className="m-input" placeholder="N° de batterie *" value={inst.numero_batterie}
+                  onChange={e => setInst({ ...inst, numero_batterie: e.target.value })} />
+                <label style={{ fontSize: 11, color: 'var(--fm-muted)' }}>Date d'activation</label>
+                <input className="m-input" type="date" value={inst.date_activation}
+                  onChange={e => setInst({ ...inst, date_activation: e.target.value })} />
+                <input className="m-input" placeholder="Pièce d'identité (si non renseignée)" value={inst.piece_identite}
+                  onChange={e => setInst({ ...inst, piece_identite: e.target.value })} />
+                <input className="m-input" type="file" accept="image/*" capture="environment"
+                  onChange={e => setPhoto(e.target.files?.[0] || null)} style={{ padding: 8 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="m-input" placeholder="Latitude" value={inst.latitude}
+                    onChange={e => setInst({ ...inst, latitude: e.target.value })} />
+                  <input className="m-input" placeholder="Longitude" value={inst.longitude}
+                    onChange={e => setInst({ ...inst, longitude: e.target.value })} />
+                </div>
+                <button type="button" className="m-btn secondary" style={{ padding: 10, fontSize: 12 }}
+                  onClick={() => {
+                    if (!navigator.geolocation) { toast.error('GPS indisponible'); return; }
+                    navigator.geolocation.getCurrentPosition(
+                      pos => { setInst(v => ({ ...v, latitude: pos.coords.latitude.toFixed(6), longitude: pos.coords.longitude.toFixed(6) })); toast.success('Position enregistrée'); },
+                      () => toast.error('Position indisponible'), { enableHighAccuracy: true, timeout: 10000 });
+                  }}>📍 Utiliser ma position</button>
+                <button type="submit" className="m-btn vert">✅ Valider l'installation</button>
+              </form>
+            ) : (
+              <button className="m-btn secondary" style={{ marginTop: 12, borderColor: 'rgba(255,71,87,0.4)', color: '#ff8b96' }}
+                onClick={() => {
+                  if (!window.confirm("Annuler cette installation ?")) return;
+                  api.patch(`/energia/prospects/${detail.id}/statut`, { statut: 'PROSPECT', reinitialiser: true })
+                    .then(() => { toast.success('Installation annulée'); setDetail(null); rafraichir(); })
+                    .catch(() => toast.error('Annulation impossible'));
+                }}>↩️ Annuler l'installation</button>
+            )}
           </div>
         </div>
       )}
@@ -221,7 +271,7 @@ export default function MobileEnergia() {
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               {(!p.statut || p.statut === 'PROSPECT') && (
                 <button className="m-btn vert" style={{ flex: 1, padding: 10, fontSize: 13 }}
-                  onClick={(e) => { e.stopPropagation(); setInst({ numero_batterie: '', date_activation: new Date().toISOString().slice(0, 10), piece_identite: p.piece_identite || '', latitude: p.latitude || '', longitude: p.longitude || '' }); setInstallation(p); }}>🛠️ Installer</button>
+                  onClick={(e) => { e.stopPropagation(); setInst({ numero_batterie: p.numero_batterie || '', date_activation: new Date().toISOString().slice(0, 10), piece_identite: p.piece_identite || '', latitude: p.latitude || '', longitude: p.longitude || '' }); setDetail(p); }}>🛠️ Installation</button>
               )}
               {p.statut === 'INSTALLE' && (
                 <button className="m-btn secondary" style={{ flex: 1, padding: 10, fontSize: 13 }}
