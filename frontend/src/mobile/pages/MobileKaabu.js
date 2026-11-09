@@ -57,7 +57,7 @@ export default function MobileKaabu() {
 
   return (
     <div>
-      <Hero titre="Dashboard KAABU" role="Hebdomadaire · Mon réseau"
+      <Hero titre="Dashboard KAABU" role={estMensuel ? 'Mensuel · Mon réseau' : 'Hebdomadaire · Mon réseau'}
         droite={
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button className="m-chip" onClick={() => (estMensuel ? setMois(m => Math.max(1, m - 1)) : setIndex(i => Math.max(0, (i ?? 0) - 1)))}
