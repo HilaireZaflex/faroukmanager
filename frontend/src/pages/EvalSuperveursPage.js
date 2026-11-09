@@ -54,6 +54,7 @@ function couleurAtteinte(valeur, objectif) {
 }
 
 function KPIsSection({ kpis, kpisPrecedent }) {
+  const [pleinEcran, setPleinEcran] = useState(false);
   if (!kpis) return <div style={{ color: '#8a8a9a', textAlign: 'center', padding: 40 }}>Aucune donnée KPI disponible</div>;
   const OBJECTIFS = kpis.objectifs || {};
   const SCORES = kpis.scores_kpi || {};
@@ -109,6 +110,12 @@ function KPIsSection({ kpis, kpisPrecedent }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <h3 style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>📊 KPIs — {MOIS_NOMS[kpis.mois]} {kpis.annee}</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <button onClick={() => setPleinEcran(true)} title="Afficher les KPIs en plein écran"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 9,
+              border: '1px solid rgba(0,214,143,0.35)', background: 'rgba(0,214,143,0.1)', color: '#00d68f',
+              fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
+            ⛶ Plein écran
+          </button>
           <span style={{ fontSize: 12, color: '#8a8a9a' }}>
             Objectifs atteints : <b style={{ color: nbAtteints === nbAvecObjectif && nbAvecObjectif > 0 ? '#22c55e' : '#ffa502' }}>{nbAtteints}/{nbAvecObjectif}</b>
           </span>
@@ -128,17 +135,17 @@ function KPIsSection({ kpis, kpisPrecedent }) {
         {kpisPrecedent && <span>↕ Comparaison avec {moisPrecLabel}</span>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14 }}>
         {items.map((item, i) => {
           const color = couleurAtteinte(item.valeur, item.objectif);
           const ec = ecart(item);
           const ecColor = !ec ? '#64748b' : ec.neutre ? '#64748b' : ec.stable ? '#94a3b8' : ec.hausse ? '#22c55e' : '#ff4757';
           const ecIcone = !ec ? '' : ec.neutre ? '🆕' : ec.stable ? '＝' : ec.hausse ? '▲' : '▼';
           return (
-            <div key={i} style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}25`, borderTop: `3px solid ${color}`, borderRadius: 10 }}>
+            <div key={i} style={{ padding: '16px 18px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${color}25`, borderTop: `3px solid ${color}`, borderRadius: 12 }}>
               <div style={{ fontSize: 18, marginBottom: 6 }}>{item.icon}</div>
               <div style={{ fontSize: 11, color: '#8a8a9a', marginBottom: 4, fontWeight: 600 }}>{item.label}</div>
-              <div style={{ fontSize: 15, fontWeight: 900, color }}>
+              <div style={{ fontSize: 17, fontWeight: 900, color, lineHeight: 1.45, letterSpacing: '0.3px', margin: '8px 0 6px', fontVariantNumeric: 'tabular-nums' }}>
                 {item.isPct ? fmtPct(item.valeur) : item.big ? fmtN(item.valeur) + ' F' : fmtN(item.valeur)}
               </div>
               {item.sousTexte != null && (
@@ -148,7 +155,7 @@ function KPIsSection({ kpis, kpisPrecedent }) {
                 </div>
               )}
               {item.objectif && (
-                <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 8, letterSpacing: '0.2px' }}>
                   Obj: {item.isPct ? item.objectif + '%' : item.big ? fmtN(item.objectif) + ' F' : item.objectif}
                 </div>
               )}
@@ -168,6 +175,55 @@ function KPIsSection({ kpis, kpisPrecedent }) {
           );
         })}
       </div>
+
+      {pleinEcran && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 4000, background: '#0b0b14', padding: '24px 28px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 22, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#fff' }}>📊 KPIs — {MOIS_NOMS[kpis.mois]} {kpis.annee}</div>
+              <div style={{ fontSize: 13, color: '#8a8a9a', marginTop: 4 }}>
+                Score global : <b style={{ color: '#00d68f' }}>{kpis.score_kpi_global != null ? Math.round(kpis.score_kpi_global) : '—'}/100</b>
+                {' · '}Objectifs atteints : <b style={{ color: '#ffa502' }}>{nbAtteints}/{nbAvecObjectif}</b>
+              </div>
+            </div>
+            <button onClick={() => setPleinEcran(false)}
+              style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
+              ✕ Fermer
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 22 }}>
+            {items.map((item, i) => {
+              const color = couleurAtteinte(item.valeur, item.objectif);
+              const ec = ecart(item);
+              const ecColor = !ec ? '#64748b' : ec.neutre ? '#64748b' : ec.stable ? '#94a3b8' : ec.hausse ? '#22c55e' : '#ff4757';
+              const ecIcone = !ec ? '' : ec.neutre ? '🆕' : ec.stable ? '＝' : ec.hausse ? '▲' : '▼';
+              return (
+                <div key={i} style={{ padding: '24px 26px', background: 'rgba(255,255,255,0.03)', border: `1px solid ${color}35`, borderTop: `4px solid ${color}`, borderRadius: 16 }}>
+                  <div style={{ fontSize: 26, marginBottom: 10 }}>{item.icon}</div>
+                  <div style={{ fontSize: 15, color: '#8a8a9a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{item.label}</div>
+                  <div style={{ fontSize: 44, fontWeight: 900, color, lineHeight: 1.25, margin: '12px 0 8px', letterSpacing: '0.5px', fontVariantNumeric: 'tabular-nums' }}>
+                    {item.isPct ? fmtPct(item.valeur) : item.big ? fmtN(item.valeur) + ' F' : fmtN(item.valeur)}
+                  </div>
+                  {item.sousTexte != null && (
+                    <div style={{ fontSize: 22, color: '#a29bfe', fontWeight: 900 }}>{item.sousTexte}</div>
+                  )}
+                  {item.objectif && (
+                    <div style={{ fontSize: 14, color: '#64748b', marginTop: 10 }}>
+                      Objectif : {item.isPct ? item.objectif + ' %' : item.big ? fmtN(item.objectif) + ' F' : item.objectif}
+                    </div>
+                  )}
+                  {ec && (
+                    <div style={{ fontSize: 14, marginTop: 10, color: ecColor, fontWeight: 800 }}>
+                      {ecIcone} {ec.texte} <span style={{ color: '#64748b', fontWeight: 500 }}>vs {moisPrecLabel}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
