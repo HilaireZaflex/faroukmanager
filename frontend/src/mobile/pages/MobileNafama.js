@@ -36,7 +36,7 @@ export default function MobileNafama() {
   const estMoisCourant = annee === maintenant.getFullYear() && mois === maintenant.getMonth() + 1;
   const reculer = () => (estHebdo ? setSemaine(v => Math.max(1, v - 1)) : decaler(-1));
   const avancer = () => (estHebdo ? setSemaine(v => Math.min(52, v + 1)) : decaler(1));
-  const donnees = estHebdo ? dataSem : data;
+
 
   const { data, isLoading, isError } = useQuery(['m-nafama', annee, mois],
     () => api.get('/nafama/monthly/overview', { params: { annee, mois } }).then(r => r.data),
@@ -57,6 +57,8 @@ export default function MobileNafama() {
   const { data: baisse } = useQuery(['m-nafama-baisse', mode, annee, mois, semaine],
     () => api.get(`${base}/declining`, { params: { ...periode, seuil_pct: -10 } }).then(r => r.data),
     { enabled: onglet === 'baisse', staleTime: 120000 });
+
+  const donnees = estHebdo ? dataSem : data;
 
   const superviseurs = Object.entries(data?.ca_by_superviseur || {})
     .map(([label, valeur]) => ({ label, valeur })).sort((a, b) => b.valeur - a.valeur);
