@@ -4,7 +4,7 @@ import api from '../services/api';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { resynchroniserPush } from './push';
-import { nomComplet, libelleRole, initiale } from './format';
+import { nomComplet, libelleRole } from './format';
 
 // ── Groupes de rôles ──
 export function groupeRole(role) {
@@ -241,7 +241,7 @@ export default function MobileLayout({ children }) {
           <div className="m-drawer" onClick={e => e.stopPropagation()}>
             <div className="m-drawer-head">
               <div className="m-avatar">
-                {initiale(user)}
+                {(user?.prenom || '').slice(0, 1)}{(user?.nom || '').slice(0, 1)}
                 <span className="m-avatar-dot" />
               </div>
               <div style={{ minWidth: 0 }}>
