@@ -23,6 +23,8 @@ export default function MobileEnergia() {
   const [filtre, setFiltre] = useState('TOUS');
   const [q, setQ] = useState('');
   const [creation, setCreation] = useState(false);
+  const [installation, setInstallation] = useState(null);
+  const [inst, setInst] = useState({ numero_batterie: '', date_activation: new Date().toISOString().slice(0, 10), piece_identite: '', latitude: '', longitude: '' });
   const [form, setForm] = useState({ nom: '', prenom: '', telephone: '', quartier: '', nom_kit: 'DIABARANI', notes: '' });
 
   const { data, isLoading, isError } = useQuery('m-energia',
@@ -38,9 +40,9 @@ export default function MobileEnergia() {
   };
 
   const changer = useMutation(
-    ({ id, statut }) => api.patch(`/energia/prospects/${id}/statut`, { statut }).then(r => r.data),
+    ({ id, ...corps }) => api.patch(`/energia/prospects/${id}/statut`, corps).then(r => r.data),
     {
-      onSuccess: (_, v) => { toast.success(v.statut === 'INSTALLE' ? 'Marqué installé' : 'Passé en suivi'); rafraichir(); },
+      onSuccess: (_, v) => { toast.success(v.statut === 'INSTALLE' ? 'Installation enregistrée' : 'Passé en suivi'); rafraichir(); },
       onError: (e) => toast.error(e?.response?.data?.detail || 'Mise à jour impossible'),
     }
   );
@@ -105,6 +107,48 @@ export default function MobileEnergia() {
         </form>
       )}
 
+      {installation && (
+        <form className="m-card" onSubmit={(e) => {
+          e.preventDefault();
+          if (!inst.numero_batterie.trim()) { toast.error('Numéro de batterie obligatoire'); return; }
+          changer.mutate({
+            id: installation.id, statut: 'INSTALLE',
+            numero_batterie: inst.numero_batterie.trim(),
+            date_activation: inst.date_activation || undefined,
+            piece_identite: inst.piece_identite || undefined,
+            latitude: inst.latitude === '' ? undefined : Number(inst.latitude),
+            longitude: inst.longitude === '' ? undefined : Number(inst.longitude),
+          });
+          setInstallation(null);
+        }} style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid rgba(34,197,94,0.35)' }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>🛠️ Installation — {installation.nom} {installation.prenom}</div>
+          <input className="m-input" placeholder="N° de batterie *" value={inst.numero_batterie}
+            onChange={e => setInst({ ...inst, numero_batterie: e.target.value })} />
+          <label style={{ fontSize: 11, color: 'var(--fm-muted)' }}>Date d'activation</label>
+          <input className="m-input" type="date" value={inst.date_activation}
+            onChange={e => setInst({ ...inst, date_activation: e.target.value })} />
+          <input className="m-input" placeholder="Pièce d'identité (si non renseignée)" value={inst.piece_identite}
+            onChange={e => setInst({ ...inst, piece_identite: e.target.value })} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input className="m-input" placeholder="Latitude" value={inst.latitude}
+              onChange={e => setInst({ ...inst, latitude: e.target.value })} />
+            <input className="m-input" placeholder="Longitude" value={inst.longitude}
+              onChange={e => setInst({ ...inst, longitude: e.target.value })} />
+          </div>
+          <button type="button" className="m-btn secondary" style={{ padding: 10, fontSize: 12 }}
+            onClick={() => {
+              if (!navigator.geolocation) { toast.error('GPS indisponible'); return; }
+              navigator.geolocation.getCurrentPosition(
+                pos => { setInst(v => ({ ...v, latitude: pos.coords.latitude.toFixed(6), longitude: pos.coords.longitude.toFixed(6) })); toast.success('Position enregistrée'); },
+                () => toast.error('Position indisponible'), { enableHighAccuracy: true, timeout: 10000 });
+            }}>📍 Utiliser ma position</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="m-btn secondary" style={{ flex: 1 }} onClick={() => setInstallation(null)}>Annuler</button>
+            <button type="submit" className="m-btn vert" style={{ flex: 1 }}>✅ Valider</button>
+          </div>
+        </form>
+      )}
+
       <div className="m-chips">
         {FILTRES.map(f => (
           <button key={f.id} className={'m-chip' + (filtre === f.id ? ' active' : '')} onClick={() => setFiltre(f.id)}>
@@ -136,11 +180,13 @@ export default function MobileEnergia() {
             <div className="m-item-metrics">
               <div>Prospecté le<b>{fmtDate(p.date_prospection)}</b></div>
               <div>Installé le<b>{p.date_installation ? fmtDate(p.date_installation) : '—'}</b></div>
+              {p.numero_batterie && <div>Batterie<b>{p.numero_batterie}</b></div>}
+              {p.date_activation && <div>Activé le<b>{fmtDate(p.date_activation)}</b></div>}
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               {(!p.statut || p.statut === 'PROSPECT') && (
                 <button className="m-btn vert" style={{ flex: 1, padding: 10, fontSize: 13 }}
-                  onClick={() => changer.mutate({ id: p.id, statut: 'INSTALLE' })}>🛠️ Marquer installé</button>
+                  onClick={() => { setInst({ numero_batterie: '', date_activation: new Date().toISOString().slice(0, 10), piece_identite: p.piece_identite || '', latitude: p.latitude || '', longitude: p.longitude || '' }); setInstallation(p); }}>🛠️ Installer</button>
               )}
               {p.statut === 'INSTALLE' && (
                 <button className="m-btn secondary" style={{ flex: 1, padding: 10, fontSize: 13 }}

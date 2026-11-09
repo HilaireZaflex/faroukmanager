@@ -40,6 +40,8 @@ class ProspectEnergia(Base):
     # Installation et suivi (le prospecteur installe lui-même le kit puis assure le suivi)
     statut = Column(String(30), default="PROSPECT", nullable=False)   # PROSPECT | INSTALLE | SUIVI
     date_installation = Column(Date, nullable=True)
+    numero_batterie = Column(String(100), nullable=True)               # n° de batterie posée
+    date_activation = Column(Date, nullable=True)                     # date d'activation du kit
     date_relance = Column(Date, nullable=True)                        # prochaine action de suivi
 
     # Métadonnées

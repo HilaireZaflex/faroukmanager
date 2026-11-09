@@ -180,6 +180,12 @@ class EnergiaStatutIn(BaseModel):
     date_installation: Optional[date] = None
     date_relance: Optional[date] = None
     notes: Optional[str] = None
+    # Formulaire d'installation
+    numero_batterie: Optional[str] = None
+    date_activation: Optional[date] = None
+    piece_identite: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 STATUTS_ENERGIA = {"PROSPECT", "INSTALLE", "SUIVI"}
@@ -203,7 +209,24 @@ def changer_statut_energia(
     if statut not in STATUTS_ENERGIA:
         raise HTTPException(400, f"Statut invalide : {body.statut}")
 
+    # Une installation exige le numéro de batterie : c'est la preuve que le kit
+    # a bien été posé sur place.
+    if statut == "INSTALLE" and not (body.numero_batterie or p.numero_batterie):
+        raise HTTPException(400, "Le numéro de la batterie est obligatoire pour enregistrer l'installation.")
+
     p.statut = statut
+    if body.numero_batterie:
+        p.numero_batterie = body.numero_batterie.strip()
+    if body.date_activation:
+        p.date_activation = body.date_activation
+    if body.piece_identite:
+        p.piece_identite = body.piece_identite
+    if body.latitude is not None:
+        p.latitude = body.latitude
+    if body.longitude is not None:
+        p.longitude = body.longitude
+    if statut == "INSTALLE" and not p.date_activation:
+        p.date_activation = body.date_installation or date.today()
     if body.date_installation:
         p.date_installation = body.date_installation
     elif statut in ("INSTALLE", "SUIVI") and not p.date_installation:
@@ -331,6 +354,8 @@ def _fmt(p: ProspectEnergia) -> dict:
         "piece_identite": p.piece_identite,
         "notes": p.notes,
         "statut": p.statut or "PROSPECT",
+        "numero_batterie": p.numero_batterie,
+        "date_activation": p.date_activation.isoformat() if p.date_activation else None,
         "date_installation": p.date_installation.isoformat() if p.date_installation else None,
         "date_relance": p.date_relance.isoformat() if p.date_relance else None,
         "created_by": p.created_by,

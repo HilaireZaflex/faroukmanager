@@ -236,6 +236,8 @@ async def auto_migrate():
         # ── Prospection ENERGIA : installation et suivi par le prospecteur ──
         "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS statut VARCHAR(30) DEFAULT 'PROSPECT'",
         "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS date_installation DATE",
+        "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS numero_batterie VARCHAR(100)",
+        "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS date_activation DATE",
         "ALTER TABLE prospects_energia ADD COLUMN IF NOT EXISTS date_relance DATE",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS developpeur VARCHAR(200)",
         "ALTER TABLE pdvs ADD COLUMN IF NOT EXISTS gestionnaire VARCHAR(200)",

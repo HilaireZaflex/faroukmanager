@@ -46,6 +46,7 @@ export default function ProspectionEnergiaPage() {
   const [editProspect, setEditProspect] = useState(null);
   const [search, setSearch] = useState('');
   const [filtreKit, setFiltreKit] = useState('');
+  const [installation, setInstallation] = useState(null);
 
   // Données ENERGIA
   const { data: energiaData, isLoading, refetch } = useQuery(
@@ -185,11 +186,12 @@ export default function ProspectionEnergiaPage() {
                 </span>
                 {p.date_installation && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>installé le {p.date_installation.slice(0, 10)}</span>}
                 {p.date_relance && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>relance {p.date_relance.slice(0, 10)}</span>}
+                {p.numero_batterie && <span style={{ fontSize: 11, color: '#64748b', marginLeft: 8 }}>🔋 {p.numero_batterie}</span>}
               </div>
               {p.notes && <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10, fontStyle: 'italic' }}>{p.notes.slice(0, 80)}{p.notes.length > 80 ? '...' : ''}</div>}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 {p.statut !== 'INSTALLE' && p.statut !== 'SUIVI' && (
-                  <button onClick={() => changerStatut(p.id, 'INSTALLE')}
+                  <button onClick={() => setInstallation(p)}
                     style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.12)', color: '#22c55e', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>
                     🛠️ Installé
                   </button>
@@ -212,6 +214,15 @@ export default function ProspectionEnergiaPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Formulaire d'installation */}
+      {installation && (
+        <EnergiaInstallationModal
+          prospect={installation}
+          onClose={() => setInstallation(null)}
+          onSuccess={() => { setInstallation(null); refetch(); }}
+        />
       )}
 
       {/* Modal Formulaire */}
@@ -313,6 +324,87 @@ function EnergiaFormModal({ prospect, onClose, onSuccess }) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ─── Formulaire d'installation (batterie, activation, pièce, GPS) ────────────
+function EnergiaInstallationModal({ prospect, onClose, onSuccess }) {
+  const [data, setData] = useState({
+    numero_batterie: prospect?.numero_batterie || '',
+    date_activation: new Date().toISOString().slice(0, 10),
+    piece_identite: prospect?.piece_identite || '',
+    latitude: prospect?.latitude || '',
+    longitude: prospect?.longitude || '',
+  });
+  const [loading, setLoading] = useState(false);
+  const set = (k, v) => setData(d => ({ ...d, [k]: v }));
+
+  const position = () => {
+    if (!navigator.geolocation) { toast.error('GPS indisponible sur cet appareil'); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => { set('latitude', pos.coords.latitude.toFixed(6)); set('longitude', pos.coords.longitude.toFixed(6)); toast.success('Position enregistrée'); },
+      () => toast.error('Position refusée ou indisponible'),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const envoyer = async (e) => {
+    e.preventDefault();
+    if (!data.numero_batterie.trim()) { toast.error('Le numéro de la batterie est obligatoire'); return; }
+    setLoading(true);
+    try {
+      await api.patch(`/energia/prospects/${prospect.id}/statut`, {
+        statut: 'INSTALLE',
+        numero_batterie: data.numero_batterie.trim(),
+        date_activation: data.date_activation || undefined,
+        piece_identite: data.piece_identite || undefined,
+        latitude: data.latitude === '' ? undefined : Number(data.latitude),
+        longitude: data.longitude === '' ? undefined : Number(data.longitude),
+      });
+      toast.success('Installation enregistrée');
+      onSuccess();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Enregistrement impossible');
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <form onSubmit={envoyer} style={{ background: '#12121e', border: '1px solid rgba(34,197,94,0.35)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 18, color: '#fff' }}>🛠️ Installation du kit</h2>
+          <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ fontSize: 12.5, color: '#94a3b8', marginBottom: 16 }}>
+          {prospect.nom} {prospect.prenom} · {prospect.reference} · {prospect.nom_kit}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <AFL label="Numéro de la batterie" required>
+            <AFI value={data.numero_batterie} onChange={e => set('numero_batterie', e.target.value)} placeholder="Ex. BAT-2026-00123" />
+          </AFL>
+          <AFL label="Date d'activation" required>
+            <AFI type="date" value={data.date_activation} onChange={e => set('date_activation', e.target.value)} />
+          </AFL>
+          <AFL label="Pièce d'identité (si non renseignée)">
+            <AFI value={data.piece_identite} onChange={e => set('piece_identite', e.target.value)} placeholder="CNI / NIF / RCCM + numéro" />
+          </AFL>
+          <AFL label="Coordonnées géographiques">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <AFI value={data.latitude} onChange={e => set('latitude', e.target.value)} placeholder="Latitude" />
+              <AFI value={data.longitude} onChange={e => set('longitude', e.target.value)} placeholder="Longitude" />
+            </div>
+            <button type="button" onClick={position} style={{ marginTop: 8, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              📍 Utiliser ma position
+            </button>
+          </AFL>
+        </div>
+
+        <button type="submit" disabled={loading} style={{ marginTop: 20, width: '100%', padding: 12, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+          {loading ? 'Enregistrement…' : '✅ Valider l’installation'}
+        </button>
+      </form>
     </div>
   );
 }
