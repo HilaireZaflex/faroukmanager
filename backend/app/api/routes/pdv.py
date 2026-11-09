@@ -58,17 +58,6 @@ def get_stats(
         query = query.filter(PDV.superviseur == superviseur)
     if teleconseillere:
         query = query.filter(PDV.teleconseillere.ilike(f"%{teleconseillere}%"))
-    if actif_performance:
-        from app.models.performance import MonthlyPerformance as MP2
-        last_pa = db.query(MP2.annee, MP2.mois).order_by(MP2.annee.desc(), MP2.mois.desc()).first()
-        if last_pa:
-            inactifs_ids = db.query(MP2.pdv_id).filter(
-                MP2.annee == last_pa[0], MP2.mois == last_pa[1], MP2.est_actif == False
-            ).subquery()
-            query = query.filter(~PDV.id.in_(inactifs_ids))
-        else:
-            query = query.filter(PDV.id == -1)
-
     if nouvelle_activation:
         from app.models.prospect import Prospect as ProspectModelFilter
         act_q = db.query(ProspectModelFilter.activated_pdv_id).filter(
