@@ -1380,7 +1380,6 @@ function OngletProgression({ annee }) {
           </div>
         )}
       </div>
-      {appelPDV && <AppelTCModal pdv={appelPDV} indicateur="NAFAMA" onClose={() => setAppelPDV(null)} onSaved={() => { if (appelPDV) setAppelsFaitsLocalNWD(prev => new Set([...prev, appelPDV.numero_pdv])); setAppelPDV(null); }} />}
     </div>
   );
 }
