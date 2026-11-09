@@ -33,6 +33,7 @@ export const ONGLETS = {
   commercial: [
     { to: '/m/accueil',          icon: '🏠', label: 'Accueil' },
     { to: '/m/prospection',      icon: '👥', label: 'Prospect' },
+    { to: '/m/energia',          icon: '☀️', label: 'ENERGIA' },
     { to: '/m/prospect/nouveau', icon: '➕', label: 'Nouveau' },
   ],
   manager: [
@@ -102,7 +103,10 @@ export default function MobileLayout({ children }) {
     : groupe === 'developpeur' ? 'Espace de gestion · Développeur'
     : groupe === 'commercial' ? 'Espace de gestion · Commercial'
     : groupe === 'manager' ? 'Espace de gestion · Encadrement' : 'Espace de gestion';
-  const raccourcis = ONGLETS[groupe] || ONGLETS.autre;
+  const raccourcis = (ONGLETS[groupe] || ONGLETS.autre)
+    .filter(o => o.to !== '/m/prospection' || canAccess('prospection'))
+    .filter(o => o.to !== '/m/prospect/nouveau' || canAccess('prospection'))
+    .filter(o => o.to !== '/m/energia' || canAccess('prospection_energia'));
 
   // Menu mobile : une liste par métier, pour que chaque rôle retrouve
   // exactement ce qu'il fait sur le terrain — avec le même design.
@@ -110,6 +114,7 @@ export default function MobileLayout({ children }) {
     accueil:      { to: '/m/accueil',           icon: '🏠', label: 'Accueil' },
     pdv:          { to: '/m/pdv',               icon: '🏪', label: 'Points de vente' },
     prospection:  { to: '/m/prospection',       icon: '👥', label: 'Prospection' },
+    energia:      { to: '/m/energia',           icon: '☀️', label: 'Prospection ENERGIA' },
     nouveau:      { to: '/m/prospect/nouveau',  icon: '➕', label: 'Nouveau prospect' },
     planning:     { to: '/m/planning',          icon: '📅', label: 'Mes visites' },
     activations:  { to: '/m/activations',       icon: '⚡', label: 'Mes activations' },
@@ -122,7 +127,7 @@ export default function MobileLayout({ children }) {
   };
 
   const MENUS_MOBILE = {
-    commercial:  ['accueil', 'prospection', 'nouveau', 'pdv'],
+    commercial:  ['accueil', 'prospection', 'energia', 'nouveau', 'pdv'],
     developpeur: ['accueil', 'prospection', 'planning', 'activations', 'pdv', 'reclamations'],
     superviseur: ['accueil', 'pdv', 'recuperation', 'alertes', 'prospection', 'reclamations'],
     manager:     ['accueil', 'pdv', 'prospection', 'alertes', 'reclamations', 'activations', 'pilotage', 'equipe', 'validations'],
@@ -134,6 +139,7 @@ export default function MobileLayout({ children }) {
     // Un compte peut n'avoir que la prospection ENERGIA : on masque alors
     // la prospection OM partout, y compris dans le menu mobile.
     if (id === 'prospection') return canAccess('prospection');
+    if (id === 'energia') return canAccess('prospection_energia');
     if (groupe !== 'manager') return true;
     if (id === 'alertes') return canAccess('alerts');
     if (id === 'activations') return canAccess('activations');

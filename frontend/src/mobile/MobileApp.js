@@ -22,6 +22,7 @@ import MobileValidations from './pages/MobileValidations';
 import MobileOMy from './pages/MobileOMy';
 import MobileNafama from './pages/MobileNafama';
 import MobileKaabu from './pages/MobileKaabu';
+import MobileEnergia from './pages/MobileEnergia';
 import { ecouterNavigationPush } from './push';
 import './mobile.css';
 
@@ -72,6 +73,7 @@ export default function MobileApp() {
         <Route path="prospect/:id" element={<MobileProspectDetail />} />
         <Route path="planning" element={<MobilePlanning />} />
         <Route path="activations" element={<MobileActivations />} />
+        <Route path="energia" element={<MobileEnergia />} />
 
         {/* ── Phase D · Manager / Admin ── */}
         <Route path="pilotage" element={<MobilePilotage />} />
