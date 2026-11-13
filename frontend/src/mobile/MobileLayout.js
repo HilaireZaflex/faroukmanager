@@ -12,7 +12,7 @@ export function groupeRole(role) {
   if (r === 'superviseur') return 'superviseur';
   if (r === 'developpeur') return 'developpeur';
   if (r === 'commercial') return 'commercial';
-  if (['admin', 'manager', 'rc', 'conformite'].includes(r) || r.includes('responsable')) return 'manager';
+  if (['admin', 'manager', 'rc', 'conformite', 'gestionnaire'].includes(r) || r.includes('responsable')) return 'manager';
   return 'autre';
 }
 
@@ -106,9 +106,11 @@ export default function MobileLayout({ children }) {
     return null;
   };
 
+  const estGestionnaire = (user?.role || '').toLowerCase().replace('userrole.', '') === 'gestionnaire';
   const libelleEspace = groupe === 'superviseur' ? 'Espace de gestion · Superviseur'
     : groupe === 'developpeur' ? 'Espace de gestion · Développeur'
     : groupe === 'commercial' ? 'Espace de gestion · Commercial'
+    : estGestionnaire ? 'Espace de gestion · Gestionnaire'
     : groupe === 'manager' ? 'Espace de gestion · Encadrement' : 'Espace de gestion';
   const raccourcis = (ONGLETS[groupe] || ONGLETS.autre)
     .filter(o => o.to !== '/m/prospection' || canAccess('prospection'))
