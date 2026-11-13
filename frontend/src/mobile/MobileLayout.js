@@ -133,13 +133,14 @@ export default function MobileLayout({ children }) {
     pilotage:     { to: '/m/pilotage',          icon: '📊', label: 'Pilotage', couleur: '#a855f7' },
     equipe:       { to: '/m/equipe',            icon: '🌐', label: 'Équipe & réseau', couleur: '#60a5fa' },
     validations:  { to: '/m/validations',       icon: '📋', label: 'Validations', couleur: '#22c55e' },
+    evaluations:  { to: '/m/evaluations',       icon: '⭐', label: 'Évaluations', couleur: '#fbbf24' },
   };
 
   const MENUS_MOBILE = {
     commercial:  ['accueil', 'prospection', 'energia', 'nouveau', 'pdv'],
     developpeur: ['accueil', 'prospection', 'planning', 'activations', 'pdv', 'reclamations'],
-    superviseur: ['accueil', 'pdv', 'recuperation', 'alertes', 'prospection', 'reclamations'],
-    manager:     ['accueil', 'pdv', 'prospection', 'alertes', 'reclamations', 'activations', 'pilotage', 'equipe', 'validations'],
+    superviseur: ['accueil', 'pdv', 'recuperation', 'alertes', 'prospection', 'reclamations', 'evaluations'],
+    manager:     ['accueil', 'pdv', 'prospection', 'alertes', 'reclamations', 'activations', 'pilotage', 'equipe', 'validations', 'evaluations'],
     autre:       ['accueil', 'pdv'],
   };
 
@@ -149,6 +150,8 @@ export default function MobileLayout({ children }) {
     // la prospection OM partout, y compris dans le menu mobile.
     if (id === 'prospection') return canAccess('prospection');
     if (id === 'energia') return canAccess('prospection_energia');
+    // Évaluations : même droit que le menu web « Évaluations ».
+    if (id === 'evaluations') return canAccess('evaluations');
     if (groupe !== 'manager') return true;
     if (id === 'alertes') return canAccess('alerts');
     if (id === 'activations') return canAccess('activations');

@@ -23,6 +23,7 @@ import MobileOMy from './pages/MobileOMy';
 import MobileNafama from './pages/MobileNafama';
 import MobileKaabu from './pages/MobileKaabu';
 import MobileEnergia from './pages/MobileEnergia';
+import MobileEvaluations from './pages/MobileEvaluations';
 import { ecouterNavigationPush } from './push';
 import './mobile.css';
 
@@ -79,6 +80,7 @@ export default function MobileApp() {
         <Route path="pilotage" element={<MobilePilotage />} />
         <Route path="equipe" element={<MobileEquipe />} />
         <Route path="validations" element={<MobileValidations />} />
+        <Route path="evaluations" element={<MobileEvaluations />} />
         <Route path="dashboard/omy" element={<MobileOMy />} />
         <Route path="dashboard/nafama" element={<MobileNafama />} />
         <Route path="dashboard/kaabu" element={<MobileKaabu />} />
