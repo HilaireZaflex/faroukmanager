@@ -128,9 +128,11 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
             detail="Adresse e-mail ou mot de passe incorrect."
         )
     
-    # Update last login
+    # Dernière connexion : mise à jour à CHAQUE connexion réussie (pas
+    # seulement à la création du compte), en UTC naïf comme le reste de l'app.
     user.last_login = datetime.utcnow()
     db.commit()
+    db.refresh(user)
     
     access_token = create_access_token(
         data={"sub": user.email},
@@ -244,6 +246,15 @@ def _jours_sans_connexion(last_login, now) -> Optional[int]:
     return max(0, (now - last_login).days)
 
 
+def _timestamp_utc(dt) -> float:
+    """Timestamp POSIX comparable pour trier des datetimes naïfs (UTC) ou aware."""
+    if dt is None:
+        return 0.0
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.replace(tzinfo=timezone.utc).timestamp()
+
+
 @router.get("/auth/users-activity")
 def users_login_activity(
     db: Session = Depends(get_db),
@@ -253,7 +264,9 @@ def users_login_activity(
 
     Pour chaque utilisateur : identité, rôle, téléphone personnel, état du
     compte et ancienneté de la dernière connexion.
-    Tri : jamais connectés d'abord, puis les connexions les plus anciennes.
+    Tri : connexion la plus récente d'abord (last_login DESC NULLS LAST),
+    puis la plus ancienne, les comptes jamais connectés en dernier ;
+    à connexion identique, ordre alphabétique (nom puis prénom).
     Aucune donnée sensible (mot de passe, hash) n'est exposée.
     """
     now = datetime.utcnow()
@@ -275,16 +288,16 @@ def users_login_activity(
             "jours_sans_connexion": jours,
             "jamais_connecte": jamais,
         }
-        # Clé de tri interne (non renvoyée) :
-        # 1. jamais connecté (0) avant les autres (1)
-        # 2. pour les connectés : le plus de jours d'abord (-jours)
-        # 3. à ancienneté égale : compte créé le plus ancien d'abord
-        # 4. puis ordre alphabétique
+        # Clé de tri interne (non renvoyée) — équivalent de
+        # « ORDER BY last_login DESC NULLS LAST, nom » :
+        # 1. les comptes connectés (0) avant les jamais connectés (1) ;
+        # 2. connexion la plus récente d'abord (-timestamp) ;
+        # 3. puis ordre alphabétique (nom, prénom).
         cle_tri = (
-            0 if jamais else 1,
-            -(jours or 0),
-            u.created_at.isoformat() if u.created_at is not None else "9999-12-31T23:59:59",
+            1 if jamais else 0,
+            -_timestamp_utc(u.last_login),
             (u.nom or "").lower(),
+            (u.prenom or "").lower(),
         )
         lignes.append((cle_tri, ligne))
 

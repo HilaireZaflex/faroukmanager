@@ -4,7 +4,7 @@ import {
   Home, LayoutDashboard, CalendarDays, Store, Bell,
   Brain, RefreshCw, FileText, Settings,
   LogOut, ChevronLeft, ChevronRight, Users, Upload,
-  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy, PhoneCall, BarChart3, GraduationCap, Rocket
+  Wand2, TrendingUp, ChevronDown, Map, AlertTriangle, Network, UserPlus, Activity, DollarSign, Star, Trophy, PhoneCall, BarChart3, GraduationCap, Rocket, Lock
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import './Sidebar.css';
@@ -242,6 +242,9 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
               {can('import')   && nl('/import',   Upload,   'Import Données')}
               {can('reports')  && nl('/reports',  FileText, 'Rapports')}
               {can('settings') && nl('/settings', Settings, 'Paramètres')}
+              {/* Activité de connexion — tout en bas de la navigation, juste
+                  après l'accès Paramètres / Zones & Localités (mêmes rôles). */}
+              {can('settings') && nl('/settings/activite', Lock, '🔐 Activité de connexion')}
             </>}
           </>
         )}

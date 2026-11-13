@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
-import { Phone, MessageCircle, RefreshCw } from 'lucide-react';
+import { Search } from 'lucide-react';
 import api from '../services/api';
 import useAuthStore from '../store/authStore';
+import './ActiviteConnexionsPage.css';
 
 // ─── Rôles ────────────────────────────────────────────────────────────────────
 const ROLE_STYLES = {
@@ -47,6 +48,13 @@ export const construireMessageWhatsApp = (utilisateur) => {
   return `Bonjour${prenom ? ` ${prenom}` : ''}, nous n'avons pas vu de connexion à Farouk Manager depuis ${depuis}. Pouvez-vous vous reconnecter ? Merci.`;
 };
 
+// ─── Helpers d'affichage ──────────────────────────────────────────────────────
+const normaliserTexte = (valeur) => String(valeur || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .trim();
+
 const formatDerniereConnexion = (iso) => {
   if (!iso) return null;
   const date = new Date(iso);
@@ -57,33 +65,81 @@ const formatDerniereConnexion = (iso) => {
   });
 };
 
-const besoinRelance = (u) => Boolean(u?.jamais_connecte)
-  || (u?.jours_sans_connexion !== null
-    && u?.jours_sans_connexion !== undefined
-    && u.jours_sans_connexion >= 7);
+// « Aujourd'hui », « Hier », « il y a 3 j »… à partir des jours entiers calculés
+// côté backend (UTC).
+const formatRelative = (u) => {
+  if (u?.jamais_connecte || !u?.last_login) return 'Jamais connecté';
+  const jours = u.jours_sans_connexion;
+  if (jours === null || jours === undefined) return '—';
+  if (jours === 0) return "Aujourd'hui";
+  if (jours === 1) return 'Hier';
+  return `il y a ${jours} j`;
+};
 
+// Badge « jours sans connexion » : vert ≤ 7, orange 8–30, rouge > 30, gris jamais.
+const badgeJours = (u) => {
+  if (u?.jamais_connecte) {
+    return { label: 'Jamais connecté', color: '#8a8a9a', bg: 'rgba(255,255,255,0.06)' };
+  }
+  const jours = u?.jours_sans_connexion;
+  if (jours === null || jours === undefined) {
+    return { label: '—', color: '#8a8a9a', bg: 'rgba(255,255,255,0.06)' };
+  }
+  if (jours <= 7) return { label: `${jours} j`, color: '#00d68f', bg: 'rgba(0,214,143,0.12)' };
+  if (jours <= 30) return { label: `${jours} j`, color: '#ffa502', bg: 'rgba(255,165,2,0.13)' };
+  return { label: `${jours} j`, color: '#ff4757', bg: 'rgba(255,71,87,0.13)' };
+};
+
+const initiales = (u) => {
+  const prenom = (u?.prenom || '').trim();
+  const nom = (u?.nom || '').trim();
+  const premier = (prenom || nom || u?.email || '?').trim()[0] || '?';
+  const second = (prenom ? nom : '').trim()[0] || '';
+  return `${premier}${second}`.toUpperCase();
+};
+
+const nomCompletDe = (u) => [u?.prenom, u?.nom].filter(Boolean).join(' ')
+  || u?.email
+  || '—';
+
+// ─── Filtres ──────────────────────────────────────────────────────────────────
 const FILTRES = [
-  { key: 'tous',   label: 'Tous' },
-  { key: '7',      label: '≥ 7 jours' },
-  { key: '30',     label: '≥ 30 jours' },
-  { key: 'jamais', label: 'Jamais connecté' },
+  { key: 'tous',    label: 'Tous' },
+  { key: 'recents', label: 'Récents (≤ 7 j)' },
+  { key: '7',       label: '≥ 7 j' },
+  { key: '30',      label: '≥ 30 j' },
+  { key: 'jamais',  label: 'Jamais' },
 ];
 
 const filtreCorrespond = (u, filtre) => {
   if (filtre === 'tous') return true;
   if (filtre === 'jamais') return Boolean(u.jamais_connecte);
+  // Les comptes jamais connectés n'apparaissent que dans le filtre « Jamais ».
   if (u.jamais_connecte) return false;
   const jours = u.jours_sans_connexion;
   if (jours === null || jours === undefined) return false;
+  // « jours » est un nombre de jours entiers : < 7 ⇒ connecté il y a moins de 7 j.
+  if (filtre === 'recents') return jours < 7;
   if (filtre === '7') return jours >= 7;
   if (filtre === '30') return jours >= 30;
   return true;
 };
 
-const cellButton = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  width: 34, height: 34, borderRadius: 9, fontSize: 15,
-  textDecoration: 'none', border: '1px solid transparent',
+const correspondRecherche = (u, recherche) => {
+  const q = normaliserTexte(recherche);
+  if (!q) return true;
+  const rs = roleStyle(u.role);
+  const champs = [u.prenom, u.nom, u.email, u.telephone, u.role, rs.label]
+    .filter(Boolean)
+    .map(normaliserTexte)
+    .join(' ');
+  if (champs.includes(q)) return true;
+  // Recherche par numéro : on compare les chiffres saisis à ceux du téléphone.
+  const qChiffres = q.replace(/\D/g, '');
+  if (qChiffres.length >= 2) {
+    return String(u.telephone || '').replace(/\D/g, '').includes(qChiffres);
+  }
+  return false;
 };
 
 export default function ActiviteConnexionsPage() {
@@ -91,6 +147,7 @@ export default function ActiviteConnexionsPage() {
   const role = (user?.role || '').toLowerCase().replace('userrole.', '');
   const estAdmin = ['admin', 'manager'].includes(role);
   const [filtre, setFiltre] = useState('tous');
+  const [recherche, setRecherche] = useState('');
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery(
     'users-activity',
@@ -98,33 +155,33 @@ export default function ActiviteConnexionsPage() {
     { staleTime: 60000, retry: false, enabled: estAdmin }
   );
 
+  // L'API renvoie déjà les utilisateurs triés : connexion la plus récente
+  // d'abord, jamais connectés en dernier.
   const utilisateurs = Array.isArray(data) ? data : [];
   const total = utilisateurs.length;
   const jamais = utilisateurs.filter((u) => u.jamais_connecte).length;
+  const actifs = utilisateurs.filter((u) => filtreCorrespond(u, 'recents')).length;
   const inactifs7 = utilisateurs.filter((u) => filtreCorrespond(u, '7')).length;
-  const connectesSemaine = utilisateurs.filter(
-    (u) => !u.jamais_connecte
-      && u.jours_sans_connexion !== null
-      && u.jours_sans_connexion !== undefined
-      && u.jours_sans_connexion < 7
-  ).length;
-
-  const liste = utilisateurs.filter((u) => filtreCorrespond(u, filtre));
-
-  const kpis = [
-    { label: 'Total utilisateurs', value: total, color: '#4a9eff', icon: '👥' },
-    { label: 'Connectés cette semaine', value: connectesSemaine, color: '#00d68f', icon: '✅' },
-    { label: 'Inactifs ≥ 7 jours', value: inactifs7, color: '#FF6900', icon: '⚠️' },
-    { label: 'Jamais connectés', value: jamais, color: '#ff3d71', icon: '🚫' },
-  ];
 
   const compteFiltre = (key) => {
     if (key === 'tous') return total;
     return utilisateurs.filter((u) => filtreCorrespond(u, key)).length;
   };
 
+  const liste = utilisateurs
+    .filter((u) => filtreCorrespond(u, filtre))
+    .filter((u) => correspondRecherche(u, recherche));
+
+  const kpis = [
+    { key: 'tous',    label: 'Total',             value: total,     color: '#4a9eff', icon: '👥', title: 'Tous les utilisateurs' },
+    { key: 'recents', label: 'Actifs (≤ 7 j)',    value: actifs,    color: '#00d68f', icon: '✅', title: 'Connectés il y a 7 jours ou moins' },
+    { key: '7',       label: 'Inactifs ≥ 7 j',    value: inactifs7, color: '#FF6900', icon: '⚠️', title: 'Sans connexion depuis 7 jours ou plus' },
+    { key: 'jamais',  label: 'Jamais connectés',  value: jamais,    color: '#ff4757', icon: '🚫', title: 'Comptes jamais connectés' },
+  ];
+
   const erreur = error?.response?.data?.detail || error?.message;
   const estRefus = error?.response?.status === 403;
+  const rechercheActive = Boolean(recherche.trim());
 
   return (
     <div className="page">
@@ -132,97 +189,133 @@ export default function ActiviteConnexionsPage() {
         <div>
           <h1 className="page-title">Activité de connexion</h1>
           <p className="page-subtitle">
-            Qui s'est connecté, depuis quand — et pour les comptes sans connexion depuis 7 jours ou plus,
-            relancez-les par téléphone ou WhatsApp.
+            Qui s'est connecté, depuis quand — et pour les comptes inactifs depuis 7 jours
+            ou plus, relancez-les par téléphone ou WhatsApp.
           </p>
         </div>
         <button
-          className="btn btn-ghost btn-sm"
+          type="button"
+          className="btn btn-primary btn-sm"
           onClick={() => refetch()}
           disabled={!estAdmin || isLoading || isFetching}
+          style={{ opacity: (!estAdmin || isLoading || isFetching) ? 0.6 : 1 }}
+          title="Recharger l'activité de connexion"
         >
-          <RefreshCw size={14} /> Actualiser
+          <span
+            className={`ac-refresh-icon${isFetching ? ' spinning' : ''}`}
+            aria-hidden="true"
+          >
+            🔄
+          </span>
+          Actualiser
         </button>
       </div>
 
       {!estAdmin ? (
-        <div className="card" style={{ textAlign: 'center', padding: 48 }}>
-          <div style={{ fontSize: 34, marginBottom: 10 }}>🔐</div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>
-            Accès réservé aux administrateurs
-          </div>
-          <div style={{ fontSize: 13, color: '#8a8a9a' }}>
-            Seuls les administrateurs et managers peuvent consulter l'activité de connexion
-            et relancer les utilisateurs.
+        <div className="card">
+          <div className="ac-state">
+            <div className="ac-state-icon">🔐</div>
+            <div className="ac-state-title">Accès réservé aux administrateurs</div>
+            <div className="ac-state-text">
+              Seuls les administrateurs et managers peuvent consulter l'activité de connexion
+              et relancer les utilisateurs.
+            </div>
           </div>
         </div>
       ) : isError ? (
-        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 30, marginBottom: 10 }}>⚠️</div>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-            {estRefus ? 'Accès refusé' : 'Impossible de charger l\'activité de connexion'}
+        <div className="card">
+          <div className="ac-state">
+            <div className="ac-state-icon">⚠️</div>
+            <div className="ac-state-title">
+              {estRefus ? 'Accès refusé' : "Impossible de charger l'activité de connexion"}
+            </div>
+            <div className="ac-state-text" style={{ marginBottom: estRefus ? 0 : 16 }}>
+              {estRefus
+                ? "Votre compte n'a pas les droits nécessaires (administrateur)."
+                : (erreur || 'Une erreur est survenue, veuillez réessayer.')}
+            </div>
+            {!estRefus && (
+              <button className="btn btn-primary btn-sm" onClick={() => refetch()}>
+                <span aria-hidden="true">🔄</span> Réessayer
+              </button>
+            )}
           </div>
-          <div style={{ fontSize: 12.5, color: '#8a8a9a', marginBottom: 16 }}>
-            {estRefus
-              ? "Votre compte n'a pas les droits nécessaires (administrateur)."
-              : (erreur || 'Une erreur est survenue, veuillez réessayer.')}
-          </div>
-          {!estRefus && (
-            <button className="btn btn-primary btn-sm" onClick={() => refetch()}>
-              <RefreshCw size={14} /> Réessayer
-            </button>
-          )}
         </div>
       ) : (
         <>
-          {/* KPI */}
-          <div className="grid-4" style={{ marginBottom: 20 }}>
-            {kpis.map((k) => (
-              <div key={k.label} className="card" style={{ borderLeft: `3px solid ${k.color}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: k.color, lineHeight: 1.1 }}>
-                    {isLoading ? '…' : k.value}
-                  </div>
-                  <span style={{ fontSize: 19 }}>{k.icon}</span>
-                </div>
-                <div style={{ fontSize: 12, color: '#8a8a9a', marginTop: 5 }}>{k.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Filtres */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-            {FILTRES.map((f) => {
-              const actif = filtre === f.key;
+          {/* ── KPI cards (cliquables) ─────────────────────────────────────── */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 14,
+              marginBottom: 18,
+            }}
+          >
+            {kpis.map((k) => {
+              const actif = filtre === k.key;
               return (
                 <button
-                  key={f.key}
-                  onClick={() => setFiltre(f.key)}
-                  style={{
-                    padding: '7px 15px', borderRadius: 20, cursor: 'pointer',
-                    fontSize: 12.5, fontWeight: 700, fontFamily: 'Inter, sans-serif',
-                    border: `1px solid ${actif ? '#FF6900' : 'rgba(255,255,255,0.1)'}`,
-                    background: actif ? '#FF6900' : 'rgba(255,255,255,0.04)',
-                    color: actif ? '#fff' : '#8a8a9a',
-                    transition: 'all 0.18s',
-                  }}
+                  type="button"
+                  key={k.key}
+                  onClick={() => setFiltre(k.key)}
+                  title={k.title}
+                  aria-pressed={actif}
+                  className={`ac-kpi${actif ? ' ac-kpi-active' : ''}`}
+                  style={{ borderLeftColor: k.color }}
                 >
-                  {f.label}
-                  <span style={{ marginLeft: 7, opacity: 0.75, fontWeight: 600 }}>
-                    {isLoading ? '' : compteFiltre(f.key)}
+                  <span className="ac-kpi-top">
+                    <span className="ac-kpi-value" style={{ color: k.color }}>
+                      {isLoading ? '…' : k.value}
+                    </span>
+                    <span className="ac-kpi-icon" aria-hidden="true">{k.icon}</span>
                   </span>
+                  <span className="ac-kpi-label">{k.label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Tableau */}
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="table-wrapper">
-              <table>
+          {/* ── Filtres + recherche ────────────────────────────────────────── */}
+          <div className="ac-filter-bar">
+            <div className="ac-chips">
+              {FILTRES.map((f) => {
+                const actif = filtre === f.key;
+                return (
+                  <button
+                    type="button"
+                    key={f.key}
+                    onClick={() => setFiltre(f.key)}
+                    aria-pressed={actif}
+                    className={`ac-chip${actif ? ' active' : ''}`}
+                  >
+                    {f.label}
+                    <span className="ac-chip-count">
+                      {isLoading ? '…' : compteFiltre(f.key)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="ac-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="search"
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                placeholder="Rechercher un nom, un rôle, un téléphone…"
+                aria-label="Rechercher un utilisateur par nom, rôle ou téléphone"
+              />
+            </div>
+          </div>
+
+          {/* ── Tableau ────────────────────────────────────────────────────── */}
+          <div className="card ac-card">
+            <div className="ac-table-scroll">
+              <table className="ac-table">
                 <thead>
                   <tr>
-                    <th>Nom</th>
+                    <th>Utilisateur</th>
                     <th>Rôle</th>
                     <th>Téléphone</th>
                     <th>Dernière connexion</th>
@@ -233,19 +326,40 @@ export default function ActiviteConnexionsPage() {
                 <tbody>
                   {isLoading ? (
                     Array(6).fill(0).map((_, i) => (
-                      <tr key={`skeleton-${i}`} style={{ cursor: 'default' }}>
-                        {Array(6).fill(0).map((_, j) => (
-                          <td key={j}>
-                            <div className="skeleton" style={{ height: 15, width: j === 0 ? 150 : 80 }} />
-                          </td>
-                        ))}
+                      <tr key={`skeleton-${i}`}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div className="skeleton" style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                              <div className="skeleton" style={{ height: 12, width: 130, marginBottom: 6 }} />
+                              <div className="skeleton" style={{ height: 10, width: 170 }} />
+                            </div>
+                          </div>
+                        </td>
+                        <td><div className="skeleton" style={{ height: 20, width: 90, borderRadius: 999 }} /></td>
+                        <td><div className="skeleton" style={{ height: 12, width: 90 }} /></td>
+                        <td>
+                          <div className="skeleton" style={{ height: 12, width: 80, marginBottom: 6 }} />
+                          <div className="skeleton" style={{ height: 10, width: 110 }} />
+                        </td>
+                        <td><div className="skeleton" style={{ height: 20, width: 54, borderRadius: 999 }} /></td>
+                        <td><div className="skeleton" style={{ height: 36, width: 80, borderRadius: 999 }} /></td>
                       </tr>
                     ))
                   ) : liste.length === 0 ? (
-                    <tr style={{ cursor: 'default' }}>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '44px 20px', color: '#8a8a9a' }}>
-                        <div style={{ fontSize: 26, marginBottom: 8 }}>🔎</div>
-                        Aucun utilisateur dans ce filtre
+                    <tr>
+                      <td colSpan={6}>
+                        <div className="ac-state">
+                          <div className="ac-state-icon">🔎</div>
+                          <div className="ac-state-title">
+                            {rechercheActive ? 'Aucun résultat' : 'Aucun utilisateur dans ce filtre'}
+                          </div>
+                          <div className="ac-state-text">
+                            {rechercheActive
+                              ? `Aucun utilisateur ne correspond à « ${recherche.trim()} ».`
+                              : 'Modifiez le filtre ou actualisez les données.'}
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -253,131 +367,104 @@ export default function ActiviteConnexionsPage() {
                       const rs = roleStyle(u.role);
                       const tel = normaliserTelephone(u.telephone);
                       const aTelephone = Boolean(tel);
-                      const alerte = besoinRelance(u);
-                      const jours = u.jours_sans_connexion;
-                      const dateLabel = formatDerniereConnexion(u.last_login);
                       const message = encodeURIComponent(construireMessageWhatsApp(u));
-                      const nomComplet = [u.prenom, u.nom].filter(Boolean).join(' ') || u.email || '—';
-                      const joursLabel = u.jamais_connecte
-                        ? 'Jamais'
-                        : (jours === null || jours === undefined ? '—' : `${jours} j`);
-                      const joursColor = u.jamais_connecte || (jours !== null && jours !== undefined && jours >= 7)
-                        ? '#ff3d71'
-                        : '#8a8a9a';
-                      const joursBg = u.jamais_connecte || (jours !== null && jours !== undefined && jours >= 7)
-                        ? 'rgba(255,61,113,0.12)'
-                        : 'rgba(255,255,255,0.06)';
+                      const nomComplet = nomCompletDe(u);
+                      const dateLabel = formatDerniereConnexion(u.last_login);
+                      const badge = badgeJours(u);
+                      const relatif = formatRelative(u);
 
                       return (
-                        <tr
-                          key={u.id}
-                          style={{
-                            cursor: 'default',
-                            background: alerte ? 'rgba(255,61,113,0.07)' : 'transparent',
-                          }}
-                        >
+                        <tr key={u.id}>
                           <td>
-                            <div style={{ fontWeight: 700, fontSize: 13.5, color: alerte ? '#ff8b94' : '#f0f0f0' }}>
-                              {nomComplet}
+                            <div className="ac-user">
+                              <div className="ac-avatar" aria-hidden="true">{initiales(u)}</div>
+                              <div style={{ minWidth: 0 }}>
+                                <div className="ac-user-name" title={nomComplet}>{nomComplet}</div>
+                                <div className="ac-user-email" title={u.email || ''}>
+                                  {u.email || '—'}
+                                </div>
+                              </div>
                             </div>
-                            <div style={{ fontSize: 11, color: '#8a8a9a', marginTop: 2 }}>{u.email || '—'}</div>
                           </td>
                           <td>
                             <span
-                              style={{
-                                display: 'inline-block', padding: '3px 10px', borderRadius: 20,
-                                fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                                background: rs.bg, color: rs.color,
-                              }}
+                              className="ac-role"
+                              style={{ background: rs.bg, color: rs.color }}
                             >
                               {rs.label}
                             </span>
                           </td>
                           <td>
-                            <span style={{ fontSize: 12.5, color: u.telephone ? '#f0f0f0' : '#64748b' }}>
-                              {u.telephone || '—'}
-                            </span>
-                            {!u.telephone && (
-                              <div style={{ fontSize: 10.5, color: '#64748b', marginTop: 2 }}>
-                                Non renseigné
-                              </div>
+                            {aTelephone ? (
+                              <span className="ac-phone">{u.telephone}</span>
+                            ) : (
+                              <>
+                                <span className="ac-phone ac-phone-muted">—</span>
+                                <div className="ac-phone-muted">Non renseigné</div>
+                              </>
                             )}
                           </td>
                           <td>
-                            <span style={{ fontSize: 12.5, color: '#c9d3e0' }}>
-                              {dateLabel || (u.jamais_connecte ? 'Jamais connecté' : '—')}
+                            <span className={`ac-relative${u.jamais_connecte ? ' ac-muted' : ''}`}>
+                              {relatif}
                             </span>
+                            {dateLabel ? (
+                              <span className="ac-exact">{dateLabel}</span>
+                            ) : u.jamais_connecte ? (
+                              <span className="ac-exact">Aucune connexion enregistrée</span>
+                            ) : null}
                           </td>
                           <td>
                             <span
-                              style={{
-                                display: 'inline-block', padding: '3px 10px', borderRadius: 20,
-                                fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap',
-                                background: joursBg, color: joursColor,
-                              }}
+                              className="ac-badge"
+                              style={{ background: badge.bg, color: badge.color }}
                             >
-                              {joursLabel}
+                              {badge.label}
                             </span>
                           </td>
                           <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div className="ac-actions">
                               {aTelephone ? (
                                 <>
                                   <a
                                     href={`tel:+${tel}`}
+                                    className="ac-action ac-action-call"
                                     title={`Appeler ${u.telephone}`}
-                                    style={{
-                                      ...cellButton,
-                                      background: 'rgba(0,214,143,0.12)',
-                                      borderColor: 'rgba(0,214,143,0.3)',
-                                      color: '#00d68f',
-                                    }}
+                                    aria-label={`Appeler ${nomComplet}`}
                                   >
-                                    <Phone size={15} />
+                                    📞
                                   </a>
                                   <a
                                     href={`https://wa.me/${tel}?text=${message}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    className="ac-action ac-action-wa"
                                     title={`WhatsApp ${u.telephone}`}
-                                    style={{
-                                      ...cellButton,
-                                      background: 'rgba(37,211,102,0.12)',
-                                      borderColor: 'rgba(37,211,102,0.3)',
-                                      color: '#25d366',
-                                    }}
+                                    aria-label={`Contacter ${nomComplet} sur WhatsApp`}
                                   >
-                                    <MessageCircle size={15} />
+                                    💬
                                   </a>
                                 </>
                               ) : (
                                 <>
-                                  <span
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="ac-action ac-action-disabled"
                                     title="Aucun numéro de téléphone renseigné pour cet utilisateur"
-                                    aria-disabled="true"
-                                    style={{
-                                      ...cellButton,
-                                      background: 'rgba(255,255,255,0.03)',
-                                      borderColor: 'rgba(255,255,255,0.07)',
-                                      color: '#475569',
-                                      cursor: 'not-allowed',
-                                    }}
+                                    aria-label="Appel indisponible : aucun numéro renseigné"
                                   >
-                                    <Phone size={15} />
-                                  </span>
-                                  <span
+                                    📞
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="ac-action ac-action-disabled"
                                     title="Aucun numéro de téléphone renseigné pour cet utilisateur"
-                                    aria-disabled="true"
-                                    style={{
-                                      ...cellButton,
-                                      background: 'rgba(255,255,255,0.03)',
-                                      borderColor: 'rgba(255,255,255,0.07)',
-                                      color: '#475569',
-                                      cursor: 'not-allowed',
-                                    }}
+                                    aria-label="WhatsApp indisponible : aucun numéro renseigné"
                                   >
-                                    <MessageCircle size={15} />
-                                  </span>
+                                    💬
+                                  </button>
                                 </>
                               )}
                             </div>
@@ -391,10 +478,11 @@ export default function ActiviteConnexionsPage() {
             </div>
           </div>
 
-          <p style={{ fontSize: 11.5, color: '#64748b', marginTop: 12, lineHeight: 1.6 }}>
-            Les lignes en rouge clair correspondent aux comptes sans connexion depuis 7 jours ou plus
-            (ou jamais connectés). Le numéro utilisé est le téléphone personnel renseigné sur la fiche
-            utilisateur ; sans numéro, les actions sont désactivées.
+          <p className="ac-note">
+            Tri : dernière connexion la plus récente en premier ; les comptes jamais connectés
+            apparaissent en dernier. Le badge est vert jusqu'à 7 jours, orange de 8 à 30 jours,
+            rouge au-delà. Le numéro utilisé est le téléphone personnel de la fiche utilisateur ;
+            sans numéro, les actions sont désactivées.
           </p>
         </>
       )}
