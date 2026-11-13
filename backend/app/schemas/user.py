@@ -29,6 +29,14 @@ class UserOut(UserBase):
     class Config:
         from_attributes = True
 
+class UserOutWithTelephone(UserOut):
+    """UserOut + téléphone personnel.
+
+    Champ optionnel ajouté uniquement pour la liste des utilisateurs :
+    le schéma UserOut existant (login, /auth/me, ...) reste inchangé.
+    """
+    telephone: Optional[str] = None
+
 class Token(BaseModel):
     access_token: str
     token_type: str

@@ -45,6 +45,7 @@ import ReclamationsPage from './pages/ReclamationsPage';
 import IndicatorsPage from './pages/IndicatorsPage';
 import CommissionsPage from './pages/CommissionsPage';
 import EvaluationsPage from './pages/EvaluationsPage';
+import ActiviteConnexionsPage from './pages/ActiviteConnexionsPage';
 
 // Layout
 import Layout from './components/layout/Layout';
@@ -218,6 +219,7 @@ function App() {
                 <Route path="/reports" element={<MenuRoute menuId="reports"><ReportsPage /></MenuRoute>} />
                 <Route path="/import" element={<MenuRoute menuId="import"><ImportPage /></MenuRoute>} />
                 <Route path="/settings" element={<MenuRoute menuId="settings"><SettingsPage /></MenuRoute>} />
+                <Route path="/settings/activite" element={<MenuRoute menuId="settings"><ActiviteConnexionsPage /></MenuRoute>} />
                 <Route path="/analytics" element={<MenuRoute menuId="reports"><AnalyticsPage /></MenuRoute>} />
                 <Route path="/superviseurs" element={<MenuRoute menuId="settings"><SuperviseurPage /></MenuRoute>} />
 

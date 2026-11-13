@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Users, Database, Shield, Bell, RefreshCw, UserPlus, Trash2, Edit3, Check, X, Eye, EyeOff, Key, Lock, Save, User, Phone, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Database, Shield, Bell, RefreshCw, UserPlus, Trash2, Edit3, Check, X, Eye, EyeOff, Key, Lock, Save, User, Phone, MapPin, ChevronRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import useAuthStore from '../store/authStore';
 import api from '../services/api';
@@ -1330,6 +1331,7 @@ function SectionLocalites() {
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const roleCourant = (user?.role || '').toLowerCase().replace('userrole.', '');
   const estRPQO = roleCourant === 'responsable_produit_et_qualit_oprationnelle_';
   // Le Responsable Produit & Qualité vient ici pour tenir le référentiel à jour :
@@ -1358,6 +1360,19 @@ export default function SettingsPage() {
           <p style={{ color:'#8a8a9a', fontSize:13, marginTop:4 }}>Configuration de Farouk Distribution</p>
         </div>
       </div>
+
+      {/* Accès rapide : activité de connexion (page dédiée) */}
+      <button
+        onClick={() => navigate('/settings/activite')}
+        style={{ display:'flex', alignItems:'center', gap:14, width:'100%', textAlign:'left', background:'rgba(255,105,0,0.07)', border:'1px solid rgba(255,105,0,0.28)', borderRadius:14, padding:'14px 18px', marginBottom:20, cursor:'pointer', fontFamily:'Inter,sans-serif', color:'#f0f0f0' }}
+      >
+        <div style={{ width:42, height:42, borderRadius:12, background:'rgba(255,105,0,0.18)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, flexShrink:0 }}>🔐</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:14, fontWeight:800, color:'#FF6900' }}>Activité de connexion</div>
+          <div style={{ fontSize:12, color:'#8a8a9a', marginTop:2 }}>Qui s'est connecté, depuis quand · relancer par téléphone ou WhatsApp</div>
+        </div>
+        <ChevronRight size={16} style={{ color:'#8a8a9a', flexShrink:0 }}/>
+      </button>
 
       <div style={{ display:'grid', gridTemplateColumns:'240px 1fr', gap:20, alignItems:'start' }}>
         {/* Menu lateral */}

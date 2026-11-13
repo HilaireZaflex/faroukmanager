@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.core.database import get_db
 from app.core.security import create_access_token, decode_token, get_password_hash
 from app.services.auth_service import (
@@ -9,7 +9,14 @@ from app.services.auth_service import (
     create_user
 )
 from app.models.user import User, UserRole
-from app.schemas.user import LoginRequest, Token, UserOut, UserCreate, UserUpdate
+from app.schemas.user import (
+    LoginRequest,
+    Token,
+    UserOut,
+    UserOutWithTelephone,
+    UserCreate,
+    UserUpdate,
+)
 from typing import List, Optional
 
 router = APIRouter()
@@ -221,16 +228,80 @@ def list_responsables(
     return [{"id": u.id, "nom": f"{u.prenom or ''} {u.nom or ''}".strip(), "role": u.role, "email": u.email} for u in responsables]
 
 
-@router.get("/auth/users", response_model=List[UserOut])
+def _normaliser_role(role) -> str:
+    """Rôle comparable côté frontend (ex. UserRole.ADMIN -> admin)."""
+    return str(role or "").lower().replace('userrole.', '')
+
+
+def _jours_sans_connexion(last_login, now) -> Optional[int]:
+    """Nombre de jours entiers écoulés depuis last_login (None si jamais connecté)."""
+    if last_login is None:
+        return None
+    # Certaines bases renvoient des datetimes avec timezone : on repasse en
+    # naive UTC pour pouvoir les soustraire à datetime.utcnow().
+    if last_login.tzinfo is not None:
+        last_login = last_login.astimezone(timezone.utc).replace(tzinfo=None)
+    return max(0, (now - last_login).days)
+
+
+@router.get("/auth/users-activity")
+def users_login_activity(
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Activité de connexion des utilisateurs (admin uniquement).
+
+    Pour chaque utilisateur : identité, rôle, téléphone personnel, état du
+    compte et ancienneté de la dernière connexion.
+    Tri : jamais connectés d'abord, puis les connexions les plus anciennes.
+    Aucune donnée sensible (mot de passe, hash) n'est exposée.
+    """
+    now = datetime.utcnow()
+    users = db.query(User).all()
+
+    lignes = []
+    for u in users:
+        jours = _jours_sans_connexion(u.last_login, now)
+        jamais = u.last_login is None
+        ligne = {
+            "id": u.id,
+            "nom": u.nom,
+            "prenom": u.prenom,
+            "email": u.email,
+            "role": _normaliser_role(u.role),
+            "telephone": u.telephone,
+            "is_active": bool(u.is_active),
+            "last_login": u.last_login.isoformat() if u.last_login is not None else None,
+            "jours_sans_connexion": jours,
+            "jamais_connecte": jamais,
+        }
+        # Clé de tri interne (non renvoyée) :
+        # 1. jamais connecté (0) avant les autres (1)
+        # 2. pour les connectés : le plus de jours d'abord (-jours)
+        # 3. à ancienneté égale : compte créé le plus ancien d'abord
+        # 4. puis ordre alphabétique
+        cle_tri = (
+            0 if jamais else 1,
+            -(jours or 0),
+            u.created_at.isoformat() if u.created_at is not None else "9999-12-31T23:59:59",
+            (u.nom or "").lower(),
+        )
+        lignes.append((cle_tri, ligne))
+
+    lignes.sort(key=lambda paire: paire[0])
+    return [ligne for _, ligne in lignes]
+
+
+@router.get("/auth/users", response_model=List[UserOutWithTelephone])
 def list_users(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
     skip: int = 0,
     limit: int = 100
 ):
-    """List all users (admin only)"""
+    """List all users (admin only). Inclut le téléphone personnel (optionnel)."""
     users = db.query(User).offset(skip).limit(limit).all()
-    return [UserOut.from_orm(u) for u in users]
+    return [UserOutWithTelephone.from_orm(u) for u in users]
 
 @router.delete("/auth/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user_endpoint(
