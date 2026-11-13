@@ -46,7 +46,7 @@ export const ONGLETS = {
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
     { to: '/m/pdv',          icon: '🏪', label: 'PDV' },
     { to: '/m/equipe',       icon: '🌐', label: 'Équipe' },
-    { to: '/m/validations',  icon: '📋', label: 'Valider' },
+    { to: '/m/recuperation', icon: '🚨', label: 'Urgence' },
   ],
   autre: [
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
