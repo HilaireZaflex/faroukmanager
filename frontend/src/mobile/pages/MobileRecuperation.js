@@ -3,7 +3,8 @@ import { useQuery } from 'react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import { fmtN, fmtCourt, fmtPct, couleurVariation, libellePriorite, classePriorite } from '../format';
-import { Hero, Kpi } from '../ui';
+import { Hero, Kpi, Bloc } from '../ui';
+import useAuthStore from '../../store/authStore';
 
 const PRIO_FILTRES = [
   { id: 'TOUS', label: 'Tous' },
@@ -25,6 +26,8 @@ const METRIQUES = [
  * Le backend restreint automatiquement aux PDV de l'utilisateur connecté.
  */
 export default function MobileRecuperation() {
+  const user = useAuthStore(st => st.user);
+  const estGestionnaire = (user?.role || '').toLowerCase().replace('userrole.', '') === 'gestionnaire';
   const [mode, setMode] = useState('hebdo');
   const [metrique, setMetrique] = useState('volume');
   const [prio, setPrio] = useState('TOUS');
@@ -38,8 +41,28 @@ export default function MobileRecuperation() {
   const k = data?.kpis || {};
   const liste = useMemo(() => {
     const arr = data?.pdvs || [];
-    return prio === 'TOUS' ? arr : arr.filter(p => p.priorite === prio);
-  }, [data, prio]);
+    const filtres = prio === 'TOUS' ? arr : arr.filter(p => p.priorite === prio);
+    // Gestionnaire : regroupé par superviseur (son périmètre uniquement)
+    if (estGestionnaire) {
+      return [...filtres].sort((a, b) => (a.superviseur || '').localeCompare(b.superviseur || ''));
+    }
+    return filtres;
+  }, [data, prio, estGestionnaire]);
+
+  // Synthèse par superviseur (gestionnaire)
+  const parSuperviseur = useMemo(() => {
+    if (!estGestionnaire) return [];
+    const m = new Map();
+    (data?.pdvs || []).forEach(p => {
+      const cle = p.superviseur || 'Sans superviseur';
+      const g = m.get(cle) || { nom: cle, nb: 0, perte: 0, urgents: 0 };
+      g.nb += 1;
+      g.perte += Number(p.perte_valeur) || 0;
+      if ((p.priorite || '') === 'P1') g.urgents += 1;
+      m.set(cle, g);
+    });
+    return [...m.values()].sort((a, b) => b.perte - a.perte);
+  }, [data, estGestionnaire]);
 
   const unite = metrique === 'volume' ? 'F' : 'F';
   const libelleMetrique = metrique === 'volume' ? 'Volume' : 'Gain réel';
@@ -79,6 +102,19 @@ export default function MobileRecuperation() {
           </button>
         ))}
       </div>
+
+      {estGestionnaire && parSuperviseur.length > 0 && (
+        <Bloc titre="Par superviseur" sousTitre="Urgences de votre périmètre">
+          {parSuperviseur.map(g => (
+            <div key={g.nom} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--fm-border)', fontSize: 13 }}>
+              <span style={{ color: '#fff', fontWeight: 700 }}>{g.nom}</span>
+              <span style={{ color: 'var(--fm-muted)' }}>
+                {fmtN(g.nb)} PDV · {fmtN(g.urgents)} P1 · <b style={{ color: '#ff8b96' }}>{fmtCourt(g.perte)}</b>
+              </span>
+            </div>
+          ))}
+        </Bloc>
+      )}
 
       {isLoading && <div className="m-empty">Analyse en cours…</div>}
       {isError && <div className="m-empty">Impossible de charger l'analyse.<br />Vérifiez votre connexion.</div>}
