@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from 'react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import useAuthStore from '../../store/authStore';
 import { fmtN, libelleStatut, classeStatut, nomComplet } from '../format';
@@ -27,6 +27,7 @@ const libelleEspace = (role) => {
 export default function MobilePDV() {
   const user = useAuthStore(s => s.user);
   const [paramsUrl] = useSearchParams();
+  const navigate = useNavigate();
   const [q, setQ] = useState('');
   const statutInitial = (() => {
     if (paramsUrl.get('inactif') === '1') return 'INACTIF';
@@ -102,7 +103,7 @@ export default function MobilePDV() {
         {FILTRES.map(f => {
           const actif = statut === f.id;
           return (
-            <button key={f.id} className="m-chip" onClick={() => setStatut(f.id)}
+            <button key={f.id} className="m-chip" onClick={() => (f.id === 'RECUPERATION' ? navigate('/m/recuperation') : setStatut(f.id))}
               style={actif
                 ? { background: 'linear-gradient(135deg,#FF6900,#ff8c3a)', borderColor: '#FF6900', color: '#fff' }
                 : { borderColor: `${f.couleur}55`, color: f.couleur }}>
