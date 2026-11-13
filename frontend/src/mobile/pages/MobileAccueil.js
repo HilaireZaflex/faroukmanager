@@ -61,7 +61,9 @@ export default function MobileAccueil() {
   const aDecider = (Number(pstats?.validees_dev) || 0) + (Number(pstats?.en_attente_rc) || 0);
   const aAttribuer = Number(pstats?.approuvees_rc) || 0;
 
-  const liens = (ONGLETS[groupe] || ONGLETS.autre).filter(t => t.to !== '/m/accueil');
+  const estGestionnaireRole = (user?.role || '').toLowerCase().replace('userrole.', '') === 'gestionnaire';
+  const liens = (ONGLETS[estGestionnaireRole ? 'gestionnaire' : groupe] || ONGLETS.autre)
+    .filter(t => t.to !== '/m/accueil');
 
   const titre = groupe === 'superviseur' ? 'Espace superviseur'
     : groupe === 'developpeur' ? 'Espace développeur'
