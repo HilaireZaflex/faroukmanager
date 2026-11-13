@@ -42,6 +42,12 @@ export const ONGLETS = {
     { to: '/m/equipe',       icon: '🌐', label: 'Équipe' },
     { to: '/m/validations',  icon: '📋', label: 'Valider' },
   ],
+  gestionnaire: [
+    { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
+    { to: '/m/pdv',          icon: '🏪', label: 'PDV' },
+    { to: '/m/equipe',       icon: '🌐', label: 'Équipe' },
+    { to: '/m/validations',  icon: '📋', label: 'Valider' },
+  ],
   autre: [
     { to: '/m/accueil',      icon: '🏠', label: 'Accueil' },
   ],
@@ -112,7 +118,7 @@ export default function MobileLayout({ children }) {
     : groupe === 'commercial' ? 'Espace de gestion · Commercial'
     : estGestionnaire ? 'Espace de gestion · Gestionnaire'
     : groupe === 'manager' ? 'Espace de gestion · Pilotage' : 'Espace de gestion';
-  const raccourcis = (ONGLETS[groupe] || ONGLETS.autre)
+  const raccourcis = (ONGLETS[estGestionnaire ? 'gestionnaire' : groupe] || ONGLETS.autre)
     .filter(o => o.to !== '/m/prospection' || canAccess('prospection'))
     .filter(o => o.to !== '/m/prospect/nouveau' || canAccess('prospection'))
     .filter(o => o.to !== '/m/energia' || canAccess('prospection_energia'));
@@ -159,6 +165,7 @@ export default function MobileLayout({ children }) {
   };
 
   const liens = (MENUS_MOBILE[groupe] || MENUS_MOBILE.autre)
+    .filter(id => !(estGestionnaire && id === 'pilotage'))
     .filter(autorise)
     .map(id => ITEMS[id])
     .filter(Boolean);
