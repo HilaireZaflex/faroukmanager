@@ -3,7 +3,7 @@ from sqlalchemy import and_, func
 from app.models.pdv import PDV, PDVStatut
 from app.models.performance import WeeklyPerformance, MonthlyPerformance
 from app.models.recovery import Recovery, RecoveryStatut
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
 def get_supervisor_stats(
@@ -150,14 +150,24 @@ def get_supervisor_pdvs(
 def get_supervisors_comparison(
     db: Session,
     annee: int,
-    mois: int
+    mois: int,
+    superviseurs: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
     Comparaison de TOUS les superviseurs sur tous les KPIs.
+
+    `superviseurs` : noms autorisés (périmètre « Équipe & Réseau »).
+    None = aucune restriction ; [] = aucun superviseur.
     """
-    supervisors = db.query(PDV.superviseur).filter(
+    q = db.query(PDV.superviseur).filter(
         PDV.superviseur.isnot(None)
-    ).distinct().all()
+    )
+    if superviseurs is not None:
+        noms = sorted({str(n).strip().lower() for n in superviseurs if n and str(n).strip()})
+        if not noms:
+            return []
+        q = q.filter(func.lower(func.trim(PDV.superviseur)).in_(noms))
+    supervisors = q.distinct().all()
     
     comparaison = []
     

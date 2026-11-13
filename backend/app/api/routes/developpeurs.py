@@ -5,11 +5,13 @@ from sqlalchemy import func, and_
 from typing import Optional, List
 from datetime import datetime, date, timedelta
 from app.core.database import get_db
+from app.api.routes.auth import get_current_user
 from app.models.developpeur import DevTask, DevDailyGoal, DevPortfolio, SuperviseurPDVObjective, TaskType, TaskStatus, TaskPriority
 from app.models.user import User, UserRole
 from app.models.pdv import PDV
 from app.models.prospect import Prospect, ProspectStatus
 from app.models.performance import MonthlyPerformance
+from app.services.perimetre_equipe import ids_superviseurs_perimetre
 
 router = APIRouter()
 
@@ -18,8 +20,13 @@ router = APIRouter()
 def get_devs(db: Session):
     return db.query(User).filter(User.role.in_(['developpeur', 'DEVELOPPEUR']), User.is_active == True).all()
 
-def get_superviseurs(db: Session):
-    return db.query(User).filter(User.role.in_(['superviseur', 'SUPERVISEUR']), User.is_active == True).all()
+def get_superviseurs(db: Session, ids: Optional[List[int]] = None):
+    q = db.query(User).filter(User.role.in_(['superviseur', 'SUPERVISEUR']), User.is_active == True)
+    if ids is not None:
+        if not ids:
+            return []
+        q = q.filter(User.id.in_(ids))
+    return q.all()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -356,9 +363,12 @@ def add_to_portefeuille(body: dict, db: Session = Depends(get_db)):
 @router.get("/developpeurs/superviseurs-pdv-objectifs")
 def get_superviseurs_pdv_objectifs(
     period: str = "2026-05",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    superviseurs = get_superviseurs(db)
+    # Périmètre : un gestionnaire ne voit que les superviseurs rattachés à ses
+    # PDV ; un superviseur ne voit que lui-même ; admin/manager/rc inchangés.
+    superviseurs = get_superviseurs(db, ids=ids_superviseurs_perimetre(db, current_user))
     result = []
 
     annee, mois = int(period.split("-")[0]), int(period.split("-")[1])

@@ -634,10 +634,19 @@ def calculer_score_final(
 
 # ─── LISTE SUPERVISEURS ───────────────────────────────────────────────────────
 
-def get_liste_superviseurs(db: Session) -> List[str]:
-    """Retourne tous les superviseurs distincts dans la base PDV."""
-    rows = db.query(PDV.superviseur).filter(
+def get_liste_superviseurs(db: Session, noms: Optional[List[str]] = None) -> List[str]:
+    """Retourne tous les superviseurs distincts dans la base PDV.
+
+    `noms` : périmètre autorisé. None = aucune restriction ; [] = aucun.
+    """
+    q = db.query(PDV.superviseur).filter(
         PDV.superviseur.isnot(None),
         PDV.superviseur != '',
-    ).distinct().order_by(PDV.superviseur).all()
+    )
+    if noms is not None:
+        valeurs = sorted({str(n).strip().lower() for n in noms if n and str(n).strip()})
+        if not valeurs:
+            return []
+        q = q.filter(func.lower(func.trim(PDV.superviseur)).in_(valeurs))
+    rows = q.distinct().order_by(PDV.superviseur).all()
     return [r[0] for r in rows if r[0]]

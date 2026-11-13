@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 from app.core.database import get_db
+from app.api.routes.auth import get_current_user
+from app.models.user import User
 from app.models.pdv import PDV, PDVStatut
 from app.models.performance import WeeklyPerformance, MonthlyPerformance
 from app.models.recovery import Recovery, RecoveryStatut
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from sqlalchemy import and_, func
+from app.services.perimetre_equipe import (
+    superviseurs_du_perimetre,
+    verifier_superviseur,
+)
 from app.services.supervisor_service import (
     get_supervisor_stats,
     get_supervisor_pdvs,
@@ -71,7 +77,8 @@ class ComparaisonResponse(BaseModel):
 def get_supervisors_stats(
     annee: int = Query(2026),
     mois: int = Query(3),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     GET /superviseurs/stats - Stats pour chaque superviseur
@@ -82,11 +89,25 @@ def get_supervisors_stats(
     - taux_retention (% PDVs actifs)
     - nb_recuperations_reussies
     - rang_reseau: classement vs autres superviseurs
+
+    Périmètre : un gestionnaire ne voit QUE les superviseurs rattachés à au
+    moins un de ses PDV ; un superviseur ne voit que lui-même. Les rôles
+    admin / manager / rc / conformité voient tout (inchangé).
     """
-    # Récupérer tous les superviseurs uniques
-    supervisors = db.query(PDV.superviseur).filter(
+    # Récupérer les superviseurs autorisés (filtre SQL sur le périmètre)
+    q_supervisors = db.query(PDV.superviseur).filter(
         PDV.superviseur.isnot(None)
-    ).distinct().all()
+    )
+    autorises = superviseurs_du_perimetre(db, current_user)
+    if autorises is not None:
+        noms = sorted({n.strip().lower() for n in autorises if n and n.strip()})
+        if not noms:
+            # Périmètre vide : liste vide, jamais la liste complète.
+            return []
+        q_supervisors = q_supervisors.filter(
+            func.lower(func.trim(PDV.superviseur)).in_(noms)
+        )
+    supervisors = q_supervisors.distinct().all()
     
     stats_list = []
     
@@ -110,12 +131,26 @@ def get_supervisor_pdvs_endpoint(
     annee: int = Query(2026),
     mois: int = Query(3),
     semaine: int = Query(52),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     GET /superviseurs/{nom}/pdvs - Tous les PDVs d'un superviseur avec performances semaine + mensuel
+
+    Périmètre : 403 si le superviseur est hors du périmètre ; pour un
+    gestionnaire, seuls les PDV qu'il gère lui-même sont retournés.
     """
-    pdvs = db.query(PDV).filter(PDV.superviseur == nom).all()
+    verifier_superviseur(db, current_user, nom)
+
+    pdvs_q = db.query(PDV).filter(PDV.superviseur == nom)
+    # Un gestionnaire ne doit voir que les PDV qu'il gère réellement.
+    from app.api.routes.auth import get_pdv_filters  # import local : anti-cycle
+    filtres = get_pdv_filters(current_user) or {}
+    if filtres.get("gestionnaire"):
+        pdvs_q = pdvs_q.filter(
+            func.lower(func.trim(PDV.gestionnaire)) == str(filtres["gestionnaire"]).strip().lower()
+        )
+    pdvs = pdvs_q.all()
     
     if not pdvs:
         raise HTTPException(
@@ -179,12 +214,19 @@ def get_supervisor_pdvs_endpoint(
 def get_supervisors_comparison_endpoint(
     annee: int = Query(2026),
     mois: int = Query(3),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     GET /superviseurs/comparaison - Comparaison de TOUS les superviseurs sur tous les KPIs
+
+    Périmètre : gestionnaire → uniquement ses superviseurs ; superviseur →
+    lui-même ; admin/manager/rc/conformité → inchangé (tout).
     """
-    comparaison = get_supervisors_comparison(db, annee=annee, mois=mois)
+    comparaison = get_supervisors_comparison(
+        db, annee=annee, mois=mois,
+        superviseurs=superviseurs_du_perimetre(db, current_user),
+    )
     
     # Trier par CA total DESC
     comparaison.sort(key=lambda x: x["ca_total"], reverse=True)

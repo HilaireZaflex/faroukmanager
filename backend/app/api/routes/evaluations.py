@@ -1,6 +1,14 @@
-"""Routes API Évaluations 360°."""
+"""Routes API Évaluations 360°.
+
+Toutes les lectures (campagnes, scores, dashboard, PDF, objectifs) sont
+restreintes au périmètre de l'utilisateur connecté :
+  · superviseur   → uniquement ses propres lignes d'évaluation ;
+  · gestionnaire  → uniquement les évaluations des superviseurs rattachés à
+                    au moins un de ses PDV (`PDV.gestionnaire`) ;
+  · admin / manager / rc / conformite → inchangé (tout).
+"""
 from typing import Optional, List
-from fastapi import APIRouter, Depends, Body, Query
+from fastapi import APIRouter, Depends, Body, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from sqlalchemy.orm import Session
@@ -14,6 +22,10 @@ from app.services import (
     eval_mystery_service as mystery_svc,
     eval_config_service as cfg_svc,
     eval_report_service as report_svc,
+)
+from app.services.perimetre_equipe import (
+    filtrer_par_utilisateurs,
+    verifier_utilisateur,
 )
 
 router = APIRouter(prefix="/evaluations", tags=["Évaluations"])
@@ -41,8 +53,8 @@ def reset_config(role_type: EvalRoleType, db: Session = Depends(get_db), current
 # ── CAMPAGNES ─────────────────────────────────────────────────────────────
 @router.get("/campaigns")
 def list_campaigns(role_type: Optional[EvalRoleType] = None, status: Optional[EvalStatus] = None,
-                   db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return svc.list_campaigns(db, role_type, status)
+                   db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return svc.list_campaigns(db, role_type, status, user=current_user)
 
 @router.post("/campaigns")
 def create_campaign(payload: dict = Body(...), db: Session = Depends(get_db),
@@ -51,8 +63,9 @@ def create_campaign(payload: dict = Body(...), db: Session = Depends(get_db),
     return {"id": c.id, "name": c.name, "status": c.status.value}
 
 @router.get("/campaigns/{campaign_id}")
-def get_campaign(campaign_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return svc.get_campaign(db, campaign_id)
+def get_campaign(campaign_id: int, db: Session = Depends(get_db),
+                 current_user: User = Depends(get_current_user)):
+    return svc.get_campaign(db, campaign_id, user=current_user)
 
 @router.post("/campaigns/{campaign_id}/generate-mystery")
 def generate_mystery(campaign_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
@@ -99,11 +112,15 @@ def generate_mystery_for_agent(campaign_id: int, payload: dict = Body(...),
     return mystery_svc.generate_mystery_for_agent(db, campaign_id, agent_id, tc_id)
 
 @router.get("/campaigns/{campaign_id}/scores")
-def list_scores(campaign_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return svc.get_campaign(db, campaign_id)
+def list_scores(campaign_id: int, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    return svc.get_campaign(db, campaign_id, user=current_user)
 
 @router.get("/campaigns/{campaign_id}/scores/{user_id}")
-def get_score(campaign_id: int, user_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def get_score(campaign_id: int, user_id: int, db: Session = Depends(get_db),
+              current_user: User = Depends(get_current_user)):
+    # 403 si l'agent demandé est hors du périmètre (superviseur/gestionnaire).
+    verifier_utilisateur(db, current_user, user_id)
     from app.models.evaluation import EvalScore
     s = db.query(EvalScore).filter(EvalScore.campaign_id == campaign_id, EvalScore.user_id == user_id).first()
     if not s:
@@ -123,13 +140,16 @@ def get_score(campaign_id: int, user_id: int, db: Session = Depends(get_db), _: 
     }
 
 @router.post("/campaigns/{campaign_id}/scores/{user_id}/compute")
-def compute_one(campaign_id: int, user_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def compute_one(campaign_id: int, user_id: int, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    verifier_utilisateur(db, current_user, user_id)
     s = svc.compute_score(db, campaign_id, user_id)
     return {"score_final": s.score_final, "score_label": s.score_label, "bonus": s.bonus_amount}
 
 @router.post("/campaigns/{campaign_id}/scores/{user_id}/manual-note")
 def add_manual_note(campaign_id: int, user_id: int, payload: dict = Body(...),
                     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    verifier_utilisateur(db, current_user, user_id)
     note = EvalManualNote(
         campaign_id=campaign_id, user_id=user_id,
         criterion=payload["criterion"],
@@ -143,7 +163,9 @@ def add_manual_note(campaign_id: int, user_id: int, payload: dict = Body(...),
 
 @router.get("/campaigns/{campaign_id}/scores/{user_id}/pdf")
 def download_pdf(campaign_id: int, user_id: int,
-                 db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+                 db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Export : même périmètre que la consultation du score.
+    verifier_utilisateur(db, current_user, user_id)
     content = report_svc.generate_pdf(db, campaign_id, user_id)
     from app.models.evaluation import EvalScore
     s = db.query(EvalScore).filter(EvalScore.campaign_id == campaign_id, EvalScore.user_id == user_id).first()
@@ -156,12 +178,15 @@ def download_pdf(campaign_id: int, user_id: int,
 # ── APPELS MYSTÈRES ───────────────────────────────────────────────────────
 @router.get("/mystery/tasks")
 def list_mystery_tasks(campaign_id: Optional[int] = None,
-                       db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+                       db: Session = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
     """Liste toutes les tâches d'appels mystères d'une campagne (pour affichage après génération)."""
     from app.models.evaluation import MysteryCallTask
     q = db.query(MysteryCallTask)
     if campaign_id:
         q = q.filter(MysteryCallTask.campaign_id == campaign_id)
+    # Périmètre : uniquement les agents évalués visibles.
+    q = filtrer_par_utilisateurs(q, MysteryCallTask.target_user_id, db, current_user)
     tasks = q.all()
     return [{
         "id": t.id, "campaign_id": t.campaign_id,
@@ -191,13 +216,14 @@ def mystery_stats(campaign_id: int, db: Session = Depends(get_db), _: User = Dep
 
 @router.get("/mystery/geo-test/{campaign_id}/{agent_id}")
 def geo_test(campaign_id: int, agent_id: int,
-             db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+             db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    verifier_utilisateur(db, current_user, agent_id)
     return mystery_svc.geo_knowledge_test(db, campaign_id, agent_id)
 
 # ── DASHBOARD ─────────────────────────────────────────────────────────────
 @router.get("/dashboard")
-def dashboard(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return svc.dashboard(db)
+def dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return svc.dashboard(db, user=current_user)
 
 # ── OBJECTIFS ─────────────────────────────────────────────────────────────
 @router.post("/objectives")
@@ -229,10 +255,16 @@ def create_objective(payload: dict = Body(...), db: Session = Depends(get_db),
 
 @router.get("/objectives")
 def list_objectives(campaign_id: Optional[int] = None, user_id: Optional[int] = None,
-                    db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+                    db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    # 403 si un agent précis est demandé hors périmètre.
+    if user_id is not None:
+        verifier_utilisateur(db, current_user, user_id)
     q = db.query(EvalObjective)
     if campaign_id: q = q.filter(EvalObjective.campaign_id == campaign_id)
     if user_id: q = q.filter(EvalObjective.user_id == user_id)
+    # Périmètre : uniquement les objectifs des agents visibles.
+    q = filtrer_par_utilisateurs(q, EvalObjective.user_id, db, current_user)
     return [{"id": o.id, "campaign_id": o.campaign_id, "user_id": o.user_id,
              "criterion": o.criterion, "target_value": o.target_value,
              "actual_value": o.actual_value, "unit": o.unit,

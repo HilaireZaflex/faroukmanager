@@ -670,13 +670,15 @@ def classements(
     """Classements Top/Bottom N — M2 du CDC."""
     f_user = get_pdv_filters(current_user)
     superviseur = superviseur or f_user.get('superviseur')
+    gestionnaire = f_user.get('gestionnaire')
     zone = zone or f_user.get('zone')
     all_perfs = db.query(MonthlyPerformance).filter(
         MonthlyPerformance.annee == annee,
         MonthlyPerformance.mois == mois
     ).all()
     pdv_map = _get_pdv_map(db)
-    pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone=zone, superviseur=superviseur, type_pdv=type_pdv)
+    pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone=zone, superviseur=superviseur,
+                                 gestionnaire=gestionnaire, type_pdv=type_pdv)
 
     # Fallback si pas de données pour ce mois
     if not pairs:
@@ -688,7 +690,9 @@ def classements(
                 MonthlyPerformance.annee == latest[0],
                 MonthlyPerformance.mois == latest[1]
             ).all()
-            pairs = _filter_perfs_by_pdv(all_perfs, pdv_map)
+            # Conserver les filtres de périmètre dans le repli.
+            pairs = _filter_perfs_by_pdv(all_perfs, pdv_map, zone=zone, superviseur=superviseur,
+                                         gestionnaire=gestionnaire, type_pdv=type_pdv)
 
     top_ca, bottom_ca = _build_classement(pairs, lambda p: p.ca, n)
     top_depots, bottom_depots = _build_classement(pairs, lambda p: p.montant_depots, n)
@@ -829,9 +833,17 @@ def pdv_records(db: Session = Depends(get_db)):
 
 
 @router.get("/dashboard/network-stats")
-def network_stats(db: Session = Depends(get_db)):
-    """Statistiques globales du réseau."""
-    pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE).all()
+def network_stats(db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    """Statistiques globales du réseau (restreintes au périmètre de l'utilisateur)."""
+    from app.api.routes.auth import apply_filters_to_query  # import local : anti-cycle
+    filtres = get_pdv_filters(current_user) or {}
+    restreint = bool(filtres)
+    q_pdvs = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
+    if restreint:
+        q_pdvs = apply_filters_to_query(q_pdvs, PDV, current_user)
+    pdvs = q_pdvs.all()
+    pdv_ids = [p.id for p in pdvs]
     from sqlalchemy import desc
     latest = db.query(MonthlyPerformance.annee, MonthlyPerformance.mois).distinct().order_by(
         MonthlyPerformance.annee.desc(), MonthlyPerformance.mois.desc()
@@ -839,12 +851,18 @@ def network_stats(db: Session = Depends(get_db)):
     ca_total = 0
     ca_mois = 0
     if latest:
-        perfs = db.query(MonthlyPerformance).filter(
+        q_perfs = db.query(MonthlyPerformance).filter(
             MonthlyPerformance.annee == latest[0],
             MonthlyPerformance.mois == latest[1]
-        ).all()
+        )
+        q_ca_total = db.query(func.sum(MonthlyPerformance.ca))
+        if restreint:
+            # Périmètre : n'agréger que les PDV autorisés (liste vide → 0).
+            q_perfs = q_perfs.filter(MonthlyPerformance.pdv_id.in_(pdv_ids))
+            q_ca_total = q_ca_total.filter(MonthlyPerformance.pdv_id.in_(pdv_ids))
+        perfs = q_perfs.all()
         ca_mois = sum((getattr(p,'montant_transaction',None) or (p.montant_depots+p.montant_retraits) or p.ca or 0) for p in perfs)
-        ca_total = db.query(func.sum(MonthlyPerformance.ca)).scalar() or 0
+        ca_total = q_ca_total.scalar() or 0
 
     health_scores = [p.health_score for p in pdvs if p.health_score]
     avg_health = sum(health_scores) / len(health_scores) if health_scores else 0

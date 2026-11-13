@@ -253,6 +253,8 @@ def _construire_analyse(db: Session, cfg: Dict[str, Any], mode: str, metrique: s
     f_user = get_pdv_filters(current_user)
     zone_f = f_user.get("zone") or zone
     sup_f = f_user.get("superviseur") or superviseur
+    gest_f = f_user.get("gestionnaire")
+    gest_f = str(gest_f).strip().lower() if gest_f else None
 
     resultat: List[Dict[str, Any]] = []
     for pid, serie_perf in series.items():
@@ -262,6 +264,9 @@ def _construire_analyse(db: Session, cfg: Dict[str, Any], mode: str, metrique: s
         if zone_f and (pdv.zone or "") != zone_f:
             continue
         if sup_f and sup_f.lower() not in (pdv.superviseur or "").lower():
+            continue
+        # Périmètre gestionnaire : uniquement les PDV qu'il gère.
+        if gest_f and (pdv.gestionnaire or "").strip().lower() != gest_f:
             continue
         if type_pdv and (pdv.type_pdv.value if pdv.type_pdv else "") != type_pdv:
             continue
@@ -518,11 +523,15 @@ def synthese(
     f_user = get_pdv_filters(current_user)
     zone_f = f_user.get("zone") or zone
     sup_f = f_user.get("superviseur") or superviseur
+    gest_f = f_user.get("gestionnaire")
     q = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
     if zone_f:
         q = q.filter(PDV.zone == zone_f)
     if sup_f:
         q = q.filter(PDV.superviseur.ilike(f"%{sup_f}%"))
+    # Périmètre gestionnaire : uniquement les PDV qu'il gère (jamais tout).
+    if gest_f:
+        q = q.filter(func.lower(func.trim(PDV.gestionnaire)) == str(gest_f).strip().lower())
     pdvs = q.all()
     pdv_ids = [p.id for p in pdvs]
     pdv_map = {p.id: p for p in pdvs}
@@ -702,11 +711,15 @@ def _pdvs_scope(db: Session, current_user: User, zone=None, superviseur=None, ty
     f = get_pdv_filters(current_user)
     z = f.get("zone") or zone
     s = f.get("superviseur") or superviseur
+    g = f.get("gestionnaire")
     q = db.query(PDV).filter(PDV.statut != PDVStatut.DESACTIVE)
     if z:
         q = q.filter(PDV.zone == z)
     if s:
         q = q.filter(PDV.superviseur.ilike(f"%{s}%"))
+    # Périmètre gestionnaire : uniquement les PDV qu'il gère (jamais tout).
+    if g:
+        q = q.filter(func.lower(func.trim(PDV.gestionnaire)) == str(g).strip().lower())
     if type_pdv:
         q = q.filter(PDV.type_pdv == type_pdv)
     return q.all()

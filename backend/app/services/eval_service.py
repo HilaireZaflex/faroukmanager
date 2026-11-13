@@ -61,15 +61,45 @@ def create_campaign(db: Session, payload: dict, user_id: int) -> EvalCampaign:
     return c
 
 
-def list_campaigns(db: Session, role_type: Optional[EvalRoleType] = None,
-                   status: Optional[EvalStatus] = None) -> List[Dict[str, Any]]:
+def _campagnes_visibles(db: Session, ids_perimetre: Optional[List[int]]):
+    """Campagnes contenant au moins une ligne d'évaluation du périmètre.
+
+    `ids_perimetre` None = aucune restriction → toutes les campagnes.
+    Liste vide         → aucune campagne (jamais « tout »).
+    """
     q = db.query(EvalCampaign)
+    if ids_perimetre is None:
+        return q
+    if not ids_perimetre:
+        return q.filter(EvalCampaign.id.in_([]))
+    campagnes_autorisees = db.query(EvalScore.campaign_id).filter(
+        EvalScore.user_id.in_(ids_perimetre)
+    ).distinct()
+    return q.filter(EvalCampaign.id.in_(campagnes_autorisees))
+
+
+def list_campaigns(db: Session, role_type: Optional[EvalRoleType] = None,
+                   status: Optional[EvalStatus] = None,
+                   user: Optional[User] = None) -> List[Dict[str, Any]]:
+    # Périmètre : on ne liste QUE les campagnes contenant des scores visibles
+    # par l'utilisateur (None = aucune restriction pour admin/manager/rc/conformité).
+    from app.services.perimetre_equipe import filtrer_par_ids, ids_utilisateurs_perimetre
+    ids_perimetre = ids_utilisateurs_perimetre(db, user)
+
+    q = _campagnes_visibles(db, ids_perimetre)
     if role_type: q = q.filter(EvalCampaign.role_type == role_type)
     if status: q = q.filter(EvalCampaign.status == status)
     out = []
     for c in q.order_by(EvalCampaign.created_at.desc()).all():
-        n_scores = db.query(func.count(EvalScore.id)).filter(EvalScore.campaign_id == c.id).scalar() or 0
-        n_final = db.query(func.count(EvalScore.id)).filter(EvalScore.campaign_id == c.id, EvalScore.is_final == True).scalar() or 0
+        n_scores = filtrer_par_ids(
+            db.query(func.count(EvalScore.id)).filter(EvalScore.campaign_id == c.id),
+            EvalScore.user_id, ids_perimetre,
+        ).scalar() or 0
+        n_final = filtrer_par_ids(
+            db.query(func.count(EvalScore.id)).filter(
+                EvalScore.campaign_id == c.id, EvalScore.is_final == True),
+            EvalScore.user_id, ids_perimetre,
+        ).scalar() or 0
         out.append({
             "id": c.id, "name": c.name, "role_type": c.role_type.value,
             "period_type": c.period_type.value, "period_key": c.period_key,
@@ -83,10 +113,17 @@ def list_campaigns(db: Session, role_type: Optional[EvalRoleType] = None,
     return out
 
 
-def get_campaign(db: Session, campaign_id: int) -> Dict[str, Any]:
+def get_campaign(db: Session, campaign_id: int,
+                 user: Optional[User] = None) -> Dict[str, Any]:
     c = db.query(EvalCampaign).get(campaign_id)
     if not c: raise HTTPException(404, "Campagne introuvable")
-    scores = db.query(EvalScore).filter(EvalScore.campaign_id == campaign_id).all()
+    # Périmètre : filtre SQL sur les lignes d'évaluation autorisées.
+    from app.services.perimetre_equipe import filtrer_par_utilisateurs
+    scores_q = filtrer_par_utilisateurs(
+        db.query(EvalScore).filter(EvalScore.campaign_id == campaign_id),
+        EvalScore.user_id, db, user,
+    )
+    scores = scores_q.all()
     score_data = []
     for s in scores:
         score_data.append({
@@ -472,25 +509,41 @@ def close_campaign(db: Session, campaign_id: int) -> EvalCampaign:
     return c
 
 
-def dashboard(db: Session) -> Dict[str, Any]:
-    campaigns = db.query(EvalCampaign).all()
+def dashboard(db: Session, user: Optional[User] = None) -> Dict[str, Any]:
+    # Périmètre : campagnes ET agrégats de scores restreints aux lignes
+    # visibles par l'utilisateur (périmètre vide → 0 partout, jamais le global).
+    from app.services.perimetre_equipe import filtrer_par_ids, ids_utilisateurs_perimetre
+    ids_perimetre = ids_utilisateurs_perimetre(db, user)
+
+    campaigns = _campagnes_visibles(db, ids_perimetre).all()
     by_status = {}
     for c in campaigns:
         by_status[c.status.value] = by_status.get(c.status.value, 0) + 1
     top = []
-    for s in db.query(EvalScore).filter(EvalScore.is_final == True).order_by(
-        EvalScore.score_final.desc()).limit(10).all():
+    top_q = filtrer_par_ids(
+        db.query(EvalScore).filter(EvalScore.is_final == True).order_by(
+            EvalScore.score_final.desc()).limit(10),
+        EvalScore.user_id, ids_perimetre,
+    )
+    for s in top_q.all():
         if s.user:
             top.append({
                 "user_id": s.user_id,
                 "name": f"{s.user.prenom or ''} {s.user.nom}".strip(),
                 "role": str(s.user.role).replace("userrole.", "") if s.user else "—", "score": s.score_final, "label": s.score_label,
             })
-    avg = db.query(func.avg(EvalScore.score_final)).filter(EvalScore.is_final == True).scalar()
+    avg = filtrer_par_ids(
+        db.query(func.avg(EvalScore.score_final)).filter(EvalScore.is_final == True),
+        EvalScore.user_id, ids_perimetre,
+    ).scalar()
+    total_scores = filtrer_par_ids(
+        db.query(func.count(EvalScore.id)),
+        EvalScore.user_id, ids_perimetre,
+    ).scalar() or 0
     return {
         "total_campaigns": len(campaigns),
         "by_status": by_status,
-        "total_scores": db.query(func.count(EvalScore.id)).scalar() or 0,
+        "total_scores": total_scores,
         "avg_score_global": round(float(avg or 0), 1),
         "top_performers": top,
     }

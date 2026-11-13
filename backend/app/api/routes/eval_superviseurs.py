@@ -10,6 +10,11 @@ from app.api.routes.auth import get_current_user
 from app.models.user import User
 from app.models.eval_superviseur import EvalSuperviseur
 from app.services import eval_superviseur_service as svc
+from app.services.perimetre_equipe import (
+    filtrer_par_superviseurs,
+    superviseurs_du_perimetre,
+    verifier_superviseur,
+)
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import date
@@ -166,6 +171,8 @@ def get_kpis_mois_precedent(
 
     `disponible` indique si une évaluation existe pour le mois précédent.
     """
+    # Périmètre : un superviseur/gestionnaire ne peut pas lire un autre agent.
+    verifier_superviseur(db, current_user, superviseur)
     mois_prec = mois - 1 if mois > 1 else 12
     annee_prec = annee if mois > 1 else annee - 1
 
@@ -281,6 +288,7 @@ def rafraichir_kpis(
 @router.get("/eval-superviseurs/{superviseur}/commentaires")
 def get_commentaires(superviseur: str, annee: int = Query(...), mois: int = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Retourne les commentaires de l'évaluation d'un superviseur."""
+    verifier_superviseur(db, current_user, superviseur)
     from app.models.eval_superviseur import EvalSuperviseur
     e = db.query(EvalSuperviseur).filter(EvalSuperviseur.superviseur == superviseur, EvalSuperviseur.annee == annee, EvalSuperviseur.mois == mois).first()
     if not e: return []
@@ -323,6 +331,7 @@ def historique_superviseur(
     current_user: User = Depends(get_current_user),
 ):
     """Retourne l'évolution des scores sur les N derniers mois pour un superviseur."""
+    verifier_superviseur(db, current_user, superviseur)
     from app.models.eval_superviseur import EvalSuperviseur
     from datetime import date
 
@@ -357,11 +366,15 @@ def classement_global(
     """Retourne le classement de TOUS les superviseurs ayant validé leur évaluation (score_final calculé)."""
     from app.models.eval_superviseur import EvalSuperviseur
     # Tous les superviseurs avec un score_final calculé pour cette période
-    evals = db.query(EvalSuperviseur).filter(
+    evals_q = db.query(EvalSuperviseur).filter(
         EvalSuperviseur.annee == annee,
         EvalSuperviseur.mois == mois,
         EvalSuperviseur.score_final.isnot(None),
-    ).order_by(EvalSuperviseur.score_final.desc()).all()
+    )
+    # Périmètre : classement limité aux superviseurs autorisés.
+    evals_q = filtrer_par_superviseurs(
+        evals_q, EvalSuperviseur.superviseur, db, current_user)
+    evals = evals_q.order_by(EvalSuperviseur.score_final.desc()).all()
 
     # Objectifs de validation — critères obligatoires
     OBJECTIFS_VALIDATION = {
@@ -476,7 +489,7 @@ def liste_superviseurs(
     current_user: User = Depends(get_current_user),
 ):
     """Liste tous les superviseurs disponibles."""
-    return svc.get_liste_superviseurs(db)
+    return svc.get_liste_superviseurs(db, noms=superviseurs_du_perimetre(db, current_user))
 
 
 # ─── KPIs d'un superviseur ────────────────────────────────────────────────────
@@ -490,6 +503,7 @@ def get_kpis(
     current_user: User = Depends(get_current_user),
 ):
     """Récupère les KPIs d'un superviseur pour le mois donné."""
+    verifier_superviseur(db, current_user, superviseur)
     return svc.get_kpis_superviseur(db, superviseur, annee, mois)
 
 
@@ -605,6 +619,7 @@ def get_pdvs_a_risque(
     Croise OMY, KAABU, NAFAMA et les appels mystères pour expliquer au
     superviseur quels points de vente l'empêchent d'atteindre ses objectifs.
     """
+    verifier_superviseur(db, current_user, superviseur)
     return svc.get_pdvs_a_risque(db, superviseur, annee, mois)
 
 
@@ -617,6 +632,7 @@ def get_pdv_details(
     current_user: User = Depends(get_current_user),
 ):
     """Retourne les PDV inactifs et en baisse de CA pour le superviseur (OMY, NAFAMA, KAABU)."""
+    verifier_superviseur(db, current_user, superviseur)
     from app.models.pdv import PDV
     from app.models.performance import MonthlyPerformance
     from app.models.nafama import NafamaTransaction
@@ -744,6 +760,7 @@ def get_evaluation(
     current_user: User = Depends(get_current_user),
 ):
     """Récupère l'évaluation d'un superviseur pour le mois donné."""
+    verifier_superviseur(db, current_user, superviseur)
     e = db.query(EvalSuperviseur).filter(
         EvalSuperviseur.superviseur == superviseur,
         EvalSuperviseur.annee == annee,
@@ -1075,11 +1092,15 @@ def classement_superviseurs(
     current_user: User = Depends(get_current_user),
 ):
     """Classement de tous les superviseurs évalués pour le mois."""
-    evals = db.query(EvalSuperviseur).filter(
+    evals_q = db.query(EvalSuperviseur).filter(
         EvalSuperviseur.annee == annee,
         EvalSuperviseur.mois == mois,
         EvalSuperviseur.score_final.isnot(None),
-    ).order_by(EvalSuperviseur.score_final.desc()).all()
+    )
+    # Périmètre : classement limité aux superviseurs autorisés.
+    evals_q = filtrer_par_superviseurs(
+        evals_q, EvalSuperviseur.superviseur, db, current_user)
+    evals = evals_q.order_by(EvalSuperviseur.score_final.desc()).all()
 
     return [
         {
