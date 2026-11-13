@@ -21,6 +21,45 @@ from typing import List, Optional
 
 router = APIRouter()
 
+# Intervalle minimal entre deux écritures de `users.last_seen` pour un même
+# utilisateur : une requête authentifiée toutes les 10 minutes suffit à
+# représenter une activité réelle, sans UPDATE à chaque appel d'API.
+LAST_SEEN_THROTTLE = timedelta(minutes=10)
+
+
+def _to_naive_utc(dt):
+    """Ramène un datetime (naïf UTC ou avec timezone) en UTC naïf.
+
+    Permet de soustraire des valeurs renvoyées par PostgreSQL/SQLite sans
+    déclencher de TypeError « can't subtract offset-naive and offset-aware ».
+    """
+    if dt is None or dt.tzinfo is None:
+        return dt
+    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _touch_last_seen(user: User, db: Session) -> None:
+    """Met à jour l'activité réelle de l'utilisateur, au plus toutes les 10 min.
+
+    Réutilise la session et l'instance `User` déjà chargées par
+    `get_current_user` : aucune requête supplémentaire. Toute erreur est
+    ignorée (avec rollback pour laisser la session utilisable) : le suivi
+    d'activité ne doit jamais bloquer une requête authentifiée.
+    """
+    try:
+        now = datetime.utcnow()
+        dernier = _to_naive_utc(user.last_seen)
+        if dernier is not None and (now - dernier) <= LAST_SEEN_THROTTLE:
+            return
+        user.last_seen = now
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
     """Get current user from Authorization header"""
     if not authorization:
@@ -53,7 +92,10 @@ def get_current_user(authorization: Optional[str] = Header(None), db: Session = 
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found"
         )
-    
+
+    # Activité réelle : trace chaque requête authentifiée (throttle 10 min).
+    _touch_last_seen(user, db)
+
     return user
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
@@ -235,23 +277,19 @@ def _normaliser_role(role) -> str:
     return str(role or "").lower().replace('userrole.', '')
 
 
-def _jours_sans_connexion(last_login, now) -> Optional[int]:
-    """Nombre de jours entiers écoulés depuis last_login (None si jamais connecté)."""
-    if last_login is None:
+def _jours_sans_connexion(derniere_activite, now) -> Optional[int]:
+    """Nombre de jours entiers écoulés depuis la dernière activité (None si aucune)."""
+    derniere_activite = _to_naive_utc(derniere_activite)
+    if derniere_activite is None:
         return None
-    # Certaines bases renvoient des datetimes avec timezone : on repasse en
-    # naive UTC pour pouvoir les soustraire à datetime.utcnow().
-    if last_login.tzinfo is not None:
-        last_login = last_login.astimezone(timezone.utc).replace(tzinfo=None)
-    return max(0, (now - last_login).days)
+    return max(0, (now - derniere_activite).days)
 
 
 def _timestamp_utc(dt) -> float:
     """Timestamp POSIX comparable pour trier des datetimes naïfs (UTC) ou aware."""
     if dt is None:
         return 0.0
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    dt = _to_naive_utc(dt)
     return dt.replace(tzinfo=timezone.utc).timestamp()
 
 
@@ -260,13 +298,16 @@ def users_login_activity(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """Activité de connexion des utilisateurs (admin uniquement).
+    """Activité réelle des utilisateurs (admin uniquement).
 
     Pour chaque utilisateur : identité, rôle, téléphone personnel, état du
-    compte et ancienneté de la dernière connexion.
-    Tri : connexion la plus récente d'abord (last_login DESC NULLS LAST),
-    puis la plus ancienne, les comptes jamais connectés en dernier ;
-    à connexion identique, ordre alphabétique (nom puis prénom).
+    compte, dernière connexion par identifiants (`last_login`) et dernière
+    activité réelle (`last_seen`, écrite à chaque requête authentifiée avec
+    un throttle de 10 min).
+    La référence d'ancienneté est `derniere_activite = last_seen or last_login`.
+    Tri : activité la plus récente d'abord (NULLS LAST), puis la plus ancienne,
+    les comptes jamais vus en dernier ; à activité identique, ordre
+    alphabétique (nom puis prénom).
     Aucune donnée sensible (mot de passe, hash) n'est exposée.
     """
     now = datetime.utcnow()
@@ -274,8 +315,9 @@ def users_login_activity(
 
     lignes = []
     for u in users:
-        jours = _jours_sans_connexion(u.last_login, now)
-        jamais = u.last_login is None
+        derniere = u.last_seen or u.last_login
+        jours = _jours_sans_connexion(derniere, now)
+        jamais = derniere is None
         ligne = {
             "id": u.id,
             "nom": u.nom,
@@ -285,17 +327,19 @@ def users_login_activity(
             "telephone": u.telephone,
             "is_active": bool(u.is_active),
             "last_login": u.last_login.isoformat() if u.last_login is not None else None,
+            "last_seen": u.last_seen.isoformat() if u.last_seen is not None else None,
+            "derniere_activite": derniere.isoformat() if derniere is not None else None,
             "jours_sans_connexion": jours,
             "jamais_connecte": jamais,
         }
         # Clé de tri interne (non renvoyée) — équivalent de
-        # « ORDER BY last_login DESC NULLS LAST, nom » :
-        # 1. les comptes connectés (0) avant les jamais connectés (1) ;
-        # 2. connexion la plus récente d'abord (-timestamp) ;
+        # « ORDER BY derniere_activite DESC NULLS LAST, nom » :
+        # 1. les comptes vus (0) avant les jamais vus (1) ;
+        # 2. activité la plus récente d'abord (-timestamp) ;
         # 3. puis ordre alphabétique (nom, prénom).
         cle_tri = (
             1 if jamais else 0,
-            -_timestamp_utc(u.last_login),
+            -_timestamp_utc(derniere),
             (u.nom or "").lower(),
             (u.prenom or "").lower(),
         )

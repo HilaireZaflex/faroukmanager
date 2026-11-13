@@ -31,5 +31,9 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+    # Activité réelle : dernière requête authentifiée (JWT valide), mise à jour
+    # avec un throttle dans `get_current_user`. Distincte de `last_login`, qui
+    # n'est écrite qu'à la connexion par identifiants.
+    last_seen = Column(DateTime, nullable=True)
 
     actions = relationship("TerrainAction", back_populates="user")

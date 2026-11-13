@@ -65,10 +65,25 @@ const formatDerniereConnexion = (iso) => {
   });
 };
 
+// Date de référence de l'activité : `last_seen` (activité réelle, écrite à
+// chaque requête authentifiée) sinon `last_login` (connexion par identifiants).
+// Le backend renvoie déjà `derniere_activite` = last_seen or last_login.
+const derniereActiviteDe = (u) => u?.derniere_activite || u?.last_seen || u?.last_login || null;
+
+// Deux dates ISO représentent-elles le même instant ? (comparaison robuste
+// aux différences de format / fuseau entre `last_login` et `last_seen`)
+const memeInstant = (a, b) => {
+  if (!a || !b) return false;
+  const ta = new Date(a).getTime();
+  const tb = new Date(b).getTime();
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return false;
+  return ta === tb;
+};
+
 // « Aujourd'hui », « Hier », « il y a 3 j »… à partir des jours entiers calculés
-// côté backend (UTC).
+// côté backend (UTC) depuis la dernière activité.
 const formatRelative = (u) => {
-  if (u?.jamais_connecte || !u?.last_login) return 'Jamais connecté';
+  if (u?.jamais_connecte || !derniereActiviteDe(u)) return 'Jamais connecté';
   const jours = u.jours_sans_connexion;
   if (jours === null || jours === undefined) return '—';
   if (jours === 0) return "Aujourd'hui";
@@ -318,7 +333,7 @@ export default function ActiviteConnexionsPage() {
                     <th>Utilisateur</th>
                     <th>Rôle</th>
                     <th>Téléphone</th>
-                    <th>Dernière connexion</th>
+                    <th>Dernière activité</th>
                     <th>Jours sans connexion</th>
                     <th>Actions</th>
                   </tr>
@@ -369,7 +384,13 @@ export default function ActiviteConnexionsPage() {
                       const aTelephone = Boolean(tel);
                       const message = encodeURIComponent(construireMessageWhatsApp(u));
                       const nomComplet = nomCompletDe(u);
-                      const dateLabel = formatDerniereConnexion(u.last_login);
+                      const activiteIso = derniereActiviteDe(u);
+                      const dateLabel = formatDerniereConnexion(activiteIso);
+                      // Connexion par identifiants, seulement si elle diffère
+                      // de l'activité réelle (sinon l'info serait redondante).
+                      const connexionLabel = memeInstant(u.last_login, activiteIso)
+                        ? null
+                        : formatDerniereConnexion(u.last_login);
                       const badge = badgeJours(u);
                       const relatif = formatRelative(u);
 
@@ -411,7 +432,10 @@ export default function ActiviteConnexionsPage() {
                             {dateLabel ? (
                               <span className="ac-exact">{dateLabel}</span>
                             ) : u.jamais_connecte ? (
-                              <span className="ac-exact">Aucune connexion enregistrée</span>
+                              <span className="ac-exact">Aucune activité enregistrée</span>
+                            ) : null}
+                            {connexionLabel ? (
+                              <span className="ac-login-line">Connexion : {connexionLabel}</span>
                             ) : null}
                           </td>
                           <td>
@@ -479,7 +503,7 @@ export default function ActiviteConnexionsPage() {
           </div>
 
           <p className="ac-note">
-            Tri : dernière connexion la plus récente en premier ; les comptes jamais connectés
+            Tri : dernière activité la plus récente en premier ; les comptes jamais vus
             apparaissent en dernier. Le badge est vert jusqu'à 7 jours, orange de 8 à 30 jours,
             rouge au-delà. Le numéro utilisé est le téléphone personnel de la fiche utilisateur ;
             sans numéro, les actions sont désactivées.

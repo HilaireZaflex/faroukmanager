@@ -286,6 +286,8 @@ async def auto_migrate():
         # Téléphone sur la fiche utilisateur : indispensable pour cibler une PERSONNE
         # (les PDV ont déjà leur propre téléphone).
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS telephone VARCHAR(50)",
+        # ── Activité réelle : dernière requête authentifiée (JWT valide) ──
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP",
         # Tables de la fonctionnalité (filet de sécurité : create_all fait déjà le travail)
         """CREATE TABLE IF NOT EXISTS missions_appels (
             id SERIAL PRIMARY KEY,
@@ -392,6 +394,7 @@ async def auto_migrate():
                     "CREATE INDEX IF NOT EXISTS ix_kaabu_transactions_sous_zone ON kaabu_transactions (sous_zone)",
                     # ── Missions d'appels (parité SQLite : JSON au lieu de JSONB) ──
                     "ALTER TABLE users ADD COLUMN telephone VARCHAR(50)",
+                    "ALTER TABLE users ADD COLUMN last_seen TIMESTAMP",
                     """CREATE TABLE IF NOT EXISTS missions_appels (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         titre VARCHAR(250) NOT NULL,
