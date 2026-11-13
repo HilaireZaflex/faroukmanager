@@ -111,7 +111,7 @@ export default function MobileLayout({ children }) {
     : groupe === 'developpeur' ? 'Espace de gestion · Développeur'
     : groupe === 'commercial' ? 'Espace de gestion · Commercial'
     : estGestionnaire ? 'Espace de gestion · Gestionnaire'
-    : groupe === 'manager' ? 'Espace de gestion · Encadrement' : 'Espace de gestion';
+    : groupe === 'manager' ? 'Espace de gestion · Pilotage' : 'Espace de gestion';
   const raccourcis = (ONGLETS[groupe] || ONGLETS.autre)
     .filter(o => o.to !== '/m/prospection' || canAccess('prospection'))
     .filter(o => o.to !== '/m/prospect/nouveau' || canAccess('prospection'))

@@ -66,7 +66,7 @@ export default function MobileAccueil() {
   const titre = groupe === 'superviseur' ? 'Espace superviseur'
     : groupe === 'developpeur' ? 'Espace développeur'
     : groupe === 'commercial' ? 'Espace commercial'
-    : groupe === 'manager' ? 'Espace encadrement' : 'Farouk Manager';
+    : groupe === 'manager' ? 'Espace pilotage' : 'Farouk Manager';
 
   return (
     <div>
