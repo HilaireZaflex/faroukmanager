@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ActiviteConnexionsPage from './ActiviteConnexionsPage';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useNavigate } from 'react-router-dom';
 import { Users, Database, Shield, Bell, RefreshCw, UserPlus, Trash2, Edit3, Check, X, Eye, EyeOff, Key, Lock, Save, User, Phone, MapPin, ChevronRight } from 'lucide-react';
@@ -1345,6 +1346,7 @@ export default function SettingsPage() {
     { id:'database',       label:'Base de Donnees',          icon: Database, color:'#00d68f', reserveEncadrement: true },
     { id:'notifications',  label:'Notifications',            icon: Bell,     color:'#ffaa00' },
     { id:'localites',      label:'Zones & Localités',        icon: MapPin,   color:'#4a9eff' },
+    { id:'activite',       label:'Activité de connexion',  icon: Users,    color:'#FF6900' },
   ].filter(s => {
     if (s.adminOnly) return ['admin', 'manager'].includes(roleCourant);
     // Outils techniques (export base, recalcul des scores) : encadrement historique uniquement
@@ -1400,6 +1402,7 @@ export default function SettingsPage() {
           {activeSection === 'database'      && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Base de Donnees</h2><SectionDatabase /></>}
           {activeSection === 'notifications' && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Notifications & Alertes</h2><SectionNotifications /></>}
           {activeSection === 'localites'     && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Zones & Localités</h2><SectionLocalites /></>}
+          {activeSection === 'activite'     && <><h2 style={{ fontSize:18, fontWeight:800, marginBottom:24 }}>Activité de connexion</h2><ActiviteConnexionsPage /></>}
         </div>
       </div>
     </div>

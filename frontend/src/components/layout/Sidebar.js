@@ -242,9 +242,6 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
               {can('import')   && nl('/import',   Upload,   'Import Données')}
               {can('reports')  && nl('/reports',  FileText, 'Rapports')}
               {can('settings') && nl('/settings', Settings, 'Paramètres')}
-              {/* Activité de connexion — tout en bas de la navigation, juste
-                  après l'accès Paramètres / Zones & Localités (mêmes rôles). */}
-              {can('settings') && nl('/settings/activite', Lock, '🔐 Activité de connexion')}
             </>}
           </>
         )}
